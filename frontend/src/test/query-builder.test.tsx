@@ -605,3 +605,109 @@ describe("SavedQueriesPanel", () => {
     expect(screen.getByTestId("delete-query-btn")).toBeInTheDocument()
   })
 })
+
+describe("QueryBuilderView multi-value operators (#2055 / #2059)", () => {
+  function mockFieldsAndQuery() {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/query/fields")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_FIELDS), text: () => Promise.resolve("") })
+      }
+      if (url.includes("/api/saved-queries")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ queries: [] }), text: () => Promise.resolve("") })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RESULT), text: () => Promise.resolve("") })
+    })
+  }
+
+  function postedQueryBody(): { filter: RuleGroupModel } {
+    const call = mockFetch.mock.calls.find(([url]) => url === "/api/query")
+    expect(call, "no POST /api/query").toBeDefined()
+    return JSON.parse((call![1] as RequestInit).body as string)
+  }
+
+  it("posts a between rule built in the UI as a two-element array, not a comma string", async () => {
+    mockFieldsAndQuery()
+    const user = userEvent.setup()
+    const { container } = renderWithRoute(<QueryBuilderView />, "/query-builder?sample_id=1")
+    await waitFor(() => expect(screen.getByTestId("query-builder-panel")).toBeInTheDocument())
+
+    await user.click(screen.getByRole("button", { name: "+ Rule" }))
+    await user.selectOptions(container.querySelector("select.rule-fields")!, "gnomad_af_global")
+    await user.selectOptions(container.querySelector("select.rule-operators")!, "between")
+    const inputs = container.querySelectorAll<HTMLInputElement>("input.rule-value-list-item")
+    expect(inputs).toHaveLength(2)
+    await user.type(inputs[0], "0.1")
+    await user.type(inputs[1], "0.5")
+    await user.click(screen.getByTestId("run-query-btn"))
+
+    await waitFor(() => expect(postedQueryBody().filter.rules).toHaveLength(1))
+    expect(postedQueryBody().filter.rules[0]).toMatchObject({
+      field: "gnomad_af_global",
+      operator: "between",
+      value: ["0.1", "0.5"],
+    })
+  })
+
+  it("posts an in rule typed as a comma list as an array of trimmed values", async () => {
+    mockFieldsAndQuery()
+    const user = userEvent.setup()
+    const { container } = renderWithRoute(<QueryBuilderView />, "/query-builder?sample_id=1")
+    await waitFor(() => expect(screen.getByTestId("query-builder-panel")).toBeInTheDocument())
+
+    await user.click(screen.getByRole("button", { name: "+ Rule" }))
+    await user.selectOptions(container.querySelector("select.rule-fields")!, "chrom")
+    await user.selectOptions(container.querySelector("select.rule-operators")!, "in")
+    await user.type(container.querySelector<HTMLInputElement>("input.rule-value")!, "17, 7")
+    await user.click(screen.getByTestId("run-query-btn"))
+
+    await waitFor(() => expect(postedQueryBody().filter.rules).toHaveLength(1))
+    expect(postedQueryBody().filter.rules[0]).toMatchObject({
+      field: "chrom",
+      operator: "in",
+      value: ["17", "7"],
+    })
+  })
+
+  it("loads a saved in rule whose value contains a comma and posts it back unchanged", async () => {
+    const savedFilter: RuleGroupModel = {
+      combinator: "and",
+      not: false,
+      rules: [
+        { field: "clinvar_significance", operator: "in", value: ["Pathogenic, low penetrance", "Likely pathogenic"] },
+      ],
+    }
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/query/fields")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_FIELDS), text: () => Promise.resolve("") })
+      }
+      if (url.includes("/api/saved-queries")) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              queries: [{ name: "Low penetrance", filter: savedFilter, created_at: "2026-09-06T00:00:00Z", updated_at: "2026-09-06T00:00:00Z" }],
+            }),
+          text: () => Promise.resolve(""),
+        })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_RESULT), text: () => Promise.resolve("") })
+    })
+    const user = userEvent.setup()
+    const { container } = renderWithRoute(<QueryBuilderView />, "/query-builder?sample_id=1")
+    await waitFor(() => expect(screen.getByTestId("load-query-btn")).toBeInTheDocument())
+
+    await user.click(screen.getByTestId("load-query-btn"))
+    const input = container.querySelector<HTMLInputElement>("input.rule-value")!
+    // The editor shows the library's escaped list syntax, so the comma inside the value survives an edit.
+    await waitFor(() => expect(input.value).toBe("Pathogenic\\, low penetrance,Likely pathogenic"))
+    await user.type(input, ",Uncertain significance")
+    await user.click(screen.getByTestId("run-query-btn"))
+
+    await waitFor(() => expect(postedQueryBody().filter.rules).toHaveLength(1))
+    expect(postedQueryBody().filter.rules[0]).toMatchObject({
+      field: "clinvar_significance",
+      operator: "in",
+      value: ["Pathogenic, low penetrance", "Likely pathogenic", "Uncertain significance"],
+    })
+  })
+})

@@ -1203,6 +1203,57 @@ class TestQueryEndpoint:
         chroms = {item["chrom"] for item in data["items"]}
         assert chroms == {"17", "7"}
 
+    def test_not_in_filter_excludes_only_the_listed_chromosomes(self, client) -> None:
+        """The third multi-value operator round-trips through the API with an array (#2059)."""
+        tc, sid = client
+        everything = tc.post(
+            "/api/query",
+            json={"sample_id": sid, "filter": {"combinator": "and", "rules": []}},
+        ).json()["items"]
+        assert everything
+        resp = tc.post(
+            "/api/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": "chrom", "operator": "notIn", "value": ["17", "7"]}],
+                },
+            },
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert all(item["chrom"] not in {"17", "7"} for item in items)
+        assert {item["rsid"] for item in items} == {
+            item["rsid"] for item in everything if item["chrom"] not in {"17", "7"}
+        }
+
+    @pytest.mark.parametrize(
+        ("operator", "field", "value", "detail"),
+        [
+            ("between", "cadd_phred", "20,30", "requires a two-element array"),
+            ("in", "chrom", "17,7", "requires an array value"),
+            ("notIn", "chrom", "17,7", "requires an array value"),
+        ],
+    )
+    def test_multi_value_operator_rejects_comma_string(
+        self, client, operator: str, field: str, value: str, detail: str
+    ) -> None:
+        """The legacy comma-joined shape is refused with a clear 422, never guessed at."""
+        tc, sid = client
+        resp = tc.post(
+            "/api/query",
+            json={
+                "sample_id": sid,
+                "filter": {
+                    "combinator": "and",
+                    "rules": [{"field": field, "operator": operator, "value": value}],
+                },
+            },
+        )
+        assert resp.status_code == 422
+        assert detail in resp.json()["detail"]
+
     def test_null_filter(self, client) -> None:
         tc, sid = client
         resp = tc.post(

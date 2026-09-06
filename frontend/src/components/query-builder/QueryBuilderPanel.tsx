@@ -2,6 +2,14 @@
  *
  * Wraps the react-querybuilder component with field metadata from
  * GET /api/query/fields and custom styling matching the app's design.
+ *
+ * ``listsAsArrays`` makes the two-input ``between`` editor store its value as
+ * an array rather than the library's default comma-joined string, which is the
+ * shape the backend translator requires (issues #2055 / #2059). The single
+ * text editor used for ``in`` / ``notIn`` still stores one string; every
+ * request is passed through ``normalizeFilterForApi`` at the API layer, which
+ * splits it with the library's escape-aware list syntax, and a saved filter
+ * re-entering the editor goes through ``toEditorFilter``.
  */
 
 import { useMemo } from "react"
@@ -127,6 +135,7 @@ export default function QueryBuilderPanel({
         }}
         addRuleToNewGroups
         showNotToggle
+        listsAsArrays
       />
     </div>
   )

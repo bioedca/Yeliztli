@@ -1,7 +1,7 @@
 /** Types for the query builder UI (P4-02). */
 
 /** A single rule from react-querybuilder. */
-interface RuleModel {
+export interface RuleModel {
   field: string
   operator: string
   value?: unknown
