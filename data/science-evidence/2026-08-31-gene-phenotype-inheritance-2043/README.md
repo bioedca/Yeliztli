@@ -71,7 +71,8 @@ reduction. That is the whole supported statement about the literature.
 **What would close it.** A second IL10 (ligand) loss-of-function cohort whose independence from
 `PMID:22549091` is documented across all three dimensions the contract names — no shared patients,
 no shared dataset, and a genotype–phenotype observation that does not derive from the other paper's
-assertion — author disjointness being necessary but not sufficient; or patient-level evidence that the
+assertion. Shared authors are a reason to examine lineage, not a blocker in themselves: a
+second paper may share an investigator and still be independent on all three dimensions; or patient-level evidence that the
 IL10-mutant patients in `PMID:24216686` are not those in `PMID:22549091` plus the same dataset and
 upstream assessment; or a maintainer decision that the entity-level MONDO assertion is sufficient for
 a gene-keyed row. Filed as a scientific-validity issue rather than left as a silent blank.

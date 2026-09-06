@@ -362,8 +362,10 @@ def test_every_row_declares_or_is_listed_as_unverified() -> None:
     assert not missing, (
         "rows with a blank `inheritance` that are not listed as unverified:\n"
         + "\n".join(missing)
-        + "\n\nEither supply the pattern (verified against an authoritative source) or add "
-        "the (gene_symbol, disease_id) pair to _UNVERIFIED_BLANK_INHERITANCE."
+        + "\n\nEither supply the pattern -- only with two agreeing sources whose cohort, "
+        "dataset and upstream-assertion independence is documented in an evidence packet "
+        "(the field is user-facing; one source is not enough) -- or keep the row withheld "
+        "by adding the (gene_symbol, disease_id) pair to _UNVERIFIED_BLANK_INHERITANCE."
     )
 
 
