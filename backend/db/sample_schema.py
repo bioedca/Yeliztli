@@ -346,6 +346,45 @@ _RSID_DOUBLING_MODULES = frozenset(
 _DOUBLED_RSID_CALL = re.compile(r"\((rs\d+) \1 ([^\s;)]+)(?=[;)])")
 
 
+# Modules whose per-SNP finding text went through the naive "<gene> <variant_name>"
+# template before #2044; the v27 repair is scoped to exactly these.
+_GENE_DOUBLING_MODULES: frozenset[str] = frozenset(
+    {
+        "allergy",
+        "fitness",
+        "gene_health",
+        "methylation",
+        "nutrigenomics",
+        "skin",
+        "sleep",
+        "traits",
+    }
+)
+
+
+def _dedoubled_gene_finding_text(gene: object, text: object) -> str | None:
+    """The v28 repair: drop a leading gene token the variant name already carries.
+
+    Returns the repaired text, or ``None`` when the row is not the exact
+    pre-#2044 shape: the text must start with ``f"{gene} "`` and the remainder
+    must be something ``variant_label`` would leave alone -- it already leads with
+    the gene, a composite component or a joined composite form at a word
+    boundary. Descriptor-only names ("MTHFR C677T"), prefix-sharing genes
+    ("IL2 IL2RA intron 1") and already-correct text all return ``None``.
+    """
+    from backend.analysis.pathway_coverage import variant_label
+
+    if not isinstance(gene, str) or not isinstance(text, str) or not gene.strip():
+        return None
+    prefix = f"{gene} "
+    if not text.startswith(prefix):
+        return None
+    rest = text[len(prefix) :]
+    if not rest or variant_label(gene, rest) != rest:
+        return None
+    return rest
+
+
 def _dedoubled_rsid_finding_text(
     finding_text: object,
     stored_rsids: object,
@@ -441,7 +480,9 @@ def _dedoubled_rsid_diff_entry(entry: object) -> dict[str, object] | None:
 # v27: Repair persisted risk-genotype findings and finding-diff entries whose text
 #      repeated the rsID in front of its own call — "(rs1061170 rs1061170 CC)" —
 #      from the nineteen templates corrected by issue #2051.
-SAMPLE_SCHEMA_VERSION = 27
+# v28: Repair persisted categorical-module finding text that printed the gene twice
+#      ("FTO FTO intron 1") because the variant name already led with it (#2044).
+SAMPLE_SCHEMA_VERSION = 28
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -1852,6 +1893,117 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 "legacy_risk_genotype_rsid_doubling_repaired",
                 findings_count=repaired_findings,
                 finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 28:
+        # Issue #2044: eight categorical modules built per-SNP finding text as
+        # f"{gene} {variant_name} ..." while about half of the curated variant
+        # names already lead with their gene, so persisted rows read
+        # "FTO FTO intron 1 (AA) — ...". The module GET handlers return the
+        # stored text verbatim and sample freshness compares only the VEP bundle
+        # major, so fixing the formatter repairs nothing an existing sample shows.
+        # Repair exactly the rows whose text starts with the gene followed by a
+        # remainder that variant_label() would itself leave alone -- the
+        # remainder already leads with the gene, a composite component or a
+        # joined composite form at a word boundary -- by dropping that first
+        # gene token. Descriptor-only names ("MTHFR C677T"), prefix-sharing genes
+        # ("IL2 IL2RA intron 1"), already-correct text, other modules, NULL
+        # genes and malformed rows are untouched. The finding-change banner gets
+        # the same exact rewrite without changing its counts, in one transaction
+        # with the rows.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        can_repair_findings = {"id", "module", "gene_symbol", "finding_text"} <= findings_cols
+        can_repair_diff = {"key", "value"} <= state_cols
+        repaired_findings = 0
+        repaired_diff_entries = 0
+        if can_repair_findings or can_repair_diff:
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    if can_repair_findings:
+                        candidates = conn.execute(
+                            sa.select(
+                                findings.c.id, findings.c.gene_symbol, findings.c.finding_text
+                            )
+                            .where(
+                                findings.c.module.in_(_GENE_DOUBLING_MODULES),
+                                findings.c.gene_symbol.is_not(None),
+                            )
+                            .order_by(findings.c.id)
+                        ).fetchall()
+                        for row in candidates:
+                            updated = _dedoubled_gene_finding_text(
+                                row.gene_symbol, row.finding_text
+                            )
+                            if updated is None:
+                                continue
+                            result = conn.execute(
+                                findings.update()
+                                .where(
+                                    findings.c.id == row.id,
+                                    findings.c.gene_symbol == row.gene_symbol,
+                                    findings.c.finding_text == row.finding_text,
+                                )
+                                .values(finding_text=updated)
+                            )
+                            repaired_findings += max(result.rowcount or 0, 0)
+                    if can_repair_diff:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+                            if isinstance(diff, dict):
+                                for bucket in ("changed", "added", "removed"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    for entry in entries:
+                                        if (
+                                            not isinstance(entry, dict)
+                                            or entry.get("module") not in _GENE_DOUBLING_MODULES
+                                        ):
+                                            continue
+                                        updated = _dedoubled_gene_finding_text(
+                                            entry.get("gene_symbol"), entry.get("finding_text")
+                                        )
+                                        if updated is None:
+                                            continue
+                                        entry["finding_text"] = updated
+                                        repaired_diff_entries += 1
+                                if repaired_diff_entries:
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(annotation_state.c.key == _FINDING_DIFF_STATE_KEY)
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+        if repaired_findings or repaired_diff_entries:
+            added = True
+            logger.warning(
+                "doubled_gene_finding_text_repaired",
+                findings=repaired_findings,
+                diff_entries=repaired_diff_entries,
                 from_version=from_version,
             )
 

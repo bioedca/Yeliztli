@@ -163,7 +163,7 @@ def test_v26_rescreens_the_exact_false_clean_negative(sample_engine: sa.Engine) 
     assert rows[0]["conditions"] == f"Sex-chromosome aneuploidy screen: {MANUAL_REVIEW}"
     assert "needs manual review" in rows[0]["finding_text"]
     assert "No XXY" not in rows[0]["finding_text"]
-    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 27
+    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 28
 
     with sample_engine.connect() as conn:
         diff = json.loads(
@@ -236,7 +236,7 @@ def test_v26_leaves_legitimate_and_unrelated_stored_results_untouched(
             )
         ).scalar_one()
     assert after_banner == banner, "a legitimate negative keeps its banner entry"
-    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 27
+    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 28
 
 
 def test_v26_quarantines_when_the_row_cannot_be_rescreened(sample_engine: sa.Engine) -> None:
