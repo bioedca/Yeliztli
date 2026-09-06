@@ -51,17 +51,23 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.ingestion.chrom_order import chrom_sort_key
 
 # Discordant rows are split across three chromosomes whose lexicographic
-# order matches their numeric order ("1" < "2" < "3"), so the ORDER BY
-# assertion does not have to reason about SQLite's TEXT-sort semantics.
+# (TEXT) order differs from the canonical genomic order: SQLite's text sort
+# yields "10" < "2" < "X", the canonical order is 2, 10, X. That is the
+# discrimination the ordering assertions need — a raw ``chrom.asc()``
+# ORDER BY fails them and the canonical CASE ordering passes (issue #2053).
 # 60 discordant rows > the default ``limit=50``, which gives the default-
 # limit, offset-past-total, and ordering-with-offset cases all enough
 # data to drive a non-trivial slice.
-_CHROMS = ("1", "2", "3")
+_CHROMS = ("2", "10", "X")
 _POSITIONS_PER_CHROM = tuple(range(100, 2100, 100))  # 20 positions / chrom
 _DISCORDANT_TOTAL = len(_CHROMS) * len(_POSITIONS_PER_CHROM)
 assert _DISCORDANT_TOTAL == 60
+# The fixture must stay discriminating: chromosomes whose text order equals
+# their canonical order would let the ordering tests pass under either sort.
+assert sorted(_CHROMS) != sorted(_CHROMS, key=chrom_sort_key)
 
 # Every other discordant locus carries an ``annotated_variants`` row so
 # the LEFT JOIN's populated and NULL branches both fire on a known half
@@ -263,10 +269,10 @@ def pagination_client(tmp_data_dir: Path):
 
 
 def _expected_ordered_keys() -> list[tuple[str, int]]:
-    """The (chrom, pos) pairs the route must return, in ascending order."""
+    """The (chrom, pos) pairs the route must return, in canonical genomic order."""
     return sorted(
         ((r["chrom"], r["pos"]) for r in _DISCORDANT_ROWS),
-        key=lambda k: (k[0], k[1]),
+        key=lambda k: (chrom_sort_key(k[0]), k[1]),
     )
 
 
@@ -332,6 +338,10 @@ class TestOrdering:
         assert resp.status_code == 200, resp.text
         got = [(row["chrom"], row["pos"]) for row in resp.json()["discordant_loci"]]
         assert got == _expected_ordered_keys()
+        # Canonical order is not TEXT order: chr2 precedes chr10, and X comes last.
+        assert got != sorted(got)
+        chroms = [chrom for chrom, _ in got]
+        assert chroms.index("2") < chroms.index("10") < chroms.index("X")
 
     def test_ordering_holds_for_a_mid_window_offset(self, pagination_client: TestClient) -> None:
         """The ORDER BY must apply BEFORE LIMIT/OFFSET, so the second
