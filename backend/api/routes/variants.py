@@ -296,23 +296,37 @@ def _chrom_order_expr(table: sa.Table) -> sa.Case:
     )
 
 
+def _prefix_range(column: sa.ColumnElement, prefix: str) -> sa.ColumnElement:
+    """``column`` starts with ``prefix``, as an index-usable range under BINARY collation.
+
+    ``LIKE 'prefix%'`` is case-insensitive in SQLite and therefore cannot use the
+    BINARY-collated indexes on ``rsid`` and ``gene_symbol``; a half-open range on
+    the already-normalised prefix can. ``\uffff`` sorts after every character
+    these identifiers use, so the upper bound closes the prefix without an
+    escape step — the bounds are literal values, not patterns.
+    """
+    return sa.and_(column >= prefix, column < prefix + "\uffff")
+
+
 def _build_search_clause(table: sa.Table, search: str | None) -> sa.ColumnElement | None:
     """WHERE clause for the Variant Explorer search box (issue #2058).
 
-    Matches an rsID prefix or a gene-symbol prefix, case-insensitively, over the
-    whole table — the same server-side scope as the command palette's variant
-    search — so a term is found whether or not its rows have been paged in. LIKE
-    metacharacters in the term are escaped so they match literally. Pre-annotation
-    samples read from ``raw_variants``, which has no ``gene_symbol`` column, so the
-    gene branch is only added when the column exists.
+    Matches an rsID prefix or a gene-symbol prefix over the whole table — the
+    same server-side scope as the command palette's variant search — so a term
+    is found whether or not its rows have been paged in. Case is normalised the
+    way the palette does it: rsIDs are canonical lower-case (``rs429358``) and
+    HGNC symbols upper-case (``BRCA1``, ``HLA-A``), so the term is lowered for
+    the rsID branch and uppered for the gene branch, and each branch is an
+    index range rather than a table scan (SQLite unions the two index lookups).
+    Pre-annotation samples read from ``raw_variants``, which has no
+    ``gene_symbol`` column, so the gene branch is only added when it exists.
     """
     term = (search or "").strip()
     if not term:
         return None
-    pattern = f"{_escape_like(term)}%"
-    clauses = [table.c.rsid.like(pattern, escape="\\")]
+    clauses = [_prefix_range(table.c.rsid, term.lower())]
     if hasattr(table.c, "gene_symbol"):
-        clauses.append(table.c.gene_symbol.like(pattern, escape="\\"))
+        clauses.append(_prefix_range(table.c.gene_symbol, term.upper()))
     return sa.or_(*clauses)
 
 

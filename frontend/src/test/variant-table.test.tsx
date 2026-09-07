@@ -342,6 +342,14 @@ describe("VariantTable", () => {
     const input = screen.getByLabelText("Search variants by rsid or gene")
     await user.type(input, "rs1")
     expect(chr2()).toBeDisabled()
+    // The reason is visible text, not only a hover title, because a disabled
+    // button leaves the tab order.
+    const note = screen.getByTestId("chromosome-nav-paused")
+    expect(note).toHaveTextContent("Clear the search to jump to a chromosome")
+    expect(screen.getByRole("toolbar", { name: "Chromosome navigation" })).toHaveAttribute(
+      "aria-describedby",
+      "chromosome-nav-paused",
+    )
     expect(chr2()).toHaveAttribute("title", "Clear the search to jump to a chromosome")
     await user.click(chr2())
     await waitFor(() =>
@@ -355,6 +363,7 @@ describe("VariantTable", () => {
     await user.clear(input)
     await waitFor(() => expect(chr2()).toBeEnabled())
     expect(chr2()).toHaveAttribute("title", "Chromosome 2: 45,000 variants")
+    expect(screen.queryByTestId("chromosome-nav-paused")).not.toBeInTheDocument()
   })
 
   it("debounces keystrokes into one search request and restores the unsearched view on clear", async () => {

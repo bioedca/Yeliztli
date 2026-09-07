@@ -19,7 +19,9 @@ interface ChromosomeNavProps {
   /** Callback when a chromosome button is clicked. */
   onJumpToChrom: (chrom: string) => void
   /**
-   * When set, every jump button is disabled and shows this text as its title —
+   * When set, every jump button is disabled and the text is rendered as a
+   * visible note beside the bar (a disabled button leaves the tab order, so a
+   * hover-only title would hide the reason from keyboard and touch users) —
    * used while a search term is active, because a search spans the whole
    * sample and a jump would only take effect once the term is cleared (#2058).
    */
@@ -72,9 +74,20 @@ export default function ChromosomeNav({
     <div
       className="flex items-center gap-1 px-4 py-1.5 border-b border-border bg-card overflow-x-auto" tabIndex={0}
       aria-label="Chromosome navigation"
+      aria-describedby={disabledReason ? "chromosome-nav-paused" : undefined}
       role="toolbar"
     >
       <span className="text-xs text-muted-foreground mr-2 shrink-0 font-medium">Chr</span>
+      {disabledReason && (
+        <span
+          id="chromosome-nav-paused"
+          role="status"
+          data-testid="chromosome-nav-paused"
+          className="text-xs text-muted-foreground mr-2 shrink-0"
+        >
+          {disabledReason}
+        </span>
+      )}
       {CHROMOSOMES.map((chrom) => {
         const count = countMap.get(chrom) ?? 0
         const hasData = count > 0

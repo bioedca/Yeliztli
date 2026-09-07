@@ -405,7 +405,7 @@ class TestSearch:
         assert self._rsids(response) == ["rs100", "rs1000"]
 
     @pytest.mark.parametrize("term", ["rs%", "rs_00", "rs1\\"])
-    def test_like_metacharacters_match_literally(self, client_with_sample, term):
+    def test_pattern_characters_match_literally(self, client_with_sample, term):
         client, sid = client_with_sample
         response = client.get("/api/variants", params={"sample_id": sid, "search": term})
         assert self._rsids(response) == []
@@ -433,6 +433,33 @@ class TestSearch:
         response = client.get(f"/api/variants/count?sample_id={sid}&search=rs10")
         assert response.status_code == 200
         assert response.json() == {"total": 4, "filtered": True}
+
+    @pytest.mark.parametrize("term", ["BRCA", "rs10", "Rs4"])
+    def test_search_uses_the_indexes_rather_than_scanning(self, term):
+        """Each branch of the search is an index range, so a 677k-row sample is
+        not scanned three times per debounced keystroke (list, count and
+        unannotated count). Asserted on SQLite's own query plan: the planner's
+        choice depends only on the schema's indexes and collations, so an
+        in-memory copy of the sample schema is enough."""
+        from backend.api.routes.variants import _build_order_by, _build_search_clause
+
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        query = (
+            sa.select(annotated_variants.c.rsid)
+            .where(_build_search_clause(annotated_variants, term))
+            .order_by(*_build_order_by(annotated_variants))
+            .limit(51)
+        )
+        compiled = str(query.compile(engine, compile_kwargs={"literal_binds": True}))
+        with engine.connect() as conn:
+            steps = [row[-1] for row in conn.exec_driver_sql(f"EXPLAIN QUERY PLAN {compiled}")]
+        engine.dispose()
+        joined = "\n".join(steps)
+        assert any("USING INDEX" in step or "USING COVERING INDEX" in step for step in steps), (
+            joined
+        )
+        assert not any(step.startswith("SCAN") for step in steps), joined
 
     def test_gene_symbol_prefix_matches_on_an_annotated_sample(self, client_with_annotated_sample):
         client, sid = client_with_annotated_sample
