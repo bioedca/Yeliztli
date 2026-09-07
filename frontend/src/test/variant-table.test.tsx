@@ -331,6 +331,32 @@ describe("VariantTable", () => {
     expect(screen.queryByText(/No variants match/i)).not.toBeInTheDocument()
   })
 
+  it("disables chromosome jumps while a search term is active and restores them on clear (#2058)", async () => {
+    setupFetchMock(makeVariantPage(2), makeCountResponse(2))
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+    const chr2 = () => screen.getByRole("button", { name: /^jump to chromosome 2,/i })
+    await waitFor(() => expect(chr2()).toBeEnabled())
+
+    const input = screen.getByLabelText("Search variants by rsid or gene")
+    await user.type(input, "rs1")
+    expect(chr2()).toBeDisabled()
+    expect(chr2()).toHaveAttribute("title", "Clear the search to jump to a chromosome")
+    await user.click(chr2())
+    await waitFor(() =>
+      expect(mockFetch.mock.calls.some(([url]) => (url as string).includes("search=rs1"))).toBe(true),
+    )
+    // The suspended jump never became a cursor on the search request.
+    expect(
+      mockFetch.mock.calls.some(([url]) => (url as string).includes("search=rs1") && (url as string).includes("cursor_chrom")),
+    ).toBe(false)
+
+    await user.clear(input)
+    await waitFor(() => expect(chr2()).toBeEnabled())
+    expect(chr2()).toHaveAttribute("title", "Chromosome 2: 45,000 variants")
+  })
+
   it("debounces keystrokes into one search request and restores the unsearched view on clear", async () => {
     setupFetchMock(makeVariantPage(2), makeCountResponse(2))
     const user = userEvent.setup()

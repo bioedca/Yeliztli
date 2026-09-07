@@ -389,12 +389,20 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // Jump to a chromosome: reset infinite query by changing startChrom
   const tableContainerRef = useRef<HTMLElement>(null)
 
+  // A search spans the whole sample, so chromosome jumps are suspended while a
+  // term is typed (the nav is disabled with this reason) and ignored if one
+  // arrives anyway; a jump made before the search resumes when it is cleared.
+  const searchActive = searchQuery.trim().length > 0
+  const jumpDisabledReason = searchActive
+    ? "Clear the search to jump to a chromosome"
+    : undefined
   const handleJumpToChrom = useCallback(
     (chrom: string) => {
+      if (searchActive) return
       setStartChrom(chrom)
       tableContainerRef.current?.scrollTo({ top: 0, behavior: "instant" })
     },
-    [],
+    [searchActive],
   )
 
   // Flatten pages into a single array
@@ -506,6 +514,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
         isLoading={chromCountsLoading}
         activeChrom={activeChrom}
         onJumpToChrom={handleJumpToChrom}
+        disabledReason={jumpDisabledReason}
       />
 
       <VariantToolbar

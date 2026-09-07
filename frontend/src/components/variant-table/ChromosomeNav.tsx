@@ -18,6 +18,12 @@ interface ChromosomeNavProps {
   activeChrom: string | null
   /** Callback when a chromosome button is clicked. */
   onJumpToChrom: (chrom: string) => void
+  /**
+   * When set, every jump button is disabled and shows this text as its title —
+   * used while a search term is active, because a search spans the whole
+   * sample and a jump would only take effect once the term is cleared (#2058).
+   */
+  disabledReason?: string
 }
 
 export default function ChromosomeNav({
@@ -25,6 +31,7 @@ export default function ChromosomeNav({
   isLoading,
   activeChrom,
   onJumpToChrom,
+  disabledReason,
 }: ChromosomeNavProps) {
   // Build a lookup map: chrom -> count
   const countMap = useMemo(() => {
@@ -71,6 +78,7 @@ export default function ChromosomeNav({
       {CHROMOSOMES.map((chrom) => {
         const count = countMap.get(chrom) ?? 0
         const hasData = count > 0
+        const canJump = hasData && !disabledReason
         const isActive = activeChrom === chrom
         // Relative intensity: opacity scales with count proportion
         const intensity = hasData && maxCount > 0 ? Math.max(0.15, count / maxCount) : 0
@@ -79,12 +87,14 @@ export default function ChromosomeNav({
           <button
             key={chrom}
             type="button"
-            onClick={() => hasData && onJumpToChrom(chrom)}
-            disabled={!hasData}
+            onClick={() => canJump && onJumpToChrom(chrom)}
+            disabled={!canJump}
             title={
-              hasData
-                ? `Chromosome ${chrom}: ${count.toLocaleString()} variants`
-                : `Chromosome ${chrom}: no variants`
+              hasData && disabledReason
+                ? disabledReason
+                : hasData
+                  ? `Chromosome ${chrom}: ${count.toLocaleString()} variants`
+                  : `Chromosome ${chrom}: no variants`
             }
             aria-label={`Jump to chromosome ${chrom}${hasData ? `, ${count.toLocaleString()} variants` : ""}`}
             aria-current={isActive ? "location" : undefined}
