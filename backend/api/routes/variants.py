@@ -296,6 +296,41 @@ def _chrom_order_expr(table: sa.Table) -> sa.Case:
     )
 
 
+def _prefix_range(column: sa.ColumnElement, prefix: str) -> sa.ColumnElement:
+    """``column`` starts with ``prefix``, case-insensitively, as an index range.
+
+    ``LIKE 'prefix%'`` cannot use SQLite's BINARY-collated indexes, and a range
+    on a case-normalised term would miss a stored value in another case. The
+    half-open range is evaluated under the ``NOCASE`` collation, which the
+    sample schema indexes for ``rsid`` and ``gene_symbol`` (#2058), so both the
+    comparison and the index lookup are case-insensitive. ``\uffff`` sorts after
+    every character these identifiers use, so the upper bound closes the prefix
+    without an escape step — the bounds are literal values, not patterns.
+    """
+    collated = column.collate("NOCASE")
+    return sa.and_(collated >= prefix, collated < prefix + "\uffff")
+
+
+def _build_search_clause(table: sa.Table, search: str | None) -> sa.ColumnElement | None:
+    """WHERE clause for the Variant Explorer search box (issue #2058).
+
+    Matches an rsID prefix or a gene-symbol prefix, case-insensitively on both
+    the term and the stored value, over the whole table — the same server-side
+    scope as the command palette's variant search — so a term is found whether
+    or not its rows have been paged in. Each branch is a NOCASE index range,
+    which SQLite unions, rather than a table scan. Pre-annotation samples read
+    from ``raw_variants``, which has no ``gene_symbol`` column, so the gene
+    branch is only added when it exists.
+    """
+    term = (search or "").strip()
+    if not term:
+        return None
+    clauses = [_prefix_range(table.c.rsid, term)]
+    if hasattr(table.c, "gene_symbol"):
+        clauses.append(_prefix_range(table.c.gene_symbol, term))
+    return sa.or_(*clauses)
+
+
 def _build_cursor_clause(
     table: sa.Table,
     cursor_chrom: str | None,
@@ -404,6 +439,10 @@ def list_variants(
     limit: int = Query(50, ge=1, le=500, description="Page size"),
     filter: str | None = Query(None, description="Filters as key:value,key:value"),
     tag: str | None = Query(None, description="Filter by tag name"),
+    search: str | None = Query(
+        None,
+        description="rsID or gene-symbol prefix (case-insensitive), matched over the whole sample",
+    ),
 ) -> VariantPage:
     """Return a page of variants using cursor-based keyset pagination.
 
@@ -457,6 +496,11 @@ def list_variants(
             .where(tags.c.name == tag)
         )
         query = query.where(table.c.rsid.in_(tag_subq))
+
+    # Search box: rsID / gene-symbol prefix over the whole table (#2058)
+    search_clause = _build_search_clause(table, search)
+    if search_clause is not None:
+        query = query.where(search_clause)
 
     # Apply cursor
     cursor_clause = _build_cursor_clause(table, cursor_chrom, cursor_pos)
@@ -513,6 +557,10 @@ def variant_count(
     sample_id: int = Query(..., description="Sample ID to count variants for"),
     filter: str | None = Query(None, description="Filters as key:value,key:value"),
     tag: str | None = Query(None, description="Filter by tag name"),
+    search: str | None = Query(
+        None,
+        description="rsID or gene-symbol prefix (case-insensitive), matched over the whole sample",
+    ),
 ) -> VariantCount:
     """Return the total variant count, optionally filtered.
 
@@ -547,10 +595,17 @@ def variant_count(
         )
         query = query.where(table.c.rsid.in_(tag_subq))
 
+    # Search box: same clause as the list endpoint so the count matches the rows (#2058)
+    search_clause = _build_search_clause(table, search)
+    if search_clause is not None:
+        query = query.where(search_clause)
+
     with sample_engine.connect() as conn:
         total = conn.execute(query).scalar() or 0
 
-    return VariantCount(total=total, filtered=bool(filter_clauses or tag))
+    return VariantCount(
+        total=total, filtered=bool(filter_clauses or tag or search_clause is not None)
+    )
 
 
 @router.get("/chromosomes")

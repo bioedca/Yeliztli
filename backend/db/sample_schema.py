@@ -471,6 +471,43 @@ def _uncertain_ancestry_warning_without_admixture(warning: object) -> str | None
     return _UNCERTAIN_ANCESTRY_WARNING_PREFIX + match.group("tail")
 
 
+# Issue #2058: the Variant Explorer search box matches an rsID or gene-symbol
+# prefix case-insensitively over the whole sample. The primary-key and gene
+# indexes are BINARY-collated, so a case-insensitive range cannot use them; these
+# NOCASE indexes give each branch of the search an index range. They are part of
+# the table metadata for fresh sample DBs and created here for existing ones and
+# for merged samples, whose ``raw_variants`` is materialised from raw DDL.
+_SEARCH_INDEXES: tuple[tuple[str, str, str], ...] = (
+    ("raw_variants", "rsid", "idx_raw_rsid_nocase"),
+    ("annotated_variants", "rsid", "idx_annot_rsid_nocase"),
+    ("annotated_variants", "gene_symbol", "idx_annot_gene_nocase"),
+)
+
+
+def _ensure_search_indexes(engine: sa.Engine) -> bool:
+    """Create any missing NOCASE search index; return whether one was created.
+
+    A table or column that does not exist (a partial legacy database) is
+    skipped rather than failing the whole schema upgrade.
+    """
+    inspector = sa.inspect(engine)
+    tables = set(inspector.get_table_names())
+    created = False
+    for table, column, name in _SEARCH_INDEXES:
+        if table not in tables:
+            continue
+        if column not in {c["name"] for c in inspector.get_columns(table)}:
+            continue
+        if name in {index["name"] for index in inspector.get_indexes(table)}:
+            continue
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                f'CREATE INDEX IF NOT EXISTS "{name}" ON "{table}" ("{column}" COLLATE NOCASE)'
+            )
+        created = True
+    return created
+
+
 # Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
@@ -520,7 +557,10 @@ def _uncertain_ancestry_warning_without_admixture(warning: object) -> str | None
 #      ("FTO FTO intron 1") because the variant name already led with it (#2044).
 # v29: Repair persisted PRS ancestry caveats that said ancestry could not be
 #      inferred and then reported an admixed composition fraction (issue #2056).
-SAMPLE_SCHEMA_VERSION = 29
+# v30: Add NOCASE prefix indexes on raw_variants.rsid, annotated_variants.rsid and
+#      annotated_variants.gene_symbol for the case-insensitive Variant Explorer
+#      search (issue #2058); created on existing sample DBs via _ensure_search_indexes.
+SAMPLE_SCHEMA_VERSION = 30
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -574,6 +614,10 @@ def create_sample_tables(engine: sa.Engine, *, is_merged_sample: bool = False) -
 
     # Create all tables defined in sample_metadata_obj
     sample_metadata_obj.create_all(engine, checkfirst=True)
+
+    # A merged sample's raw_variants was pre-created from raw DDL above, so
+    # create_all skipped its metadata indexes; add the search indexes explicitly.
+    _ensure_search_indexes(engine)
 
     # Seed predefined tags (batch insert)
     with engine.connect() as conn:
@@ -2108,6 +2152,14 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 findings_count=repaired_findings,
                 from_version=from_version,
             )
+
+    if from_version < 30:
+        # Issue #2058: give the case-insensitive Variant Explorer search an index
+        # range on existing sample DBs (create_all never adds indexes to tables
+        # that already exist).
+        if _ensure_search_indexes(engine):
+            added = True
+            logger.info("search_indexes_created", from_version=from_version)
 
     return added
 

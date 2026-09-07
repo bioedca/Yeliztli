@@ -663,6 +663,9 @@ raw_variants = sa.Table(
 )
 
 sa.Index("idx_raw_chrom_pos", raw_variants.c.chrom, raw_variants.c.pos)
+# Case-insensitive prefix index for the Variant Explorer search box (#2058): the
+# rsid primary key is BINARY-collated, which a case-insensitive range cannot use.
+sa.Index("idx_raw_rsid_nocase", raw_variants.c.rsid.collate("NOCASE"))
 
 # ── Annotated Variants (single wide table) ────────────────────────────
 
@@ -802,6 +805,9 @@ sa.Index(
     annotated_variants.c.pos,
 )
 sa.Index("idx_annot_gene", annotated_variants.c.gene_symbol)
+# Case-insensitive prefix indexes for the Variant Explorer search box (#2058).
+sa.Index("idx_annot_rsid_nocase", annotated_variants.c.rsid.collate("NOCASE"))
+sa.Index("idx_annot_gene_nocase", annotated_variants.c.gene_symbol.collate("NOCASE"))
 sa.Index("idx_annot_clinvar_sig", annotated_variants.c.clinvar_significance)
 sa.Index("idx_annot_coverage", annotated_variants.c.annotation_coverage)
 sa.Index("idx_annot_rare_flag", annotated_variants.c.rare_flag)

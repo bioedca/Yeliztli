@@ -378,6 +378,128 @@ class TestVariantCount:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+class TestSearch:
+    """``search=`` matches an rsID / gene-symbol prefix over the whole sample (#2058).
+
+    The Variant Explorer's search box used to filter only the pages the browser
+    had already loaded, so a term whose rows had not been paged in reported
+    "No variants match". The list and count endpoints now apply the same
+    server-side clause.
+    """
+
+    @staticmethod
+    def _rsids(response) -> list[str]:
+        assert response.status_code == 200, response.text
+        return [item["rsid"] for item in response.json()["items"]]
+
+    def test_rsid_prefix_matches_across_chromosomes(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants?sample_id={sid}&search=rs10")
+        # rs100/rs101/rs102 sit on chr1 and rs1000 on chr10 — beyond a
+        # one-chromosome first page — and rs1500/rs1900 share no prefix.
+        assert self._rsids(response) == ["rs100", "rs101", "rs102", "rs1000"]
+
+    def test_search_is_case_insensitive(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants?sample_id={sid}&search=RS100")
+        assert self._rsids(response) == ["rs100", "rs1000"]
+
+    @pytest.mark.parametrize("term", ["rs%", "rs_00", "rs1\\"])
+    def test_pattern_characters_match_literally(self, client_with_sample, term):
+        client, sid = client_with_sample
+        response = client.get("/api/variants", params={"sample_id": sid, "search": term})
+        assert self._rsids(response) == []
+
+    def test_blank_search_is_a_no_op(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get("/api/variants", params={"sample_id": sid, "search": "   "})
+        assert len(self._rsids(response)) == len(TEST_VARIANTS)
+
+    def test_search_composes_with_filter_and_cursor(self, client_with_sample):
+        client, sid = client_with_sample
+        first = client.get(f"/api/variants?sample_id={sid}&search=rs10&filter=chrom:1&limit=2")
+        assert self._rsids(first) == ["rs100", "rs101"]
+        body = first.json()
+        assert body["has_more"] is True
+        second = client.get(
+            f"/api/variants?sample_id={sid}&search=rs10&filter=chrom:1&limit=2"
+            f"&cursor_chrom={body['next_cursor_chrom']}&cursor_pos={body['next_cursor_pos']}"
+        )
+        assert self._rsids(second) == ["rs102"]
+        assert second.json()["has_more"] is False
+
+    def test_count_applies_the_same_clause(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=rs10")
+        assert response.status_code == 200
+        assert response.json() == {"total": 4, "filtered": True}
+
+    @pytest.mark.parametrize("term", ["BRCA", "rs10", "Rs4"])
+    def test_search_uses_the_indexes_rather_than_scanning(self, term):
+        """Each branch of the search is an index range, so a 677k-row sample is
+        not scanned three times per debounced keystroke (list, count and
+        unannotated count). Asserted on SQLite's own query plan: the planner's
+        choice depends only on the schema's indexes and collations, so an
+        in-memory copy of the sample schema is enough."""
+        from backend.api.routes.variants import _build_order_by, _build_search_clause
+
+        engine = sa.create_engine("sqlite://")
+        create_sample_tables(engine)
+        query = (
+            sa.select(annotated_variants.c.rsid)
+            .where(_build_search_clause(annotated_variants, term))
+            .order_by(*_build_order_by(annotated_variants))
+            .limit(51)
+        )
+        compiled = str(query.compile(engine, compile_kwargs={"literal_binds": True}))
+        with engine.connect() as conn:
+            steps = [row[-1] for row in conn.exec_driver_sql(f"EXPLAIN QUERY PLAN {compiled}")]
+        engine.dispose()
+        joined = "\n".join(steps)
+        assert "nocase" in joined.lower(), joined
+        assert not any(step.startswith("SCAN") for step in steps), joined
+
+    def test_stored_rsid_case_does_not_matter(self, client_with_sample, tmp_data_dir):
+        """Parsers persist the rsID as written, so the match is case-insensitive
+        on the stored side too, not only on the term (NOCASE collation)."""
+        client, sid = client_with_sample
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                {"rsid": "RS9999", "chrom": "3", "pos": 777, "genotype": "AA"},
+            )
+        sample_engine.dispose()
+        for term in ("rs99", "RS99", "rS99"):
+            response = client.get(f"/api/variants?sample_id={sid}&search={term}")
+            assert self._rsids(response) == ["RS9999"], term
+        count = client.get(f"/api/variants/count?sample_id={sid}&search=rs99")
+        assert count.json() == {"total": 1, "filtered": True}
+
+    def test_gene_symbol_prefix_matches_on_an_annotated_sample(self, client_with_annotated_sample):
+        client, sid = client_with_annotated_sample
+        # Lower-case, partial symbol: prefix match, case-insensitive, whole table.
+        response = client.get(f"/api/variants?sample_id={sid}&search=brca")
+        assert self._rsids(response) == ["rs100"]
+        response = client.get(f"/api/variants?sample_id={sid}&search=APOE")
+        assert self._rsids(response) == ["rs200"]
+        # A gene absent from the sample is empty, not the unfiltered first page.
+        response = client.get(f"/api/variants?sample_id={sid}&search=LDLR")
+        assert self._rsids(response) == []
+
+    def test_gene_search_count_matches_the_rows(self, client_with_annotated_sample):
+        client, sid = client_with_annotated_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=tp")
+        assert response.status_code == 200
+        assert response.json() == {"total": 1, "filtered": True}
+
+    def test_count_of_a_missing_term_is_zero_not_the_sample_total(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=BRCA1")
+        assert response.status_code == 200
+        assert response.json() == {"total": 0, "filtered": True}
+
+
 class TestLimitValidation:
     """Limit parameter validation."""
 
