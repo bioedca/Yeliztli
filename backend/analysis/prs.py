@@ -910,7 +910,10 @@ def check_ancestry_mismatch(
     Additionally, if the top ancestry fraction is below 70%, an admixture
     warning is added regardless of whether the populations match — admixed
     individuals may see reduced PRS accuracy even when the top population
-    matches the weight set source.
+    matches the weight set source. The one exception is the ``UNCERTAIN``
+    sentinel: its component fractions come from the same low-coverage state
+    that made the call uncertain, so the caveat must not say ancestry could
+    not be inferred and then report a specific admixed composition (#2056).
 
     Args:
         result: PRSResult to check.
@@ -982,8 +985,10 @@ def check_ancestry_mismatch(
     if inferred in _NON_POPULATION_ANCESTRIES:
         # No confident single top population (admixed / uncertain). Don't compare
         # it against the source as a pseudo-population; surface a calibration
-        # caveat. The fraction-based admixed warning below still applies — its
-        # fraction now comes from the dominant population component (#300).
+        # caveat. For ADMIXED the fraction-based admixed warning below still
+        # applies — its fraction comes from the dominant population component
+        # (#300); for UNCERTAIN it is skipped, because a composition estimate
+        # from insufficient data would contradict the sentence above (#2056).
         result.ancestry_mismatch = True
         if inferred == _ADMIXED:
             result.ancestry_warning_text = (
@@ -1023,8 +1028,14 @@ def check_ancestry_mismatch(
             result.ancestry_mismatch = False
             result.ancestry_warning_text = None
 
-    # Admixture-aware threshold: warn if top ancestry < 70%
-    if top_ancestry_fraction is not None and top_ancestry_fraction < 0.70:
+    # Admixture-aware threshold: warn if top ancestry < 70% — except when the
+    # ancestry call itself is UNCERTAIN, where the fraction is not trustworthy
+    # enough to state as a composition (#2056).
+    if (
+        top_ancestry_fraction is not None
+        and top_ancestry_fraction < 0.70
+        and inferred != _UNCERTAIN
+    ):
         admixture_warning = (
             "Your ancestry composition is admixed "
             f"(top ancestry {top_ancestry_fraction:.0%}). "

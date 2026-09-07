@@ -656,6 +656,35 @@ class TestAdmixedSentinelHandling:
         assert "differs from the source population" not in text
         assert "confidently inferred" in text.lower()
 
+    def test_uncertain_with_low_top_fraction_does_not_assert_an_admixed_composition(
+        self,
+    ) -> None:
+        """#2056 — an UNCERTAIN call's component fractions come from the same
+        low-coverage state that made the call uncertain, so the caveat must not
+        say ancestry could not be inferred and then report it as 62% admixed."""
+        result = check_ancestry_mismatch(
+            self._make_result("EUR"), inferred_ancestry="UNCERTAIN", top_ancestry_fraction=0.62
+        )
+        assert result.ancestry_mismatch is True
+        text = result.ancestry_warning_text
+        assert text is not None
+        assert "confidently inferred" in text.lower()
+        assert "composition is admixed" not in text
+        assert "62%" not in text
+        assert "UNCERTAIN" not in text
+
+    def test_confident_single_population_with_low_top_fraction_keeps_the_admixture_clause(
+        self,
+    ) -> None:
+        """The #2056 guard is sentinel-specific: a confident EUR call with a 62%
+        top fraction still surfaces the fraction, because there the fraction is
+        a real composition estimate."""
+        result = check_ancestry_mismatch(
+            self._make_result("EUR"), inferred_ancestry="EUR", top_ancestry_fraction=0.62
+        )
+        assert result.ancestry_mismatch is True
+        assert "composition is admixed (top ancestry 62%)" in result.ancestry_warning_text
+
 
 class TestUnqualifiedLAIQuarantine:
     """Pre-policy local-ancestry findings cannot override qualified Tier 1."""

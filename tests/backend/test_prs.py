@@ -695,6 +695,17 @@ class TestRunPRS:
                 "cannot be assessed.",
             ),
             (
+                # #2056: a low top fraction under an UNCERTAIN call must not append
+                # "composition is admixed (top ancestry 62%)" to a sentence that
+                # just said ancestry could not be inferred.
+                "UNCERTAIN",
+                0.62,
+                False,
+                "Ancestry could not be confidently inferred (insufficient data), so the "
+                "match between your background and this score's development population "
+                "cannot be assessed.",
+            ),
+            (
                 "AFR",
                 None,
                 False,

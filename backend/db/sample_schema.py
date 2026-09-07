@@ -435,6 +435,42 @@ def _dedoubled_rsid_diff_entry(entry: object) -> dict[str, object] | None:
     return {**entry, "finding_text": updated_text}
 
 
+# Issue #2056: ``check_ancestry_mismatch`` appended the fraction-based
+# "composition is admixed (top ancestry N%)" clause after every branch, including
+# the UNCERTAIN one, so a stored PRS caveat could say ancestry could not be
+# inferred and then report a specific admixed composition.
+_UNCERTAIN_ANCESTRY_WARNING_PREFIX = (
+    "Ancestry could not be confidently inferred (insufficient data), so the match "
+    "between your background and this score's development population cannot be assessed"
+)
+# The two complete caveats the UNCERTAIN branch has ever produced with the clause
+# appended: the withheld-percentile form and the reported-percentile form. Both
+# are matched in full, so hand-edited text anywhere in the caveat is left alone.
+_UNCERTAIN_ANCESTRY_WARNING_WITH_ADMIXTURE = re.compile(
+    "^"
+    + re.escape(_UNCERTAIN_ANCESTRY_WARNING_PREFIX)
+    + r"(?P<tail>\.|\. Interpret the percentile with caution\.)"
+    + r" Your ancestry composition is admixed \(top ancestry \d{1,3}%\)\. "
+    + r"PRS accuracy may be reduced for admixed genetic backgrounds\.$"
+)
+
+
+def _uncertain_ancestry_warning_without_admixture(warning: object) -> str | None:
+    """Drop the admixed-composition clause a generated UNCERTAIN caveat carried.
+
+    Only the two exact producer outputs are repaired: the UNCERTAIN branch's
+    sentence, optionally followed by the reported-percentile guidance, followed by
+    the appended fraction clause and nothing else. ADMIXED caveats,
+    confident-population caveats, and any caveat with other text are untouched.
+    """
+    if not isinstance(warning, str):
+        return None
+    match = _UNCERTAIN_ANCESTRY_WARNING_WITH_ADMIXTURE.fullmatch(warning)
+    if match is None:
+        return None
+    return _UNCERTAIN_ANCESTRY_WARNING_PREFIX + match.group("tail")
+
+
 # Current schema version. Bump for per-sample schema or content migrations.
 # v7: Add watched_variants table (P4-21g — VUS tracking)
 # v8: Add provenance columns to raw_variants + merge_provenance table
@@ -482,7 +518,9 @@ def _dedoubled_rsid_diff_entry(entry: object) -> dict[str, object] | None:
 #      from the nineteen templates corrected by issue #2051.
 # v28: Repair persisted categorical-module finding text that printed the gene twice
 #      ("FTO FTO intron 1") because the variant name already led with it (#2044).
-SAMPLE_SCHEMA_VERSION = 28
+# v29: Repair persisted PRS ancestry caveats that said ancestry could not be
+#      inferred and then reported an admixed composition fraction (issue #2056).
+SAMPLE_SCHEMA_VERSION = 29
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2004,6 +2042,70 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 "doubled_gene_finding_text_repaired",
                 findings=repaired_findings,
                 diff_entries=repaired_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 29:
+        # Issue #2056: the PRS ancestry caveat is persisted in each PRS finding's
+        # ``detail_json`` and served verbatim by the FH, cancer, metabolic and
+        # eBMD routes, so correcting ``check_ancestry_mismatch`` alone repairs
+        # nothing an existing sample shows. Strip the appended admixed-composition
+        # clause from exactly the UNCERTAIN-branch caveat; every other stored
+        # caveat, malformed detail, and non-PRS row is untouched. The finding
+        # text of a PRS row never embeds the caveat, so the finding-change banner
+        # needs no repair.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        repaired_findings = 0
+        if {"id", "category", "detail_json"} <= findings_cols:
+            # Reserve the SQLite writer lock before reading so every fingerprint
+            # check and update is one transaction.
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    candidates = conn.execute(
+                        sa.select(findings.c.id, findings.c.detail_json)
+                        .where(findings.c.category == "prs")
+                        .order_by(findings.c.id)
+                    ).fetchall()
+                    for row in candidates:
+                        try:
+                            detail = json.loads(row.detail_json)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+                        if not isinstance(detail, dict):
+                            continue
+                        updated_warning = _uncertain_ancestry_warning_without_admixture(
+                            detail.get("ancestry_warning_text")
+                        )
+                        if updated_warning is None:
+                            continue
+                        detail["ancestry_warning_text"] = updated_warning
+                        result = conn.execute(
+                            findings.update()
+                            .where(
+                                findings.c.id == row.id,
+                                findings.c.category == "prs",
+                                findings.c.detail_json == row.detail_json,
+                            )
+                            .values(detail_json=json.dumps(detail))
+                        )
+                        repaired_findings += max(result.rowcount or 0, 0)
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings:
+            added = True
+            logger.warning(
+                "legacy_uncertain_ancestry_caveat_repaired",
+                findings_count=repaired_findings,
                 from_version=from_version,
             )
 
