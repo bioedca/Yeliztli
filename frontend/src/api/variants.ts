@@ -22,6 +22,11 @@ interface VariantQueryParams {
   startChrom?: string | null
   /** Filter variants by tag name (P4-12b). */
   tag?: string | null
+  /**
+   * Search box term (#2058): an rsID or gene-symbol prefix, matched by the
+   * server over the whole sample rather than the pages already loaded.
+   */
+  search?: string
 }
 
 async function fetchVariantPage(
@@ -30,6 +35,7 @@ async function fetchVariantPage(
   limit: number,
   filter?: string,
   tag?: string | null,
+  search?: string,
 ): Promise<VariantPage> {
   const params = new URLSearchParams({
     sample_id: String(sampleId),
@@ -45,6 +51,9 @@ async function fetchVariantPage(
   if (tag) {
     params.set("tag", tag)
   }
+  if (search) {
+    params.set("search", search)
+  }
   const res = await fetch(`/api/variants?${params}`)
   if (!res.ok) {
     await throwApiError(res, `Variant fetch failed. Please try again.`)
@@ -56,6 +65,7 @@ async function fetchVariantCount(
   sampleId: number,
   filter?: string,
   tag?: string | null,
+  search?: string,
 ): Promise<VariantCount> {
   const params = new URLSearchParams({ sample_id: String(sampleId) })
   if (filter) {
@@ -63,6 +73,9 @@ async function fetchVariantCount(
   }
   if (tag) {
     params.set("tag", tag)
+  }
+  if (search) {
+    params.set("search", search)
   }
   const res = await fetch(`/api/variants/count?${params}`)
   if (!res.ok) {
@@ -79,8 +92,16 @@ async function fetchVariantCount(
  * on that chromosome by using cursor (chrom, pos=0). The chromosome is
  * included in the queryKey so changing it resets and refetches.
  */
-export function useVariants({ sampleId, filter, showUnannotated, startChrom, tag }: VariantQueryParams) {
+export function useVariants({
+  sampleId,
+  filter,
+  showUnannotated,
+  startChrom,
+  tag,
+  search,
+}: VariantQueryParams) {
   const effectiveFilter = buildEffectiveFilter(filter, showUnannotated)
+  const effectiveSearch = search?.trim() || undefined
 
   // Build initial cursor for chromosome jump (P1-15b).
   // cursor_pos=0 means "first variant on this chromosome" since all real positions are >= 1.
@@ -89,9 +110,16 @@ export function useVariants({ sampleId, filter, showUnannotated, startChrom, tag
     : null
 
   return useInfiniteQuery({
-    queryKey: ["variants", sampleId, effectiveFilter, startChrom ?? null, tag ?? null],
+    queryKey: [
+      "variants",
+      sampleId,
+      effectiveFilter,
+      startChrom ?? null,
+      tag ?? null,
+      effectiveSearch ?? null,
+    ],
     queryFn: ({ pageParam }) =>
-      fetchVariantPage(sampleId!, pageParam, PAGE_SIZE, effectiveFilter, tag),
+      fetchVariantPage(sampleId!, pageParam, PAGE_SIZE, effectiveFilter, tag, effectiveSearch),
     initialPageParam: initialCursor,
     getNextPageParam: (lastPage): VariantCursor | null => {
       if (!lastPage.has_more || !lastPage.next_cursor_chrom || lastPage.next_cursor_pos == null) {
@@ -111,12 +139,19 @@ export function useVariants({ sampleId, filter, showUnannotated, startChrom, tag
  * Async total count — fires separately from the first page.
  * Cached per filter combination via query key.
  */
-export function useVariantsCount({ sampleId, filter, showUnannotated, tag }: VariantQueryParams) {
+export function useVariantsCount({
+  sampleId,
+  filter,
+  showUnannotated,
+  tag,
+  search,
+}: VariantQueryParams) {
   const effectiveFilter = buildEffectiveFilter(filter, showUnannotated)
+  const effectiveSearch = search?.trim() || undefined
 
   return useQuery({
-    queryKey: ["variants-count", sampleId, effectiveFilter, tag ?? null],
-    queryFn: () => fetchVariantCount(sampleId!, effectiveFilter, tag),
+    queryKey: ["variants-count", sampleId, effectiveFilter, tag ?? null, effectiveSearch ?? null],
+    queryFn: () => fetchVariantCount(sampleId!, effectiveFilter, tag, effectiveSearch),
     enabled: sampleId != null,
     staleTime: Infinity,
   })
@@ -229,14 +264,22 @@ export function useUnannotatedVariantCount(
   sampleId: number | null,
   filter?: string,
   tag?: string | null,
+  search?: string,
 ) {
   const effectiveFilter = [filter, "annotation_coverage:null"].filter(Boolean).join(",")
+  const effectiveSearch = search?.trim() || undefined
 
   return useQuery({
-    queryKey: ["variants-unannotated-count", sampleId, effectiveFilter, tag ?? null],
+    queryKey: [
+      "variants-unannotated-count",
+      sampleId,
+      effectiveFilter,
+      tag ?? null,
+      effectiveSearch ?? null,
+    ],
     queryFn: async () => {
       if (!sampleId) return 0
-      const count = await fetchVariantCount(sampleId, effectiveFilter, tag)
+      const count = await fetchVariantCount(sampleId, effectiveFilter, tag, effectiveSearch)
       return count.total
     },
     enabled: sampleId != null,

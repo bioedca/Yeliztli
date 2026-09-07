@@ -378,6 +378,69 @@ class TestVariantCount:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+class TestSearch:
+    """``search=`` matches an rsID / gene-symbol prefix over the whole sample (#2058).
+
+    The Variant Explorer's search box used to filter only the pages the browser
+    had already loaded, so a term whose rows had not been paged in reported
+    "No variants match". The list and count endpoints now apply the same
+    server-side clause.
+    """
+
+    @staticmethod
+    def _rsids(response) -> list[str]:
+        assert response.status_code == 200, response.text
+        return [item["rsid"] for item in response.json()["items"]]
+
+    def test_rsid_prefix_matches_across_chromosomes(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants?sample_id={sid}&search=rs10")
+        # rs100/rs101/rs102 sit on chr1 and rs1000 on chr10 — beyond a
+        # one-chromosome first page — and rs1500/rs1900 share no prefix.
+        assert self._rsids(response) == ["rs100", "rs101", "rs102", "rs1000"]
+
+    def test_search_is_case_insensitive(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants?sample_id={sid}&search=RS100")
+        assert self._rsids(response) == ["rs100", "rs1000"]
+
+    @pytest.mark.parametrize("term", ["rs%", "rs_00", "rs1\\"])
+    def test_like_metacharacters_match_literally(self, client_with_sample, term):
+        client, sid = client_with_sample
+        response = client.get("/api/variants", params={"sample_id": sid, "search": term})
+        assert self._rsids(response) == []
+
+    def test_blank_search_is_a_no_op(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get("/api/variants", params={"sample_id": sid, "search": "   "})
+        assert len(self._rsids(response)) == len(TEST_VARIANTS)
+
+    def test_search_composes_with_filter_and_cursor(self, client_with_sample):
+        client, sid = client_with_sample
+        first = client.get(f"/api/variants?sample_id={sid}&search=rs10&filter=chrom:1&limit=2")
+        assert self._rsids(first) == ["rs100", "rs101"]
+        body = first.json()
+        assert body["has_more"] is True
+        second = client.get(
+            f"/api/variants?sample_id={sid}&search=rs10&filter=chrom:1&limit=2"
+            f"&cursor_chrom={body['next_cursor_chrom']}&cursor_pos={body['next_cursor_pos']}"
+        )
+        assert self._rsids(second) == ["rs102"]
+        assert second.json()["has_more"] is False
+
+    def test_count_applies_the_same_clause(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=rs10")
+        assert response.status_code == 200
+        assert response.json() == {"total": 4, "filtered": True}
+
+    def test_count_of_a_missing_term_is_zero_not_the_sample_total(self, client_with_sample):
+        client, sid = client_with_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=BRCA1")
+        assert response.status_code == 200
+        assert response.json() == {"total": 0, "filtered": True}
+
+
 class TestLimitValidation:
     """Limit parameter validation."""
 

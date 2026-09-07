@@ -296,6 +296,60 @@ describe("VariantTable", () => {
     expect(screen.getByText("hom_alt")).toBeInTheDocument()
   })
 
+  it("searches the whole sample on the server, finding a gene absent from the loaded page (#2058)", async () => {
+    const firstPage = makeVariantPage(3) // chr1 rows: BRCA1 / TP53 only
+    const apoePage: VariantPage = {
+      ...makeVariantPage(1, false, 44908684),
+      items: [{ ...makeVariantPage(1).items[0], rsid: "rs429358", chrom: "19", pos: 44908684, gene_symbol: "APOE" }],
+    }
+    setupFetchMock(firstPage, makeCountResponse(3))
+    const baseImpl = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/variants/count") && url.includes("search=APOE")) {
+        return { ok: true, json: async () => makeCountResponse(1) }
+      }
+      if (url.includes("/api/variants?") && url.includes("search=APOE")) {
+        return { ok: true, json: async () => apoePage }
+      }
+      return baseImpl(url)
+    })
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+
+    await user.type(screen.getByLabelText("Search variants by rsid or gene"), "APOE")
+
+    // The term becomes a server request (debounced) rather than a filter over
+    // the pages already in memory, so the chr19 APOE row appears.
+    await waitFor(() => expect(screen.getByText("rs429358")).toBeInTheDocument())
+    expect(screen.queryByText("rs100")).not.toBeInTheDocument()
+    const urls = mockFetch.mock.calls.map(([url]) => url as string)
+    const searchedList = urls.filter((url) => url.includes("/api/variants?") && url.includes("search=APOE"))
+    expect(searchedList).toHaveLength(1)
+    expect(searchedList[0]).not.toContain("cursor_chrom")
+    expect(urls.some((url) => url.includes("/api/variants/count") && url.includes("search=APOE"))).toBe(true)
+    expect(screen.queryByText(/No variants match/i)).not.toBeInTheDocument()
+  })
+
+  it("debounces keystrokes into one search request and restores the unsearched view on clear", async () => {
+    setupFetchMock(makeVariantPage(2), makeCountResponse(2))
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => expect(screen.getByText("rs100")).toBeInTheDocument())
+
+    const input = screen.getByLabelText("Search variants by rsid or gene")
+    await user.type(input, "rs1")
+    await waitFor(() =>
+      expect(mockFetch.mock.calls.some(([url]) => (url as string).includes("search=rs1"))).toBe(true),
+    )
+    const urls = mockFetch.mock.calls.map(([url]) => url as string)
+    // "r" and "rs" never became requests of their own.
+    expect(urls.filter((url) => url.includes("/api/variants?") && url.includes("search=r"))).toHaveLength(1)
+
+    await user.clear(input)
+    await waitFor(() => expect(screen.getByText("rs101")).toBeInTheDocument())
+  })
+
   it("shows async total count", async () => {
     const page = makeVariantPage(5)
     setupFetchMock(page, makeCountResponse(12345))

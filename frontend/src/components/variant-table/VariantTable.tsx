@@ -95,8 +95,21 @@ function presetToVisibility(
   return visibility
 }
 
+/** Keystroke-to-request delay for the server-side search box (#2058). */
+const SEARCH_DEBOUNCE_MS = 250
+
 export default function VariantTable({ sampleId }: VariantTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  // The search runs on the server over the whole sample (#2058), so debounce
+  // keystrokes before they become requests; the typed value still renders
+  // immediately in the toolbar.
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const trimmed = searchQuery.trim()
+    if (trimmed === debouncedSearch) return
+    const timer = setTimeout(() => setDebouncedSearch(trimmed), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchQuery, debouncedSearch])
   const [showUnannotated, setShowUnannotated] = useState(false)
   const [showConflictsOnly, setShowConflictsOnly] = useState(false)
   const [showGRCh38, setShowGRCh38] = useState(false)
@@ -338,8 +351,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     sampleId: querySampleId,
     filter,
     showUnannotated,
-    startChrom,
+    // A search spans the whole sample, not the chromosome the user last jumped
+    // to, so the jump cursor is suspended while a term is active.
+    startChrom: debouncedSearch ? null : startChrom,
     tag: activeTag,
+    search: debouncedSearch,
   })
 
   // Chromosome counts for the nav bar (P1-15b)
@@ -351,6 +367,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     filter,
     showUnannotated,
     tag: activeTag,
+    search: debouncedSearch,
   })
 
   const { data: totalVariants } = useTotalVariantCount(querySampleId)
@@ -358,6 +375,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     querySampleId,
     filter,
     activeTag,
+    debouncedSearch,
   )
 
   // Derive current chromosome from the first visible row (P1-15b)
@@ -384,20 +402,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     if (!data?.pages) return []
     const rows = data.pages.flatMap((page) => page.items)
 
-    // Client-side filtering: hide unannotated by default
-    const filtered = showUnannotated
-      ? rows
-      : rows.filter((row) => row.annotation_coverage != null)
-
-    // Client-side search filtering (rsid / gene_symbol)
-    if (!searchQuery.trim()) return filtered
-    const q = searchQuery.trim().toLowerCase()
-    return filtered.filter(
-      (row) =>
-        row.rsid.toLowerCase().includes(q) ||
-        (row.gene_symbol && row.gene_symbol.toLowerCase().includes(q)),
-    )
-  }, [data?.pages, showUnannotated, searchQuery])
+    // Client-side filtering: hide unannotated by default. The search box is
+    // applied by the server (#2058) — filtering the loaded pages here again
+    // would only ever narrow, never find a row that has not been paged in.
+    return showUnannotated ? rows : rows.filter((row) => row.annotation_coverage != null)
+  }, [data?.pages, showUnannotated])
 
   const table = useReactTable<VariantRow>({
     data: allRows,
