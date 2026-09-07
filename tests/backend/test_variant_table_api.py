@@ -434,6 +434,23 @@ class TestSearch:
         assert response.status_code == 200
         assert response.json() == {"total": 4, "filtered": True}
 
+    def test_gene_symbol_prefix_matches_on_an_annotated_sample(self, client_with_annotated_sample):
+        client, sid = client_with_annotated_sample
+        # Lower-case, partial symbol: prefix match, case-insensitive, whole table.
+        response = client.get(f"/api/variants?sample_id={sid}&search=brca")
+        assert self._rsids(response) == ["rs100"]
+        response = client.get(f"/api/variants?sample_id={sid}&search=APOE")
+        assert self._rsids(response) == ["rs200"]
+        # A gene absent from the sample is empty, not the unfiltered first page.
+        response = client.get(f"/api/variants?sample_id={sid}&search=LDLR")
+        assert self._rsids(response) == []
+
+    def test_gene_search_count_matches_the_rows(self, client_with_annotated_sample):
+        client, sid = client_with_annotated_sample
+        response = client.get(f"/api/variants/count?sample_id={sid}&search=tp")
+        assert response.status_code == 200
+        assert response.json() == {"total": 1, "filtered": True}
+
     def test_count_of_a_missing_term_is_zero_not_the_sample_total(self, client_with_sample):
         client, sid = client_with_sample
         response = client.get(f"/api/variants/count?sample_id={sid}&search=BRCA1")

@@ -431,9 +431,19 @@ describe("VariantTable", () => {
     })
   })
 
-  it("filters variants by search query (client-side)", async () => {
+  it("routes the search box to the server instead of filtering the loaded rows (#2058)", async () => {
     const page = makeVariantPage(4)
+    // BRCA1 rows sit on even indices (rs100, rs102); the server is what
+    // narrows the page, so the mock answers a `search=` request with them.
+    const brca1Only: VariantPage = { ...page, items: page.items.filter((row) => row.gene_symbol === "BRCA1") }
     setupFetchMock(page, makeCountResponse(4))
+    const baseImpl = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/variants?") && url.includes("search=BRCA1")) {
+        return { ok: true, json: async () => brca1Only }
+      }
+      return baseImpl(url)
+    })
 
     const user = userEvent.setup()
     render(<VariantTable sampleId={1} />)
@@ -445,13 +455,13 @@ describe("VariantTable", () => {
     const searchInput = screen.getByPlaceholderText("Search rsid or gene...")
     await user.type(searchInput, "BRCA1")
 
-    // BRCA1 genes are on even indices (rs100, rs102)
     await waitFor(() => {
-      expect(screen.getByText("rs100")).toBeInTheDocument()
       expect(screen.getByText("rs102")).toBeInTheDocument()
+      expect(screen.queryByText("rs101")).not.toBeInTheDocument()
     })
-    expect(screen.queryByText("rs101")).not.toBeInTheDocument()
+    expect(screen.getByText("rs100")).toBeInTheDocument()
     expect(screen.queryByText("rs103")).not.toBeInTheDocument()
+    expect(mockFetch.mock.calls.some(([url]) => (url as string).includes("search=BRCA1"))).toBe(true)
   })
 
   it("has unannotated toggle button", async () => {
@@ -575,9 +585,20 @@ describe("VariantTable", () => {
   })
 
   it("shows no-match empty state with suggestion buttons (P1-15e)", async () => {
-    // Return annotated variants but they'll be filtered out by search
+    // The server answers a search that matches nothing with an empty page (#2058).
     const page = makeVariantPage(2)
     setupFetchMock(page, makeCountResponse(2))
+    const baseImpl = mockFetch.getMockImplementation()!
+    const emptyPage: VariantPage = { ...page, items: [] }
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("search=NONEXISTENT_GENE_XYZ")) {
+        return {
+          ok: true,
+          json: async () => (url.includes("/api/variants/count") ? makeCountResponse(0) : emptyPage),
+        }
+      }
+      return baseImpl(url)
+    })
 
     const user = userEvent.setup()
     render(<VariantTable sampleId={1} />)
