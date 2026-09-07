@@ -456,10 +456,25 @@ class TestSearch:
             steps = [row[-1] for row in conn.exec_driver_sql(f"EXPLAIN QUERY PLAN {compiled}")]
         engine.dispose()
         joined = "\n".join(steps)
-        assert any("USING INDEX" in step or "USING COVERING INDEX" in step for step in steps), (
-            joined
-        )
+        assert "nocase" in joined.lower(), joined
         assert not any(step.startswith("SCAN") for step in steps), joined
+
+    def test_stored_rsid_case_does_not_matter(self, client_with_sample, tmp_data_dir):
+        """Parsers persist the rsID as written, so the match is case-insensitive
+        on the stored side too, not only on the term (NOCASE collation)."""
+        client, sid = client_with_sample
+        sample_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'samples' / 'sample_1.db'}")
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                {"rsid": "RS9999", "chrom": "3", "pos": 777, "genotype": "AA"},
+            )
+        sample_engine.dispose()
+        for term in ("rs99", "RS99", "rS99"):
+            response = client.get(f"/api/variants?sample_id={sid}&search={term}")
+            assert self._rsids(response) == ["RS9999"], term
+        count = client.get(f"/api/variants/count?sample_id={sid}&search=rs99")
+        assert count.json() == {"total": 1, "filtered": True}
 
     def test_gene_symbol_prefix_matches_on_an_annotated_sample(self, client_with_annotated_sample):
         client, sid = client_with_annotated_sample

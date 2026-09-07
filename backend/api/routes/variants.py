@@ -297,36 +297,37 @@ def _chrom_order_expr(table: sa.Table) -> sa.Case:
 
 
 def _prefix_range(column: sa.ColumnElement, prefix: str) -> sa.ColumnElement:
-    """``column`` starts with ``prefix``, as an index-usable range under BINARY collation.
+    """``column`` starts with ``prefix``, case-insensitively, as an index range.
 
-    ``LIKE 'prefix%'`` is case-insensitive in SQLite and therefore cannot use the
-    BINARY-collated indexes on ``rsid`` and ``gene_symbol``; a half-open range on
-    the already-normalised prefix can. ``\uffff`` sorts after every character
-    these identifiers use, so the upper bound closes the prefix without an
-    escape step — the bounds are literal values, not patterns.
+    ``LIKE 'prefix%'`` cannot use SQLite's BINARY-collated indexes, and a range
+    on a case-normalised term would miss a stored value in another case. The
+    half-open range is evaluated under the ``NOCASE`` collation, which the
+    sample schema indexes for ``rsid`` and ``gene_symbol`` (#2058), so both the
+    comparison and the index lookup are case-insensitive. ``\uffff`` sorts after
+    every character these identifiers use, so the upper bound closes the prefix
+    without an escape step — the bounds are literal values, not patterns.
     """
-    return sa.and_(column >= prefix, column < prefix + "\uffff")
+    collated = column.collate("NOCASE")
+    return sa.and_(collated >= prefix, collated < prefix + "\uffff")
 
 
 def _build_search_clause(table: sa.Table, search: str | None) -> sa.ColumnElement | None:
     """WHERE clause for the Variant Explorer search box (issue #2058).
 
-    Matches an rsID prefix or a gene-symbol prefix over the whole table — the
-    same server-side scope as the command palette's variant search — so a term
-    is found whether or not its rows have been paged in. Case is normalised the
-    way the palette does it: rsIDs are canonical lower-case (``rs429358``) and
-    HGNC symbols upper-case (``BRCA1``, ``HLA-A``), so the term is lowered for
-    the rsID branch and uppered for the gene branch, and each branch is an
-    index range rather than a table scan (SQLite unions the two index lookups).
-    Pre-annotation samples read from ``raw_variants``, which has no
-    ``gene_symbol`` column, so the gene branch is only added when it exists.
+    Matches an rsID prefix or a gene-symbol prefix, case-insensitively on both
+    the term and the stored value, over the whole table — the same server-side
+    scope as the command palette's variant search — so a term is found whether
+    or not its rows have been paged in. Each branch is a NOCASE index range,
+    which SQLite unions, rather than a table scan. Pre-annotation samples read
+    from ``raw_variants``, which has no ``gene_symbol`` column, so the gene
+    branch is only added when it exists.
     """
     term = (search or "").strip()
     if not term:
         return None
-    clauses = [_prefix_range(table.c.rsid, term.lower())]
+    clauses = [_prefix_range(table.c.rsid, term)]
     if hasattr(table.c, "gene_symbol"):
-        clauses.append(_prefix_range(table.c.gene_symbol, term.upper()))
+        clauses.append(_prefix_range(table.c.gene_symbol, term))
     return sa.or_(*clauses)
 
 

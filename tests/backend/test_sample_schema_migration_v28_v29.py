@@ -119,7 +119,7 @@ def test_v29_strips_the_admixture_clause_from_stored_uncertain_caveats(
         after = _rows(conn)
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
 
-    assert version == SAMPLE_SCHEMA_VERSION == 29
+    assert version == SAMPLE_SCHEMA_VERSION == 30
     warnings = [json.loads(row["detail_json"])["ancestry_warning_text"] for row in after]
     assert warnings == [
         f"{UNCERTAIN}.",
