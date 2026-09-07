@@ -137,7 +137,7 @@ def test_v28_repairs_exactly_the_doubled_rows(sample_engine: sa.Engine) -> None:
         assert after[row_id] == expected, row_id
     for row_id, (_module, _gene, text) in UNTOUCHED.items():
         assert after[row_id] == text == before[row_id], row_id
-    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 28
+    assert _user_version(sample_engine) == SAMPLE_SCHEMA_VERSION == 29
 
     snapshot = after
     assert ensure_sample_schema_current(sample_engine) is False
