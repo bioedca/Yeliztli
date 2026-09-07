@@ -82,6 +82,12 @@ def _rows(conn: sa.Connection) -> list[dict[str, object]]:
             None,
         ),
         (WITHHELD + " Custom suffix.", None),
+        (f"{UNCERTAIN}. Manually verified note." + CLAUSE.format(pct=62), None),
+        (
+            f"{UNCERTAIN}. Interpret the percentile with caution. Reviewed."
+            + CLAUSE.format(pct=62),
+            None,
+        ),
         (None, None),
         (["not", "a-string"], None),
     ],
@@ -141,6 +147,9 @@ def test_v29_leaves_rows_without_the_fingerprint_untouched(sample_engine: sa.Eng
         _finding(3, "fh", _detail(f"{UNCERTAIN}. Interpret the percentile with caution.")),
         _finding(4, "fh", _detail(None)),
         _finding(5, "fh", _detail(WITHHELD + " Custom suffix.")),
+        _finding(
+            10, "fh", _detail(f"{UNCERTAIN}. Manually verified note." + CLAUSE.format(pct=62))
+        ),
         _finding(6, "fh", _detail(WITHHELD), category="risk_genotype"),
         _finding(7, "fh", "{oops"),
         _finding(8, "fh", "[]"),
@@ -158,7 +167,7 @@ def test_v29_leaves_rows_without_the_fingerprint_untouched(sample_engine: sa.Eng
         conn.execute(findings.insert(), rows)
         before = _rows(conn)
         conn.execute(sa.text("PRAGMA user_version = 28"))
-    assert len(before) == 9
+    assert len(before) == 10
 
     assert ensure_sample_schema_current(sample_engine) is False
     with sample_engine.connect() as conn:

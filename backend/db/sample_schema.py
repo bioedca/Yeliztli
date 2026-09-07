@@ -443,26 +443,32 @@ _UNCERTAIN_ANCESTRY_WARNING_PREFIX = (
     "Ancestry could not be confidently inferred (insufficient data), so the match "
     "between your background and this score's development population cannot be assessed"
 )
-_APPENDED_ADMIXTURE_CLAUSE = re.compile(
-    r" Your ancestry composition is admixed \(top ancestry \d{1,3}%\)\. "
-    r"PRS accuracy may be reduced for admixed genetic backgrounds\.$"
+# The two complete caveats the UNCERTAIN branch has ever produced with the clause
+# appended: the withheld-percentile form and the reported-percentile form. Both
+# are matched in full, so hand-edited text anywhere in the caveat is left alone.
+_UNCERTAIN_ANCESTRY_WARNING_WITH_ADMIXTURE = re.compile(
+    "^"
+    + re.escape(_UNCERTAIN_ANCESTRY_WARNING_PREFIX)
+    + r"(?P<tail>\.|\. Interpret the percentile with caution\.)"
+    + r" Your ancestry composition is admixed \(top ancestry \d{1,3}%\)\. "
+    + r"PRS accuracy may be reduced for admixed genetic backgrounds\.$"
 )
 
 
 def _uncertain_ancestry_warning_without_admixture(warning: object) -> str | None:
     """Drop the admixed-composition clause a generated UNCERTAIN caveat carried.
 
-    Only the exact producer shape is repaired: the UNCERTAIN branch's opening
-    sentence followed by the appended fraction clause at the very end. ADMIXED
-    caveats, confident-population caveats, and anything hand-edited are left
-    untouched.
+    Only the two exact producer outputs are repaired: the UNCERTAIN branch's
+    sentence, optionally followed by the reported-percentile guidance, followed by
+    the appended fraction clause and nothing else. ADMIXED caveats,
+    confident-population caveats, and any caveat with other text are untouched.
     """
-    if not isinstance(warning, str) or not warning.startswith(_UNCERTAIN_ANCESTRY_WARNING_PREFIX):
+    if not isinstance(warning, str):
         return None
-    match = _APPENDED_ADMIXTURE_CLAUSE.search(warning)
+    match = _UNCERTAIN_ANCESTRY_WARNING_WITH_ADMIXTURE.fullmatch(warning)
     if match is None:
         return None
-    return warning[: match.start()]
+    return _UNCERTAIN_ANCESTRY_WARNING_PREFIX + match.group("tail")
 
 
 # Current schema version. Bump for per-sample schema or content migrations.
