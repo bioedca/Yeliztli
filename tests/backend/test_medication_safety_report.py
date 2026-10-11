@@ -98,7 +98,7 @@ class TestClassifyActionability:
     def test_routine_marker_plus_consider_is_actionable(self):
         # "consider" is the only action marker here (#2070). Without it, the
         # routine "label-recommended" marker would demote this recommendation.
-        rec = "Use label-recommended dosing; consider a lower starting dose in frail patients."
+        rec = "Use label-recommended dosing; consider the synthetic placeholder note."
         assert classify_actionability(rec) == ACTIONABILITY_ACTIONABLE
 
     def test_action_verb_beats_routine_marker(self):
@@ -189,12 +189,17 @@ _SINGLE_MARKER_ACTIONABLE_ROWS: dict[tuple[str, str, str, str], str] = {
 
 def _cpic_guideline_rows() -> dict[tuple[str, str, str, str], str]:
     with (CPIC_DATA_DIR / "cpic_guidelines.csv").open(newline="", encoding="utf-8") as fh:
-        rows = {
-            (r["gene"], r["drug"], r["phenotype"], r["activity_score"]): r["recommendation"]
+        records = [
+            ((r["gene"], r["drug"], r["phenotype"], r["activity_score"]), r["recommendation"])
             for r in csv.DictReader(fh)
-        }
-    assert rows, "the shipped CPIC guideline corpus is empty"
-    return rows
+        ]
+    assert records, "the shipped CPIC guideline corpus is empty"
+    # A duplicate key would collapse to one row here and hide the other from the
+    # scan; production keeps duplicates visible as a data regression, so fail.
+    keys = [key for key, _ in records]
+    duplicates = sorted({key for key in keys if keys.count(key) > 1})
+    assert not duplicates, f"duplicate cpic_guidelines.csv keys: {duplicates}"
+    return dict(records)
 
 
 class TestActionabilityGuidelineCorpus:

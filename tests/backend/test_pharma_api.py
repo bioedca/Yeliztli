@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import csv
 import json
 from collections.abc import Generator
 from pathlib import Path
@@ -24,6 +25,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
+from backend.annotation.cpic import CPIC_DATA_DIR
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
@@ -214,8 +216,22 @@ _TAMOXIFEN_FIRST_WITHHELD_FINDING = {
 }
 
 
-_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = (
-    "No dose reduction recommended; consider reduction for high-dose therapy."
+def _shipped_cpic_recommendation(gene: str, drug: str, phenotype: str) -> str:
+    with (CPIC_DATA_DIR / "cpic_guidelines.csv").open(newline="", encoding="utf-8") as fh:
+        matches = [
+            row["recommendation"]
+            for row in csv.DictReader(fh)
+            if (row["gene"], row["drug"], row["phenotype"]) == (gene, drug, phenotype)
+        ]
+    assert len(matches) == 1, (gene, drug, phenotype, matches)
+    return matches[0]
+
+
+# The shipped CPIC text, not a paraphrase. It carries the routine marker
+# "label-recommended", so its "consider" clause is the only thing keeping it
+# actionable; a paraphrase without a routine marker hid that (#2070).
+_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = _shipped_cpic_recommendation(
+    "UGT1A1", "irinotecan", "Intermediate Metabolizer"
 )
 
 
@@ -295,8 +311,7 @@ _UGT1A1_CONSERVATIVE_FINDINGS = [
         "drug": "irinotecan",
         "finding_text": (
             "UGT1A1 *1/*1 (possible *1/*28): Intermediate Metabolizer -- "
-            "irinotecan: No dose reduction recommended; consider reduction for "
-            "high-dose therapy."
+            f"irinotecan: {_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION}"
         ),
         "detail_json": _ugt1a1_conservative_detail(
             _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION,
@@ -854,6 +869,27 @@ class TestUgt1a1ConservativeSummary:
         assert effect.phenotype == "Intermediate Metabolizer"
         assert effect.activity_score == 1.0
         assert effect.recommendation == "Low likelihood of bilirubin-related discontinuation."
+
+    def test_report_keeps_shipped_irinotecan_guidance_actionable(
+        self,
+        ugt1a1_conservative_sample: int,
+    ):
+        """#2070 through the report path: the shipped UGT1A1/irinotecan IM
+        recommendation must reach the attention section and the count. Irinotecan
+        has no other gene effect to rescue it if its classification slips."""
+        from backend.api.routes.pharma import medication_safety_report
+
+        resp = medication_safety_report(sample_id=ugt1a1_conservative_sample)
+
+        irinotecan = next(d for d in resp.drugs if d.drug == "irinotecan")
+        assert [e.gene for e in irinotecan.gene_effects] == ["UGT1A1"]
+        effect = irinotecan.gene_effects[0]
+        assert effect.recommendation == _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION
+        assert effect.actionability == "actionable"
+        assert irinotecan.actionable is True
+        # Atazanavir's phrasing has no routine marker, so it is actionable by the
+        # fail-toward-attention default; irinotecan is the second.
+        assert resp.actionable_drug_count == 2
 
 
 # ── DPYD fluoropyrimidine caveat surfacing (SW-E5) ────────────────────
