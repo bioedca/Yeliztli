@@ -78,6 +78,12 @@ function GeneEffectRow({ effect }: { effect: ReportGeneEffect }) {
           {effect.phenotype && (
             <span className="text-sm text-muted-foreground">{effect.phenotype}</span>
           )}
+          {/* A conservative override must not read as the call itself (#2072). */}
+          {effect.conservative_alert && (
+            <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950/50 dark:text-sky-300">
+              Conservative
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <CoverageBadge coverage={effect.coverage} />
@@ -95,6 +101,31 @@ function GeneEffectRow({ effect }: { effect: ReportGeneEffect }) {
             </span>
           )}
         </p>
+      )}
+
+      {/* Why this drug's phenotype differs from the per-gene coverage panel: the
+          guidance assumes the conservative phenotype for an allele the array could
+          not type. Visible text beside the result, not a hover-only title (#2072). */}
+      {effect.conservative_alert && (
+        <div
+          className="mt-2 flex gap-1.5 rounded-md bg-sky-50 p-2 dark:bg-sky-950/30"
+          role="note"
+          aria-label={`${effect.gene} conservative prescribing assumption`}
+        >
+          <Info
+            className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-300"
+            aria-hidden="true"
+          />
+          <p className="text-xs text-sky-800 dark:text-sky-200">
+            {effect.called_phenotype && (
+              <span className="font-medium">
+                Directly called: {effect.called_phenotype}.{" "}
+              </span>
+            )}
+            {effect.confidence_note ??
+              `This guidance conservatively assumes ${effect.phenotype ?? "a reduced-function phenotype"}.`}
+          </p>
+        </div>
       )}
 
       {/* Gene-specific caveat (e.g. CYP2D6 copy-number / DPYD fatal-toxicity).
