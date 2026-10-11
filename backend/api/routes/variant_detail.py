@@ -28,7 +28,7 @@ from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes, mondo_hpo_install_is_serviceable
 from backend.annotation.spliceai import lookup_spliceai_by_variant
-from backend.annotation.vep_bundle import _filter_rows_for_sample_allele
+from backend.annotation.vep_bundle import _filter_rows_for_sample_allele, primary_transcript_rank
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
@@ -295,6 +295,50 @@ def _fetch_all_transcripts(
     ]
 
 
+# The primary VEP fields the annotation pipeline writes together, all taken
+# from one transcript (``vep_bundle._pick_best``).
+_PRIMARY_VEP_FIELDS = (
+    "gene_symbol",
+    "transcript_id",
+    "consequence",
+    "hgvs_coding",
+    "hgvs_protein",
+    "strand",
+    "exon_number",
+    "intron_number",
+    "mane_select",
+)
+
+
+def _resolve_primary_annotation(
+    data: dict[str, Any], transcripts: list[TranscriptAnnotation]
+) -> None:
+    """Fill a missing primary VEP annotation from the sample's resolved allele (#2062).
+
+    At a multi-ALT rsID the pipeline withholds VEP when it cannot tell which
+    ALT the sample has (#1458). The row's ref/alt is often settled later in the
+    same run (ClinVar supplies it), so the stored primary fields stay NULL while
+    ``transcripts`` - filtered by that stored identity - holds the right
+    allele's rows. Left NULL, the Overview, header, gene link and gene-disease
+    list all read as "no gene" beside a populated transcript list.
+
+    Picks the primary transcript with the pipeline's own ranking. A stored
+    annotation is kept as is (``mane_select`` has a server default, so it says
+    nothing about whether VEP wrote the row), and with no resolvable allele
+    ``transcripts`` is empty, so the withholding stands.
+    """
+    if not transcripts or any(
+        data.get(field) is not None for field in _PRIMARY_VEP_FIELDS if field != "mane_select"
+    ):
+        return
+    primary = max(
+        transcripts,
+        key=lambda tx: primary_transcript_rank(tx.mane_select, tx.consequence),
+    )
+    for field in _PRIMARY_VEP_FIELDS:
+        data[field] = getattr(primary, field)
+
+
 def _fetch_gene_phenotypes(gene_symbol: str | None) -> list[GenePhenotypeRecord]:
     """Fetch all gene-phenotype associations for a gene from reference.db.
 
@@ -550,6 +594,8 @@ def get_variant_detail(
     transcripts = _fetch_all_transcripts(
         rsid, allele_identity=allele_identity, genotype=data.get("genotype")
     )
+    # Before the gene-phenotype lookup and the badges, which read these fields.
+    _resolve_primary_annotation(data, transcripts)
 
     # 5. Fetch gene-phenotype records (including OMIM links)
     gene_phenotypes = _fetch_gene_phenotypes(data.get("gene_symbol"))
