@@ -496,7 +496,7 @@ class TestCsaSasAlias:
 
 class TestSourceAncestryLabel:
     """``ancestries`` is alphabetical, so ``ancestries[0]`` names no "primary"
-    population: for PGS005198 it was "AFR", the smallest of five cohorts."""
+    population: for PGS005198 it was simply "AFR", the first of five."""
 
     def test_registry_multi_ancestry_score_is_never_labelled_one_population(self) -> None:
         spec = next(s for s in load_pgs_registry()["body_mass_index"] if s.pgs_id == "PGS005198")
