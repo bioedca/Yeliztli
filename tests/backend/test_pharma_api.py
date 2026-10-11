@@ -216,10 +216,10 @@ _TAMOXIFEN_FIRST_WITHHELD_FINDING = {
 }
 
 
-def _shipped_cpic_recommendation(gene: str, drug: str, phenotype: str) -> str:
+def _shipped_cpic_row(gene: str, drug: str, phenotype: str) -> dict[str, str]:
     with (CPIC_DATA_DIR / "cpic_guidelines.csv").open(newline="", encoding="utf-8") as fh:
         matches = [
-            row["recommendation"]
+            row
             for row in csv.DictReader(fh)
             if (row["gene"], row["drug"], row["phenotype"]) == (gene, drug, phenotype)
         ]
@@ -227,10 +227,11 @@ def _shipped_cpic_recommendation(gene: str, drug: str, phenotype: str) -> str:
     return matches[0]
 
 
-# The shipped CPIC text, not a paraphrase. It carries the routine marker
-# "label-recommended", so its "consider" clause is the only thing keeping it
-# actionable; a paraphrase without a routine marker hid that (#2070).
-_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION = _shipped_cpic_recommendation(
+# The shipped CPIC row, not a paraphrase: recommendation, classification and
+# source stay coupled. Its text carries the routine marker "label-recommended",
+# so its "consider" clause is the only thing keeping it actionable; a
+# paraphrase without a routine marker hid that (#2070).
+_UGT1A1_IRINOTECAN_INTERMEDIATE_ROW = _shipped_cpic_row(
     "UGT1A1", "irinotecan", "Intermediate Metabolizer"
 )
 
@@ -248,18 +249,20 @@ _UGT1A1_GUIDELINES = [
         "gene": "UGT1A1",
         "drug": "irinotecan",
         "phenotype": "Intermediate Metabolizer",
-        "recommendation": _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION,
-        "classification": "A",
-        "guideline_url": "https://www.pharmgkb.org/guidelineAnnotation/PA166104951",
+        "recommendation": _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["recommendation"],
+        "classification": _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["classification"],
+        "guideline_url": _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["guideline_url"],
     },
 ]
 
 
-def _ugt1a1_conservative_detail(recommendation: str, guideline_url: str) -> str:
+def _ugt1a1_conservative_detail(
+    recommendation: str, guideline_url: str, classification: str = "A"
+) -> str:
     return json.dumps(
         {
             "recommendation": recommendation,
-            "classification": "A",
+            "classification": classification,
             "guideline_url": guideline_url,
             "call_confidence": "Partial",
             "confidence_note": (
@@ -311,11 +314,12 @@ _UGT1A1_CONSERVATIVE_FINDINGS = [
         "drug": "irinotecan",
         "finding_text": (
             "UGT1A1 *1/*1 (possible *1/*28): Intermediate Metabolizer -- "
-            f"irinotecan: {_UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION}"
+            f"irinotecan: {_UGT1A1_IRINOTECAN_INTERMEDIATE_ROW['recommendation']}"
         ),
         "detail_json": _ugt1a1_conservative_detail(
-            _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION,
-            "https://www.pharmgkb.org/guidelineAnnotation/PA166104951",
+            _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["recommendation"],
+            _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["guideline_url"],
+            _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["classification"],
         ),
     },
 ]
@@ -884,7 +888,9 @@ class TestUgt1a1ConservativeSummary:
         irinotecan = next(d for d in resp.drugs if d.drug == "irinotecan")
         assert [e.gene for e in irinotecan.gene_effects] == ["UGT1A1"]
         effect = irinotecan.gene_effects[0]
-        assert effect.recommendation == _UGT1A1_IRINOTECAN_INTERMEDIATE_RECOMMENDATION
+        assert effect.recommendation == _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["recommendation"]
+        assert effect.classification == _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["classification"]
+        assert effect.guideline_url == _UGT1A1_IRINOTECAN_INTERMEDIATE_ROW["guideline_url"]
         assert effect.actionability == "actionable"
         assert irinotecan.actionable is True
         # Atazanavir's phrasing has no routine marker, so it is actionable by the
