@@ -252,6 +252,47 @@ def _rows_match_coordinate(rows: list[sa.Row], coordinate: CoordinateIdentity | 
     return True
 
 
+_NUCLEOTIDES = frozenset("ACGT")
+_INDEL_TOKENS = frozenset("ID")
+
+
+def _genotype_allele_class(genotype: str | None) -> str | None:
+    """Classify a sample call as an ``"indel"`` or ``"snv"`` probe.
+
+    Consumer arrays call indel probes with vendor ``I``/``D`` tokens and SNP
+    probes with single bases. Anything else (no-calls, VCF allele strings) is
+    unclassified and returns ``None``.
+    """
+    if not genotype:
+        return None
+    tokens = [
+        token.strip().upper() for token in (genotype.split("/") if "/" in genotype else genotype)
+    ]
+    if tokens and all(token in _INDEL_TOKENS for token in tokens):
+        return "indel"
+    if tokens and all(token in _NUCLEOTIDES for token in tokens):
+        return "snv"
+    return None
+
+
+def _row_allele_class(row: sa.Row) -> str | None:
+    """Classify a VEP bundle row as an ``"indel"`` or ``"snv"`` record.
+
+    The bundle mixes indel representations (VCF-anchored, VEP-trimmed with
+    ``-``, and malformed same-base rows), so only the unambiguous shapes are
+    classified; the rest return ``None``.
+    """
+    ref = _normal_allele(getattr(row, "ref", None))
+    alt = _normal_allele(getattr(row, "alt", None))
+    if ref is None or alt is None:
+        return None
+    if ref in _NUCLEOTIDES and alt in _NUCLEOTIDES and ref != alt:
+        return "snv"
+    if "-" in (ref, alt) or len(ref) != len(alt):
+        return "indel"
+    return None
+
+
 def _filter_rows_for_sample_allele(
     rows: list[sa.Row],
     *,
@@ -497,6 +538,20 @@ def lookup_vep_by_positions(
                             "candidate_rsids": sorted(candidate_rsids),
                         },
                     )
+                    continue
+
+                # A coordinate hit is another rsID's record. An I/D-token probe
+                # is an indel and a base-called probe a SNP, so a record of the
+                # other class is a different variant that happens to share the
+                # position (#2063: a BRCA1 deletion wore a co-located SNV's
+                # missense annotation). Checked after the ambiguity test, so it
+                # only ever drops a match, never resolves an ambiguous one.
+                probe_class = _genotype_allele_class(
+                    genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None
+                )
+                if probe_class is not None and any(
+                    _row_allele_class(row) not in (None, probe_class) for row in candidate_rows
+                ):
                     continue
 
                 candidate_rsid = next(iter(candidate_rsids))
