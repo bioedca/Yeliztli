@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useDeferredValue } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Command } from "cmdk"
+import { Command, defaultFilter } from "cmdk"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Dna, MapPin, ArrowRightLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -22,6 +22,11 @@ import { useVariantSearch } from "@/api/variants"
 import { useSamples } from "@/api/samples"
 import { parseSampleId } from "@/lib/format"
 import { withActiveSample } from "@/lib/navigation"
+
+// The server trims the query before searching, so score against the same
+// trimmed text: otherwise a padded query ("LDLR ") hides what it returned.
+const filterTrimmed = (value: string, search: string, keywords?: string[]) =>
+  defaultFilter(value, search.trim(), keywords)
 
 export interface CommandPaletteProps {
   open: boolean
@@ -91,6 +96,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
       open={open}
       onOpenChange={handleOpenChange}
       label="Command Menu"
+      filter={filterTrimmed}
       // Server results mount after cmdk has already picked a selection, and it
       // does not re-pick, so they can land above it; wrap-around keeps every
       // item reachable by arrow key (#2065).

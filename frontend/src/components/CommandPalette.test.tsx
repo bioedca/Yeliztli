@@ -254,8 +254,9 @@ describe("CommandPalette", () => {
     expect(screen.getByText("risk_factor")).toBeInTheDocument()
   })
 
-  it.each(["LDLR", "ldlr"])(
-    "shows the server's variant results for a gene query (%s) (#2065)",
+  // "LDLR " is padded: the server trims it, so cmdk must score the trimmed text.
+  it.each(["LDLR", "ldlr", "LDLR "])(
+    "shows the server's variant results for a gene query (%j) (#2065)",
     async (query) => {
       const user = userEvent.setup()
       render(<CommandPalette open={true} onOpenChange={vi.fn()} />)
