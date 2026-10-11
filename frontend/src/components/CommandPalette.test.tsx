@@ -30,6 +30,16 @@ vi.mock("@/api/variants", () => ({
         ],
       }
     }
+    // Gene queries are matched server-side on the exact symbol (case-insensitive),
+    // so the results carry the gene but not the typed text in their rsid.
+    if (sampleId && query.trim().toUpperCase() === "LDLR") {
+      return {
+        data: [
+          { rsid: "rs1000001", chrom: "19", pos: 11200000, gene_symbol: "LDLR", clinvar_significance: "Pathogenic" },
+          { rsid: "rs1000002", chrom: "19", pos: 11200100, gene_symbol: "LDLR", clinvar_significance: null },
+        ],
+      }
+    }
     return { data: undefined }
   },
 }))
@@ -242,6 +252,50 @@ describe("CommandPalette", () => {
     expect(screen.getByText("rs429358")).toBeInTheDocument()
     expect(screen.getByText("APOE")).toBeInTheDocument()
     expect(screen.getByText("risk_factor")).toBeInTheDocument()
+  })
+
+  it.each(["LDLR", "ldlr"])(
+    "shows the server's variant results for a gene query (%s) (#2065)",
+    async (query) => {
+      const user = userEvent.setup()
+      render(<CommandPalette open={true} onOpenChange={vi.fn()} />)
+
+      await user.type(screen.getByTestId("command-palette-input"), query)
+
+      // cmdk must not re-filter server results: their rsids don't contain the
+      // typed gene, so its client-side filter used to hide every one.
+      await waitFor(() => {
+        expect(screen.getAllByTestId("command-palette-variant-item")).toHaveLength(2)
+      })
+      expect(screen.getByText("rs1000001")).toBeInTheDocument()
+      expect(screen.getByText("rs1000002")).toBeInTheDocument()
+      expect(screen.queryByText("No results found.")).not.toBeInTheDocument()
+    },
+  )
+
+  it("reaches a gene query's variant results from the keyboard (#2065)", async () => {
+    const user = userEvent.setup()
+    render(<CommandPalette open={true} onOpenChange={vi.fn()} />)
+
+    await user.type(screen.getByTestId("command-palette-input"), "ldlr")
+    await waitFor(() => {
+      expect(screen.getAllByTestId("command-palette-variant-item")).toHaveLength(2)
+    })
+
+    // Visible is not enough: an item cmdk scores 0 renders but is skipped by
+    // arrow-key navigation, so the palette's keyboard path never reaches it.
+    const variantSelected = () =>
+      screen
+        .getAllByTestId("command-palette-variant-item")
+        .some((el) => el.getAttribute("data-selected") === "true")
+    for (let i = 0; i < 20 && !variantSelected(); i++) {
+      await user.keyboard("{ArrowDown}")
+    }
+    expect(variantSelected()).toBe(true)
+
+    await user.keyboard("{Enter}")
+    const url = new URL(mockNavigate.mock.calls.at(-1)?.[0], "http://localhost")
+    expect(url.pathname).toMatch(/^\/variants\/rs100000[12]$/)
   })
 
   it("navigates to variant detail on variant selection", async () => {

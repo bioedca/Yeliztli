@@ -91,6 +91,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
       open={open}
       onOpenChange={handleOpenChange}
       label="Command Menu"
+      // Server results mount after cmdk has already picked a selection, and it
+      // does not re-pick, so they can land above it; wrap-around keeps every
+      // item reachable by arrow key (#2065).
+      loop
       className={cn(
         "fixed inset-0 z-50",
         "[&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/50",
@@ -136,12 +140,18 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
               </Command.Group>
             )}
 
+            {/* The server already filtered these (rsid prefix or exact gene).
+                cmdk re-filters every item against its value, which carried no
+                gene, so it dropped every gene-query result (#2065). The rsid and
+                gene keywords make each server result match what was typed, so
+                cmdk keeps, ranks and counts it. */}
             {hasVariantResults && (
               <Command.Group heading="Variants">
                 {variantResults.map((v) => (
                   <Command.Item
                     key={v.rsid}
                     value={`variant-${v.rsid}`}
+                    keywords={v.gene_symbol ? [v.rsid, v.gene_symbol] : [v.rsid]}
                     onSelect={() => navigateToVariant(v.rsid)}
                     className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
                     data-testid="command-palette-variant-item"
