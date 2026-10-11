@@ -874,6 +874,24 @@ class TestUgt1a1ConservativeSummary:
         assert effect.activity_score == 1.0
         assert effect.recommendation == "Low likelihood of bilirubin-related discontinuation."
 
+    def test_report_flags_conservative_effects_with_the_direct_call(
+        self,
+        ugt1a1_conservative_sample: int,
+    ):
+        """#2072: a drug effect that uses a conservative phenotype says so, and
+        carries the direct call the coverage panel shows, so the report can
+        reconcile the two instead of printing them as a contradiction."""
+        from backend.api.routes.pharma import medication_safety_report
+
+        resp = medication_safety_report(sample_id=ugt1a1_conservative_sample)
+
+        for drug in ("atazanavir", "irinotecan"):
+            effect = next(d for d in resp.drugs if d.drug == drug).gene_effects[0]
+            assert effect.phenotype == "Intermediate Metabolizer"
+            assert effect.conservative_alert is True
+            assert effect.called_phenotype == "Normal Metabolizer"
+            assert effect.conservative_allele == "*28"
+
     def test_report_keeps_shipped_irinotecan_guidance_actionable(
         self,
         ugt1a1_conservative_sample: int,
@@ -1151,6 +1169,18 @@ class TestMedicationSafetyReport:
         assert drugs[0]["actionable"] is True
         assert drugs[-1]["actionable"] is False
         assert drugs[-1]["drug"] == "codeine"
+
+    def test_ordinary_effects_are_not_flagged_conservative(
+        self, report_client: tuple[TestClient, int]
+    ):
+        tc, sample_id = report_client
+        data = tc.get(f"/api/analysis/pharma/report?sample_id={sample_id}").json()
+        effects = [e for d in data["drugs"] for e in d["gene_effects"]]
+        assert effects
+        for effect in effects:
+            assert effect["conservative_alert"] is False
+            assert effect["called_phenotype"] is None
+            assert effect["conservative_allele"] is None
 
     def test_effect_actionability_labels(self, report_client: tuple[TestClient, int]):
         tc, sample_id = report_client

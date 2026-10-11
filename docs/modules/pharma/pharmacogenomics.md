@@ -39,7 +39,11 @@ surfaces the relevant CPIC prescribing guidance.
   for the direction of effect.
 - **Per-drug prescribing alerts** based on CPIC guidelines, with the CPIC level mapped to an
   evidence rating, plus context from PharmGKB, DPWG, and FDA labels.
-- A consolidated **medication-safety summary** grouping the actionable interactions.
+- A consolidated **medication-safety summary** grouping the actionable interactions. When a
+  drug's guidance conservatively assumes a reduced-function phenotype because an allele that
+  would change the call couldn't be typed, that drug's card labels the phenotype
+  **Conservative** and shows your directly called result beside the explanation. The
+  per-gene coverage panel always lists the direct call.
 
 ## Good to know
 

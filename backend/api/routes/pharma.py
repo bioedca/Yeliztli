@@ -149,6 +149,13 @@ class ReportGeneEffect(BaseModel):
     coverage: CoverageInfo | None = None
     actionability: str  # actionable / routine / indeterminate
     gene_caveat: str | None = None
+    # Set when this drug's guidance uses a conservative phenotype because an
+    # allele the array could not type would change the call (#1461). `phenotype`
+    # is then the conservative term and `called_phenotype` the direct call the
+    # per-gene coverage panel shows, so the two can be reconciled (#2072).
+    conservative_alert: bool = False
+    called_phenotype: str | None = None
+    conservative_allele: str | None = None
 
 
 class DrugSafetyEntry(BaseModel):
@@ -709,6 +716,7 @@ def medication_safety_report(
             gene_summary_drugs[gene] = drug
 
         recommendation = detail.get("recommendation")
+        conservative = detail.get("conservative_alert") is True
         effect = ReportGeneEffect(
             gene=gene,
             diplotype=row.diplotype,
@@ -724,6 +732,9 @@ def medication_safety_report(
             coverage=coverage,
             actionability=classify_actionability(recommendation),
             gene_caveat=detail.get("gene_caveat"),
+            conservative_alert=conservative,
+            called_phenotype=detail.get("called_phenotype") if conservative else None,
+            conservative_allele=detail.get("conservative_allele") if conservative else None,
         )
 
         # Group by drug (case-insensitive key; keep first-seen canonical name).

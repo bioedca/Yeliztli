@@ -224,6 +224,81 @@ describe("MedicationSafetyReport", () => {
     ).toBeInTheDocument()
   })
 
+  it("marks a conservative prescribing phenotype inline and explains it visibly (#2072)", () => {
+    // CYP2C9 *1/*1 is called Normal Metabolizer, but phenytoin's guidance
+    // conservatively uses Intermediate because *8 is untyped. The card must not
+    // print that override as if it were the call.
+    const note =
+      "Cannot exclude *8. Conservative prescribing alert uses Intermediate Metabolizer " +
+      "because untyped CYP2C9*8 could make *1/*8; the directly called *1/*1 maps to " +
+      "Normal Metabolizer."
+    const conservativeReport: MedicationSafetyReportResponse = {
+      ...REPORT,
+      gene_coverage: [
+        ...REPORT.gene_coverage,
+        {
+          gene: "CYP2C9",
+          diplotype: "*1/*1",
+          phenotype: "Normal Metabolizer",
+          call_confidence: "Partial",
+          confidence_note: note,
+          coverage: { assessed: 3, total: 4 },
+          activity_score: 2.0,
+          ehr_notation: "CYP2C9 Normal Metabolizer",
+          evidence_level: 4,
+          gene_caveat: null,
+        },
+      ],
+      drugs: [
+        ...REPORT.drugs,
+        {
+          drug: "phenytoin",
+          actionable: true,
+          gene_effects: [
+            {
+              gene: "CYP2C9",
+              diplotype: "*1/*1",
+              phenotype: "Intermediate Metabolizer",
+              recommendation: "Synthetic fixture recommendation.",
+              classification: "A",
+              guideline_url: "https://cpicpgx.org/",
+              call_confidence: "Partial",
+              confidence_note: note,
+              evidence_level: 4,
+              activity_score: 1.5,
+              ehr_notation: "CYP2C9 Intermediate Metabolizer",
+              coverage: { assessed: 3, total: 4 },
+              actionability: "actionable",
+              gene_caveat: null,
+              conservative_alert: true,
+              called_phenotype: "Normal Metabolizer",
+              conservative_allele: "*8",
+            },
+          ],
+        },
+      ],
+    }
+    mockUseReport.mockReturnValue({ data: conservativeReport, isLoading: false, isError: false })
+    render(<MedicationSafetyReport sampleId={1} />)
+
+    const phenytoin = screen.getByRole("article", { name: "phenytoin medication safety" })
+    expect(within(phenytoin).getByText("Intermediate Metabolizer")).toBeInTheDocument()
+    expect(within(phenytoin).getByText("Conservative")).toBeInTheDocument()
+    // The rationale is visible text tied to the phenotype, not a hover title.
+    const explanation = within(phenytoin).getByRole("note", {
+      name: "CYP2C9 conservative prescribing assumption",
+    })
+    expect(explanation).toHaveTextContent("Directly called: Normal Metabolizer")
+    expect(explanation).toHaveTextContent(/untyped CYP2C9\*8/)
+
+    // A genuine call carries neither marker.
+    const clopidogrel = screen.getByRole("article", { name: "clopidogrel medication safety" })
+    expect(within(clopidogrel).queryByText("Conservative")).not.toBeInTheDocument()
+    expect(
+      within(clopidogrel).queryByRole("note", { name: /conservative prescribing assumption/ }),
+    ).not.toBeInTheDocument()
+  })
+
   it("renders drugs in the order provided (actionable first)", () => {
     mockUseReport.mockReturnValue({ data: REPORT, isLoading: false, isError: false })
     render(<MedicationSafetyReport sampleId={1} />)
