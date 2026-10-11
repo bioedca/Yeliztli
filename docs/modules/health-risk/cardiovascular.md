@@ -11,7 +11,7 @@ inherited heart and lipid conditions, and summarises familial-hypercholesterolem
   variants
 - **Other lipid metabolism:** *LPA*, *ABCG5*, *ABCG8*, and *APOB* findings scoped to
   low-LDL conditions, including protein-truncating variants linked to familial
-  hypobetalipoproteinemia, and protein-truncating *PCSK9* variants
+  hypobetalipoproteinemia, and *PCSK9* nonsense and frameshift variants
 - **Channelopathies** (arrhythmia syndromes): *KCNQ1*, *SCN5A*, *KCNH2*, *RYR2*
 - **Cardiomyopathies:** *MYBPC3*, *MYH7*, *TNNT2*, *LMNA*, *DSP*, *PKP2*
 
@@ -44,17 +44,16 @@ many copies you carry.
   [DOI:10.1001/jamacardio.2022.5271](https://doi.org/10.1001/jamacardio.2022.5271)
   (accessed 2026-07-31)).
 - **PCSK9 is bidirectional too.** FH-causing *PCSK9* variants act by gain of function,
-  so protein-truncating *PCSK9* variants (nonsense, frameshift, and canonical splice-site
-  changes) are reported under Other lipid metabolism and excluded from FH status, even when
-  ClinVar labels them as FH. Other *PCSK9* findings follow the module's existing FH
-  criteria. Human genetic studies associate nonsense and frameshift *PCSK9* variants with
-  low LDL cholesterol
+  so *PCSK9* nonsense and frameshift variants are reported under Other lipid metabolism and
+  excluded from FH status, even when ClinVar labels them as FH. Other *PCSK9* findings
+  follow the module's existing FH criteria. Human genetic studies associate nonsense and
+  frameshift *PCSK9* variants with low LDL cholesterol
   ([PMID:15654334](https://pubmed.ncbi.nlm.nih.gov/15654334/);
   [DOI:10.1038/ng1509](https://doi.org/10.1038/ng1509) (accessed 2026-10-11);
   [PMID:16989838](https://pubmed.ncbi.nlm.nih.gov/16989838/);
   [DOI:10.1016/j.atherosclerosis.2006.08.039](https://doi.org/10.1016/j.atherosclerosis.2006.08.039)
-  (accessed 2026-10-11)); splice-site variants are grouped with them by mechanism, not
-  because a study measured them separately.
+  (accessed 2026-10-11)). *PCSK9* splice-site variants keep the existing FH criteria: no
+  study has measured them, and a splice change can leave the reading frame intact.
 - The dedicated [familial-hypercholesterolemia](familial-hypercholesterolemia.md) view builds
   on these findings and adds an LDL-C polygenic score for a fuller FH picture.
 

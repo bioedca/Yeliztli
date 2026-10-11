@@ -99,10 +99,12 @@ LOW_LDL_CONDITION_TERMS = (
     "abetalipoproteinemia",
     "abetalipoproteinaemia",
 )
-# FH-panel genes whose loss of function LOWERS LDL cholesterol. A
-# protein-truncating variant in one of them must not be treated as FH evidence
-# merely because it is predicted loss-of-function. LDLR is deliberately absent:
-# its loss of function is the FH mechanism.
+# FH-panel genes whose loss of function LOWERS LDL cholesterol, mapped to the
+# protein-truncating consequences shown to cause it. Such a variant must not be
+# treated as FH evidence merely because it is predicted loss-of-function. LDLR
+# is deliberately absent: its loss of function is the FH mechanism.
+# Keep these as exact Sequence Ontology tokens; a compound VEP consequence is
+# split before comparison.
 # APOB: PTVs cause familial hypobetalipoproteinemia (Peloso et al. 2019,
 # PMID 30939045; ClinGen FH VCEP, DOI 10.1016/j.atherosclerosis.2025.119569).
 # PCSK9: FH-causing variants are gain-of-function (Abifadel et al. 2003,
@@ -110,19 +112,20 @@ LOW_LDL_CONDITION_TERMS = (
 # PMID 29127338), while nonsense and frameshift variants lower LDL cholesterol
 # (Cohen et al. 2005, PMID 15654334; Hooper et al. 2007, PMID 16989838; Fasano
 # et al. 2007, PMID 17170371; Dron et al. 2023, PMID 36723951). Canonical splice
-# variants are included by their null mechanism; no study tests them alone.
+# variants are left out: no study measures them, and a skipped exon can keep the
+# reading frame, so a splice token alone does not prove loss of function.
 # Evidence: data/science-evidence/2026-10-11-pcsk9-ptv-low-ldl-2064/.
-LOW_LDL_LOSS_OF_FUNCTION_FH_GENES = frozenset({"APOB", "PCSK9"})
-# Keep these as exact Sequence Ontology tokens; a compound VEP consequence is
-# split before comparison.
-PROTEIN_TRUNCATING_CONSEQUENCES = frozenset(
-    {
-        "frameshift_variant",
-        "stop_gained",
-        "splice_acceptor_variant",
-        "splice_donor_variant",
-    }
-)
+LOW_LDL_PROTEIN_TRUNCATING_CONSEQUENCES: dict[str, frozenset[str]] = {
+    "APOB": frozenset(
+        {
+            "frameshift_variant",
+            "stop_gained",
+            "splice_acceptor_variant",
+            "splice_donor_variant",
+        }
+    ),
+    "PCSK9": frozenset({"frameshift_variant", "stop_gained"}),
+}
 VARIANT_SCOPED_CONDITION_GENES = frozenset(
     {
         "KCNQ1",
@@ -358,9 +361,10 @@ def _consequence_terms(consequence: str | None) -> frozenset[str]:
 def _is_low_ldl_protein_truncating(gene_info: CardiovascularGene, consequence: str | None) -> bool:
     """Whether an exact PTV consequence in a low-LDL loss-of-function gene
     (APOB, PCSK9) overrides ambiguous condition text."""
-    return gene_info.gene_symbol.upper() in LOW_LDL_LOSS_OF_FUNCTION_FH_GENES and bool(
-        _consequence_terms(consequence) & PROTEIN_TRUNCATING_CONSEQUENCES
+    truncating = LOW_LDL_PROTEIN_TRUNCATING_CONSEQUENCES.get(
+        gene_info.gene_symbol.upper(), frozenset()
     )
+    return bool(_consequence_terms(consequence) & truncating)
 
 
 def _variant_condition_scope(

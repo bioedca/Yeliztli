@@ -2271,9 +2271,8 @@ class TestPCSK9ConditionScope:
         [
             "frameshift_variant",
             "stop_gained",
-            "splice_acceptor_variant",
-            "splice_donor_variant",
-            "intron_variant;splice_donor_variant",
+            "intron_variant;stop_gained",
+            "missense_variant&frameshift_variant",
         ],
     )
     def test_pcsk9_truncating_variant_is_low_ldl_not_fh(
@@ -2290,12 +2289,23 @@ class TestPCSK9ConditionScope:
         assert result.variants[0].conditions == ["Hypocholesterolemia"]
         assert fh.status == FH_STATUS_NEGATIVE
 
-    @pytest.mark.parametrize("consequence", [None, "missense_variant", "splice_region_variant"])
+    @pytest.mark.parametrize(
+        "consequence",
+        [
+            None,
+            "missense_variant",
+            "splice_region_variant",
+            "splice_donor_variant",
+            "splice_acceptor_variant",
+        ],
+    )
     def test_pcsk9_nontruncating_variant_keeps_fh(
         self, panel: CardiovascularPanel, sample_engine: sa.Engine, consequence: str | None
     ) -> None:
-        """FH-causing PCSK9 variants are gain-of-function, so only an exact PTV
-        token moves a record out of FH."""
+        """FH-causing PCSK9 variants are gain-of-function, so only a nonsense or
+        frameshift token moves a record out of FH. A canonical splice token is not
+        enough: no study measures PCSK9 splice variants, and a skipped exon can
+        keep the reading frame (APOB's override does include them)."""
         with sample_engine.begin() as conn:
             conn.execute(sa.insert(annotated_variants), [_fh_gene_witness("PCSK9", consequence)])
 

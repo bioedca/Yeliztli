@@ -2,16 +2,17 @@
 
 ## Scope
 
-This packet supports one classification rule in `backend/analysis/cardiovascular.py`: a
-protein-truncating *PCSK9* variant (an exact `frameshift_variant`, `stop_gained`,
-`splice_acceptor_variant` or `splice_donor_variant` token) is not familial
-hypercholesterolemia (FH) evidence. It supports two claims:
+This packet supports one classification rule in `backend/analysis/cardiovascular.py`: a *PCSK9*
+nonsense or frameshift variant (an exact `stop_gained` or `frameshift_variant` token) is not
+familial hypercholesterolemia (FH) evidence. It supports two claims:
 
 1. FH-causing *PCSK9* variants act by gain of function.
 2. *PCSK9* nonsense and frameshift variants lower LDL cholesterol.
 
-Canonical splice-site variants are grouped with them because they share the null mechanism.
-No source below measures them separately, and the code comment and documentation say so.
+Canonical splice-site variants are **not** covered by the rule. No source below measures them,
+and a skipped exon can preserve the reading frame, so a splice token alone does not establish
+loss of function. *PCSK9* splice-site records keep the module's existing FH criteria. (APOB's
+override, from #2057, does include splice tokens.)
 
 Repository base: `bbebbe9ac2f47bcac270ebc9e00a84f50ac1217b`
 
