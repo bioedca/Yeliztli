@@ -1,0 +1,346 @@
+{
+  "accessed": "2026-10-11",
+  "workflow": "evidence (run wf_ffa21fa4-5b0)",
+  "searches": [
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 nonsense loss-of-function mutations low LDL cholesterol"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 gain-of-function mutations cause autosomal dominant hypercholesterolemia"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 sequence variations reduced coronary heart disease risk ARIC"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "ClinGen Familial Hypercholesterolemia Variant Curation Expert Panel APOB PCSK9 ACMG/AMP specifications"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 null variants PVS1 not applicable familial hypercholesterolemia variant classification gain of function"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 deficiency homozygous loss of function healthy individual very low LDL cholesterol"
+      }
+    },
+    {
+      "role": "gather:consensus",
+      "tool": "Consensus",
+      "input": {
+        "query": "ClinGen FH VCEP variant classification guidelines for APOB and PCSK9 2025"
+      }
+    },
+    {
+      "role": "gather:scholar-gateway",
+      "tool": "Scholar Gateway",
+      "input": {
+        "query": "Do nonsense or loss-of-function mutations in PCSK9 (proprotein convertase subtilisin/kexin type 9) lower plasma LDL cholesterol and reduce risk of coronary heart disease?",
+        "topN": 15
+      }
+    },
+    {
+      "role": "gather:scholar-gateway",
+      "tool": "Scholar Gateway",
+      "input": {
+        "query": "Gain-of-function missense mutations in PCSK9 cause autosomal dominant familial hypercholesterolemia",
+        "topN": 15
+      }
+    },
+    {
+      "role": "gather:scholar-gateway",
+      "tool": "Scholar Gateway",
+      "input": {
+        "query": "What is the effect of PCSK9 loss-of-function variants on low-density lipoprotein cholesterol in humans?",
+        "topN": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "Cohen JC[Author] AND PCSK9 AND nonsense mutations AND low LDL",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "Abifadel M[Author] AND PCSK9 AND autosomal dominant hypercholesterolemia",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "ClinGen familial hypercholesterolemia variant curation expert panel APOB PCSK9 specifications",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "ClinGen familial hypercholesterolemia expert panel APOB PCSK9 ACMG/AMP specifications",
+        "max_results": 10,
+        "date_from": "2022"
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "ClinGen[Title/Abstract] AND PCSK9[Title/Abstract] AND variant classification",
+        "max_results": 15
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "Atherosclerosis[Journal] AND familial hypercholesterolemia AND APOB AND PCSK9 AND variant curation",
+        "max_results": 15,
+        "date_from": "2024"
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "familial hypercholesterolemia variant curation expert panel PCSK9 APOB recommendations ACMG",
+        "max_results": 15,
+        "date_from": "2023"
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "10.1016/j.atherosclerosis.2025.119569",
+        "max_results": 5
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 C679X Zulu OR Zimbabwe OR African homozygous loss-of-function low LDL",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9[Title/Abstract] AND C679X[Title/Abstract] AND (Zimbabwe[Title/Abstract] OR Zulu[Title/Abstract] OR African[Title/Abstract])",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "\"ClinGen\" AND \"familial hypercholesterolemia\" AND (PCSK9 OR APOB) AND \"variant curation\"",
+        "max_results": 15
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "ClinGen[Title/Abstract] AND hypercholesterolemia[Title/Abstract]",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "(Bourbon M[Author] OR Chora JR[Author]) AND (PCSK9 OR APOB) AND classification",
+        "max_results": 15,
+        "date_from": "2023"
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 gain-of-function D374Y hypercholesterolemia LDL receptor degradation",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 loss-of-function variants LDL cholesterol coronary heart disease meta-analysis",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9[Title] AND (gain-of-function[Title/Abstract]) AND familial hypercholesterolemia[Title/Abstract] AND review[Publication Type]",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "(15654334[pmid] OR 12730697[pmid] OR 16554528[pmid] OR 16989838[pmid] OR 27422940[pmid] OR 28768753[pmid] OR 15118091[pmid] OR 17435765[pmid] OR 14727179[pmid] OR 15358785[pmid] OR 16909389[pmid] OR 42400862[pmid] OR 17599443[pmid]) AND (retracted publication[pt] OR retraction of publication[pt] OR hasretractionin[filter])",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "(15654334[pmid] OR 12730697[pmid] OR 16554528[pmid] OR 16989838[pmid] OR 27422940[pmid] OR 28768753[pmid] OR 15118091[pmid] OR 17435765[pmid] OR 14727179[pmid] OR 15358785[pmid] OR 16909389[pmid] OR 42400862[pmid] OR 17599443[pmid])",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 AND (erratum[pt] OR published erratum[pt]) AND (Cohen J[Author] OR Abifadel M[Author] OR Hooper AJ[Author])",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "\"nonsense mutations in PCSK9\" OR \"Mutations in PCSK9 cause autosomal dominant hypercholesterolemia\" OR \"Sequence variations in PCSK9, low LDL\"",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 frameshift OR splice loss-of-function hypocholesterolemia exome sequencing carriers LDL cholesterol lower",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 predicted loss-of-function burden UK Biobank exome LDL cholesterol",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "gather:pubmed",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9[Title] AND familial hypercholesterolemia[Title/Abstract] AND gain-of-function[Title/Abstract] AND (variant classification OR pathogenicity)",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 loss-of-function variant hypercholesterolemia paradoxical OR \"loss-of-function\" PCSK9 familial hypercholesterolemia patients frameshift",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "ClinGen familial hypercholesterolemia PCSK9 variant classification specifications",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "Consensus",
+      "input": {
+        "query": "PCSK9 protein-truncating variants LDL cholesterol European ancestry exome sequencing"
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 hypercholesterolemia loss-of-function variant carriers elevated LDL",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 \"gain-of-function\" ACMG criteria variant curation familial hypercholesterolemia",
+        "max_results": 20
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 (frameshift OR splice OR splicing OR truncating) low LDL cholesterol hypobetalipoproteinemia",
+        "max_results": 25
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 \"c.399+1G>A\" OR (PCSK9 splice variant familial hypercholesterolemia Saudi)",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 \"loss-of-function\" variants familial hypercholesterolemia cohort misclassified pathogenic",
+        "max_results": 10
+      }
+    },
+    {
+      "role": "adversarial-verify",
+      "tool": "PubMed",
+      "input": {
+        "query": "PCSK9 loss-of-function LDL cholesterol",
+        "date_from": "2025",
+        "date_to": "2026",
+        "max_results": 25,
+        "sort": "relevance"
+      }
+    }
+  ],
+  "notes": {
+    "Consensus": "bio-research plugin endpoint, free tier (3 results/query, no DOIs returned)",
+    "Scholar Gateway": "semanticSearch returned ACCESS_DENIED three times; the agent fell back to NCBI E-utilities, Crossref and Europe PMC",
+    "ClinGen CSpec": "GET https://cspec.genome.network/cspec/api/svis?detail=high: FH panel lists LDLR (GN013 v1.2, Released) and APOB (GN237 v1.0, Classification Rules In Prep); no PCSK9 entry"
+  }
+}

@@ -99,13 +99,23 @@ LOW_LDL_CONDITION_TERMS = (
     "abetalipoproteinemia",
     "abetalipoproteinaemia",
 )
-# APOB protein-truncating variants are an established loss-of-function
-# mechanism for familial hypobetalipoproteinemia and must not be treated as FH
-# evidence merely because they are predicted loss-of-function.
+# FH-panel genes whose loss of function LOWERS LDL cholesterol. A
+# protein-truncating variant in one of them must not be treated as FH evidence
+# merely because it is predicted loss-of-function. LDLR is deliberately absent:
+# its loss of function is the FH mechanism.
+# APOB: PTVs cause familial hypobetalipoproteinemia (Peloso et al. 2019,
+# PMID 30939045; ClinGen FH VCEP, DOI 10.1016/j.atherosclerosis.2025.119569).
+# PCSK9: FH-causing variants are gain-of-function (Abifadel et al. 2003,
+# PMID 12730697; Cunningham et al. 2007, PMID 17435765; Di Taranto et al. 2017,
+# PMID 29127338), while nonsense and frameshift variants lower LDL cholesterol
+# (Cohen et al. 2005, PMID 15654334; Hooper et al. 2007, PMID 16989838; Fasano
+# et al. 2007, PMID 17170371; Dron et al. 2023, PMID 36723951). Canonical splice
+# variants are included by their null mechanism; no study tests them alone.
+# Evidence: data/science-evidence/2026-10-11-pcsk9-ptv-low-ldl-2064/.
+LOW_LDL_LOSS_OF_FUNCTION_FH_GENES = frozenset({"APOB", "PCSK9"})
 # Keep these as exact Sequence Ontology tokens; a compound VEP consequence is
-# split before comparison (Peloso et al. 2019, PMID 30939045; ClinGen FH VCEP,
-# DOI 10.1016/j.atherosclerosis.2025.119569).
-APOB_PROTEIN_TRUNCATING_CONSEQUENCES = frozenset(
+# split before comparison.
+PROTEIN_TRUNCATING_CONSEQUENCES = frozenset(
     {
         "frameshift_variant",
         "stop_gained",
@@ -345,10 +355,11 @@ def _consequence_terms(consequence: str | None) -> frozenset[str]:
     )
 
 
-def _is_apob_protein_truncating(gene_info: CardiovascularGene, consequence: str | None) -> bool:
-    """Whether an exact APOB PTV consequence overrides ambiguous condition text."""
-    return gene_info.gene_symbol.upper() == "APOB" and bool(
-        _consequence_terms(consequence) & APOB_PROTEIN_TRUNCATING_CONSEQUENCES
+def _is_low_ldl_protein_truncating(gene_info: CardiovascularGene, consequence: str | None) -> bool:
+    """Whether an exact PTV consequence in a low-LDL loss-of-function gene
+    (APOB, PCSK9) overrides ambiguous condition text."""
+    return gene_info.gene_symbol.upper() in LOW_LDL_LOSS_OF_FUNCTION_FH_GENES and bool(
+        _consequence_terms(consequence) & PROTEIN_TRUNCATING_CONSEQUENCES
     )
 
 
@@ -366,12 +377,12 @@ def _variant_condition_scope(
         return gene_info.conditions, gene_info.cardiovascular_category
 
     # ClinVar's aggregate condition list can contain both low- and high-LDL
-    # phenotypes for the same APOB record. A decisive protein-truncating
+    # phenotypes for the same APOB or PCSK9 record. A decisive protein-truncating
     # consequence therefore takes precedence over that ambiguous text; do not
     # require a low-LDL string that may be missing from the aggregate. Show
     # only low-LDL condition names in the diagnostic headline; the complete raw
     # ClinVar aggregate remains stored separately for transparent audit.
-    if _is_apob_protein_truncating(gene_info, consequence):
+    if _is_low_ldl_protein_truncating(gene_info, consequence):
         low_ldl_conditions = [
             condition
             for condition in variant_conditions
