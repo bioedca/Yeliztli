@@ -27,8 +27,19 @@ CLIA_CONFIRMATION = (
 )
 
 
+# Source label for a PRS developed across several ancestries: no single
+# population describes it, so none is named (#2076).
+MULTI_ANCESTRY_SOURCE = "Multi-ancestry"
+
+
 def prs_source_population_label(source_ancestry: str | None) -> str:
     """Mandatory source-population label for a PRS percentile (§12.3)."""
+    if source_ancestry == MULTI_ANCESTRY_SOURCE:
+        return (
+            "Derived across multiple ancestries. A percentile is a research estimate "
+            "whose accuracy is reduced the further your ancestry is from the source "
+            "populations."
+        )
     pop = source_ancestry or "an unspecified"
     return (
         f"Derived in {pop} ancestry. A percentile is a research estimate whose "
