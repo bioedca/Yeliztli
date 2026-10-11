@@ -53,7 +53,8 @@ array actually covers.
   [DOI:10.1038/ng1509](https://doi.org/10.1038/ng1509) (accessed 2026-10-11);
   [PMID:16989838](https://pubmed.ncbi.nlm.nih.gov/16989838/);
   [DOI:10.1016/j.atherosclerosis.2006.08.039](https://doi.org/10.1016/j.atherosclerosis.2006.08.039)
-  (accessed 2026-10-11)). *PCSK9* splice-site variants keep the existing FH criteria: no
-  study has measured them, and a splice change can leave the reading frame intact.
+  (accessed 2026-10-11)). *PCSK9* splice-site variants keep the existing FH criteria:
+  studies count only splice changes that a stricter loss-of-function filter accepts, and a
+  splice annotation alone does not show that.
 - High LDL cholesterol has many causes; genetics is only one. Discuss any concern, and your
   actual lipid panel, with a clinician.

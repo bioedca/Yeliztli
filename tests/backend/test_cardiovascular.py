@@ -2304,8 +2304,8 @@ class TestPCSK9ConditionScope:
     ) -> None:
         """FH-causing PCSK9 variants are gain-of-function, so only a nonsense or
         frameshift token moves a record out of FH. A canonical splice token is not
-        enough: no study measures PCSK9 splice variants, and a skipped exon can
-        keep the reading frame (APOB's override does include them)."""
+        enough: the evidence counts only LOFTEE high-confidence splice calls, which
+        a raw VEP token does not establish (APOB's override does include them)."""
         with sample_engine.begin() as conn:
             conn.execute(sa.insert(annotated_variants), [_fh_gene_witness("PCSK9", consequence)])
 

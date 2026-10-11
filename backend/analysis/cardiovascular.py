@@ -112,8 +112,9 @@ LOW_LDL_CONDITION_TERMS = (
 # PMID 29127338), while nonsense and frameshift variants lower LDL cholesterol
 # (Cohen et al. 2005, PMID 15654334; Hooper et al. 2007, PMID 16989838; Fasano
 # et al. 2007, PMID 17170371; Dron et al. 2023, PMID 36723951). Canonical splice
-# variants are left out: no study measures them, and a skipped exon can keep the
-# reading frame, so a splice token alone does not prove loss of function.
+# variants are left out: Dron counts only LOFTEE high-confidence splice calls, the
+# bundle stores the raw VEP token with no such confidence, and a skipped exon can
+# keep the reading frame, so a splice token alone does not prove loss of function.
 # Evidence: data/science-evidence/2026-10-11-pcsk9-ptv-low-ldl-2064/.
 LOW_LDL_PROTEIN_TRUNCATING_CONSEQUENCES: dict[str, frozenset[str]] = {
     "APOB": frozenset(

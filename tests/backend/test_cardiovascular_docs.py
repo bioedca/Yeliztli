@@ -280,6 +280,10 @@ def test_pcsk9_evidence_packet_backs_every_cited_pmid() -> None:
     assert set(PCSK9_DOC_SOURCES) <= cited
     assert set(summary["result"]["uids"]) == cited
     assert {record["pmid"] for record in corrections["records"]} == cited
+    snapshot = corrections["source_snapshot"]
+    snapshot_bytes = (REPO_ROOT / snapshot["path"]).read_bytes()
+    assert hashlib.sha256(snapshot_bytes).hexdigest() == snapshot["sanitized_sha256"]
+    assert snapshot["path"] in manifest
     for pmid in cited:
         assert f"PMID:{pmid}" in manifest
         dois = {a["value"] for a in summary["result"][pmid]["articleids"] if a["idtype"] == "doi"}
