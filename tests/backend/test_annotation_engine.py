@@ -974,6 +974,81 @@ class TestRunAnnotation:
         # genotype AA vs ref G / alt A → homozygous carrier (non-NULL zygosity)
         assert row.zygosity is not None
 
+    def test_indel_probe_does_not_inherit_colocated_snv_annotation(
+        self,
+        sample_engine: sa.Engine,
+        mock_registry: MagicMock,
+    ) -> None:
+        """#2063 through the production path: an I/D-token deletion probe whose rsID
+        the bundle lacks reached the coordinate fallback, took the co-located SNV's
+        ``missense_variant`` / ``p.His1881Pro`` record, and ClinVar then set the
+        row's identity to the deletion - an indel shown as a substitution beside a
+        Likely pathogenic call. A base-called probe at the same position keeps the
+        SNV's record."""
+        with mock_registry.vep_engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid, chrom, pos, ref, alt, gene_symbol, transcript_id, "
+                    "consequence, hgvs_coding, hgvs_protein, strand, exon_number, "
+                    "intron_number, mane_select) VALUES "
+                    "('rs_bundle_snv', '17', 41197708, 'T', 'G', 'BRCA1', 'ENST_B', "
+                    "'missense_variant', 'c.5642A>C', 'p.His1881Pro', '-', 24, NULL, 1)"
+                )
+            )
+        with mock_registry.reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": "rs_indel_probe",
+                        "chrom": "17",
+                        "pos": 41197708,
+                        "ref": "TG",
+                        "alt": "T",
+                        "significance": "Likely pathogenic",
+                        "review_stars": 2,
+                        "accession": "VCV_indel",
+                        "conditions": "Some disease",
+                        "gene_symbol": "BRCA1",
+                        "variation_id": 9102,
+                    }
+                ],
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_indel_probe", "chrom": "17", "pos": 41197708, "genotype": "DD"},
+                    {"rsid": "rs_snp_probe", "chrom": "17", "pos": 41197708, "genotype": "TT"},
+                ],
+            )
+
+        run_annotation(sample_engine, mock_registry)
+
+        with sample_engine.connect() as conn:
+            rows = {
+                row.rsid: row
+                for row in conn.execute(
+                    sa.select(annotated_variants).where(
+                        annotated_variants.c.rsid.in_(["rs_indel_probe", "rs_snp_probe"])
+                    )
+                )
+            }
+
+        indel = rows["rs_indel_probe"]
+        assert (indel.ref, indel.alt) == ("TG", "T")
+        assert indel.clinvar_significance == "Likely pathogenic"
+        assert indel.consequence is None
+        assert indel.hgvs_coding is None
+        assert indel.hgvs_protein is None
+        assert not indel.annotation_coverage & VEP_BIT
+
+        snp = rows["rs_snp_probe"]
+        assert snp.consequence == "missense_variant"
+        assert snp.hgvs_protein == "p.His1881Pro"
+        assert snp.annotation_coverage & VEP_BIT
+
     def test_merged_rsid_clinvar_hit_rejected_when_position_differs(
         self,
         sample_engine: sa.Engine,

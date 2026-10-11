@@ -538,6 +538,88 @@ class TestLookupByPositions:
         assert result["internal_probe"].consequence == "synonymous_variant"
         assert result["internal_probe"].alt == "C"
 
+    # #2063: a coordinate hit is another rsID's record, so it must be the same
+    # allele class as the probe. Each case asserts both sides of the filter.
+
+    @staticmethod
+    def _colocated_row(ref: str, alt: str, consequence: str) -> dict:
+        return {
+            "rsid": "rs_bundle_colocated",
+            "chrom": "17",
+            "pos": 900,
+            "ref": ref,
+            "alt": alt,
+            "gene_symbol": "GENE",
+            "transcript_id": "ENST_X",
+            "consequence": consequence,
+            "hgvs_coding": "c.5A>C",
+            "hgvs_protein": "p.His2Pro",
+            "strand": "-",
+            "exon_number": 1,
+            "intron_number": None,
+            "mane_select": 1,
+        }
+
+    def _lookup(self, engine: sa.Engine, genotype: str) -> dict:
+        return lookup_vep_by_positions(
+            [("17", 900, "probe")], engine, genotype_by_rsid={"probe": genotype}
+        )
+
+    def test_indel_probe_rejects_colocated_substitution(
+        self, vep_engine_inmemory: sa.Engine
+    ) -> None:
+        _insert_vep_rows(vep_engine_inmemory, [self._colocated_row("T", "G", "missense_variant")])
+
+        assert self._lookup(vep_engine_inmemory, "DD") == {}
+        assert self._lookup(vep_engine_inmemory, "DI") == {}
+        # A base-called probe at the same position still takes the SNV's record.
+        snp = self._lookup(vep_engine_inmemory, "TT")
+        assert snp["probe"].consequence == "missense_variant"
+
+    def test_snp_probe_rejects_colocated_indel(self, vep_engine_inmemory: sa.Engine) -> None:
+        _insert_vep_rows(
+            vep_engine_inmemory, [self._colocated_row("TG", "T", "frameshift_variant")]
+        )
+
+        assert self._lookup(vep_engine_inmemory, "TT") == {}
+        # An I/D-token probe at the same position still takes the indel's record.
+        indel = self._lookup(vep_engine_inmemory, "DD")
+        assert indel["probe"].consequence == "frameshift_variant"
+
+    def test_vep_trimmed_indel_counts_as_indel(self, vep_engine_inmemory: sa.Engine) -> None:
+        _insert_vep_rows(
+            vep_engine_inmemory, [self._colocated_row("G", "-", "frameshift_variant")]
+        )
+
+        assert self._lookup(vep_engine_inmemory, "GG") == {}
+        assert self._lookup(vep_engine_inmemory, "II")["probe"].consequence == (
+            "frameshift_variant"
+        )
+
+    def test_unclassified_calls_and_rows_keep_the_match(
+        self, vep_engine_inmemory: sa.Engine
+    ) -> None:
+        """A no-call says nothing about the probe, and a same-base bundle row
+        (a malformed indel record) says nothing about the variant: neither is
+        evidence of a mismatch, so the historical match stands."""
+        _insert_vep_rows(vep_engine_inmemory, [self._colocated_row("T", "G", "missense_variant")])
+        assert self._lookup(vep_engine_inmemory, "--")["probe"].consequence == "missense_variant"
+
+        engine = sa.create_engine("sqlite://")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "CREATE TABLE vep_annotations ("
+                    "  rsid TEXT, chrom TEXT, pos INTEGER, ref TEXT, alt TEXT,"
+                    "  gene_symbol TEXT, transcript_id TEXT, consequence TEXT,"
+                    "  hgvs_coding TEXT, hgvs_protein TEXT, strand TEXT,"
+                    "  exon_number INTEGER, intron_number INTEGER, mane_select INTEGER)"
+                )
+            )
+        _insert_vep_rows(engine, [self._colocated_row("T", "T", "frameshift_variant")])
+        assert self._lookup(engine, "DD")["probe"].consequence == "frameshift_variant"
+        assert self._lookup(engine, "TT")["probe"].consequence == "frameshift_variant"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # MANE Select & severity preference
