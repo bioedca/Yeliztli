@@ -20,7 +20,7 @@
  * groups by linkage, not by sample-row column).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQueries } from "@tanstack/react-query"
 import {
@@ -130,7 +130,33 @@ export default function IndividualSelector() {
 
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
+  // The one treeitem in the tab order (WAI-ARIA tree pattern: roving tabindex).
+  const [activeKey, setActiveKey] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const treeRef = useRef<HTMLDivElement>(null)
+
+  // Visible treeitems in DOM order; collapsed children are not rendered.
+  const treeItems = () =>
+    Array.from(treeRef.current?.querySelectorAll<HTMLElement>('[role="treeitem"]') ?? [])
+
+  const focusItem = (item: HTMLElement | null | undefined) => {
+    if (!item) return
+    item.focus()
+    setActiveKey(item.dataset.treeKey ?? null)
+  }
+
+  // Closing unmounts the focused treeitem, which would drop focus to <body>
+  // (WCAG 2.4.3); hand it back to the trigger instead (#2066).
+  const closeAndRestoreFocus = () => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }
+
+  const focusInitialItem = () => {
+    const items = treeItems()
+    focusItem(items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])
+  }
 
   // Auto-expand the active individual when its sample becomes selected so
   // the active row is visible on first open.
@@ -158,10 +184,20 @@ export default function IndividualSelector() {
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
+  }, [open])
+
+  // Opening moves focus into the tree: the selected sample if visible, else
+  // the first item, so the arrow keys work straight away.
+  useEffect(() => {
+    if (open) focusInitialItem()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   if (samplesLoading || individualsLoading) {
@@ -205,14 +241,75 @@ export default function IndividualSelector() {
     const params = new URLSearchParams(searchParams)
     params.set("sample_id", String(sampleId))
     setSearchParams(params)
-    setOpen(false)
+    closeAndRestoreFocus()
+  }
+
+  // WAI-ARIA tree keyboard pattern: Up/Down move between visible items,
+  // Home/End jump to the ends, Right expands a closed individual or enters an
+  // open one, Left collapses an open individual or returns to the parent.
+  // Enter/Space activate through the native <button>.
+  const onTreeKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const items = treeItems()
+    const current = e.currentTarget
+    const index = items.indexOf(current)
+    if (index === -1) return
+    const expandedAttr = current.getAttribute("aria-expanded")
+    const individualId = Number(current.dataset.individualId)
+    let next: HTMLElement | null | undefined
+    switch (e.key) {
+      case "ArrowDown":
+        next = items[index + 1]
+        break
+      case "ArrowUp":
+        next = items[index - 1]
+        break
+      case "Home":
+        next = items[0]
+        break
+      case "End":
+        next = items[items.length - 1]
+        break
+      case "ArrowRight":
+        if (expandedAttr === "false") {
+          e.preventDefault()
+          toggleExpanded(individualId)
+          return
+        }
+        if (expandedAttr === "true") {
+          next = current.parentElement?.querySelector<HTMLElement>(
+            '[role="group"] [role="treeitem"]',
+          )
+        }
+        break
+      case "ArrowLeft":
+        if (expandedAttr === "true") {
+          e.preventDefault()
+          toggleExpanded(individualId)
+          return
+        }
+        next = current
+          .closest('[role="group"]')
+          ?.parentElement?.querySelector<HTMLElement>(':scope > [role="treeitem"]')
+        break
+      default:
+        return
+    }
+    e.preventDefault()
+    focusItem(next)
   }
 
   return (
     <div ref={containerRef} className="relative hidden sm:block">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowDown") return
+          e.preventDefault()
+          if (open) focusInitialItem()
+          else setOpen(true)
+        }}
         className={cn(
           "flex items-center gap-2 text-sm border border-input rounded-md px-3 py-1.5",
           "hover:bg-accent hover:text-accent-foreground transition-colors",
@@ -235,6 +332,7 @@ export default function IndividualSelector() {
       {open && (
         <div
           className="absolute top-full right-0 mt-1 w-80 bg-popover border border-border rounded-md shadow-md z-50 py-1 max-h-96 overflow-y-auto"
+          ref={treeRef}
           role="tree"
           aria-label="Individuals and samples"
         >
@@ -248,6 +346,11 @@ export default function IndividualSelector() {
                   role="treeitem"
                   aria-expanded={isExpanded}
                   aria-selected={false}
+                  tabIndex={activeKey === `ind-${group.individual.id}` ? 0 : -1}
+                  onFocus={() => setActiveKey(`ind-${group.individual.id}`)}
+                  onKeyDown={onTreeKeyDown}
+                  data-tree-key={`ind-${group.individual.id}`}
+                  data-individual-id={group.individual.id}
                   aria-label={`${group.individual.display_name}, ${childCount} sample${childCount === 1 ? "" : "s"}`}
                   onClick={() => toggleExpanded(group.individual.id)}
                   className={cn(
@@ -284,6 +387,10 @@ export default function IndividualSelector() {
                           type="button"
                           role="treeitem"
                           aria-selected={isActive}
+                          tabIndex={activeKey === `sample-${sample.id}` ? 0 : -1}
+                          onFocus={() => setActiveKey(`sample-${sample.id}`)}
+                          onKeyDown={onTreeKeyDown}
+                          data-tree-key={`sample-${sample.id}`}
                           onClick={() => selectSample(sample.id)}
                           className={cn(
                             "w-full flex items-center gap-2 pl-9 pr-3 py-1.5 text-sm text-left",
@@ -343,6 +450,10 @@ export default function IndividualSelector() {
                     type="button"
                     role="treeitem"
                     aria-selected={isActive}
+                    tabIndex={activeKey === `unassigned-${sample.id}` ? 0 : -1}
+                    onFocus={() => setActiveKey(`unassigned-${sample.id}`)}
+                    onKeyDown={onTreeKeyDown}
+                    data-tree-key={`unassigned-${sample.id}`}
                     onClick={() => selectSample(sample.id)}
                     className={cn(
                       "w-full flex items-center gap-2 pl-9 pr-3 py-1.5 text-sm text-left",

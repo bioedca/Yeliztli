@@ -14,6 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor, within } from "./test-utils"
+import userEvent from "@testing-library/user-event"
 import IndividualSelector from "@/components/layout/IndividualSelector"
 
 const mockFetch = vi.fn()
@@ -355,5 +356,100 @@ describe("IndividualSelector", () => {
     await waitFor(() => {
       expect(within(tree).getByText("No linked samples")).toBeInTheDocument()
     })
+  })
+})
+
+describe("IndividualSelector keyboard (#2066)", () => {
+  const SAMPLES: MockSample[] = [
+    { id: 1, name: "alice_23andme.txt", file_format: "23andme_v5", created_at: null },
+    { id: 2, name: "alice_ancestry.txt", file_format: "ancestrydna_v2.0", created_at: null },
+    { id: 5, name: "lonely.txt", file_format: "ancestrydna_v2.0", created_at: null },
+  ]
+  const INDIVIDUALS: MockIndividual[] = [{ id: 10, display_name: "Alice", sample_ids: [1, 2] }]
+
+  async function openTree() {
+    installFetchScenario(SAMPLES, INDIVIDUALS)
+    const user = userEvent.setup()
+    render(<IndividualSelector />)
+    const trigger = await screen.findByRole("button", { name: /switch sample/i })
+    await user.click(trigger)
+    const tree = await screen.findByRole("tree", { name: /individuals and samples/i })
+    // Wait for Alice's linked samples (count chip "2") so the tree is complete.
+    await waitFor(() => expect(within(tree).getByText("2")).toBeInTheDocument())
+    return { user, trigger, tree }
+  }
+
+  const focused = () => document.activeElement as HTMLElement
+
+  it("moves focus into the tree when it opens", async () => {
+    const { tree } = await openTree()
+    await waitFor(() => expect(focused()).toBe(within(tree).getByTestId("individual-row-10")))
+  })
+
+  it("returns focus to the trigger on Escape", async () => {
+    const { user, trigger, tree } = await openTree()
+    await waitFor(() => expect(tree.contains(focused())).toBe(true))
+
+    await user.keyboard("{Escape}")
+
+    expect(screen.queryByRole("tree", { name: /individuals and samples/i })).not.toBeInTheDocument()
+    expect(focused()).toBe(trigger)
+  })
+
+  it("navigates the tree with the arrow, Home and End keys", async () => {
+    const { user, tree } = await openTree()
+    const ind = within(tree).getByTestId("individual-row-10")
+    await waitFor(() => expect(focused()).toBe(ind))
+
+    await user.keyboard("{ArrowRight}") // closed parent: expand, focus stays
+    expect(ind).toHaveAttribute("aria-expanded", "true")
+    expect(focused()).toBe(ind)
+    await user.keyboard("{ArrowRight}") // open parent: first child
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-1"))
+    await user.keyboard("{ArrowDown}")
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-2"))
+    await user.keyboard("{ArrowDown}") // into the Unassigned samples
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-5"))
+    await user.keyboard("{ArrowDown}") // last item: stays put
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-5"))
+    await user.keyboard("{ArrowUp}")
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-2"))
+    await user.keyboard("{Home}")
+    expect(focused()).toBe(ind)
+    await user.keyboard("{End}")
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-5"))
+
+    await user.keyboard("{Home}{ArrowRight}") // to Alice's first sample
+    await user.keyboard("{ArrowLeft}") // child: back to its parent
+    expect(focused()).toBe(ind)
+    await user.keyboard("{ArrowLeft}") // open parent: collapse
+    expect(ind).toHaveAttribute("aria-expanded", "false")
+    expect(within(tree).queryByTestId("sample-row-1")).not.toBeInTheDocument()
+  })
+
+  it("keeps exactly one treeitem in the tab order (roving tabindex)", async () => {
+    const { user, tree } = await openTree()
+    await waitFor(() => expect(tree.contains(focused())).toBe(true))
+    const tabbable = () =>
+      within(tree)
+        .getAllByRole("treeitem")
+        .filter((el) => el.tabIndex === 0)
+
+    expect(tabbable()).toEqual([within(tree).getByTestId("individual-row-10")])
+    await user.keyboard("{End}")
+    expect(tabbable()).toEqual([within(tree).getByTestId("sample-row-5")])
+  })
+
+  it("returns focus to the trigger after selecting a sample with Enter", async () => {
+    const { user, trigger, tree } = await openTree()
+    await waitFor(() => expect(tree.contains(focused())).toBe(true))
+
+    await user.keyboard("{End}{Enter}")
+
+    await waitFor(() =>
+      expect(screen.queryByRole("tree", { name: /individuals and samples/i })).not.toBeInTheDocument(),
+    )
+    expect(trigger).toHaveTextContent("lonely.txt")
+    expect(focused()).toBe(trigger)
   })
 })
