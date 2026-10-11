@@ -153,10 +153,17 @@ export default function IndividualSelector() {
     triggerRef.current?.focus()
   }
 
-  const focusInitialItem = () => {
+  // The selected sample if visible, else the individual row that holds it
+  // (its group may not be expanded yet), else the first item.
+  const initialItem = () => {
     const items = treeItems()
-    focusItem(items.find((el) => el.getAttribute("aria-selected") === "true") ?? items[0])
+    return (
+      items.find((el) => el.getAttribute("aria-selected") === "true") ??
+      items.find((el) => el.dataset.individualId === String(state.activeIndividualId)) ??
+      items[0]
+    )
   }
+  const focusInitialItem = () => focusItem(initialItem())
 
   // Auto-expand the active individual when its sample becomes selected so
   // the active row is visible on first open.
@@ -175,6 +182,14 @@ export default function IndividualSelector() {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
+        // Closing unmounts the focused treeitem. The browser settles focus only
+        // after mousedown listeners run, so check once it has: a click on page
+        // content leaves <body> focused, and focus goes back to the trigger; a
+        // click on another focusable element keeps its focus.
+        setTimeout(() => {
+          const active = document.activeElement
+          if (!active || active === document.body) triggerRef.current?.focus()
+        }, 0)
       }
     }
     document.addEventListener("mousedown", handler)
@@ -199,6 +214,21 @@ export default function IndividualSelector() {
     if (open) focusInitialItem()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  // An individual's detail can arrive after the tree opened and move its
+  // samples from Unassigned under it, unmounting the item that held focus and
+  // the tab stop. Re-home both: focus only if it was lost, the tab stop always.
+  useEffect(() => {
+    if (!open || !treeRef.current) return
+    if (activeKey && treeRef.current.querySelector(`[data-tree-key="${activeKey}"]`)) return
+    const active = document.activeElement
+    if (!active || active === document.body) {
+      focusInitialItem()
+      return
+    }
+    setActiveKey(initialItem()?.dataset.treeKey ?? null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, state, expanded, activeKey])
 
   if (samplesLoading || individualsLoading) {
     return (

@@ -440,6 +440,74 @@ describe("IndividualSelector keyboard (#2066)", () => {
     expect(tabbable()).toEqual([within(tree).getByTestId("sample-row-5")])
   })
 
+  it("returns focus to the trigger when an outside click on page content closes the tree", async () => {
+    const { tree, trigger } = await openTree()
+    await waitFor(() => expect(tree.contains(focused())).toBe(true))
+
+    fireEvent.mouseDown(document.body)
+
+    await waitFor(() =>
+      expect(screen.queryByRole("tree", { name: /individuals and samples/i })).not.toBeInTheDocument(),
+    )
+    await waitFor(() => expect(focused()).toBe(trigger))
+  })
+
+  it("leaves focus on a focusable element the outside click landed on", async () => {
+    installFetchScenario(SAMPLES, INDIVIDUALS)
+    const user = userEvent.setup()
+    render(
+      <>
+        <IndividualSelector />
+        <input aria-label="Elsewhere" />
+      </>,
+    )
+    await user.click(await screen.findByRole("button", { name: /switch sample/i }))
+    await screen.findByRole("tree", { name: /individuals and samples/i })
+
+    const elsewhere = screen.getByRole("textbox", { name: "Elsewhere" })
+    await user.click(elsewhere)
+
+    await waitFor(() =>
+      expect(screen.queryByRole("tree", { name: /individuals and samples/i })).not.toBeInTheDocument(),
+    )
+    expect(focused()).toBe(elsewhere)
+  })
+
+  it("keeps focus in the tree when a late individual detail regroups the selected sample", async () => {
+    // The active sample (1) belongs to Alice, but her detail arrives after the
+    // menu opens: until then it renders under Unassigned and gets focus. The
+    // regroup unmounts that node, which used to drop focus to <body>.
+    installFetchScenario(SAMPLES, INDIVIDUALS)
+    const scenario = mockFetch.getMockImplementation()!
+    let releaseDetail: () => void = () => {}
+    const detailGate = new Promise<void>((resolve) => {
+      releaseDetail = resolve
+    })
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString()
+      if (url === "/api/individuals/10") return detailGate.then(() => scenario(input))
+      return scenario(input)
+    })
+    const user = userEvent.setup()
+    render(<IndividualSelector />, { route: "/?sample_id=1" })
+    await user.click(await screen.findByRole("button", { name: /switch sample/i }))
+    const tree = await screen.findByRole("tree", { name: /individuals and samples/i })
+    await waitFor(() => expect(focused().dataset.treeKey).toBe("unassigned-1"))
+
+    releaseDetail()
+
+    await waitFor(() => expect(within(tree).getByTestId("sample-row-1").dataset.treeKey).toBe("sample-1"))
+    // Focus lands on the selected sample's own row, or the individual holding it.
+    await waitFor(() =>
+      expect(["sample-1", "ind-10"]).toContain(focused().dataset.treeKey),
+    )
+    expect(
+      within(tree)
+        .getAllByRole("treeitem")
+        .filter((el) => el.tabIndex === 0),
+    ).toHaveLength(1)
+  })
+
   it("returns focus to the trigger after selecting a sample with Enter", async () => {
     const { user, trigger, tree } = await openTree()
     await waitFor(() => expect(tree.contains(focused())).toBe(true))
