@@ -8,6 +8,9 @@ summary, then **Open full detail** for the full page, organised into tabs:
 1. **Overview** — genomic location, HGVS notation, and transcript details (the MANE Select
    transcript is flagged), a ClinVar summary, and a **Key Scores** block: gnomAD global allele
    frequency with a rare / ultra-rare flag, plus CADD, REVEL, SIFT, and PolyPhen-2.
+   At a site with more than one alternate allele, the transcript details describe the allele
+   shown under **Ref / Alt**, and stay blank when that allele can't be determined rather than
+   borrowing another allele's consequence.
 2. **Population** — gnomAD allele frequencies across subpopulations (Global, African,
    Latino/Admixed, Ashkenazi Jewish, East Asian, European (non-Finnish), Finnish, South Asian),
    the gnomAD homozygote count, and a rarity note.[1]

@@ -106,6 +106,16 @@ def consequence_severity(consequence: str | None) -> int:
     return max(CONSEQUENCE_SEVERITY.get(t, 0) for t in terms)
 
 
+def primary_transcript_rank(mane_select: object, consequence: str | None) -> tuple[bool, int]:
+    """Rank a VEP transcript for a variant's primary annotation.
+
+    MANE Select first, then the most severe consequence. Higher sorts first;
+    callers keep the first row on a tie. Shared by the annotation pipeline and
+    the variant-detail endpoint so both pick the same primary transcript.
+    """
+    return (bool(mane_select), consequence_severity(consequence))
+
+
 # ── Data classes ──────────────────────────────────────────────────────────
 
 
@@ -180,8 +190,7 @@ def _pick_best(
     for row in rows:
         key = getattr(row, key_col)
         mane = bool(row.mane_select)
-        severity = consequence_severity(row.consequence)
-        score = (mane, severity)
+        score = primary_transcript_rank(row.mane_select, row.consequence)
 
         prev = best_score.get(key)
         if prev is None or score > prev:

@@ -7,6 +7,7 @@ evidence conflict data.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -899,7 +900,10 @@ VEP_TRANSCRIPT_ROWS = [
 
 
 def _setup_vep_client(
-    tmp_data_dir: Path, transcript_rows: list[dict], sample_variant: dict | None = None
+    tmp_data_dir: Path,
+    transcript_rows: list[dict],
+    sample_variant: dict | None = None,
+    gene_pheno: list[dict] | None = None,
 ):
     """Create TestClient with VEP bundle configured."""
     sample_variant = sample_variant or SAMPLE_VARIANT_BRCA1
@@ -917,6 +921,11 @@ def _setup_vep_client(
             )
         )
         sample_id = result.lastrowid
+        if gene_pheno:
+            conn.execute(gene_phenotype.insert(), gene_pheno)
+    if gene_pheno:
+        # Stamped as in ``_setup_client``: unstamped mondo_hpo rows are withheld.
+        record_mondo_hpo_version(ref_engine, version=f"20260801+{MONDO_HPO_INGESTION_REVISION}")
     ref_engine.dispose()
 
     sample_db_path = tmp_data_dir / "samples" / "sample_1.db"
@@ -1125,6 +1134,115 @@ class TestTranscripts:
         # At least one transcript should be BRCA1
         brca1 = [t for t in data["transcripts"] if t["gene_symbol"] == "BRCA1"]
         assert len(brca1) > 0
+
+
+# A multi-ALT site whose primary annotation the pipeline withheld (#1458): VEP
+# could not tell which ALT a hom-ref call relates to, but ClinVar later set the
+# row's ref/alt to G>A. Synthetic CFTR locus, so GENE_PHENOTYPE_DATA applies.
+_WITHHELD_PRIMARY_SAMPLE = {
+    "rsid": "rs123456789",
+    "chrom": "7",
+    "pos": 117559590,
+    "ref": "G",
+    "alt": "A",
+    "genotype": "GG",
+    "zygosity": "hom_ref",
+    # The column's server default on a row VEP never wrote; not an annotation.
+    "mane_select": False,
+}
+
+
+def _withheld_vep_row(alt: str, tid: str, csq: str, hgvsc: str, mane: int, exon: int) -> dict:
+    return {
+        "rsid": "rs123456789",
+        "gene": "CFTR",
+        "tid": tid,
+        "csq": csq,
+        "hgvsc": hgvsc,
+        "hgvsp": None,
+        "strand": "+",
+        "exon": exon,
+        "intron": None,
+        "mane": mane,
+        "chrom": "7",
+        "pos": 117559590,
+        "ref": "G",
+        "alt": alt,
+    }
+
+
+# The carried-identity allele (A) has a MORE severe non-MANE transcript listed
+# first, so ranking - not row order - must pick the MANE one. The other allele
+# (T) is more severe still and must never be picked.
+_WITHHELD_PRIMARY_VEP_ROWS = [
+    _withheld_vep_row("A", "ENST00000600166", "splice_donor_variant", "c.900+1G>A", 0, 10),
+    _withheld_vep_row("A", "ENST00000003084", "missense_variant", "c.1000G>A", 1, 11),
+    _withheld_vep_row("T", "ENST00000003084", "stop_gained", "c.1000G>T", 1, 11),
+]
+
+
+class TestPrimaryAnnotationFromResolvedAllele:
+    """#2062: a NULL stored primary annotation beside the resolved allele's
+    transcripts blanked the Overview, header, gene link and gene-disease list."""
+
+    def _get(self, tmp_data_dir, sample_variant, rows=_WITHHELD_PRIMARY_VEP_ROWS):
+        with contextmanager(_setup_vep_client)(
+            tmp_data_dir, rows, sample_variant=sample_variant, gene_pheno=GENE_PHENOTYPE_DATA
+        ) as (tc, sample_id):
+            resp = tc.get(f"/api/variants/rs123456789?sample_id={sample_id}")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_fills_primary_fields_from_the_stored_allele(self, tmp_data_dir):
+        data = self._get(tmp_data_dir, _WITHHELD_PRIMARY_SAMPLE)
+
+        assert data["gene_symbol"] == "CFTR"
+        assert data["transcript_id"] == "ENST00000003084"
+        assert data["consequence"] == "missense_variant"
+        assert data["hgvs_coding"] == "c.1000G>A"
+        assert data["strand"] == "+"
+        assert data["exon_number"] == 11
+        assert data["mane_select"] is True
+        # The resolved gene reaches the gene-disease lookup too.
+        assert [gp["disease_name"] for gp in data["gene_phenotypes"]] == ["Cystic fibrosis"]
+
+    def test_withholding_stands_without_a_resolvable_allele(self, tmp_data_dir):
+        sample = {**_WITHHELD_PRIMARY_SAMPLE, "ref": None, "alt": None}
+        data = self._get(tmp_data_dir, sample)
+
+        assert data["transcripts"] == []
+        for field in ("gene_symbol", "transcript_id", "consequence", "hgvs_coding", "strand"):
+            assert data[field] is None, field
+        assert data["gene_phenotypes"] == []
+
+    def test_keeps_a_stored_primary_annotation(self, tmp_data_dir):
+        sample = {
+            **_WITHHELD_PRIMARY_SAMPLE,
+            "gene_symbol": "CFTR",
+            "transcript_id": "NM_000492.4",
+            "consequence": "synonymous_variant",
+        }
+        data = self._get(tmp_data_dir, sample)
+
+        assert len(data["transcripts"]) == 2
+        assert data["transcript_id"] == "NM_000492.4"
+        assert data["consequence"] == "synonymous_variant"
+        # No field is borrowed from the transcript the endpoint would have picked.
+        assert data["hgvs_coding"] is None
+        assert data["exon_number"] is None
+        assert data["mane_select"] is False
+
+    def test_without_mane_picks_the_most_severe_consequence(self, tmp_data_dir):
+        rows = [
+            _withheld_vep_row("A", "ENST00000600166", "intron_variant", "c.900+50G>A", 0, 10),
+            _withheld_vep_row("A", "ENST00000003084", "missense_variant", "c.1000G>A", 0, 11),
+            _withheld_vep_row("A", "ENST00000454343", "synonymous_variant", "c.951G>A", 0, 12),
+        ]
+        data = self._get(tmp_data_dir, _WITHHELD_PRIMARY_SAMPLE, rows)
+
+        assert data["transcript_id"] == "ENST00000003084"
+        assert data["consequence"] == "missense_variant"
+        assert data["mane_select"] is False
 
 
 # ═══════════════════════════════════════════════════════════════════════
