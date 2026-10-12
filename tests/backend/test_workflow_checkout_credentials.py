@@ -25,9 +25,11 @@ _ALLOWED_PERSISTED = {
 }
 
 
-def _checkout_steps() -> list[tuple[str, str, dict]]:
+def _checkout_steps(workflows: Path = _WORKFLOWS) -> list[tuple[str, str, dict]]:
+    # GitHub Actions reads both extensions.
+    paths = sorted([*workflows.glob("*.yml"), *workflows.glob("*.yaml")])
     found = []
-    for path in sorted(_WORKFLOWS.glob("*.yml")):
+    for path in paths:
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
         for job_name, job in (workflow.get("jobs") or {}).items():
             for step in job.get("steps") or []:
@@ -36,20 +38,34 @@ def _checkout_steps() -> list[tuple[str, str, dict]]:
     return found
 
 
-def test_every_checkout_opts_out_of_persisted_credentials() -> None:
-    steps = _checkout_steps()
-    assert len(steps) > 20, f"found only {len(steps)} checkout steps; is the scan broken?"
-    offenders = [
+def _offenders(steps: list[tuple[str, str, dict]]) -> list[str]:
+    return [
         f"{workflow}:{job}"
         for workflow, job, step in steps
         if workflow not in _ALLOWED_PERSISTED
         and (step.get("with") or {}).get("persist-credentials") is not False
     ]
+
+
+def test_every_checkout_opts_out_of_persisted_credentials() -> None:
+    steps = _checkout_steps()
+    assert len(steps) > 20, f"found only {len(steps)} checkout steps; is the scan broken?"
+    offenders = _offenders(steps)
     assert not offenders, (
         f"actions/checkout without `persist-credentials: false` in {offenders}. Set it, "
         "or add the workflow to _ALLOWED_PERSISTED with the reason it needs git "
         "credentials (#2080)."
     )
+
+
+def test_scan_covers_both_workflow_extensions(tmp_path: Path) -> None:
+    checkout = (
+        "jobs:\n  build:\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - uses: actions/checkout@v6\n"
+    )
+    (tmp_path / "a.yml").write_text(checkout, encoding="utf-8")
+    (tmp_path / "b.yaml").write_text(checkout, encoding="utf-8")
+    assert _offenders(_checkout_steps(tmp_path)) == ["a.yml:build", "b.yaml:build"]
 
 
 def test_allowlisted_workflows_still_exist() -> None:
