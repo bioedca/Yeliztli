@@ -14,7 +14,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from _isolated_data_home import REAL_DATA_MARKERS, isolate_data_home, uses_real_data_home
+from _isolated_data_home import (
+    REAL_DATA_MARKERS,
+    isolate_data_home,
+    settings_env_names,
+    uses_real_data_home,
+)
 
 from backend import config
 from backend.config import get_settings
@@ -62,19 +67,26 @@ def test_each_test_gets_its_own_home(
     marker.write_text(str(_round), encoding="utf-8")
 
 
-def test_ambient_env_overrides_are_removed(
+def test_ambient_settings_env_is_removed_but_harness_controls_kept(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # A developer's shell can carry YELIZTLI_* overrides; YELIZTLI_DATA_DIR
-    # outranks the pointer, and others flip behaviour (auth -> 401s).
+    # outranks the pointer, and others flip behaviour (auth -> 401s). The
+    # match is case-insensitive, like Settings.
     monkeypatch.setenv("YELIZTLI_DATA_DIR", str(_REAL_HOME))
-    monkeypatch.setenv("YELIZTLI_THEME", "dark")
+    monkeypatch.setenv("yeliztli_theme", "dark")
+    monkeypatch.setenv("YELIZTLI_NCBI_API_KEY", "ambient-key")
+    # Not a setting: the golden-snapshot regeneration switch must survive.
+    monkeypatch.setenv("YELIZTLI_UPDATE_GOLDEN", "1")
     home = tmp_path / "home" / ".yeliztli"
     isolate_data_home(monkeypatch, home)
-    assert not [key for key in os.environ if key.startswith(config.ENV_PREFIX)]
+    names = settings_env_names()
+    assert not [key for key in os.environ if key.upper() in names]
+    assert os.environ["YELIZTLI_UPDATE_GOLDEN"] == "1"
     settings = get_settings()
     assert settings.data_dir == home
     assert settings.theme == "system"
+    assert settings.pubmed_api_key == ""  # the NCBI alias feeds this field
 
 
 def test_real_bundle_tests_keep_the_real_home() -> None:
