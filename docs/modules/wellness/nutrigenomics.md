@@ -19,8 +19,11 @@ reports *tendencies*, never numeric risk scores or dietary prescriptions.
 
 ## What you'll see
 
-A **level** per pathway — *Elevated need*, *Moderate need*, or *Standard* — with a per-SNP
-breakdown showing your genotype, the effect, an evidence rating, and supporting citations.
+A **level** per pathway — *Elevated Consideration*, *Moderate Consideration*, or *Standard* —
+with a per-SNP breakdown showing your genotype, the effect, an evidence rating, and supporting
+citations. When your array covers only some of a pathway's tracked SNPs, a Standard pathway is
+badged **Tested Standard** or **Not Assessed** instead; see
+[Categorical pathway levels](../interpretation-reference.md#categorical-pathway-levels).
 
 ## Good to know
 
