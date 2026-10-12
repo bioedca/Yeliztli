@@ -75,8 +75,13 @@ def _get_modules() -> list[tuple[str, Callable]]:
 
     Each runner takes (sample_engine, registry) and returns findings count.
     Uses lazy imports to avoid circular dependencies and keep startup fast.
+
+    ``ancestry`` runs first: modules that read its stored call while scoring
+    (cancer and traits PRS, APOL1, gout, nutrigenomics, ...) would otherwise bake
+    "ancestry not inferred" into a sample's first-run findings (#2082).
     """
     return [
+        ("ancestry", _run_ancestry),
         ("cancer", _run_cancer),
         ("carrier_status", _run_carrier),
         ("cardiovascular", _run_cardiovascular),
@@ -93,7 +98,6 @@ def _get_modules() -> list[tuple[str, Callable]]:
         ("nutrigenomics", _run_nutrigenomics),
         ("traits", _run_traits),
         ("apoe", _run_apoe),
-        ("ancestry", _run_ancestry),
         ("sleep", _run_sleep),
         ("fitness", _run_fitness),
         ("skin", _run_skin),
