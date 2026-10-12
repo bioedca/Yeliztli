@@ -21,9 +21,8 @@ reports *tendencies*, never numeric risk scores or dietary prescriptions.
 
 A **level** per pathway — *Elevated Consideration*, *Moderate Consideration*, or *Standard* —
 with a per-SNP breakdown showing your genotype, the effect, an evidence rating, and supporting
-citations. A Standard pathway that wasn't fully assessed — some of its tracked SNPs couldn't be
-called from your array (off-chip or a no-call), or none of the typed ones could be interpreted —
-is badged **Tested Standard** or **Not Assessed** instead; see
+citations. A Standard pathway where some of its tracked SNPs couldn't be called from your array
+(off-chip or a no-call) is badged **Tested Standard** or **Not Assessed** instead; see
 [Categorical pathway levels](../interpretation-reference.md#categorical-pathway-levels).
 
 ## Good to know

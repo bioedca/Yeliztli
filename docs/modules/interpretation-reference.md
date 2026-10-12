@@ -152,7 +152,8 @@ resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are mar
 When a **Standard** call isn't fully supported, the pathway carries a qualified badge so it
 isn't read as a clean negative. That happens when your array only partially covers the
 pathway's tracked SNPs (some off-chip or no-call, which is common across genotyping vendors),
-or when none of the SNPs it did type could be interpreted:
+or, on pages that report indeterminate sites, when none of the SNPs it did type could be
+interpreted:
 
 - **Tested Standard** — the pathway looks Standard, but only *some* of its tracked SNPs were
   on-chip and callable from your array; the rest were not assessed. It is a Standard call made
@@ -160,12 +161,14 @@ or when none of the SNPs it did type could be interpreted:
 - **Not Assessed** — no variant in the pathway could be scored, so no level could be
   determined: either *none* of its tracked SNPs were callable from your array, or every one
   that was typed is **Indeterminate**. The second case can occur even when every tracked SNP
-  is on-chip.
+  is on-chip; currently only the [fitness](wellness/fitness.md) and
+  [traits](wellness/traits-personality.md) pages report indeterminate sites to the card, so
+  only they show it.
 
-These differ from a plain **Standard** badge (every tracked SNP called, and at least one of them
-interpretable) and from **Indeterminate** (individual typed sites that can't be resolved,
-withheld from a level computed from the pathway's other variants). *Elevated* and *Moderate*
-pathways always show their plain level, never a qualified badge.
+These differ from a plain **Standard** badge (every tracked SNP called) and from
+**Indeterminate** (individual typed sites that can't be resolved, withheld from a level computed
+from the pathway's other variants). *Elevated* and *Moderate* pathways always show their plain
+level, never a qualified badge.
 
 ### Star-allele diplotypes & CPIC status
 

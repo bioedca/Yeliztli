@@ -306,6 +306,23 @@ def test_not_assessed_covers_the_all_indeterminate_case() -> None:
     ), "pathwayLevelDisplayLabel no longer maps an all-Indeterminate pathway to Not Assessed"
 
 
+def test_not_assessed_names_the_pages_that_report_indeterminate_sites() -> None:
+    """The all-Indeterminate Not Assessed badge can only appear where the route
+    returns ``indeterminate_snps``; the bullet names those pages. When another
+    module starts returning them, this trips so the doc is widened (#2077)."""
+    routes = _REPO / "backend" / "api" / "routes"
+    reporting = {p.stem for p in routes.glob("*.py") if "indeterminate_snps" in p.read_text()}
+    assert reporting == {"fitness", "traits"}, (
+        f"Routes returning indeterminate_snps are now {sorted(reporting)}. Update the pages "
+        "named in interpretation-reference.md's Not Assessed bullet, then this set."
+    )
+    doc = _DOC.read_text(encoding="utf-8")
+    bullet = re.search(r"^- \*\*Not Assessed\*\* — (.*?)(?=\n\S|\n\n)", doc, re.DOTALL | re.M)
+    assert bullet, "No '- **Not Assessed** — …' bullet in the interpretation reference"
+    for page in ("wellness/fitness.md", "wellness/traits-personality.md"):
+        assert f"]({page})" in bullet.group(1), f"Not Assessed bullet no longer links {page}"
+
+
 def test_in_silico_scores_are_documented() -> None:
     """CADD and REVEL are shown as bare numbers on the variant surfaces; the
     interpretation reference must state their direction and scale so a user can
