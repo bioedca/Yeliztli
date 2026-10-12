@@ -12,6 +12,7 @@ reference so a coverage-qualified badge can't ship undocumented again.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from backend.annotation.dbnsfp import ENSEMBLE_MIN_AXES, is_ensemble_pathogenic_from_counts
@@ -282,6 +283,27 @@ def test_badges_are_still_emitted_by_the_code() -> None:
         f"frontend/src/lib/pathwayCoverage.ts no longer emits: {missing}. "
         "Update _COVERAGE_BADGES and docs/modules/interpretation-reference.md."
     )
+
+
+def test_not_assessed_covers_the_all_indeterminate_case() -> None:
+    """Since #2206 (#2178) a Standard pathway whose typed SNPs are all
+    Indeterminate reads "Not Assessed" even at full coverage, so the badge's
+    definition must name that cause, not only "none were callable" (#2077)."""
+    doc = _DOC.read_text(encoding="utf-8")
+    match = re.search(
+        r"^- \*\*Not Assessed\*\* — (.*?)(?=\n\S|\n\n)", doc, re.DOTALL | re.MULTILINE
+    )
+    assert match, "No '- **Not Assessed** — …' bullet in the interpretation reference"
+    assert "Indeterminate" in match.group(1), (
+        "The Not Assessed definition omits the all-Indeterminate case: a pathway whose "
+        "typed SNPs are all Indeterminate shows Not Assessed even at full coverage "
+        "(pathwayLevelDisplayLabel, #2178)."
+    )
+    # Premise: the code still has the nothing-interpreted branch this documents.
+    src = _SRC.read_text(encoding="utf-8")
+    assert re.search(
+        r'if \(pathwayNothingInterpreted\(pathway\)\) \{\s*return "Not Assessed"', src
+    ), "pathwayLevelDisplayLabel no longer maps an all-Indeterminate pathway to Not Assessed"
 
 
 def test_in_silico_scores_are_documented() -> None:
