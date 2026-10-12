@@ -205,9 +205,9 @@ def _resolve_source_ancestry(spec: PgsScoreSpec, inferred_ancestry: str | None) 
 
     A multi-ancestry score was developed across several populations, so it is
     labelled as such rather than by one of them: ``ancestries[0]`` is only the
-    alphabetically first, which for PGS005198 is "AFR" (#2076). Whether such a score covers the sample is decided from its
-    ``development_ancestries`` by :func:`check_ancestry_mismatch` (#239, #339),
-    not from this label.
+    alphabetically first, which for PGS005198 is "AFR" (#2076). Whether such a
+    score covers the sample is decided from its ``development_ancestries`` by
+    :func:`check_ancestry_mismatch` (#239, #339), not from this label.
 
     A single-ancestry score reports the inferred ancestry when it covers it
     (resolving the CSA≡SAS alias, so no false mismatch is raised), otherwise its
