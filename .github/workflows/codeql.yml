@@ -20,6 +20,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every checkout also sets `persist-credentials: false`: no step here pushes or
+# fetches with the checkout token, and the jobs run dependency and test code
+# that could otherwise read it from .git/config (#2080).
 permissions:
   contents: read
 
@@ -43,6 +46,8 @@ jobs:
             build-mode: none
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
