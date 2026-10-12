@@ -34,6 +34,7 @@ from backend.analysis.prs import (
     check_ancestry_mismatch,
     compute_prs,
 )
+from backend.analysis.return_framing import MULTI_ANCESTRY_SOURCE
 from backend.annotation.pgs_catalog import (
     create_pgs_tables,
     pgs_score_metadata,
@@ -335,8 +336,9 @@ class TestBuildWeightSet:
         # No rsIDs → positional weights carry chrom/pos and empty rsid.
         assert all(w.rsid == "" for w in ws.weights)
         assert all(w.chrom and w.pos for w in ws.weights)
-        # multi-ancestry covering AFR → source resolved to AFR (no mismatch).
-        assert ws.source_ancestry == "AFR"
+        # A multi-ancestry score is labelled multi-ancestry, not by one of its
+        # populations, even when it covers the sample (#2076).
+        assert ws.source_ancestry == MULTI_ANCESTRY_SOURCE
 
     def test_absent_score_returns_none(self) -> None:
         spec = _spec("PGS999999", multi=False, ancestries=["EUR"])
@@ -385,11 +387,11 @@ class TestCsaSasAlias:
         # CSA is covered via the SAS alias → chosen through the covering branch.
         assert select_pgs_for_ancestry(specs, "CSA").pgs_id == "BMI_MULTI"
 
-    def test_csa_resolves_to_csa_not_afr(self) -> None:
+    def test_csa_sample_is_not_labelled_afr(self) -> None:
         spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
-        # Pre-fix this returned "AFR" (ancestries[0]) and tripped a false
-        # ancestry-mismatch warning for South Asian samples.
-        assert _resolve_source_ancestry(spec, "CSA") == "CSA"
+        # #132 saw "AFR" (ancestries[0]) here. A multi-ancestry score now carries
+        # the multi-ancestry label; coverage is decided from its ancestry set.
+        assert _resolve_source_ancestry(spec, "CSA") == MULTI_ANCESTRY_SOURCE
 
     def test_csa_sample_raises_no_ancestry_mismatch(self) -> None:
         spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
@@ -397,7 +399,7 @@ class TestCsaSasAlias:
             _pgs_engine(), spec, "body_mass_index", inferred_ancestry="CSA"
         )
         assert ws is not None
-        assert ws.source_ancestry == "CSA"
+        assert ws.source_ancestry == MULTI_ANCESTRY_SOURCE
         # Faithfully thread the multi-ancestry provenance the bridge populates,
         # so this exercises the multi-ancestry branch (not the single-ancestry
         # default) — a CSA user is covered by the SAS-labelled dev set via the
@@ -422,17 +424,32 @@ class TestCsaSasAlias:
 
     def test_uncovered_buckets_still_flagged(self) -> None:
         # MID / OCE have no South Asian alias and no component in these scores →
-        # they must stay uncovered, so the mismatch fallback is preserved.
+        # they must stay uncovered and raise the mismatch warning, whatever the
+        # source label says.
         spec = _spec("PGS005198", multi=True, ancestries=self._BMI_ANCESTRIES)
-        assert _resolve_source_ancestry(spec, "MID") == "AFR"
-        assert _resolve_source_ancestry(spec, "OCE") == "AFR"
+        for inferred in ("MID", "OCE"):
+            result = PRSResult(
+                weight_set_name="ws",
+                trait="body_mass_index",
+                module="metabolic",
+                source_ancestry=_resolve_source_ancestry(spec, inferred),
+                source_study="s",
+                source_pmid="1",
+                sample_size=1,
+                raw_score=0.0,
+                multi_ancestry=True,
+                development_ancestries=list(self._BMI_ANCESTRIES),
+            )
+            result = check_ancestry_mismatch(result, inferred)
+            assert result.ancestry_mismatch is True, inferred
+            assert "AFR, AMR, EAS, EUR, SAS" in result.ancestry_warning_text
 
     def test_registry_bmi_score_covers_csa(self) -> None:
         # Guard the real shipped registry entry (PGS005198) against regression.
         reg = load_pgs_registry()
         chosen = select_pgs_for_ancestry(reg["body_mass_index"], "CSA")
         assert chosen is not None and chosen.pgs_id == "PGS005198"
-        assert _resolve_source_ancestry(chosen, "CSA") == "CSA"
+        assert _resolve_source_ancestry(chosen, "CSA") == MULTI_ANCESTRY_SOURCE
 
     def test_covers_agrees_with_check_ancestry_mismatch(self) -> None:
         """pgs_bridge selection coverage and prs's warning use ONE rule (#339).
@@ -472,3 +489,27 @@ class TestCsaSasAlias:
                 f"coverage divergence for inferred={inferred}, dev={dev}: "
                 f"_covers={covered} but no_mismatch={no_mismatch}"
             )
+
+
+# ── Source-population label (issue #2076) ─────────────────────────────────
+
+
+class TestSourceAncestryLabel:
+    """``ancestries`` is alphabetical, so ``ancestries[0]`` names no "primary"
+    population: for PGS005198 it was simply "AFR", the first of five."""
+
+    def test_registry_multi_ancestry_score_is_never_labelled_one_population(self) -> None:
+        spec = next(s for s in load_pgs_registry()["body_mass_index"] if s.pgs_id == "PGS005198")
+        assert spec.multi_ancestry is True and spec.ancestries[0] == "AFR"
+        for inferred in (None, "EUR", "AFR", "EAS", "CSA", "MID", "ADMIXED", "UNCERTAIN"):
+            assert _resolve_source_ancestry(spec, inferred) == MULTI_ANCESTRY_SOURCE, inferred
+
+    def test_single_ancestry_labels_are_unchanged(self) -> None:
+        eur = _spec("EUR_ONLY", multi=False, ancestries=["EUR"])
+        assert _resolve_source_ancestry(eur, "EUR") == "EUR"
+        assert _resolve_source_ancestry(eur, None) == "EUR"
+        assert _resolve_source_ancestry(eur, "EAS") == "EUR"
+        sas = _spec("SAS_ONLY", multi=False, ancestries=["SAS"])
+        # The CSA≡SAS alias still resolves to the inferred label, so the
+        # single-ancestry comparison raises no false mismatch.
+        assert _resolve_source_ancestry(sas, "CSA") == "CSA"

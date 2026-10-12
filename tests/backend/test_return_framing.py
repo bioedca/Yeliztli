@@ -7,6 +7,7 @@ from pathlib import Path
 
 from backend.analysis.return_framing import (
     CLIA_CONFIRMATION,
+    MULTI_ANCESTRY_SOURCE,
     prs_ci_label,
     prs_return_framing,
     prs_source_population_label,
@@ -62,6 +63,13 @@ class TestSourcePopulationLabel:
 
     def test_handles_missing_population(self) -> None:
         assert "unspecified" in prs_source_population_label(None)
+
+    def test_multi_ancestry_score_names_no_single_population(self) -> None:
+        # #2076: a multi-ancestry score must not read "Derived in AFR ancestry".
+        label = prs_source_population_label(MULTI_ANCESTRY_SOURCE)
+        assert label.startswith("Derived across multiple ancestries.")
+        assert "Multi-ancestry ancestry" not in label
+        assert "source populations" in label
 
 
 class TestCiLabel:

@@ -37,6 +37,7 @@ from backend.analysis.prs import (
     PRSSNPWeight,
     PRSWeightSet,
 )
+from backend.analysis.return_framing import MULTI_ANCESTRY_SOURCE
 from backend.annotation.pgs_catalog import (
     load_score_weights,
     pgs_score_metadata,
@@ -200,13 +201,20 @@ def select_pgs_for_ancestry(
 
 
 def _resolve_source_ancestry(spec: PgsScoreSpec, inferred_ancestry: str | None) -> str:
-    """Source-ancestry label that yields correct ancestry-mismatch behaviour.
+    """Source-population label shown with the score and in its framing.
 
-    When the score covers the inferred ancestry (a multi-ancestry score including
-    it, or a single-ancestry score matching it), report the inferred ancestry so
-    :func:`check_ancestry_mismatch` raises no warning. Otherwise report the
-    score's primary development ancestry so a mismatch is flagged.
+    A multi-ancestry score was developed across several populations, so it is
+    labelled as such rather than by one of them: ``ancestries[0]`` is only the
+    alphabetically first, which for PGS005198 is "AFR" (#2076). Whether such a
+    score covers the sample is decided from its ``development_ancestries`` by
+    :func:`check_ancestry_mismatch` (#239, #339), not from this label.
+
+    A single-ancestry score reports the inferred ancestry when it covers it
+    (resolving the CSA≡SAS alias, so no false mismatch is raised), otherwise its
+    development ancestry so a mismatch is flagged.
     """
+    if spec.multi_ancestry and spec.ancestries:
+        return MULTI_ANCESTRY_SOURCE
     if inferred_ancestry and _covers(spec, inferred_ancestry):
         return inferred_ancestry
     return spec.ancestries[0] if spec.ancestries else "EUR"
