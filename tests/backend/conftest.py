@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from _isolated_data_home import isolate_data_home, uses_real_data_home
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
@@ -31,6 +32,33 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+
+# ═══════════════════════════════════════════════════════════════════════
+# Throwaway data home (#2079)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture(autouse=True)
+def _isolated_data_home(
+    request: pytest.FixtureRequest,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Give every test an empty, disposable default data home.
+
+    Without it, any path a test leaves unpatched reads the real ``~/.yeliztli``,
+    so a populated one broke API tests (#2079). ``requires_real_bundle`` tests
+    keep the real home: the nightly stages the production bundles there.
+    """
+    if uses_real_data_home(request.node):
+        yield
+        return
+    isolate_data_home(monkeypatch, tmp_path_factory.mktemp("home") / ".yeliztli")
+    yield
+    from backend.config import get_settings
+
+    get_settings.cache_clear()
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # In-memory SQLite engines (function-scoped for isolation)
