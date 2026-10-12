@@ -13,7 +13,14 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
-from _isolated_data_home import isolate_data_home, uses_real_data_home
+from _isolated_data_home import (
+    finish_session,
+    isolate_data_home,
+    new_test_home,
+    restore_real_data_home,
+    start_session,
+    uses_real_data_home,
+)
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
@@ -37,13 +44,43 @@ from backend.db.tables import (
 # Throwaway data home (#2079)
 # ═══════════════════════════════════════════════════════════════════════
 
+# Before any test module is imported: importing backend.main binds the global
+# Huey to get_settings().data_dir at import time (backend/tasks/huey_tasks.py).
+start_session()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _finish_isolated_session():
+    """Undo the session isolation and delete the throwaway homes at the end."""
+    yield
+    finish_session()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _real_data_home_for_real_bundle_modules(request: pytest.FixtureRequest):
+    """Restore the real home for a module that will run real-bundle tests.
+
+    Module-scoped so the module's own module-scoped fixtures, which locate the
+    staged bundles through ``get_settings()``, see it too. Other tests in the
+    module are still isolated per test below.
+    """
+    runs_real_bundle_tests = any(
+        item.path == request.node.path
+        and uses_real_data_home(item)
+        and not item.get_closest_marker("skip")
+        for item in request.session.items
+    )
+    if not runs_real_bundle_tests:
+        yield
+        return
+    monkeypatch = pytest.MonkeyPatch()
+    restore_real_data_home(monkeypatch)
+    yield
+    monkeypatch.undo()
+
 
 @pytest.fixture(autouse=True)
-def _isolated_data_home(
-    request: pytest.FixtureRequest,
-    tmp_path_factory: pytest.TempPathFactory,
-    monkeypatch: pytest.MonkeyPatch,
-):
+def _isolated_data_home(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Give every test an empty, disposable default data home.
 
     Without it, any path a test leaves unpatched reads the real ``~/.yeliztli``,
@@ -53,7 +90,7 @@ def _isolated_data_home(
     if uses_real_data_home(request.node):
         yield
         return
-    isolate_data_home(monkeypatch, tmp_path_factory.mktemp("home") / ".yeliztli")
+    isolate_data_home(monkeypatch, new_test_home())
     yield
     from backend.config import get_settings
 

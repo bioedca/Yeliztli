@@ -1,4 +1,4 @@
-"""Per-test isolation of the default data home (#2079).
+"""Isolation of the default data home for the backend suite (#2079).
 
 ``backend.config`` resolves every default path from the user's home:
 ``Settings.data_dir`` defaults to ``~/.yeliztli``, and the data-dir pointer and
@@ -7,23 +7,34 @@ building ``Settings(data_dir=tmp)`` and patching ``get_registry``/``get_settings
 per route module, so any code path a test did not patch fell through to the real
 ``~/.yeliztli``. ``Settings(data_dir=tmp)`` also still read every other field
 from the real ``config.toml``: an ``auth_enabled`` install turned API tests into
-401s. ``YELIZTLI_*`` settings variables in a developer's shell leak the same
-way, and ``YELIZTLI_DATA_DIR`` outranks everything below. The suite was green
-only while that directory was absent and the shell was clean.
+401s. ``YELIZTLI_*`` settings variables in a developer's shell and the project
+``.env`` leak the same way, and ``YELIZTLI_DATA_DIR`` outranks everything below.
+The suite was green only while that directory was absent and the shell was clean.
 
-:func:`isolate_data_home` points all three at a throwaway directory so an
-unpatched path resolves somewhere empty and disposable. The per-test patches stay
-as defense in depth rather than the only isolation.
+Two layers, both driven by ``tests/backend/conftest.py``:
 
-It redirects ``data_dir`` with a data-dir pointer, not ``YELIZTLI_DATA_DIR``:
+* :func:`start_session` runs when that conftest is imported, before any test
+  module is. Importing ``backend.main`` imports ``backend.tasks.huey_tasks``,
+  which calls ``get_settings()`` and binds the global Huey to
+  ``data_dir/huey.db`` at import time, so isolation has to exist by then.
+* :func:`isolate_data_home` then gives every test its own empty home, so one
+  test's leftovers are not the next one's state.
+
+``data_dir`` is redirected with a data-dir pointer, not ``YELIZTLI_DATA_DIR``:
 the env var outranks the pointer, so it would mask every test that exercises the
 pointer or a relocated install. Those tests patch ``DEFAULT_DATA_DIR`` to their
 own home, so they never see this pointer and keep working unchanged.
+
+Tests that must read the real home (``REAL_DATA_MARKERS``) get it back for their
+whole module via :func:`restore_real_data_home`; see the conftest.
 """
 
 from __future__ import annotations
 
+import itertools
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +45,9 @@ import pytest
 # through ``get_settings()``; isolating them would make them skip as "bundle
 # missing" instead of running.
 REAL_DATA_MARKERS = frozenset({"requires_real_bundle"})
+
+_session: dict[str, Any] = {}
+_test_numbers = itertools.count()
 
 
 def uses_real_data_home(node: Any) -> bool:
@@ -56,20 +70,75 @@ def settings_env_names() -> frozenset[str]:
 
 
 def isolate_data_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
-    """Resolve default data paths into ``home`` for the rest of the test.
+    """Resolve default data paths into ``home`` until ``monkeypatch`` is undone.
 
-    Ambient settings variables (:func:`settings_env_names`) are removed first;
-    a test that needs one sets it itself. Patching ``DEFAULT_DATA_DIR`` moves the pointer and
-    ``config.toml`` sources, and a pointer at ``home`` then overrides the
-    ``data_dir`` field default, which was bound to the real home when
-    ``Settings`` was defined. The cached settings are cleared so neither a real
-    nor an earlier test's value is reused.
+    Ambient settings variables (:func:`settings_env_names`) and the project
+    ``.env`` are masked; a test that needs either sets it itself. Patching
+    ``DEFAULT_DATA_DIR`` moves the pointer and ``config.toml`` sources, and a
+    pointer at ``home`` then overrides the ``data_dir`` field default, which was
+    bound to the real home when ``Settings`` was defined. The cached settings
+    are cleared so neither a real nor an earlier value is reused.
     """
     from backend import config
 
     names = settings_env_names()
     for key in [key for key in os.environ if key.upper() in names]:
         monkeypatch.delenv(key)
+    monkeypatch.setitem(config.Settings.model_config, "env_file", None)
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home)
     config.write_data_dir_pointer(home)
+    config.get_settings.cache_clear()
+
+
+def session_root() -> Path:
+    """Directory holding the session home and every per-test home."""
+    return _session["root"]
+
+
+def new_test_home() -> Path:
+    """A fresh home under :func:`session_root`, without rescanning siblings."""
+    return session_root() / f"test-{next(_test_numbers)}" / ".yeliztli"
+
+
+def start_session() -> None:
+    """Isolate the whole session, capturing the real state first."""
+    if _session:
+        return
+    from backend import config
+
+    names = settings_env_names()
+    _session["real"] = {
+        "home": config.DEFAULT_DATA_DIR,
+        "env": {key: value for key, value in os.environ.items() if key.upper() in names},
+        "env_file": config.Settings.model_config.get("env_file"),
+    }
+    _session["root"] = Path(tempfile.mkdtemp(prefix="yeliztli-test-homes-"))
+    _session["monkeypatch"] = monkeypatch = pytest.MonkeyPatch()
+    isolate_data_home(monkeypatch, session_root() / "session" / ".yeliztli")
+
+
+def finish_session() -> None:
+    """Undo :func:`start_session` and delete every throwaway home."""
+    if not _session:
+        return
+    _session["monkeypatch"].undo()
+    shutil.rmtree(_session["root"], ignore_errors=True)
+    _session.clear()
+    from backend import config
+
+    config.get_settings.cache_clear()
+
+
+def restore_real_data_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point default data paths back at the real home until undone."""
+    from backend import config
+
+    real = _session["real"]
+    names = settings_env_names()
+    for key in [key for key in os.environ if key.upper() in names]:
+        monkeypatch.delenv(key)
+    for key, value in real["env"].items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setitem(config.Settings.model_config, "env_file", real["env_file"])
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", real["home"])
     config.get_settings.cache_clear()
