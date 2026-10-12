@@ -1712,6 +1712,41 @@ class TestUpdateAPI:
         # Same format, and the week-apart builds are distinguishable.
         assert current == "2026-07-07" != offer["latest_version_display"]
 
+    def test_scoped_mondo_hpo_version_reads_like_its_offer(self, update_client, tmp_data_dir):
+        """#2081: MONDO/HPO's stored version carries build metadata after its date."""
+        from backend.annotation.mondo_hpo import _mondo_hpo_install_version
+        from backend.db.update_manager import CHECK_FNS, VersionInfo
+
+        installed = _mondo_hpo_install_version(
+            "20260707", {"etag": '"hpo-etag"'}, {"etag": '"sssom-etag"'}
+        )
+        # The loader's real stamp, not a bare date.
+        assert installed.startswith("20260707+") and "+hpo-" in installed
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            _record_version(engine, "mondo_hpo", installed, 1)
+        finally:
+            engine.dispose()
+        stubs = {name: MagicMock(return_value=None) for name in CHECK_FNS}
+        stubs["mondo_hpo"] = MagicMock(
+            return_value=VersionInfo(
+                db_name="mondo_hpo",
+                latest_version="20260716",
+                download_url="https://example.invalid/mondo_hpo.tsv",
+                download_size_bytes=1,
+            )
+        )
+        with patch.dict("backend.db.update_manager.CHECK_FNS", stubs, clear=True):
+            resp = update_client.get("/api/updates/check")
+
+        assert resp.status_code == 200
+        (offer,) = resp.json()["available"]
+        assert offer["latest_version_display"] == "2026-07-16"
+        status = update_client.get("/api/updates/status").json()
+        mondo = next(d for d in status if d["db_name"] == "mondo_hpo")
+        assert mondo["current_version"] == installed
+        assert mondo["version_display"] == "2026-07-07"
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Version stamping tests (P4-17 / T4-18)
@@ -1753,6 +1788,9 @@ class TestVersionStamping:
         assert format_version_display("20251201") == "2025-12-01"
         # ClinVar ships weekly: two builds in one month must not collapse (#2081).
         assert format_version_display("20260707") != format_version_display("20260716")
+        # MONDO/HPO's build metadata after the date is not shown.
+        scoped = "20260716+disease-scope-v2+hpo-0123456789abcdef+mondo-sssom-unknown"
+        assert format_version_display(scoped) == "2026-07-16"
 
     def test_format_version_display_non_date(self):
         assert format_version_display("2.1.1") == "2.1.1"
@@ -1760,6 +1798,10 @@ class TestVersionStamping:
         assert format_version_display("110") == "110"
         # Eight digits that are not a calendar date stay as they are.
         assert format_version_display("20261340") == "20261340"
+        assert format_version_display("20261340+disease-scope-v2") == "20261340+disease-scope-v2"
+        # Build metadata after a non-date leading component is left whole.
+        unverified = "unverified-0123456789abcdef+disease-scope-v2+hpo-unknown"
+        assert format_version_display(unverified) == unverified
 
     def test_format_version_display_none(self):
         assert format_version_display(None) is None

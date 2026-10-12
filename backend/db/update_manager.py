@@ -681,13 +681,19 @@ def format_version_display(version: str | None) -> str | None:
     GWAS Catalog, dbSNP, MONDO/HPO and ENCODE cCREs all read alike, and it keeps
     the day so ClinVar's weekly builds stay distinguishable (#2081). Other
     versions are returned as-is.
+
+    MONDO/HPO stores its source date followed by ``+``-delimited build
+    metadata (``20260716+disease-scope-v2+hpo-…+mondo-sssom-…``), while its
+    update offer is the bare date. Only the leading date is shown, so the
+    row's Current and Latest cells still read alike.
     """
     if version is None:
         return None
 
-    if len(version) == 8 and version.isdigit():
+    date_part = version.partition("+")[0]
+    if len(date_part) == 8 and date_part.isdigit():
         try:
-            return datetime.strptime(version, "%Y%m%d").date().isoformat()
+            return datetime.strptime(date_part, "%Y%m%d").date().isoformat()
         except ValueError:
             return version
 
