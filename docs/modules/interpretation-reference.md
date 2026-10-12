@@ -149,20 +149,23 @@ highest-category contributing variant, subject to the evidence cap above. Sites 
 resolved from array data (e.g. strand-ambiguous palindromic homozygotes) are marked
 **Indeterminate** and withheld from the level rather than guessed.
 
-When your array only partially covers a pathway's tracked SNPs — common across genotyping
-vendors — a **Standard** pathway carries a coverage-qualified badge so the call isn't read as
-fully supported:
+When a **Standard** call isn't fully supported, the pathway carries a qualified badge so it
+isn't read as a clean negative. That happens when your array only partially covers the
+pathway's tracked SNPs (some off-chip or no-call, which is common across genotyping vendors),
+or when none of the SNPs it did type could be interpreted:
 
 - **Tested Standard** — the pathway looks Standard, but only *some* of its tracked SNPs were
-  on-chip or callable from your array; the rest were not assessed. It is a Standard call made
+  on-chip and callable from your array; the rest were not assessed. It is a Standard call made
   on incomplete coverage (the card's coverage note says how many were off-chip vs. no-call).
-- **Not Assessed** — *none* of the pathway's tracked SNPs were callable, so no level could be
-  determined for that pathway.
+- **Not Assessed** — no variant in the pathway could be scored, so no level could be
+  determined: either *none* of its tracked SNPs were callable from your array, or every one
+  that was typed is **Indeterminate**. The second case can occur even when every tracked SNP
+  is on-chip.
 
-These differ from a plain **Standard** badge (all tracked SNPs covered) and from
-**Indeterminate** (individual sites that *were* typed but can't be resolved, withheld from an
-otherwise-computed level). *Elevated* and *Moderate* pathways always show their plain level,
-never a coverage-qualified badge.
+These differ from a plain **Standard** badge (every tracked SNP called, and at least one of them
+interpretable) and from **Indeterminate** (individual typed sites that can't be resolved,
+withheld from a level computed from the pathway's other variants). *Elevated* and *Moderate*
+pathways always show their plain level, never a qualified badge.
 
 ### Star-allele diplotypes & CPIC status
 
