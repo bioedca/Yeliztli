@@ -1663,6 +1663,55 @@ class TestUpdateAPI:
         assert clinvar is not None
         assert clinvar["display_name"] == "ClinVar"
 
+    def test_status_formats_every_date_versioned_database_alike(self, update_client, tmp_data_dir):
+        """#2081: only ClinVar was formatted; other YYYYMMDD versions showed raw."""
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            _record_version(engine, "clinvar", "20260707", 1)
+            _record_version(engine, "gwas_catalog", "20260710", 1)
+            _record_version(engine, "dbsnp", "20180207", 1)
+            _record_version(engine, "gnomad", "2.1.1", 1)
+        finally:
+            engine.dispose()
+
+        resp = update_client.get("/api/updates/status")
+        assert resp.status_code == 200
+        shown = {d["db_name"]: d["version_display"] for d in resp.json()}
+        assert shown["clinvar"] == "2026-07-07"
+        assert shown["gwas_catalog"] == "2026-07-10"
+        assert shown["dbsnp"] == "2018-02-07"
+        assert shown["gnomad"] == "2.1.1"
+
+    def test_check_formats_latest_like_current(self, update_client, tmp_data_dir):
+        """#2081: a row's Latest cell uses the same format as its Current cell."""
+        from backend.db.update_manager import CHECK_FNS, VersionInfo
+
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        try:
+            _record_version(engine, "clinvar", "20260707", 1)
+        finally:
+            engine.dispose()
+        stubs = {name: MagicMock(return_value=None) for name in CHECK_FNS}
+        stubs["clinvar"] = MagicMock(
+            return_value=VersionInfo(
+                db_name="clinvar",
+                latest_version="20260716",
+                download_url="https://example.invalid/clinvar.vcf.gz",
+                download_size_bytes=1,
+            )
+        )
+        with patch.dict("backend.db.update_manager.CHECK_FNS", stubs, clear=True):
+            resp = update_client.get("/api/updates/check")
+
+        assert resp.status_code == 200
+        (offer,) = resp.json()["available"]
+        assert offer["latest_version"] == "20260716"
+        assert offer["latest_version_display"] == "2026-07-16"
+        status = update_client.get("/api/updates/status").json()
+        current = next(d["version_display"] for d in status if d["db_name"] == "clinvar")
+        # Same format, and the week-apart builds are distinguishable.
+        assert current == "2026-07-07" != offer["latest_version_display"]
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Version stamping tests (P4-17 / T4-18)
@@ -1698,18 +1747,22 @@ class TestVersionStamping:
         assert stamps[0]["version"] == "20260315"
         assert stamps[0]["file_size_bytes"] == 30_000_000
 
-    def test_format_version_display_clinvar_date(self):
-        assert format_version_display("20260315", "clinvar") == "Mar 2026"
-        assert format_version_display("20260101", "clinvar") == "Jan 2026"
-        assert format_version_display("20251201", "clinvar") == "Dec 2025"
+    def test_format_version_display_dates_keep_the_day(self):
+        assert format_version_display("20260315") == "2026-03-15"
+        assert format_version_display("20260101") == "2026-01-01"
+        assert format_version_display("20251201") == "2025-12-01"
+        # ClinVar ships weekly: two builds in one month must not collapse (#2081).
+        assert format_version_display("20260707") != format_version_display("20260716")
 
     def test_format_version_display_non_date(self):
-        assert format_version_display("2.1.1", "gnomad") == "2.1.1"
-        assert format_version_display("4.6a", "dbnsfp") == "4.6a"
-        assert format_version_display("110", "vep_bundle") == "110"
+        assert format_version_display("2.1.1") == "2.1.1"
+        assert format_version_display("4.6a") == "4.6a"
+        assert format_version_display("110") == "110"
+        # Eight digits that are not a calendar date stay as they are.
+        assert format_version_display("20261340") == "20261340"
 
     def test_format_version_display_none(self):
-        assert format_version_display(None, "clinvar") is None
+        assert format_version_display(None) is None
 
     def test_stamps_have_downloaded_at_as_iso(self, reference_engine):
         _record_version(reference_engine, "clinvar", "20260315", 1000)

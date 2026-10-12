@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Settings from '@/pages/Settings'
@@ -35,7 +35,7 @@ function mockStatusResponse(statuses?: unknown[]) {
           db_name: 'clinvar',
           display_name: 'ClinVar',
           current_version: '20260315',
-          version_display: 'Mar 2026',
+          version_display: '2026-03-15',
           downloaded_at: '2026-03-15T00:00:00',
           auto_update: true,
           update_available: false,
@@ -365,7 +365,7 @@ describe('UpdateManager', () => {
     expect(await screen.findByText('ClinVar')).toBeInTheDocument()
     expect(screen.getByText('gnomAD')).toBeInTheDocument()
     expect(screen.getByText('dbNSFP')).toBeInTheDocument()
-    expect(screen.getByText('Mar 2026')).toBeInTheDocument()
+    expect(screen.getByText('2026-03-15')).toBeInTheDocument()
     expect(screen.getByText('2.1.1')).toBeInTheDocument()
     expect(screen.getByText('Not installed')).toBeInTheDocument()
   })
@@ -395,6 +395,40 @@ describe('UpdateManager', () => {
     })
     render(<UpdateManager />, { wrapper: createWrapper() })
     expect(await screen.findByText('1 update available')).toBeInTheDocument()
+  })
+
+  it('formats the Latest cell like the Current cell (#2081)', async () => {
+    setupFetchMocks({
+      available: [
+        {
+          db_name: 'clinvar',
+          latest_version: '20260320',
+          latest_version_display: '2026-03-20',
+          download_size_bytes: 5242880,
+          release_date: null,
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const row = (await screen.findByText('2026-03-15')).closest('tr')!
+    expect(within(row).getByText('2026-03-20')).toBeInTheDocument()
+    expect(row).not.toHaveTextContent('20260320')
+  })
+
+  it('falls back to the raw latest version for an older backend', async () => {
+    setupFetchMocks({
+      available: [
+        {
+          db_name: 'clinvar',
+          latest_version: '20260320',
+          download_size_bytes: 5242880,
+          release_date: null,
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const row = (await screen.findByText('2026-03-15')).closest('tr')!
+    expect(within(row).getByText('20260320')).toBeInTheDocument()
   })
 
   it('shows "Update now" button for databases with updates', async () => {
@@ -939,7 +973,7 @@ describe('Outside-window tooltip and Force update', () => {
           db_name: 'clinvar',
           display_name: 'ClinVar',
           current_version: '20260315',
-          version_display: 'Mar 2026',
+          version_display: '2026-03-15',
           downloaded_at: '2026-03-15T00:00:00',
           auto_update: true,
           update_available: false,
@@ -975,7 +1009,7 @@ describe('Outside-window tooltip and Force update', () => {
           db_name: 'clinvar',
           display_name: 'ClinVar',
           current_version: '20260315',
-          version_display: 'Mar 2026',
+          version_display: '2026-03-15',
           downloaded_at: '2026-03-15T00:00:00',
           auto_update: true,
           update_available: false,
@@ -1007,7 +1041,7 @@ describe('Outside-window tooltip and Force update', () => {
           db_name: 'clinvar',
           display_name: 'ClinVar',
           current_version: '20260315',
-          version_display: 'Mar 2026',
+          version_display: '2026-03-15',
           downloaded_at: '2026-03-15T00:00:00',
           auto_update: true,
           update_available: false,
@@ -1060,7 +1094,7 @@ describe('Outside-window tooltip and Force update', () => {
           db_name: 'clinvar',
           display_name: 'ClinVar',
           current_version: '20260315',
-          version_display: 'Mar 2026',
+          version_display: '2026-03-15',
           downloaded_at: '2026-03-15T00:00:00',
           auto_update: true,
           update_available: false,
