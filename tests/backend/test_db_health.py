@@ -1092,6 +1092,29 @@ class TestGtexEqtlLoaderRevision:
         assert "gtex_genes" in (h.integrity_detail or "")
 
 
+class TestGtexGeneTableColumns:
+    def test_gene_table_missing_a_required_column_is_corrupt(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        from backend.annotation.gtex_eqtl import GTEX_INSTALLED_VERSION, gtex_eqtl
+
+        path = get_database("gtex_eqtl").dest_path(settings)
+        engine = sa.create_engine(f"sqlite:///{path}")
+        gtex_eqtl.create(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                gtex_eqtl.insert(), [{"rsid": "rs1", "gene_id": "ENSG001.1", "tissue": "Liver"}]
+            )
+            conn.exec_driver_sql("CREATE TABLE gtex_genes (gene_id TEXT PRIMARY KEY)")
+            conn.exec_driver_sql("INSERT INTO gtex_genes VALUES ('ENSG001.1')")
+        engine.dispose()
+        _record_db_version(ref_db, "gtex_eqtl", GTEX_INSTALLED_VERSION, path.stat().st_size)
+
+        h = _health(settings, ref_db, "gtex_eqtl")
+        assert h.state == "corrupt"
+        assert "gene_name" in (h.integrity_detail or "")
+
+
 class TestBundledHealthMatrix:
     def test_vep_bundle_present_valid_no_version_ready(
         self, settings: Settings, ref_db: sa.Engine

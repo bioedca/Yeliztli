@@ -115,6 +115,7 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
 # compatibility fields stay in the consumer's SELECT fallback logic; these are
 # columns the lookup paths require to run at all.
 _STANDALONE_REQUIRED_COLUMNS: dict[str, dict[str, frozenset[str]]] = {
+    "gtex_eqtl": {"gtex_genes": frozenset({"gene_id", "gene_name"})},
     "gnomad": {
         "gnomad_af": frozenset(
             {

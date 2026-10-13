@@ -223,6 +223,58 @@ class TestDatabaseRegistry:
             reference_engine.dispose()
             target_engine.dispose()
 
+    def test_rebuild_after_warm_pool_writes_the_new_file(
+        self,
+        tmp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A stale standalone file is released by its pooled engine before deletion.
+
+        A pre-#2087 gtex_eqtl.db fails validation (no gtex_genes), so the build
+        deletes it. A pooled connection would keep writing to the deleted inode,
+        leaving nothing at the path once the build is stamped.
+        """
+        import sqlite3
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        db_info = get_database("gtex_eqtl")
+        assert db_info is not None
+        dest = db_info.dest_path(settings)
+        with sqlite3.connect(dest) as conn:
+            conn.execute("CREATE TABLE gtex_eqtl (rsid TEXT, gene_id TEXT, tissue TEXT)")
+            conn.execute("INSERT INTO gtex_eqtl VALUES ('rs1', 'ENSG001.1', 'Liver')")
+        target_engine = sa.create_engine(f"sqlite:///{dest}")
+        try:
+            with target_engine.connect() as conn:  # warm the pool on the old file
+                conn.execute(sa.text("SELECT count(*) FROM gtex_eqtl")).scalar()
+
+            def fake_build(build_engine: sa.Engine, _dest_dir: Path, **_kwargs: object) -> None:
+                with build_engine.begin() as conn:
+                    conn.execute(sa.text("CREATE TABLE rebuilt (x INTEGER)"))
+                    conn.execute(sa.text("INSERT INTO rebuilt VALUES (1)"))
+
+            monkeypatch.setattr(
+                "backend.api.routes.databases.get_build_fn", lambda _name: fake_build
+            )
+            monkeypatch.setattr(
+                "backend.api.routes.databases.get_registry",
+                lambda: SimpleNamespace(gtex_eqtl_engine=target_engine),
+            )
+            job_id = "job-gtex-rebuild"
+            _create_job_record(reference_engine, job_id, db_info.name)
+
+            _execute_build(
+                db_info=db_info, job_id=job_id, engine=reference_engine, settings=settings
+            )
+
+            with sqlite3.connect(dest) as conn:
+                assert conn.execute("SELECT count(*) FROM rebuilt").fetchone() == (1,)
+        finally:
+            reference_engine.dispose()
+            target_engine.dispose()
+
     def test_all_databases_have_required_fields(self):
         for db in get_all_databases():
             assert db.name
