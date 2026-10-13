@@ -46,7 +46,10 @@ downloaded into the data directory — see [reference data](../install/reference
    ClinVar significance, gnomAD frequencies, dbNSFP predictions, ENCODE regulatory context,
    GWAS associations, and GTEx eQTLs.
 3. **Analyse.** `run_all_analyses()` runs every [module](../modules/index.md) over the
-   annotated sample, writing **findings** (with provenance and evidence levels).
+   annotated sample, writing **findings** (with provenance and evidence levels). Ancestry
+   runs first because several modules (PRS caveats and calibration, APOL1, gout,
+   nutrigenomics) read its stored result while scoring; a live-path test fails if any
+   module reads it before it exists.
 4. **Serve.** The frontend polls job status, then reads variants and findings through the API.
 
 Background jobs are tracked so an interrupted annotation is recovered on restart.
