@@ -1029,45 +1029,67 @@ class TestStandaloneHealthMatrix:
 
 
 class TestGtexEqtlLoaderRevision:
-    """#2087: a gtex_eqtl.db stamped before gene names were loaded must be rebuilt."""
+    """#2087: a gtex_eqtl.db must carry gene names, or be rebuilt."""
 
-    def _make_valid_gtex(self, settings: Settings) -> Path:
-        from backend.annotation.gtex_eqtl import create_gtex_tables, gtex_eqtl
+    def _make_gtex(self, settings: Settings, *, gene_rows: int | None) -> Path:
+        """``gene_rows=None`` builds a pre-#2087 DB with no ``gtex_genes`` table."""
+        from backend.annotation.gtex_eqtl import gtex_eqtl, gtex_genes
 
         path = get_database("gtex_eqtl").dest_path(settings)
         engine = sa.create_engine(f"sqlite:///{path}")
-        create_gtex_tables(engine)
+        gtex_eqtl.create(engine)
         with engine.begin() as conn:
             conn.execute(
                 gtex_eqtl.insert(),
                 [{"rsid": "rs1", "gene_id": "ENSG001.1", "tissue": "Liver", "pval_nominal": 1e-9}],
             )
+        if gene_rows is not None:
+            gtex_genes.create(engine)
+            with engine.begin() as conn:
+                for i in range(gene_rows):
+                    conn.execute(
+                        gtex_genes.insert(), [{"gene_id": f"ENSG00{i}.1", "gene_name": f"G{i}"}]
+                    )
         engine.dispose()
         return path
 
-    def test_pre_gene_names_stamp_is_partial_and_not_downloaded(
+    def test_pre_gene_names_install_is_partial_and_not_downloaded(
         self, settings: Settings, ref_db: sa.Engine
     ) -> None:
-        path = self._make_valid_gtex(settings)
+        path = self._make_gtex(settings, gene_rows=None)
         _record_db_version(ref_db, "gtex_eqtl", "v8", path.stat().st_size)
 
         h = _health(settings, ref_db, "gtex_eqtl")
-        assert h.state == "partial"
-        assert h.integrity_ok is True
+        assert h.state == "partial"  # an older finished build, not "corrupt"
         # The build flow's skip check: not "already downloaded", so it rebuilds.
         assert get_database_status(get_database("gtex_eqtl"), settings)["downloaded"] is False
 
-    def test_current_revision_stamp_is_ready_and_downloaded(
+    def test_current_revision_with_gene_names_is_ready_and_downloaded(
         self, settings: Settings, ref_db: sa.Engine
     ) -> None:
         from backend.annotation.gtex_eqtl import GTEX_INSTALLED_VERSION
 
-        path = self._make_valid_gtex(settings)
+        path = self._make_gtex(settings, gene_rows=2)
         _record_db_version(ref_db, "gtex_eqtl", GTEX_INSTALLED_VERSION, path.stat().st_size)
 
         h = _health(settings, ref_db, "gtex_eqtl")
         assert h.state == "ready"
+        assert h.integrity_ok is True
         assert get_database_status(get_database("gtex_eqtl"), settings)["downloaded"] is True
+
+    @pytest.mark.parametrize("gene_rows", [None, 0], ids=["no_gene_table", "empty_gene_table"])
+    def test_current_revision_without_gene_names_is_corrupt(
+        self, settings: Settings, ref_db: sa.Engine, gene_rows: int | None
+    ) -> None:
+        from backend.annotation.gtex_eqtl import GTEX_INSTALLED_VERSION
+
+        path = self._make_gtex(settings, gene_rows=gene_rows)
+        _record_db_version(ref_db, "gtex_eqtl", GTEX_INSTALLED_VERSION, path.stat().st_size)
+
+        h = _health(settings, ref_db, "gtex_eqtl")
+        assert h.state == "corrupt"
+        assert h.integrity_ok is False
+        assert "gtex_genes" in (h.integrity_detail or "")
 
 
 class TestBundledHealthMatrix:

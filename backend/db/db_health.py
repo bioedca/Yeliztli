@@ -101,7 +101,9 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
     "gnomad": [("gnomad_af", True)],
     "dbnsfp": [("dbnsfp_scores", True)],
     "alphamissense": [("alphamissense_scores", True)],
-    "gtex_eqtl": [("gtex_eqtl", True)],
+    # gtex_genes names the badge's genes (#2087); a pre-revision install has no
+    # such table and resolves to "partial" on its stamp before this check.
+    "gtex_eqtl": [("gtex_eqtl", True), ("gtex_genes", True)],
     # bundle_metadata only needs to exist; vep_annotations carries the data.
     "vep_bundle": [("vep_annotations", True), ("bundle_metadata", False)],
     "encode_ccres": [("encode_ccres", True)],
@@ -817,12 +819,19 @@ def get_database_health(
             integ = validate_database(name, settings, engine=engine, deep=False)
             integrity_ok = integ.ok
             integrity_detail = integ.detail
-            if not integ.ok:
+            if (
+                needs_version
+                and version is not None
+                and not installed_version_is_serviceable(name, version)
+            ):
+                # A finished build from an older loader revision (gtex_eqtl
+                # without gene names, #2087): rebuild it, it is not corrupt.
+                state = "partial"
+            elif not integ.ok:
                 state = "corrupt"
-            elif needs_version and not installed_version_is_serviceable(name, version):
-                # Artifact + data on disk but no stamp (an interrupted build or
-                # extract), or a stamp from a loader revision whose output the
-                # consumers have since outgrown (gtex_eqtl, #2087): not finished.
+            elif needs_version and version is None:
+                # Artifact + data on disk but the finalize never stamped a
+                # version — an interrupted build/extract, not a finished DB.
                 state = "partial"
             else:
                 state = "ready"
