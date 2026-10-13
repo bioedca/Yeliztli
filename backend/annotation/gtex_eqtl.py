@@ -72,6 +72,7 @@ _SIGNIF_PAIRS_RE = re.compile(r"\.v8\.signif_variant_gene_pairs\.txt(\.gz)?$")
 # The same tar's per-tissue ``<Tissue>.v8.egenes.txt.gz`` carry ``gene_id`` and
 # ``gene_name``; the signif-pairs files have only the versioned Ensembl ID (#2087).
 _EGENES_RE = re.compile(r"\.v8\.egenes\.txt(\.gz)?$")
+_NOT_A_SYMBOL = frozenset({".", "NA"})
 
 # variant_id format: chr1_64764_C_T_b38  (GRCh38, 'chr'-prefixed).
 _VARIANT_ID_RE = re.compile(r"^chr([0-9XYM]+)_(\d+)_([ACGT]+)_([ACGT]+)_b38$", re.IGNORECASE)
@@ -257,8 +258,13 @@ def load_gtex_eqtl(
 def load_gtex_gene_names(eqtl_dir: Path, engine: sa.Engine) -> int:
     """Load ``gene_id → gene_name`` from every ``*.v8.egenes.txt(.gz)`` under ``eqtl_dir``.
 
-    Returns the number of genes stored. A tar without egenes files leaves any
-    existing names in place, so the badge falls back to the Ensembl ID.
+    Returns the number of genes stored. A name that is only the gene's own
+    Ensembl ID or a placeholder is not a symbol and is skipped.
+
+    Raises:
+        ValueError: no gene names parsed. The install stamp asserts names were
+            loaded (:data:`GTEX_INGESTION_REVISION`), so this aborts the build
+            instead of stamping one the badge cannot name genes from.
     """
     names: dict[str, str] = {}
     egenes_files = sorted(
@@ -276,12 +282,15 @@ def load_gtex_gene_names(eqtl_dir: Path, engine: sa.Engine) -> int:
                 if len(parts) <= max(i_id, i_name):
                     continue
                 gene_id, gene_name = parts[i_id].strip(), parts[i_name].strip()
-                if gene_id and gene_name:
-                    names.setdefault(gene_id, gene_name)
+                if gene_id and gene_name and gene_name not in _NOT_A_SYMBOL:
+                    if gene_name != re.sub(r"\.\d+$", "", gene_id):
+                        names.setdefault(gene_id, gene_name)
 
     if not names:
-        logger.warning("gtex_eqtl_no_gene_names", eqtl_dir=str(eqtl_dir))
-        return 0
+        raise ValueError(
+            f"no GTEx gene names parsed from *.v8.egenes.txt(.gz) under {eqtl_dir} — "
+            f"refusing to stamp a gtex_eqtl.db whose badge cannot name genes."
+        )
 
     create_gtex_tables(engine)
     rows = [{"gene_id": gene_id, "gene_name": name} for gene_id, name in names.items()]
@@ -401,6 +410,9 @@ def load_gtex_eqtl_dir(
             f"refusing to build an empty gtex_eqtl.db."
         )
 
+    # Gene names first: cheap, and a release without them must fail the build
+    # before the heavy per-tissue ingest rather than after it.
+    load_gtex_gene_names(eqtl_dir, engine)
     rsid_lookup = load_variant_rsid_lookup(lookup_path)
 
     create_gtex_tables(engine)
@@ -428,7 +440,6 @@ def load_gtex_eqtl_dir(
             "every GTEx tissue parsed zero rsID-matched eQTL rows — refusing to build "
             "an empty gtex_eqtl.db (is the WGS lookup table the right one?)."
         )
-    load_gtex_gene_names(eqtl_dir, engine)
     return stats
 
 

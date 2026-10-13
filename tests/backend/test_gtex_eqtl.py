@@ -24,6 +24,7 @@ from backend.annotation.gtex_eqtl import (
     gtex_eqtl,
     load_gtex_eqtl,
     load_gtex_eqtl_dir,
+    load_gtex_gene_names,
     load_variant_rsid_lookup,
     lookup_eqtls_by_rsids,
     lookup_gene_names,
@@ -47,6 +48,14 @@ _SIGNIF = (
     "chr2_100_A_G_b38\tENSG002\t500\t0.3\t3e-8\t-0.22\t0.04\n"
     "chr3_200_G_A_b38\tENSG003\t10\t0.1\t1e-9\t0.30\t0.06\n"  # no rsID → skipped
     "malformed_row\n"  # bad → skipped
+)
+
+
+# GTEx egenes format (per tissue): ``gene_id``/``gene_name`` among many columns.
+_EGENES = (
+    "gene_id\tgene_name\tgene_chr\tgene_start\tgene_end\tstrand\tqval\n"
+    "ENSG001\tGENEA\tchr1\t60000\t70000\t+\t0.001\n"
+    "ENSG002\tGENEB\tchr2\t90\t900\t-\t0.04\n"
 )
 
 
@@ -187,6 +196,10 @@ def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
         with gzip.open(f, "wt", encoding="utf-8") as fh:
             fh.write(content)
         members.append(f)
+        g = raw / f"{tissue}.v8.egenes.txt.gz"
+        with gzip.open(g, "wt", encoding="utf-8") as fh:
+            fh.write(_EGENES)
+        members.append(g)
     tar_path = tmp_path / "GTEx_Analysis_v8_eQTL.tar"
     with tarfile.open(tar_path, "w") as tf:
         for f in members:
@@ -200,6 +213,7 @@ class TestLoadDir:
         eqtl_dir.mkdir()
         _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
         _write(eqtl_dir, "Liver.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
+        _write(eqtl_dir, "Liver.v8.egenes.txt.gz", _EGENES, gz=True)
         lookup = _write(tmp_path, "lk.txt", _LOOKUP)
         engine = _engine(tmp_path)
 
@@ -219,6 +233,7 @@ class TestLoadDir:
         eqtl_dir.mkdir()
         _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
         _write(eqtl_dir, "Brain.v8.signif_variant_gene_pairs.txt.gz", brain, gz=True)
+        _write(eqtl_dir, "Brain.v8.egenes.txt.gz", _EGENES, gz=True)
         lookup = _write(tmp_path, "lk.txt", _LOOKUP)
         engine = _engine(tmp_path)
 
@@ -239,6 +254,7 @@ class TestLoadDir:
             "foo\tbar\tpval_nominal\n1\t2\t3\n",
             gz=True,
         )
+        _write(eqtl_dir, "Bad.v8.egenes.txt.gz", _EGENES, gz=True)
         lookup = _write(tmp_path, "lk.txt", _LOOKUP)
         engine = _engine(tmp_path)
         with pytest.raises(ValueError, match="missing variant_id/gene_id"):
@@ -252,14 +268,6 @@ class TestLoadDir:
         engine = _engine(tmp_path)
         with pytest.raises(ValueError, match="no GTEx"):
             load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
-
-
-# GTEx egenes format (per tissue): ``gene_id``/``gene_name`` among many columns.
-_EGENES = (
-    "gene_id\tgene_name\tgene_chr\tgene_start\tgene_end\tstrand\tqval\n"
-    "ENSG001\tGENEA\tchr1\t60000\t70000\t+\t0.001\n"
-    "ENSG002\tGENEB\tchr2\t90\t900\t-\t0.04\n"
-)
 
 
 class TestGeneNames:
@@ -279,6 +287,37 @@ class TestGeneNames:
         assert lookup_gene_names(["ENSG001", "ENSG002", "ENSG999"], engine) == {
             "ENSG001": "GENEA",
             "ENSG002": "GENEB",
+        }
+
+    def test_load_dir_without_gene_names_refuses_to_build(self, tmp_path: Path) -> None:
+        # The stamp asserts names were loaded, so a release without them fails
+        # before the heavy per-tissue ingest instead of stamping an unnamed DB.
+        eqtl_dir = tmp_path / "ex"
+        eqtl_dir.mkdir()
+        _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
+        lookup = _write(tmp_path, "lk.txt", _LOOKUP)
+        engine = _engine(tmp_path)
+
+        with pytest.raises(ValueError, match="no GTEx gene names"):
+            load_gtex_eqtl_dir(eqtl_dir, lookup, engine)
+        assert not sa.inspect(engine).has_table("gtex_eqtl")
+
+    def test_placeholder_names_are_not_symbols(self, tmp_path: Path) -> None:
+        eqtl_dir = tmp_path / "ex"
+        eqtl_dir.mkdir()
+        egenes = (
+            "gene_id\tgene_name\n"
+            "ENSG001.4\tGENEA\n"
+            "ENSG003.2\tENSG003\n"  # its own unversioned Ensembl ID
+            "ENSG004.1\t.\n"
+            "ENSG005.1\tNA\n"
+        )
+        _write(eqtl_dir, "Liver.v8.egenes.txt.gz", egenes, gz=True)
+        engine = _engine(tmp_path)
+
+        assert load_gtex_gene_names(eqtl_dir, engine) == 1
+        assert lookup_gene_names(["ENSG001.4", "ENSG003.2", "ENSG004.1", "ENSG005.1"], engine) == {
+            "ENSG001.4": "GENEA"
         }
 
     def test_db_built_before_gene_names_returns_none(self, tmp_path: Path) -> None:
