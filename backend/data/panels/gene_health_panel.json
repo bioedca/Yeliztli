@@ -798,11 +798,11 @@
             },
             "TT": {
               "category": "Elevated",
-              "effect_summary": "Homozygous NOD2 R702W. Severely impaired muramyl dipeptide sensing. Associated with ~20-40 fold increased risk of Crohn's disease, particularly ileal involvement. Compound heterozygosity with other NOD2 variants further increases risk."
+              "effect_summary": "Homozygous NOD2 R702W. Carrying two NOD2 risk alleles is associated with a higher risk of Crohn's disease than carrying one. Published two-allele estimates pool every combination of the three common NOD2 variants and are not specific to R702W homozygotes, so no fold-risk figure is given for this genotype."
             }
           },
           "evidence_level": 4,
-          "pmids": ["11385577", "11385576", "11875755"],
+          "pmids": ["11385577", "11385576", "11875755", "11910337", "15571588"],
           "recommendation_text": "NOD2 is the strongest genetic risk factor for Crohn's disease. R702W is one of three major NOD2 risk variants (along with G908R and 1007fs). NOD2 senses intracellular bacterial components — loss of function disrupts intestinal immune homeostasis. Carriers with GI symptoms should be evaluated by a gastroenterologist."
         },
         {

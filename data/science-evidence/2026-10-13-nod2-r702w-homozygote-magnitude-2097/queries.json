@@ -1,0 +1,26 @@
+{
+  "accessed": "2026-10-13",
+  "repository_base": "d6f7060090116e10f20993231d9217cc0b68fa45",
+  "queries": [
+    {
+      "source": "PubMed eSummary",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=15571588,11910337,11875755,11385576,11385577,17457368&retmode=json",
+      "payload": "raw/pubmed-esummary.json"
+    },
+    {
+      "source": "PubMed efetch",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=15571588,11910337,11875755,11385576,11385577,17457368&retmode=xml",
+      "payload": "raw/pubmed-efetch-sanitized.xml (abstracts and contact details removed); raw/pubmed-abstract-excerpts.json; raw/pubmed-comments-corrections-extract.json"
+    },
+    {
+      "source": "Scite",
+      "request": "search_literature dois=[6 DOIs listed in derived/evidence-ladder-record.json]",
+      "payload": "derived/evidence-ladder-record.json"
+    },
+    {
+      "source": "Consensus / Scholar Gateway",
+      "request": "evidence workflow queries (run wf_0af89cb5-eff)",
+      "payload": "derived/evidence-ladder-record.json"
+    }
+  ]
+}

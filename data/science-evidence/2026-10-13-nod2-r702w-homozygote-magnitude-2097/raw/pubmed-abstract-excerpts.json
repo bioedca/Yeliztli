@@ -1,0 +1,35 @@
+{
+  "source": "PubMed efetch db=pubmed (abstracts), accessed 2026-10-13",
+  "note": "Verbatim fair-use sentences from the abstracts (markup stripped, whitespace collapsed). Abstracts themselves are not redistributed.",
+  "full_efetch_sha256": "e9ce96d799426f7e53f25183991d0e3ebc3522743837249cd962bd181e54ad4f",
+  "excerpts": [
+    {
+      "pmid": "15571588",
+      "text": "The OR in carriers of at least two alleles was 17.1 (95% CI: 10.7-27.2)."
+    },
+    {
+      "pmid": "15571588",
+      "text": "SNP8, SNP12, and SNP13 have differential effects on CD risk, with SNP13 having the strongest genetic effect."
+    },
+    {
+      "pmid": "11910337",
+      "text": "Genotype relative risks were 3.0 for mutation heterozygotes and 23.4 for homozygotes or compound heterozygotes."
+    },
+    {
+      "pmid": "11875755",
+      "text": "In contrast, 50% of patients with CD carried at least one DCM, including 17% who had a double mutation."
+    },
+    {
+      "pmid": "11875755",
+      "text": "This observation confirmed the gene-dosage effect in CD."
+    },
+    {
+      "pmid": "17457368",
+      "text": "(* Signifies insufficient data to estimate these values.) These results confirm the dosage effect for CARD15/NOD2 mutations and demonstrate that the disease risks are very different in homozygotes."
+    },
+    {
+      "pmid": "17457368",
+      "text": "The odds ratio of Crohn disease were, respectively, 1.97+/-0.85, 3.05+/-* and 4.55+/-1.34 for the R702W, G9068R and 1007fs heterozygotes and 3.29+/-0.64, 12.13+/-* and 34.66+/-12.87 for the corresponding homozygotes."
+    }
+  ]
+}

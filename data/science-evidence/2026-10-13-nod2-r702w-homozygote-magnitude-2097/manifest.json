@@ -1,0 +1,29 @@
+{
+  "packet": "2026-10-13-nod2-r702w-homozygote-magnitude-2097",
+  "files": [
+    {
+      "path": "queries.json",
+      "sha256": "719dedda95f92a44cf871b62fb82b87fb5d8beb19be8f308e31a8945e75c71d9"
+    },
+    {
+      "path": "raw/pubmed-abstract-excerpts.json",
+      "sha256": "a36e2fa42dd37db672d62c9d66aaece656394947a62aa28e5752f5329978277b"
+    },
+    {
+      "path": "raw/pubmed-comments-corrections-extract.json",
+      "sha256": "8f7c8df2e2bbab8920e5e307b369c4160f7a7688faa42714c9d1491d2e3fd57e"
+    },
+    {
+      "path": "raw/pubmed-efetch-sanitized.xml",
+      "sha256": "36282e16de2836c280f06b484d61689902a4fc055b646fc0438dae1e87aaafa4"
+    },
+    {
+      "path": "raw/pubmed-esummary.json",
+      "sha256": "4fbb8787eda391da39f3ff9eca32be3c19279035043e49aa3f18c3d6352c4855"
+    },
+    {
+      "path": "derived/evidence-ladder-record.json",
+      "sha256": "ea465c562931be9a8a3f4ff652d9b9f669c4f6eb2393b4da09a8eb6d2f686ebc"
+    }
+  ]
+}

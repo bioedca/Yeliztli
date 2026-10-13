@@ -1,0 +1,32 @@
+{
+  "kind": "derived record (tool results have no wire payload)",
+  "accessed": "2026-10-13",
+  "workflow": "evidence (run wf_0af89cb5-eff): verdict mixed, confidence moderate; claims 1-3 supported by three independent lineages; claim 4 premise (van Heel 2002 RR 58.9) not found; no R702W-homozygote-specific number has two verified independent sources",
+  "sources": [
+    {
+      "tool": "Consensus (bio-research plugin endpoint)",
+      "available": true,
+      "result": "Surfaced the primary papers used here (abstract level)."
+    },
+    {
+      "tool": "Scholar Gateway semanticSearch",
+      "available": false,
+      "result": "ACCESS_DENIED; fell back to web search and NCBI E-utilities."
+    },
+    {
+      "tool": "PubMed (NCBI E-utilities)",
+      "available": true,
+      "result": "Abstracts re-read for PMIDs 15571588, 11910337, 11875755, 17457368 (raw/pubmed-abstract-excerpts.json); comments/corrections checked for all six cited PMIDs (raw/pubmed-comments-corrections-extract.json): CommentIn only, no ErratumIn/RetractionIn/ExpressionOfConcernIn."
+    },
+    {
+      "tool": "Scite search_literature (6 DOIs)",
+      "available": true,
+      "result": "All six papers indexed; no editorialNotices on any (DOIs: 10.1111/j.1572-0241.2004.40304.x, 10.1053/gast.2002.32415, 10.1086/339432, 10.1038/35079107, 10.1038/35079114, 10.1038/sj.ejhg.5201839)."
+    }
+  ],
+  "withheld": [
+    "van Heel 2002 'RR 58.9' (the issue's premise): not found; the matching van Heel 2002 NOD2 paper (PMID:12210321) reports a TDT association and no genotype relative risk.",
+    "Any R702W-homozygote-specific relative-risk number (Pascoe 2007 OR 3.29 is family-ascertained; a second figure in Yazdanyar 2009 is unverified full text that may share data).",
+    "Per-allele ranking of R702W vs G908R vs 1007fs and general-population penetrance (Yazdanyar 2010): not encoded; they lacked two cleanly independent agreeing sources for this change."
+  ]
+}
