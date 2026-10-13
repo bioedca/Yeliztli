@@ -1,0 +1,31 @@
+{
+  "source": "PMC10939896 (PMID:38054408 / DOI:10.1016/j.gim.2023.101036), NCBI efetch db=pmc id=10939896",
+  "accessed": "2026-10-13",
+  "full_payload_sha256": "71af4433ca23398eeaab573e2ddfb0ead3f1fecc207f10e1e53348bf4a316c40",
+  "full_payload_bytes": 101890,
+  "full_payload_retained": false,
+  "license_statement_in_payload": "This file is available for text mining. It may also be used consistent with the principles of fair use under the copyright law.",
+  "note": "Verbatim fair-use excerpts from the fetched XML with tags stripped and whitespace collapsed (italics markup removed, so term names lose their emphasis). The full text is not redistributed.",
+  "excerpts": [
+    {
+      "claim": "three ordered tiers",
+      "text": "We use the term risk allele for variants associated with a very small increased risk of disease and the qualifying terms – Established risk allele , Likely risk allele , and Uncertain risk allele – corresponding to the three classification tiers initially suggested by the ACMG/AMP Mendelian sequence variant classification guidelines ( Figure 1 )."
+    },
+    {
+      "claim": "confidence ordering",
+      "text": "The criteria listed above can be used to generate classifications with levels of confidence ranging from uncertain to likely to established based on the strength of the genetic evidence in the form of association studies ( Table 2 )."
+    },
+    {
+      "claim": "uncertain tier = limited or conflicting evidence",
+      "text": "Risk alleles with limited or conflicting evidence as defined above are classified as uncertain risk allele (or uncertain protective allele )."
+    },
+    {
+      "claim": "no-evidence variants are not given the uncertain tier",
+      "text": "Thus, a variant that lacks any evidence of association with disease would not be classified as an uncertain risk allele ( or uncertain protective allele )."
+    },
+    {
+      "claim": "terminology made available in ClinVar (so ClinVar is not independent)",
+      "text": "As such, we are engaging the community, including ClinGen and its associated Clinical Domain Working Groups, to implement these new recommendations, and our recommended terminology has recently been made available in ClinVar."
+    }
+  ]
+}

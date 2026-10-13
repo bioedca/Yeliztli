@@ -35,6 +35,8 @@ Single source of truth so cancer / carrier_status / cardiovascular cannot drift.
 
 from __future__ import annotations
 
+import re
+
 import sqlalchemy as sa
 
 # Primary ClinVar classifications that count as (likely-)pathogenic for clinical
@@ -73,6 +75,34 @@ def is_low_penetrance_or_risk_allele(significance: str | None) -> bool:
     if not significance:
         return False
     return _has_non_mendelian_modifier(significance)
+
+
+# Terms asserting more than ClinGen's lowest risk-allele tier. The working group
+# grades risk alleles Established > Likely > Uncertain, the Uncertain tier being
+# limited or conflicting evidence (PMID 38054408); a value whose terms assert
+# nothing beyond "Uncertain risk allele" is VUS-like, not a confident tier (#2094).
+_ABOVE_UNCERTAIN_RISK_TERMS = frozenset(
+    {
+        "pathogenic",
+        "likely pathogenic",
+        "low penetrance",
+        "established risk allele",
+        "likely risk allele",
+    }
+)
+
+
+def is_uncertain_risk_allele_only(significance: str | None) -> bool:
+    """Whether a value asserts nothing stronger than an ``Uncertain risk allele``.
+
+    Read term by term across ClinVar's ``/``, ``|`` and ``,`` joins, so
+    ``"Uncertain significance/Uncertain risk allele"`` qualifies while
+    ``"Pathogenic/Likely risk allele"`` does not (#2094).
+    """
+    if not significance:
+        return False
+    terms = {term.strip().lower() for term in re.split(r"[/|,]", significance)}
+    return "uncertain risk allele" in terms and not terms & _ABOVE_UNCERTAIN_RISK_TERMS
 
 
 def primary_pathogenic_classification(significance: str | None) -> str | None:

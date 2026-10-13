@@ -1,0 +1,9 @@
+{
+  "source": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+  "accessed": "2026-10-13",
+  "full_payload_sha256": "8ad8f6f186ca51ec73a5fb8935ecfa17b8cbaad300b7025b381898ab72621869",
+  "full_payload_bytes": 38936,
+  "full_payload_retained": false,
+  "note": "Verbatim excerpt (tags stripped, whitespace collapsed). Governs the licence of the ClinVar release used for the vocabulary query.",
+  "excerpt": "Databases of molecular data on the NCBI Web site include such examples as nucleotide sequences (GenBank), protein sequences, macromolecular structures, molecular variation, gene expression, and mapping data. They are designed to provide and encourage access within the scientific community to sources of current and comprehensive information. Therefore, NCBI itself places no restrictions on the use or distribution of the data contained therein. Nor do we accept data when the submitter has requested restrictions on reuse or redistribution."
+}
