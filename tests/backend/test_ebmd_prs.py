@@ -115,6 +115,27 @@ def test_context_states_inverse_direction() -> None:
     assert "protective" in direction
 
 
+def test_context_states_not_a_dxa_or_frax_substitute() -> None:
+    # The eBMD page's only DXA/FRAX safety framing; EBMDView renders it
+    # unconditionally, so a missing key would blank it silently (#2083).
+    text = EBMD_CONTEXT["not_a_substitute"]
+    assert "research-grade" in text
+    assert "NOT a substitute for DXA" in text
+    assert "FRAX" in text
+    assert "does not measure your bone density or diagnose osteoporosis" in text
+
+
+def test_context_states_screening_utility_and_byo_license() -> None:
+    utility = EBMD_CONTEXT["utility"]
+    assert "fracture-risk screening" in utility
+    assert "FRAX" in utility
+
+    byo = EBMD_CONTEXT["byo"]
+    assert EBMD_PGS_ID in byo
+    assert "non-commercial license" in byo
+    assert "not bundled" in byo
+
+
 class TestStore:
     def test_stores_when_available(self, sample_engine: sa.Engine) -> None:
         _seed(sample_engine)
