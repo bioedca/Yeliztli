@@ -155,8 +155,13 @@ function SampleEditForm({
   const currentSource = source ?? sample.source ?? ""
   const currentExtra = extra ?? sample.extra ?? {}
 
+  // The name identifies the sample in every list and report, so it may not be
+  // blank; whitespace around it is not part of it (#2099).
+  const nameMissing = !currentName.trim()
+  const nameRequiredId = `name-required-${sampleId}`
+
   const hasChanges =
-    (name !== null && name !== sample.name) ||
+    (name !== null && name.trim() !== sample.name) ||
     (notes !== null && notes !== (sample.notes ?? "")) ||
     (dateCollected !== null && dateCollected !== (sample.date_collected ?? "")) ||
     (source !== null && source !== (sample.source ?? "")) ||
@@ -164,7 +169,7 @@ function SampleEditForm({
 
   function handleSave() {
     const data: SampleUpdate = {}
-    if (name !== null) data.name = name
+    if (name !== null) data.name = name.trim()
     if (notes !== null) data.notes = notes
     if (dateCollected !== null) data.date_collected = dateCollected
     if (source !== null) data.source = source
@@ -199,9 +204,16 @@ function SampleEditForm({
             type="text"
             value={currentName}
             onChange={(e) => setName(e.target.value)}
+            aria-invalid={nameMissing || undefined}
+            aria-describedby={nameMissing ? nameRequiredId : undefined}
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             data-testid="sample-name-input"
           />
+          {nameMissing && (
+            <p id={nameRequiredId} className="mt-1 text-sm text-muted-foreground">
+              Enter a name for this sample before saving.
+            </p>
+          )}
         </div>
 
         <div>
@@ -263,7 +275,8 @@ function SampleEditForm({
       <div className="flex items-center gap-3 pt-2">
         <button
           type="button"
-          disabled={!hasChanges || updateSample.isPending}
+          disabled={!hasChanges || updateSample.isPending || nameMissing}
+          aria-describedby={nameMissing ? nameRequiredId : undefined}
           onClick={handleSave}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           data-testid="sample-save-btn"

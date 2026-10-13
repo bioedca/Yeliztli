@@ -164,10 +164,14 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
     registry = get_registry()
     settings = registry.settings
 
+    # A sample's name identifies it in every list and report, so it is stored
+    # trimmed and may not be blank (#2099).
+    name = body.name.strip() if body.name is not None else None
+
     # Build update values from non-None fields
     update_values: dict = {}
-    if body.name is not None:
-        update_values["name"] = body.name
+    if name is not None:
+        update_values["name"] = name
 
     now = datetime.now(UTC)
     update_values["updated_at"] = now
@@ -186,6 +190,8 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
         # shared transaction spans them -- a 422 raised after this block commits
         # would leave the rename silently applied behind an error the user
         # believes rejected the whole request. Raising here rolls back instead.
+        if name is not None and not name:
+            raise HTTPException(status_code=422, detail="Sample name must not be empty.")
         if body.date_collected is not None:
             try:
                 parsed_date = date.fromisoformat(body.date_collected)
@@ -203,8 +209,8 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
     if sample_db_path.exists():
         sample_engine = registry.get_sample_engine(sample_db_path)
         meta_updates: dict = {}
-        if body.name is not None:
-            meta_updates["name"] = body.name
+        if name is not None:
+            meta_updates["name"] = name
         if body.notes is not None:
             meta_updates["notes"] = body.notes
         if body.date_collected is not None:
