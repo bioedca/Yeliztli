@@ -1,0 +1,38 @@
+{
+  "kind": "derived record (MCP/tool results have no wire payload; this summarises what each tool returned)",
+  "accessed": "2026-10-13",
+  "workflow": "evidence (run wf_1739b0db-e35): verdict withhold, confidence moderate, agreeing independent sources 1; facts verified, nothing refuted; withheld only on the two-independent-source rule",
+  "maintainer_decision": "2026-10-13: maintainer accepted the defining paper plus the ClinVar registry that implements its terms as sufficient for this ordering claim, given the change only lowers a rating (see README 'Independence').",
+  "sources": [
+    {
+      "tool": "Consensus (bio-research plugin endpoint, free tier: 3 results/query, abstracts only)",
+      "available": true,
+      "result": "Paper exists (Schmidt RJ et al., Genet Med); abstract describes a 'preferred terminology' and classification framework but does not name the three tiers. Abstract-level support only."
+    },
+    {
+      "tool": "Scite search_literature (dois=[10.1016/j.gim.2023.101036])",
+      "available": true,
+      "result": "Paper indexed (Genet Med 2024;26(3):101036, OA bronze); no editorialNotices; Smart Citation tally 2 supporting / 0 contrasting / 36 mentioning (80 citing publications); full-text excerpts content-denied."
+    },
+    {
+      "tool": "Scholar Gateway semanticSearch",
+      "available": false,
+      "result": "ACCESS_DENIED on 2 queries; fell back to the primary full text (NCBI efetch PMC10939896) and ClinVar documentation."
+    },
+    {
+      "tool": "PubMed (NCBI E-utilities)",
+      "available": true,
+      "result": "Citation verified (raw/pubmed-esummary-38054408.json); no CommentsCorrections links of any kind (raw/pubmed-comments-corrections-extract.json); full text PMC10939896 read (raw/pmc-PMC10939896-excerpts.json)."
+    }
+  ],
+  "related_not_counted": [
+    {
+      "id": "PMID:31147632 / DOI:10.1038/s41436-019-0560-8",
+      "why": "Senol-Cosar et al. 2019, shares authors with the WG paper and does not name these tiers; prior work, not corroboration."
+    },
+    {
+      "id": "PMID:39191897 / DOI:10.1038/s41598-024-70864-y",
+      "why": "only shows the term occurring in ClinVar."
+    }
+  ]
+}

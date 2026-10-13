@@ -65,6 +65,7 @@ from __future__ import annotations
 
 from backend.analysis.clinvar_significance import (
     is_low_penetrance_or_risk_allele,
+    is_uncertain_risk_allele_only,
     primary_pathogenic_classification,
 )
 
@@ -119,6 +120,11 @@ def assign_clinvar_evidence_level(
     stars = clinvar_review_stars or 0
 
     if is_low_penetrance_or_risk_allele(clinvar_significance):
+        # Lower-penetrance and risk-allele assertions are capped at MODERATE, but
+        # ClinGen's Uncertain risk-allele tier is limited or conflicting evidence
+        # and must not share that level, nor lift a VUS above a plain VUS (#2094).
+        if is_uncertain_risk_allele_only(clinvar_significance):
+            return EVIDENCE_PRELIMINARY
         return EVIDENCE_MODERATE
 
     if primary is not None:

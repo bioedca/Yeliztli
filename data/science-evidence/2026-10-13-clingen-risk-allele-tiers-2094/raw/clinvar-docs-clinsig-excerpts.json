@@ -1,0 +1,27 @@
+{
+  "source": "https://www.ncbi.nlm.nih.gov/clinvar/docs/clinsig/",
+  "accessed": "2026-10-13",
+  "page_last_updated": "2025-08-15T20:46:46Z",
+  "full_payload_sha256": "7f7f87a4e030469db26268f62ad756a45a5287146c2e5e9fc79e93eed9a6d70d",
+  "full_payload_bytes": 66217,
+  "full_payload_retained": false,
+  "note": "Verbatim excerpts from the fetched HTML with tags stripped and whitespace collapsed. Table cells run together, so each excerpt spans adjacent cells of the same table.",
+  "excerpts": [
+    {
+      "claim": "risk-allele terms adopted from ClinGen",
+      "text": "Uncertain risk allele As recommended by ClinGen for variants with decreased penetrance for Mendelian diseases. Likely risk allele As recommended by ClinGen for variants with decreased penetrance for Mendelian diseases. Established risk allele As recommended by ClinGen for variants with decreased penetrance for Mendelian diseases."
+    },
+    {
+      "claim": "terms introduced by ClinGen",
+      "text": "Five additional terms to classify risk alleles and low-penetrance Mendelian variants were introduced by ClinGen; see Options for classification."
+    },
+    {
+      "claim": "aggregation: Uncertain risk allele joins Uncertain significance as an uncertain-level composite",
+      "text": "Uncertain significance AND Uncertain risk allele Uncertain significance/Uncertain risk allele"
+    },
+    {
+      "claim": "conflict rule groups risk terms with pathogenic terms",
+      "text": "Any pathogenic/risk term vs any uncertain term Any pathogenic/risk term vs any benign term Any uncertain term vs any benign term"
+    }
+  ]
+}

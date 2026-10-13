@@ -31,12 +31,16 @@ GWAS tiers for genome-wide significance plus independent replication, or for gen
 significance plus a very large effect size under Yeliztli's tiering rule. The cited GWAS papers
 support the p-value, replication, and false-positive-control rationale [1,2].
 
-Two rules keep weak signals from looking strong:
+Three rules keep weak signals from looking strong:
 
 - **Wellness/trait modules are capped** (often at ★★). The [Traits & personality](wellness/traits-personality.md)
   module, for example, caps every finding regardless of the underlying variant.
 - **Weak variants can't escalate a category.** In categorical modules, a ★ variant cannot push
   a pathway to *Elevated* (it's held at *Moderate*).
+- **Risk alleles are rated by their ClinGen tier.** ClinVar lower-penetrance and risk-allele
+  assertions are capped at ★★. One that asserts nothing stronger than an *Uncertain risk allele*,
+  the ClinGen tier for limited or conflicting evidence [6], is rated ★, like a variant of uncertain
+  significance.
 
 ## Kinds of output
 
@@ -261,6 +265,8 @@ limitations.
 [4] Dong C, Wei P, Jian X, et al. [Comparison and integration of deleteriousness prediction methods for nonsynonymous SNVs in whole exome sequencing studies](https://doi.org/10.1093/hmg/ddu733). *Human Molecular Genetics*. 2015;24(8):2125–2137. [PMID 25552646](https://pubmed.ncbi.nlm.nih.gov/25552646/); [PMCID PMC4375422](https://pmc.ncbi.nlm.nih.gov/articles/PMC4375422/).
 
 [5] Pejaver V, Byrne AB, Feng B-J, et al. [Calibration of computational tools for missense variant pathogenicity classification and ClinGen recommendations for PP3/BP4 criteria](https://doi.org/10.1016/j.ajhg.2022.10.013). *American Journal of Human Genetics*. 2022;109(12):2163–2177. [PMID 36413997](https://pubmed.ncbi.nlm.nih.gov/36413997/); [PMCID PMC9748256](https://pmc.ncbi.nlm.nih.gov/articles/PMC9748256/).
+
+[6] Schmidt RJ, Steeves M, Bayrak-Toydemir P, et al. [Recommendations for risk allele evidence curation, classification, and reporting from the ClinGen Low Penetrance/Risk Allele Working Group](https://doi.org/10.1016/j.gim.2023.101036). *Genetics in Medicine*. 2024;26(3):101036. [PMID 38054408](https://pubmed.ncbi.nlm.nih.gov/38054408/); [PMCID PMC10939896](https://pmc.ncbi.nlm.nih.gov/articles/PMC10939896/).
 
 [^1]: [Principles and methods for transferring polygenic risk scores across global populations](https://consensus.app/papers/details/186416618e965ebf97cb3e095a9a217d/) (Kachuri et al., 2023, *Nature Reviews Genetics*).
 [^2]: [Polygenic scoring accuracy varies across the genetic ancestry continuum](https://consensus.app/papers/details/143ee361696e5cbe8836e5bc45a471cd/) (Ding et al., 2023, *Nature*).

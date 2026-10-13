@@ -1,0 +1,41 @@
+{
+  "accessed": "2026-10-13",
+  "repository_base": "85431fbb7d035152434987604661f4e0e1a70e98",
+  "queries": [
+    {
+      "source": "PubMed eSummary",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=38054408&retmode=json",
+      "payload": "raw/pubmed-esummary-38054408.json"
+    },
+    {
+      "source": "PubMed efetch",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=38054408&retmode=xml",
+      "payload": "raw/pubmed-efetch-38054408-sanitized.xml (abstract removed); raw/pubmed-comments-corrections-extract.json"
+    },
+    {
+      "source": "PMC full text",
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=10939896",
+      "payload": "raw/pmc-PMC10939896-excerpts.json (fair-use excerpts; full payload hashed, not retained)"
+    },
+    {
+      "source": "ClinVar classification documentation",
+      "request": "https://www.ncbi.nlm.nih.gov/clinvar/docs/clinsig/",
+      "payload": "raw/clinvar-docs-clinsig-excerpts.json (excerpts; full page hashed, not retained)"
+    },
+    {
+      "source": "Scite",
+      "request": "search_literature dois=[10.1016/j.gim.2023.101036] term=\"uncertain risk allele\" OR \"likely risk allele\" OR \"established risk allele\"",
+      "payload": "derived/evidence-ladder-record.json"
+    },
+    {
+      "source": "Consensus / Scholar Gateway",
+      "request": "evidence workflow queries (run wf_1739b0db-e35)",
+      "payload": "derived/evidence-ladder-record.json"
+    },
+    {
+      "source": "Reference ClinVar vocabulary",
+      "request": "SELECT significance, COUNT(*) FROM clinvar_variants WHERE lower(significance) LIKE '%risk allele%' OR lower(significance) LIKE '%low penetrance%' GROUP BY significance (reference.db, ClinVar 20260707)",
+      "payload": "derived/reference-clinvar-risk-allele-vocabulary.json"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "packet": "2026-10-13-clingen-risk-allele-tiers-2094",
+  "files": [
+    {
+      "path": "queries.json",
+      "sha256": "07b9d6d0edc137273fe83fcc78b37c0bbdcac695a386dce4db29e177b38f2974"
+    },
+    {
+      "path": "raw/clinvar-docs-clinsig-excerpts.json",
+      "sha256": "bb6271fefbcbbef35a28717f9ceaa446fb610a11e92061a23d3dc9b443348418"
+    },
+    {
+      "path": "raw/pmc-PMC10939896-excerpts.json",
+      "sha256": "33d083d97f7cd0c85e7d334d990c9c2a180be044026cbcebe2acdbb7bc5a8a31"
+    },
+    {
+      "path": "raw/pubmed-comments-corrections-extract.json",
+      "sha256": "0228c8b13c87fa0288aa9c9b03129ab6252ed77c8e49f60263ce008f496bb1a7"
+    },
+    {
+      "path": "raw/pubmed-efetch-38054408-sanitized.xml",
+      "sha256": "974e418d5816d57e8a70e7fa4abd4adc977d231f813517b3a394aa09f44083a2"
+    },
+    {
+      "path": "raw/pubmed-esummary-38054408.json",
+      "sha256": "a34592f4b2398a0d85f35f0c8af5c3364e67b366c99e85f2e309ff2bd349c23a"
+    },
+    {
+      "path": "derived/evidence-ladder-record.json",
+      "sha256": "7cfd24def1a37b3a397b0600cbf825d07d6e96d9ef15c507cdaa83ac7794f2db"
+    },
+    {
+      "path": "derived/reference-clinvar-risk-allele-vocabulary.json",
+      "sha256": "10f17fb0b3dc807167b775e23729862b0ecd70654e1ffecc760402d009d58964"
+    }
+  ]
+}

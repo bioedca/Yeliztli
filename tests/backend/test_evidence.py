@@ -117,6 +117,67 @@ class TestAssignClinvarEvidenceLevel:
             == EVIDENCE_MODERATE
         )
 
+    def test_uncertain_risk_allele_is_below_established(self):
+        """#2094 — ClinGen grades risk alleles Established > Likely > Uncertain
+        (PMID 38054408); the Uncertain tier is not rated with the confident ones."""
+        uncertain = assign_clinvar_evidence_level("Uncertain risk allele", 0)
+        assert uncertain == EVIDENCE_PRELIMINARY
+        assert uncertain < assign_clinvar_evidence_level("Established risk allele", 0)
+        assert uncertain < assign_clinvar_evidence_level("Likely risk allele", 0)
+
+    def test_uncertain_risk_clause_does_not_raise_a_vus(self):
+        """#2094 — an uncertain secondary clause cannot lift a VUS above a plain VUS."""
+        for stars in (0, 1, 2):
+            composite = assign_clinvar_evidence_level(
+                "Uncertain significance/Uncertain risk allele", stars
+            )
+            assert composite <= assign_clinvar_evidence_level("Uncertain significance", stars)
+
+    # Every lower-penetrance / risk-allele value in the reference ClinVar (2026-10),
+    # with the evidence it must receive regardless of review stars (#2094).
+    _RISK_ALLELE_VOCABULARY = [
+        ("Uncertain significance/Uncertain risk allele", EVIDENCE_PRELIMINARY),
+        ("Uncertain risk allele", EVIDENCE_PRELIMINARY),
+        ("Uncertain risk allele|risk factor", EVIDENCE_PRELIMINARY),
+        ("Likely risk allele", EVIDENCE_MODERATE),
+        ("Established risk allele", EVIDENCE_MODERATE),
+        ("Established risk allele|association", EVIDENCE_MODERATE),
+        ("Pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Likely pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Likely pathogenic/Likely risk allele", EVIDENCE_MODERATE),
+        ("Pathogenic/Likely risk allele", EVIDENCE_MODERATE),
+        ("Pathogenic/Likely pathogenic/Pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Pathogenic/Pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Pathogenic/Likely pathogenic/Likely risk allele", EVIDENCE_MODERATE),
+        ("Likely pathogenic/Pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Pathogenic/Likely pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Likely pathogenic/Likely pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Pathogenic/Pathogenic, low penetrance|risk factor", EVIDENCE_MODERATE),
+        ("Pathogenic/Pathogenic, low penetrance|other", EVIDENCE_MODERATE),
+        (
+            "Pathogenic/Likely pathogenic/Pathogenic, low penetrance/Established risk allele"
+            "|risk factor",
+            EVIDENCE_MODERATE,
+        ),
+        ("Pathogenic/Likely pathogenic/Likely pathogenic, low penetrance", EVIDENCE_MODERATE),
+        ("Pathogenic/Likely pathogenic/Established risk allele", EVIDENCE_MODERATE),
+    ]
+
+    @pytest.mark.parametrize(("significance", "expected"), _RISK_ALLELE_VOCABULARY)
+    @pytest.mark.parametrize("stars", [0, 1, 2, 3])
+    def test_risk_allele_vocabulary_is_tiered(self, significance, expected, stars):
+        assert assign_clinvar_evidence_level(significance, stars) == expected
+
+    def test_conflicting_pathogenicity_does_not_count_as_a_stronger_term(self):
+        """The tier is read term by term: 'pathogenicity' inside a conflicting
+        aggregate is not a (Likely) Pathogenic assertion (#2094)."""
+        assert (
+            assign_clinvar_evidence_level(
+                "Conflicting classifications of pathogenicity/Uncertain risk allele", 2
+            )
+            == EVIDENCE_PRELIMINARY
+        )
+
     def test_likely_pathogenic_1_star_review(self):
         """★★★☆ — ClinVar LP with 1-star review."""
         result = assign_clinvar_evidence_level("Likely pathogenic", 1)
