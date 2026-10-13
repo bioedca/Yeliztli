@@ -21,6 +21,11 @@
       "source": "Consensus / Scholar Gateway",
       "request": "evidence workflow queries (run wf_0af89cb5-eff)",
       "payload": "derived/evidence-ladder-record.json"
+    },
+    {
+      "source": "PubMed build / NCBI usage policy",
+      "request": "einfo db=pubmed; https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "payload": "raw/source-versions-and-licences.json"
     }
   ]
 }

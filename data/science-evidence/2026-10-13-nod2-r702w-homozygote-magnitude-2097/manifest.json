@@ -3,7 +3,7 @@
   "files": [
     {
       "path": "queries.json",
-      "sha256": "719dedda95f92a44cf871b62fb82b87fb5d8beb19be8f308e31a8945e75c71d9"
+      "sha256": "744e61807d2280793e741bd1bb44527ab556f65e8e613b1c8822b9cf7b85a3b2"
     },
     {
       "path": "raw/pubmed-abstract-excerpts.json",
@@ -20,6 +20,10 @@
     {
       "path": "raw/pubmed-esummary.json",
       "sha256": "4fbb8787eda391da39f3ff9eca32be3c19279035043e49aa3f18c3d6352c4855"
+    },
+    {
+      "path": "raw/source-versions-and-licences.json",
+      "sha256": "77ed920e2756ac28d8ace1ca9fdf8fcef129d492e6189b22af6316cacf496671"
     },
     {
       "path": "derived/evidence-ladder-record.json",

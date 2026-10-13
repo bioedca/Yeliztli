@@ -2778,7 +2778,7 @@ def test_nod2_r702w_homozygote_is_not_given_the_pooled_two_allele_fold_risk() ->
 
     homozygote = effects["TT"]["effect_summary"]
     assert re.search(r"\d[\d\s.~\-–]*fold", homozygote) is None, homozygote
-    assert "not specific to R702W homozygotes" in homozygote
+    assert "rather than estimating R702W homozygotes separately" in homozygote
     assert effects["TT"]["category"] == "Elevated"
     # The heterozygote's per-allele magnitude is supported and unchanged.
     assert "2-3 fold" in effects["CT"]["effect_summary"]

@@ -5,7 +5,18 @@
     "pmid_count": 444,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
-    "unresolved_pmids": []
+    "unresolved_pmids": [],
+    "additions": [
+      {
+        "pmids": [
+          "11910337",
+          "15571588"
+        ],
+        "accessed": "2026-10-13",
+        "source": "NCBI E-utilities esummary (db=pubmed)",
+        "issue": "#2097"
+      }
+    ]
   },
   "pmids": {
     "1301956": {

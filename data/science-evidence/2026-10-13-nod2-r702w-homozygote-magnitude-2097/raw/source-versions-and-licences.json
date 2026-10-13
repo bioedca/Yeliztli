@@ -1,0 +1,32 @@
+{
+  "accessed": "2026-10-13",
+  "sources": [
+    {
+      "source": "PubMed (NCBI E-utilities)",
+      "version": {
+        "einfo_dbbuild": "Build-2026.10.13.12.44",
+        "einfo_lastupdate": "2026/10/13 12:44"
+      },
+      "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?db=pubmed&retmode=json",
+      "licence_terms_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "licence_terms_sha256": "8ad8f6f186ca51ec73a5fb8935ecfa17b8cbaad300b7025b381898ab72621869",
+      "licence_excerpt": "NLM does not claim the copyright on the abstracts in PubMed ; however, journal publishers or authors may.",
+      "retention": "Citation metadata (esummary) kept whole; publisher abstracts removed from the efetch record; short verbatim abstract sentences kept as fair-use excerpts."
+    },
+    {
+      "source": "Scite (search_literature MCP)",
+      "version": "not exposed by the tool",
+      "licence": "Scite terms of service; tool output is not redistributed: only a derived summary is kept (derived/evidence-ladder-record.json)."
+    },
+    {
+      "source": "Consensus (bio-research plugin endpoint)",
+      "version": "not exposed by the tool",
+      "licence": "Consensus terms of service; tool output is not redistributed: only a derived summary is kept."
+    },
+    {
+      "source": "Scholar Gateway",
+      "version": "not applicable (ACCESS_DENIED)",
+      "licence": "not applicable"
+    }
+  ]
+}

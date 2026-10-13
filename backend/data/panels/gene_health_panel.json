@@ -798,7 +798,7 @@
             },
             "TT": {
               "category": "Elevated",
-              "effect_summary": "Homozygous NOD2 R702W. Carrying two NOD2 risk alleles is associated with a higher risk of Crohn's disease than carrying one. Published two-allele estimates pool every combination of the three common NOD2 variants and are not specific to R702W homozygotes, so no fold-risk figure is given for this genotype."
+              "effect_summary": "Homozygous NOD2 R702W. Carrying two NOD2 risk alleles is associated with a higher risk of Crohn's disease than carrying one. The two-allele risk estimates in the cited studies group carriers of two or more NOD2 risk alleles together rather than estimating R702W homozygotes separately, so no fold-risk figure is given for this genotype."
             }
           },
           "evidence_level": 4,

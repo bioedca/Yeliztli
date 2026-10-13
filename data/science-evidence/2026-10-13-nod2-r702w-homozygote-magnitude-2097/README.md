@@ -6,7 +6,7 @@ This packet supports one panel correction in `backend/data/panels/gene_health_pa
 - **Removed:** "~20-40 fold increased risk of Crohn's disease, particularly ileal involvement", together with the unsupported "Severely impaired muramyl dipeptide sensing" and "Compound heterozygosity … further increases risk" clauses.
 - **New text** makes two claims:
   1. Carrying two NOD2 risk alleles is associated with a **higher** Crohn's disease risk than carrying one (gene dosage).
-  2. Published two-allele estimates **pool every combination** of the three common NOD2 variants and are **not specific to R702W homozygotes**, so no fold-risk figure is given for this genotype.
+  2. The two-allele estimates in the cited studies **group carriers of two or more NOD2 risk alleles together rather than estimating R702W homozygotes separately**, so no fold-risk figure is given for this genotype.
 
 The heterozygote text (`CT`/`TC`, "approximately 2-3 fold") is unchanged. The row now also cites PMID:15571588 and PMID:11910337, the sources of the pooled two-allele estimates.
 
@@ -47,15 +47,22 @@ Workflow verdict: **mixed**. Claims 1–3 of the issue were supported. Its claim
 - **Any R702W-homozygote-specific relative risk**, e.g. Pascoe 2007's OR 3.29, which comes from a family-ascertained design. No second verified, independent source agrees.
 - **The per-allele ranking** of R702W against G908R and 1007fs, and **general-population penetrance**. These were not encoded because this change does not need them.
 
+## Source versions and licences
+
+Recorded in `raw/source-versions-and-licences.json`:
+- **PubMed:** build `Build-2026.10.13.12.44` (einfo, 2026-10-13). NCBI: "NLM does not claim the copyright on the abstracts in PubMed ; however, journal publishers or authors may."
+- **Scite and Consensus:** versions are not exposed by the tools, and their output is kept only as a derived summary.
+- **Scholar Gateway:** not used (access denied).
+
 ## Retention
 
-- The PubMed efetch record is kept with abstracts and authors' contact details removed. The esummary record is kept whole.
+- The PubMed efetch record is kept with abstracts (publisher or author copyright) and authors' contact details removed. The esummary record is kept whole.
 - Abstract support is kept as short verbatim sentences.
 - `derived/` files are summaries, not raw captures.
 
 ## Inventory
 
-This `README.md`, `manifest.json`, and the 6 files that `manifest.json` lists with SHA-256:
+This `README.md`, `manifest.json`, and the 7 files that `manifest.json` lists with SHA-256:
 - `queries.json`
-- `raw/` (4): `pubmed-esummary.json`, `pubmed-efetch-sanitized.xml`, `pubmed-abstract-excerpts.json`, `pubmed-comments-corrections-extract.json`
+- `raw/` (5): `pubmed-esummary.json`, `pubmed-efetch-sanitized.xml`, `pubmed-abstract-excerpts.json`, `pubmed-comments-corrections-extract.json`, `source-versions-and-licences.json`
 - `derived/` (1): `evidence-ladder-record.json`
