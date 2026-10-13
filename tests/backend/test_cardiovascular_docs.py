@@ -221,9 +221,13 @@ PCSK9_SCOPE = (
     "ClinVar labels them as FH."
 )
 PCSK9_SPLICE_SCOPE = "PCSK9 splice-site variants keep the existing FH criteria"
+# Nonsense (Cohen 2005, Hooper 2007), frameshift (Fasano 2007) and
+# protein-truncating variants as a class (Dron 2023).
 PCSK9_DOC_SOURCES = {
     "15654334": "10.1038/ng1509",
     "16989838": "10.1016/j.atherosclerosis.2006.08.039",
+    "17170371": "10.1161/01.ATV.0000255311.26383.2f",
+    "36723951": "10.1001/jamacardio.2022.5271",
 }
 
 
@@ -250,10 +254,15 @@ def test_pcsk9_docs_match_production_scope() -> None:
         documentation = _plain_markdown(path)
         assert PCSK9_SCOPE in documentation
         assert PCSK9_SPLICE_SCOPE in documentation
-        assert "(accessed 2026-10-11)" in documentation
+        # The sources must back the PCSK9 paragraph itself; Dron 2023 is also
+        # cited for APOB elsewhere on both pages.
+        paragraph = documentation[
+            documentation.index(PCSK9_SCOPE) : documentation.index(PCSK9_SPLICE_SCOPE)
+        ]
         for pmid, doi in PCSK9_DOC_SOURCES.items():
-            assert f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" in documentation
-            assert f"https://doi.org/{doi}" in documentation
+            assert f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" in paragraph
+            assert f"https://doi.org/{doi}" in paragraph
+        assert paragraph.count("(accessed 2026-10-11)") == len(PCSK9_DOC_SOURCES)
 
 
 def test_pcsk9_evidence_packet_backs_every_cited_pmid() -> None:
