@@ -152,3 +152,47 @@ def test_app_update_off_reports_no_update_without_outbound(test_client: TestClie
     assert resp.status_code == 200
     assert resp.json()["update_available"] is False
     spy.assert_not_called()
+
+
+# ── GET /api/updates/status: installed size, not the install-time stamp (#2086) ──
+
+
+def test_status_reports_live_artifact_size_over_a_stale_stamp(test_client: TestClient) -> None:
+    """A file-backed DB reports its on-disk size, as System Health does.
+
+    dbNSFP's ``database_versions`` stamp records the raw download (~44 GB) while
+    the built ``dbnsfp.db`` is ~14 GB, so the stamp made the two Settings tabs
+    disagree. ClinVar lives inside reference.db, has no file of its own, and
+    keeps reporting its stamp in both.
+    """
+    import sqlite3
+
+    from backend.db.database_registry import DATABASES, _record_db_version
+
+    registry = get_registry()
+    dbnsfp_path = DATABASES["dbnsfp"].dest_path(registry.settings)
+    dbnsfp_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(dbnsfp_path) as conn:
+        conn.execute("CREATE TABLE t (x INTEGER)")
+    on_disk = dbnsfp_path.stat().st_size
+    stale_stamp = 47_813_707_544
+    assert on_disk != stale_stamp
+
+    engine = registry.reference_engine
+    _record_db_version(engine, "dbnsfp", "4.9c", stale_stamp)
+    _record_db_version(engine, "clinvar", "20260701", 183_400_000)
+
+    resp = test_client.get("/api/updates/status")
+    assert resp.status_code == 200, resp.text
+    statuses = {row["db_name"]: row for row in resp.json()}
+    assert statuses["dbnsfp"]["file_size_bytes"] == on_disk
+    assert statuses["clinvar"]["file_size_bytes"] == 183_400_000
+
+    # The health route reads get_settings() directly; point it at the same data
+    # dir the registry uses, as it is in production.
+    with patch("backend.api.routes.databases.get_settings", return_value=registry.settings):
+        health = test_client.get("/api/databases/health")
+    assert health.status_code == 200, health.text
+    health_sizes = {row["name"]: row["file_size_bytes"] for row in health.json()["databases"]}
+    assert health_sizes["dbnsfp"] == statuses["dbnsfp"]["file_size_bytes"]
+    assert health_sizes["clinvar"] == statuses["clinvar"]["file_size_bytes"]

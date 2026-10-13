@@ -21,6 +21,7 @@ from backend.analysis.pharmacogenomics import (
 from backend.db.build_guard import is_cross_process_build_claimed
 from backend.db.connection import get_registry
 from backend.db.database_registry import DATABASES, get_build_fn, get_database_status
+from backend.db.db_health import _file_size
 from backend.db.update_manager import (
     AUTO_UPDATE_DEFAULTS,
     MondoHpoSourceBindingError,
@@ -509,6 +510,15 @@ async def get_database_statuses() -> list[DatabaseStatus]:
         file_size_bytes = stamp["file_size_bytes"] if stamp else None
         db_info = DATABASES.get(db_name)
         display_name = db_info.display_name if db_info else db_name
+
+        # Report the installed artifact's size, as System Health does: a stamp
+        # records what was downloaded, which for dbNSFP (raw files built into a
+        # far smaller dbnsfp.db) is not what is on disk (#2086). reference.db-
+        # resident sources have no file of their own and keep their stamp.
+        if db_info is not None and db_info.target_db != "reference":
+            live_size = _file_size(db_info, settings)
+            if live_size is not None:
+                file_size_bytes = live_size
 
         # If no version stamp or file size, check on-disk status as fallback.
         # Databases may exist on disk without a database_versions entry
