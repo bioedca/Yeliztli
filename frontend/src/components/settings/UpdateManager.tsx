@@ -425,16 +425,16 @@ function DatabaseRow({
         </div>
       </td>
 
-      {/* Current version */}
-      <td className="py-3 px-4 text-sm text-muted-foreground">
+      {/* Current version — nowrap so a date version (2026-07-16) never breaks at its hyphens */}
+      <td className="py-3 px-4 text-sm text-muted-foreground whitespace-nowrap">
         {status.version_display ?? status.current_version ?? 'Not installed'}
       </td>
 
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {updateInfo ? (
-          <span className="text-amber-700 dark:text-amber-400 font-medium">
-            {updateInfo.latest_version}
+          <span className="text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">
+            {updateInfo.latest_version_display ?? updateInfo.latest_version}
           </span>
         ) : (
           <span className="text-muted-foreground">
