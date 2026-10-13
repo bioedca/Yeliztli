@@ -102,14 +102,24 @@ function UploadPanel() {
     }
     setFileError(null)
     setSelectedFile(file)
+    // A failure from the previous file's upload no longer describes this one.
+    uploadMutation.reset()
     if (!name) {
       setName(file.name.replace(OVERLAY_FILE_EXTENSION_RE, ""))
     }
     previewMutation.mutate(file)
   }
 
+  // Saving re-parses the same file on the server, so a file whose preview has
+  // not succeeded can only fail again (#2098).
+  const uploadBlockedReason = previewMutation.isPending
+    ? "Checking the file…"
+    : previewMutation.isError
+      ? "This file could not be read, so it cannot be saved. Choose a valid BED, VCF, or gzipped VCF file."
+      : null
+
   const handleUpload = () => {
-    if (!selectedFile || !name.trim()) return
+    if (!selectedFile || !name.trim() || !previewMutation.isSuccess) return
     uploadMutation.mutate(
       { file: selectedFile, name: name.trim(), description: description.trim() },
       {
@@ -236,7 +246,8 @@ function UploadPanel() {
           <button
             className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
             onClick={handleUpload}
-            disabled={!name.trim() || uploadMutation.isPending}
+            disabled={!name.trim() || uploadMutation.isPending || !previewMutation.isSuccess}
+            aria-describedby={uploadBlockedReason ? "overlay-upload-blocked" : undefined}
           >
             {uploadMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -245,6 +256,11 @@ function UploadPanel() {
             )}
             Upload & Save
           </button>
+          {uploadBlockedReason && (
+            <p id="overlay-upload-blocked" className="text-sm text-muted-foreground">
+              {uploadBlockedReason}
+            </p>
+          )}
           {uploadMutation.isError && (
             <p className="text-sm text-destructive">{uploadMutation.error.message}</p>
           )}
