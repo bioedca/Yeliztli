@@ -21,7 +21,9 @@ only**, and is **not** a clinical FH diagnosis.
 
 A three-part assessment: any monogenic FH variants you carry, your APOB R3527Q status, and
 your LDL-C polygenic burden. The polygenic part shows a raw score and how much of it your
-array actually covers.
+array actually covers. It also shows where the score comes from: the population it was
+developed in, the study's sample size, and how many variants it uses. The card's ancestry
+caveat refers to that development population.
 
 !!! note "It does not measure your cholesterol"
     This module reads genetics only — it does **not** measure your LDL-C or check for clinical
@@ -44,5 +46,24 @@ array actually covers.
   (accessed 2026-07-31); [PMID:36723951](https://pubmed.ncbi.nlm.nih.gov/36723951/);
   [DOI:10.1001/jamacardio.2022.5271](https://doi.org/10.1001/jamacardio.2022.5271)
   (accessed 2026-07-31)).
+- **PCSK9 is bidirectional too.** FH-causing *PCSK9* variants act by gain of function,
+  so *PCSK9* nonsense and frameshift variants are reported under Other lipid metabolism and
+  excluded from FH status, even when ClinVar labels them as FH. Other *PCSK9* findings
+  follow the cardiovascular module's existing FH criteria. Human genetic studies associate
+  nonsense and frameshift *PCSK9* variants with low LDL cholesterol:
+  nonsense variants
+  ([PMID:15654334](https://pubmed.ncbi.nlm.nih.gov/15654334/);
+  [DOI:10.1038/ng1509](https://doi.org/10.1038/ng1509) (accessed 2026-10-11);
+  [PMID:16989838](https://pubmed.ncbi.nlm.nih.gov/16989838/);
+  [DOI:10.1016/j.atherosclerosis.2006.08.039](https://doi.org/10.1016/j.atherosclerosis.2006.08.039)
+  (accessed 2026-10-11)),
+  a frameshift variant ([PMID:17170371](https://pubmed.ncbi.nlm.nih.gov/17170371/);
+  [DOI:10.1161/01.ATV.0000255311.26383.2f](https://doi.org/10.1161/01.ATV.0000255311.26383.2f)
+  (accessed 2026-10-11)), and
+  protein-truncating variants as a class ([PMID:36723951](https://pubmed.ncbi.nlm.nih.gov/36723951/);
+  [DOI:10.1001/jamacardio.2022.5271](https://doi.org/10.1001/jamacardio.2022.5271)
+  (accessed 2026-10-11)). *PCSK9* splice-site variants keep the existing FH criteria:
+  studies count only splice changes that a stricter loss-of-function filter accepts, and a
+  splice annotation alone does not show that.
 - High LDL cholesterol has many causes; genetics is only one. Discuss any concern, and your
   actual lipid panel, with a clinician.

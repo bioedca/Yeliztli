@@ -1,0 +1,64 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=12730697,15654334,16989838,17170371,17435765,29127338,36723951&retmode=xml",
+  "accessed": "2026-10-11",
+  "raw_sha256": "4316e34d1c2d6fe2d5e8b62408341e7d7f9d0497152081af08469c50bf49bf1e",
+  "extraction_path": "PubmedArticle/MedlineCitation/CommentsCorrectionsList/CommentsCorrections[@RefType in ErratumIn|RetractionIn|ExpressionOfConcernIn|UpdateIn|ReprintIn]",
+  "records": [
+    {
+      "pmid": "12730697",
+      "date_revised": "2024-12-19",
+      "correction_or_retraction_notices": []
+    },
+    {
+      "pmid": "15654334",
+      "date_revised": "2024-12-19",
+      "correction_or_retraction_notices": [
+        {
+          "ref_type": "ErratumIn",
+          "ref_source": "Nat Genet. 2005 Mar;37(3):328",
+          "pmid": null
+        }
+      ]
+    },
+    {
+      "pmid": "16989838",
+      "date_revised": "2026-01-28",
+      "correction_or_retraction_notices": []
+    },
+    {
+      "pmid": "17170371",
+      "date_revised": "2025-05-29",
+      "correction_or_retraction_notices": []
+    },
+    {
+      "pmid": "17435765",
+      "date_revised": "2016-11-24",
+      "correction_or_retraction_notices": []
+    },
+    {
+      "pmid": "29127338",
+      "date_revised": "2019-07-03",
+      "correction_or_retraction_notices": []
+    },
+    {
+      "pmid": "36723951",
+      "date_revised": "2025-05-30",
+      "correction_or_retraction_notices": []
+    }
+  ],
+  "source_snapshot": {
+    "path": "data/science-evidence/2026-10-11-pcsk9-ptv-low-ldl-2064/pubmed-efetch-sanitized.xml",
+    "raw_sha256": "4316e34d1c2d6fe2d5e8b62408341e7d7f9d0497152081af08469c50bf49bf1e",
+    "sanitized_sha256": "f5d538feeb7c49751d2567033dc241521a4d331a0c498e5d358ac928564a57b1",
+    "removed_elements": {
+      "Abstract": 7,
+      "OtherAbstract": 0,
+      "ReferenceList": 2,
+      "CoiStatement": 2
+    },
+    "preserved_if_present": [
+      "CommentsCorrectionsList"
+    ]
+  }
+}

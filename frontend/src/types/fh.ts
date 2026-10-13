@@ -27,11 +27,16 @@ interface FhLdlPrs {
   coverage_fraction: number
   coverage_tier: "typed_only" | "imputed"
   is_sufficient: boolean
+  source_ancestry: string
   source_study: string
   source_pmid: string
+  sample_size: number
   pgs_id: string | null
   pgs_license: string | null
   development_method: string | null
+  genome_build: string | null
+  variants_number: number | null
+  source_url: string | null
   ancestry_mismatch: boolean
   ancestry_warning_text: string | null
   evidence_level: number

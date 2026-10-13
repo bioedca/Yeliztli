@@ -155,13 +155,11 @@ export default function FHView() {
                       prs={toGaugePrs({
                         trait: "ldl_cholesterol",
                         ...a.ldl_prs,
-                        source_ancestry: "",
-                        sample_size: 0,
-                        source_url: a.ldl_prs.pgs_id
-                          ? `https://www.pgscatalog.org/score/${a.ldl_prs.pgs_id}/`
-                          : null,
-                        genome_build: null,
-                        variants_number: null,
+                        source_url:
+                          a.ldl_prs.source_url ??
+                          (a.ldl_prs.pgs_id
+                            ? `https://www.pgscatalog.org/score/${a.ldl_prs.pgs_id}/`
+                            : null),
                       })}
                     />
                   </div>
