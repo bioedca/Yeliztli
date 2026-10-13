@@ -2235,6 +2235,111 @@ class TestAPOBConditionScope:
         assert json.loads(stored[0]["detail_json"])["cardiovascular_category"] == CATEGORY_LIPID
 
 
+# Synthetic witness (#2064). Its aggregate names both LDL directions, the shape
+# that defeats the condition-text check alone.
+PCSK9_BIDIRECTIONAL_AGGREGATE_CONDITIONS = (
+    "not provided|Hypocholesterolemia|Hypercholesterolemia, autosomal dominant, 3"
+)
+
+
+def _fh_gene_witness(gene: str, consequence: str | None) -> dict[str, object]:
+    return {
+        "rsid": f"rs_synthetic_{gene.lower()}",
+        "chrom": "1",
+        "pos": 55505600,
+        "ref": "C",
+        "alt": "T",
+        "genotype": "CT",
+        "zygosity": "het",
+        "gene_symbol": gene,
+        "clinvar_significance": "Pathogenic",
+        "clinvar_review_stars": 2,
+        "clinvar_accession": "VCV_SYNTHETIC",
+        "clinvar_conditions": PCSK9_BIDIRECTIONAL_AGGREGATE_CONDITIONS,
+        "consequence": consequence,
+        "annotation_coverage": 2,
+    }
+
+
+class TestPCSK9ConditionScope:
+    """#2064: PCSK9 loss of function lowers LDL cholesterol, as APOB's does, so a
+    PCSK9 PTV must not count as FH. LDLR, whose loss of function is the FH
+    mechanism, must keep counting."""
+
+    @pytest.mark.parametrize(
+        "consequence",
+        [
+            "frameshift_variant",
+            "stop_gained",
+            "intron_variant;stop_gained",
+            "missense_variant&frameshift_variant",
+        ],
+    )
+    def test_pcsk9_truncating_variant_is_low_ldl_not_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine, consequence: str
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [_fh_gene_witness("PCSK9", consequence)])
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        fh = determine_fh_status(result)
+
+        assert result.fh_variants == []
+        assert [v.rsid for v in result.lipid_variants] == ["rs_synthetic_pcsk9"]
+        assert result.variants[0].conditions == ["Hypocholesterolemia"]
+        assert fh.status == FH_STATUS_NEGATIVE
+
+    @pytest.mark.parametrize(
+        "consequence",
+        [
+            None,
+            "missense_variant",
+            "splice_region_variant",
+            "splice_donor_variant",
+            "splice_acceptor_variant",
+        ],
+    )
+    def test_pcsk9_nontruncating_variant_keeps_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine, consequence: str | None
+    ) -> None:
+        """FH-causing PCSK9 variants are gain-of-function, so only a nonsense or
+        frameshift token moves a record out of FH. A canonical splice token is not
+        enough: the evidence counts only LOFTEE high-confidence splice calls, which
+        a raw VEP token does not establish (APOB's override does include them)."""
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [_fh_gene_witness("PCSK9", consequence)])
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.fh_variants] == ["rs_synthetic_pcsk9"]
+        assert determine_fh_status(result).status == FH_STATUS_POSITIVE
+
+    def test_ldlr_truncating_variant_keeps_fh(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(annotated_variants), [_fh_gene_witness("LDLR", "stop_gained")])
+
+        result = extract_cardiovascular_variants(panel, sample_engine)
+
+        assert [v.rsid for v in result.fh_variants] == ["rs_synthetic_ldlr"]
+        assert result.lipid_variants == []
+        assert determine_fh_status(result).status == FH_STATUS_POSITIVE
+
+    def test_pcsk9_truncating_variant_is_excluded_from_fh_module(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        _result, rows = _store_and_fetch(
+            panel, sample_engine, [_fh_gene_witness("PCSK9", "stop_gained")]
+        )
+
+        assert detect_fh_monogenic(sample_engine) == []
+        assert len(rows) == 1
+        detail = json.loads(rows[0]["detail_json"])
+        assert detail["cardiovascular_category"] == CATEGORY_LIPID
+        assert detail["conditions"] == ["Hypocholesterolemia"]
+
+
 class TestRecessiveInheritanceGating:
     """A single heterozygous ABCG5/ABCG8 P/LP allele is a carrier, not affected (#36)."""
 

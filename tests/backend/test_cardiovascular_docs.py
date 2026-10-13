@@ -212,3 +212,89 @@ def test_apob_evidence_packet_retains_reproducible_public_payloads() -> None:
         assert source_citation.findtext("DateRevised/Day") == "30"
         assert source_citation.find("CommentsCorrectionsList") is None
         assert source_doi == expected["doi"]
+
+
+PCSK9_EVIDENCE_DIR = REPO_ROOT / "data" / "science-evidence" / "2026-10-11-pcsk9-ptv-low-ldl-2064"
+PCSK9_SCOPE = (
+    "FH-causing PCSK9 variants act by gain of function, so PCSK9 nonsense and frameshift "
+    "variants are reported under Other lipid metabolism and excluded from FH status, even when "
+    "ClinVar labels them as FH."
+)
+PCSK9_SPLICE_SCOPE = "PCSK9 splice-site variants keep the existing FH criteria"
+# Nonsense (Cohen 2005, Hooper 2007), frameshift (Fasano 2007) and
+# protein-truncating variants as a class (Dron 2023).
+PCSK9_DOC_SOURCES = {
+    "15654334": "10.1038/ng1509",
+    "16989838": "10.1016/j.atherosclerosis.2006.08.039",
+    "17170371": "10.1161/01.ATV.0000255311.26383.2f",
+    "36723951": "10.1001/jamacardio.2022.5271",
+}
+
+
+def test_pcsk9_docs_match_production_scope() -> None:
+    """#2064: the docs' PCSK9 rule is the one the classifier applies."""
+    pcsk9 = load_cardiovascular_panel().get_gene("PCSK9")
+    assert pcsk9 is not None
+
+    ptv_conditions, ptv_category = _variant_condition_scope(
+        pcsk9, "Familial hypercholesterolemia", "stop_gained"
+    )
+    missense_conditions, missense_category = _variant_condition_scope(
+        pcsk9, "Familial hypercholesterolemia", "missense_variant"
+    )
+    splice_conditions, splice_category = _variant_condition_scope(
+        pcsk9, "Familial hypercholesterolemia", "splice_donor_variant"
+    )
+
+    assert (ptv_conditions, ptv_category) == ([], CATEGORY_LIPID)
+    assert (missense_conditions, missense_category) == (pcsk9.conditions, CATEGORY_FH)
+    assert (splice_conditions, splice_category) == (pcsk9.conditions, CATEGORY_FH)
+
+    for path in (CARDIOVASCULAR_DOC, FH_DOC):
+        documentation = _plain_markdown(path)
+        assert PCSK9_SCOPE in documentation
+        assert PCSK9_SPLICE_SCOPE in documentation
+        # The sources must back the PCSK9 paragraph itself; Dron 2023 is also
+        # cited for APOB elsewhere on both pages.
+        paragraph = documentation[
+            documentation.index(PCSK9_SCOPE) : documentation.index(PCSK9_SPLICE_SCOPE)
+        ]
+        for pmid, doi in PCSK9_DOC_SOURCES.items():
+            assert f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" in paragraph
+            assert f"https://doi.org/{doi}" in paragraph
+        assert paragraph.count("(accessed 2026-10-11)") == len(PCSK9_DOC_SOURCES)
+
+
+def test_pcsk9_evidence_packet_backs_every_cited_pmid() -> None:
+    """Every PMID the code comment cites has a PubMed record and a correction
+    check in the packet, and the docs' sources are among them."""
+    source = (REPO_ROOT / "backend" / "analysis" / "cardiovascular.py").read_text(encoding="utf-8")
+    block = source[
+        source.index("# PCSK9: FH-causing") : source.index(
+            "LOW_LDL_PROTEIN_TRUNCATING_CONSEQUENCES:"
+        )
+    ]
+    cited = set(re.findall(r"PMID (\d+)", block))
+    assert "2026-10-11-pcsk9-ptv-low-ldl-2064" in block
+
+    summary = json.loads((PCSK9_EVIDENCE_DIR / "pubmed-esummary.json").read_text(encoding="utf-8"))
+    corrections = json.loads(
+        (PCSK9_EVIDENCE_DIR / "pubmed-comments-corrections-extract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest = (PCSK9_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+
+    assert len(cited) == 7
+    assert set(PCSK9_DOC_SOURCES) <= cited
+    assert set(summary["result"]["uids"]) == cited
+    assert {record["pmid"] for record in corrections["records"]} == cited
+    snapshot = corrections["source_snapshot"]
+    snapshot_bytes = (REPO_ROOT / snapshot["path"]).read_bytes()
+    assert hashlib.sha256(snapshot_bytes).hexdigest() == snapshot["sanitized_sha256"]
+    assert snapshot["path"] in manifest
+    for pmid in cited:
+        assert f"PMID:{pmid}" in manifest
+        dois = {a["value"] for a in summary["result"][pmid]["articleids"] if a["idtype"] == "doi"}
+        if pmid in PCSK9_DOC_SOURCES:
+            assert PCSK9_DOC_SOURCES[pmid] in dois
