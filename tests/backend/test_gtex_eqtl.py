@@ -17,6 +17,7 @@ import sqlalchemy as sa
 import backend.annotation.gtex_eqtl as gtex_mod
 from backend.analysis.gtex import GTEX_PMID, eqtl_regulatory_context
 from backend.annotation.gtex_eqtl import (
+    GTEX_INSTALLED_VERSION,
     GTEX_VERSION,
     create_gtex_tables,
     download_and_load_gtex_eqtl,
@@ -318,7 +319,8 @@ class TestDownloadAndLoad:
                 sa.select(database_versions).where(database_versions.c.db_name == "gtex_eqtl")
             ).fetchone()
         assert row is not None
-        assert row.version == GTEX_VERSION
+        assert row.version == GTEX_INSTALLED_VERSION
+        assert row.version.startswith(f"{GTEX_VERSION}+")  # release + loader revision
         assert row.genome_build == "GRCh37"  # rsID-joined to GRCh37 despite GTEx b38
 
     def test_empty_tar_refuses_to_build(

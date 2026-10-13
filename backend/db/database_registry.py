@@ -831,6 +831,10 @@ def installed_version_is_serviceable(db_name: str, version: str | None) -> bool:
         from backend.annotation.mondo_hpo import mondo_hpo_install_is_serviceable
 
         return mondo_hpo_install_is_serviceable(version)
+    if db_name == "gtex_eqtl":
+        from backend.annotation.gtex_eqtl import gtex_eqtl_install_is_serviceable
+
+        return gtex_eqtl_install_is_serviceable(version)
     return True
 
 

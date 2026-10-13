@@ -819,9 +819,10 @@ def get_database_health(
             integrity_detail = integ.detail
             if not integ.ok:
                 state = "corrupt"
-            elif needs_version and version is None:
-                # Artifact + data on disk but the finalize never stamped a
-                # version — an interrupted build/extract, not a finished DB.
+            elif needs_version and not installed_version_is_serviceable(name, version):
+                # Artifact + data on disk but no stamp (an interrupted build or
+                # extract), or a stamp from a loader revision whose output the
+                # consumers have since outgrown (gtex_eqtl, #2087): not finished.
                 state = "partial"
             else:
                 state = "ready"

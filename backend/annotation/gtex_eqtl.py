@@ -60,6 +60,11 @@ GTEX_LOOKUP_URL = (
     "lookup_table.txt.gz"
 )
 GTEX_VERSION = "v8"
+# Loader revision recorded in the version stamp. An install stamped before gene
+# names were loaded (#2087) is not serviceable, so the build flow rebuilds it
+# instead of skipping it as already downloaded.
+GTEX_INGESTION_REVISION = "gene-names-v1"
+GTEX_INSTALLED_VERSION = f"{GTEX_VERSION}+{GTEX_INGESTION_REVISION}"
 
 # GTEx significant cis-eQTL per-tissue files inside the eQTL tar are named
 # ``<Tissue>.v8.signif_variant_gene_pairs.txt.gz`` (e.g. ``Whole_Blood.v8.…``).
@@ -310,10 +315,15 @@ def lookup_eqtls_by_rsids(rsids: list[str], engine: sa.Engine) -> dict[str, list
     return out
 
 
+def gtex_eqtl_install_is_serviceable(version: str | None) -> bool:
+    """Whether a ``gtex_eqtl`` stamp records the current loader revision (#2087)."""
+    return version is not None and GTEX_INGESTION_REVISION in version.split("+")
+
+
 def record_gtex_eqtl_version(
     engine: sa.Engine,
     *,
-    version: str = GTEX_VERSION,
+    version: str = GTEX_INSTALLED_VERSION,
     file_path: str | None = None,
     file_size_bytes: int | None = None,
     checksum: str | None = None,

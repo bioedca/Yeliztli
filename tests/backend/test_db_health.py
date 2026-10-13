@@ -1028,6 +1028,48 @@ class TestStandaloneHealthMatrix:
         assert h.can_verify is True
 
 
+class TestGtexEqtlLoaderRevision:
+    """#2087: a gtex_eqtl.db stamped before gene names were loaded must be rebuilt."""
+
+    def _make_valid_gtex(self, settings: Settings) -> Path:
+        from backend.annotation.gtex_eqtl import create_gtex_tables, gtex_eqtl
+
+        path = get_database("gtex_eqtl").dest_path(settings)
+        engine = sa.create_engine(f"sqlite:///{path}")
+        create_gtex_tables(engine)
+        with engine.begin() as conn:
+            conn.execute(
+                gtex_eqtl.insert(),
+                [{"rsid": "rs1", "gene_id": "ENSG001.1", "tissue": "Liver", "pval_nominal": 1e-9}],
+            )
+        engine.dispose()
+        return path
+
+    def test_pre_gene_names_stamp_is_partial_and_not_downloaded(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        path = self._make_valid_gtex(settings)
+        _record_db_version(ref_db, "gtex_eqtl", "v8", path.stat().st_size)
+
+        h = _health(settings, ref_db, "gtex_eqtl")
+        assert h.state == "partial"
+        assert h.integrity_ok is True
+        # The build flow's skip check: not "already downloaded", so it rebuilds.
+        assert get_database_status(get_database("gtex_eqtl"), settings)["downloaded"] is False
+
+    def test_current_revision_stamp_is_ready_and_downloaded(
+        self, settings: Settings, ref_db: sa.Engine
+    ) -> None:
+        from backend.annotation.gtex_eqtl import GTEX_INSTALLED_VERSION
+
+        path = self._make_valid_gtex(settings)
+        _record_db_version(ref_db, "gtex_eqtl", GTEX_INSTALLED_VERSION, path.stat().st_size)
+
+        h = _health(settings, ref_db, "gtex_eqtl")
+        assert h.state == "ready"
+        assert get_database_status(get_database("gtex_eqtl"), settings)["downloaded"] is True
+
+
 class TestBundledHealthMatrix:
     def test_vep_bundle_present_valid_no_version_ready(
         self, settings: Settings, ref_db: sa.Engine
