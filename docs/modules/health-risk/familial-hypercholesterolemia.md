@@ -21,7 +21,9 @@ only**, and is **not** a clinical FH diagnosis.
 
 A three-part assessment: any monogenic FH variants you carry, your APOB R3527Q status, and
 your LDL-C polygenic burden. The polygenic part shows a raw score and how much of it your
-array actually covers.
+array actually covers. It also shows where the score comes from: the population it was
+developed in, the study's sample size, and how many variants it uses. The card's ancestry
+caveat refers to that development population.
 
 !!! note "It does not measure your cholesterol"
     This module reads genetics only — it does **not** measure your LDL-C or check for clinical

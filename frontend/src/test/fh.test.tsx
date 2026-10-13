@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
+import { render, screen, within } from "./test-utils"
 import type { FhAssessment } from "@/types/fh"
 
 // ── Mocks: the route param + the route-only API hooks ─────────────────
@@ -237,11 +237,16 @@ describe("FHView — with a sample", () => {
           coverage_fraction: 0.83,
           coverage_tier: "imputed",
           is_sufficient: true,
+          source_ancestry: "EUR",
           source_study: "Klarin 2018",
           source_pmid: "30104760",
+          sample_size: 0,
           pgs_id: "PGS000688",
           pgs_license: "CC-BY-4.0",
           development_method: "C+T",
+          genome_build: null,
+          variants_number: null,
+          source_url: null,
           ancestry_mismatch: false,
           ancestry_warning_text: null,
           evidence_level: 1,
@@ -255,6 +260,47 @@ describe("FHView — with a sample", () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId("prs-imputed-coverage")).toHaveTextContent(
       "Coverage split: 97 typed + 3 imputed SNPs",
+    )
+  })
+
+  it("shows the LDL-C score's development ancestry, sample size and variant count (#2084)", () => {
+    setAssessment(
+      assessment({
+        ldl_prs: {
+          name: "LDL cholesterol, statin-adjusted",
+          calibrated: false,
+          percentile: null,
+          snps_used: 40,
+          snps_used_imputed: 0,
+          snps_total: 120,
+          coverage_fraction: 0.33,
+          coverage_tier: "typed_only",
+          is_sufficient: false,
+          source_ancestry: "EUR",
+          source_study: "Sinnott-Armstrong, Tanigawa et al. 2021 (Nat Genet)",
+          source_pmid: "33462484",
+          sample_size: 255256,
+          pgs_id: "PGS000688",
+          pgs_license: "CC-BY-4.0",
+          development_method: "snpnet (Lasso)",
+          genome_build: "GRCh37",
+          variants_number: 1234,
+          source_url: "https://www.pgscatalog.org/score/PGS000688/",
+          ancestry_mismatch: true,
+          ancestry_warning_text: "Ancestry could not be confidently inferred.",
+          evidence_level: 1,
+        },
+      }),
+    )
+    render(<FHView />)
+    const card = within(screen.getByTestId("fh-ldl-prs")).getByTestId("cancer-prs-card")
+    expect(card).toHaveTextContent(
+      "Source: Sinnott-Armstrong, Tanigawa et al. 2021 (Nat Genet) (EUR, n=255,256)",
+    )
+    expect(card).toHaveTextContent("1,234 variants")
+    expect(within(card).getByRole("link", { name: "PGS000688" })).toHaveAttribute(
+      "href",
+      "https://www.pgscatalog.org/score/PGS000688/",
     )
   })
 })

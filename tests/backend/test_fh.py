@@ -628,3 +628,45 @@ class TestFhAssessmentPresentation:
         assert response.ldl_prs is None
         assert "cyp2d6" not in response.model_dump_json().lower()
         assert "tamoxifen" not in response.model_dump_json().lower()
+
+
+class TestFhLdlPrsProvenance:
+    def test_assessment_carries_the_scores_development_provenance(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_engine: sa.Engine,
+    ) -> None:
+        """The LDL-C PRS response carries ancestry, n and variant count (#2084).
+
+        ``store_prs_findings`` persists this provenance; the FH route used to drop
+        it, so the card's ancestry caveat never named the development population.
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {
+                        "rsid": "rsL0",
+                        "chrom": "1",
+                        "pos": 500,
+                        "genotype": "AA",
+                        "gnomad_af_global": 0.2,
+                        "annotation_coverage": 0,
+                    }
+                ],
+            )
+        store_fh_findings(assess_fh(sample_engine, _pgs_engine(), "EUR"), sample_engine)
+        monkeypatch.setattr(fh_route, "_get_sample_engine", lambda _sample_id: sample_engine)
+
+        response = fh_route.get_fh_assessment(sample_id=1)
+
+        assert response.assessment_status == "available"
+        prs = response.ldl_prs
+        assert prs is not None
+        assert prs.pgs_id == "PGS000688"
+        # Registry entry for PGS000688: EUR, n=255,256; metadata above: 3 variants.
+        assert prs.source_ancestry == "EUR"
+        assert prs.sample_size == 255256
+        assert prs.variants_number == 3
+        assert prs.genome_build == "GRCh37"
+        assert prs.source_url is not None and "PGS000688" in prs.source_url
