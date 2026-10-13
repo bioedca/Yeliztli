@@ -1297,6 +1297,10 @@ class TestStoreCardiovascularFindings:
         pmids = json.loads(row.pmid_citations)
         assert isinstance(pmids, list)
         assert len(pmids) > 0
+        # A high-penetrance P/LP finding must not carry the ClinGen low-penetrance
+        # methodology citation, which is gated to low-penetrance findings (#2092).
+        assert json.loads(row.detail_json)["clinvar_low_penetrance_or_risk_allele"] is False
+        assert "38054408" not in pmids
 
     def test_clinvar_significance_stored(
         self, panel: CardiovascularPanel, sample_with_cv_variants: sa.Engine
