@@ -101,7 +101,7 @@ function mockUpdateStatusResponse(statuses?: unknown[]) {
     ok: true,
     status: 200,
     json: async () => statuses ?? [
-      { db_name: 'clinvar', display_name: 'ClinVar', current_version: '20260315', version_display: 'Mar 2026', downloaded_at: '2026-03-15T00:00:00', auto_update: true, update_available: false },
+      { db_name: 'clinvar', display_name: 'ClinVar', current_version: '20260315', version_display: '2026-03-15', downloaded_at: '2026-03-15T00:00:00', auto_update: true, update_available: false },
       { db_name: 'gnomad', display_name: 'gnomAD', current_version: '2.1.1', version_display: '2.1.1', downloaded_at: '2026-03-01T00:00:00', auto_update: false, update_available: false },
       { db_name: 'dbnsfp', display_name: 'dbNSFP', current_version: null, version_display: null, downloaded_at: null, auto_update: false, update_available: false },
       { db_name: 'vep_bundle', display_name: 'VEP Bundle', current_version: null, version_display: null, downloaded_at: null, auto_update: false, update_available: false },
@@ -319,7 +319,7 @@ describe('StatusBar', () => {
   it('shows database version dots based on update status', async () => {
     setupFetchMocks({
       updateStatuses: [
-        { db_name: 'clinvar', display_name: 'ClinVar', current_version: '20260315', version_display: 'Mar 2026', downloaded_at: '2026-03-15T00:00:00', auto_update: true, update_available: false },
+        { db_name: 'clinvar', display_name: 'ClinVar', current_version: '20260315', version_display: '2026-03-15', downloaded_at: '2026-03-15T00:00:00', auto_update: true, update_available: false },
         { db_name: 'gnomad', display_name: 'gnomAD', current_version: '2.1.1', version_display: '2.1.1', downloaded_at: '2026-03-01T00:00:00', auto_update: false, update_available: false },
       ],
     })
