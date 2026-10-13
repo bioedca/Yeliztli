@@ -3,11 +3,15 @@
   "files": [
     {
       "path": "queries.json",
-      "sha256": "07b9d6d0edc137273fe83fcc78b37c0bbdcac695a386dce4db29e177b38f2974"
+      "sha256": "89f53cf41c0435be77072605ae7cacc6ef5e3a08e81068f8191c7e88fe643592"
     },
     {
       "path": "raw/clinvar-docs-clinsig-excerpts.json",
       "sha256": "bb6271fefbcbbef35a28717f9ceaa446fb610a11e92061a23d3dc9b443348418"
+    },
+    {
+      "path": "raw/ncbi-policies-excerpt.json",
+      "sha256": "7f3ff5989769cd581345ec8f3308e53ccee68a92699d96f43105158121d7ec1e"
     },
     {
       "path": "raw/pmc-PMC10939896-excerpts.json",
@@ -26,12 +30,16 @@
       "sha256": "a34592f4b2398a0d85f35f0c8af5c3364e67b366c99e85f2e309ff2bd349c23a"
     },
     {
+      "path": "raw/reference-clinvar-risk-allele-vocabulary.tsv",
+      "sha256": "da3c0c8b9f6bd58f0f4f2776cb9bdd06cf095946c83314845cf61f8535b21fd4"
+    },
+    {
       "path": "derived/evidence-ladder-record.json",
       "sha256": "af70087da81237b98839d88f53b7ca461a5fb16b53f90b2edf073d3d2ed64f96"
     },
     {
       "path": "derived/reference-clinvar-risk-allele-vocabulary.json",
-      "sha256": "10f17fb0b3dc807167b775e23729862b0ecd70654e1ffecc760402d009d58964"
+      "sha256": "a6001de4630563b3904c76352f01c5d8aa03083303aee281ffbe8430e84b7b84"
     }
   ]
 }

@@ -34,8 +34,14 @@
     },
     {
       "source": "Reference ClinVar vocabulary",
-      "request": "SELECT significance, COUNT(*) FROM clinvar_variants WHERE lower(significance) LIKE '%risk allele%' OR lower(significance) LIKE '%low penetrance%' GROUP BY significance (reference.db, ClinVar 20260707)",
-      "payload": "derived/reference-clinvar-risk-allele-vocabulary.json"
+      "request": "SELECT significance, COUNT(*) FROM clinvar_variants WHERE lower(significance) LIKE '%risk allele%' OR lower(significance) LIKE '%low penetrance%' GROUP BY significance ORDER BY COUNT(*) DESC, significance -- run against reference.db clinvar_variants built from ClinVar 20260707 (clinvar_GRCh37.vcf.gz, sha256 ddda4515b86aa54fefecb9057a6e3eb249b6dd3642ea0654399dc0d1f9f69b89)",
+      "payload": "raw/reference-clinvar-risk-allele-vocabulary.tsv (raw query output); derived/reference-clinvar-risk-allele-vocabulary.json (rated)",
+      "license": "NCBI places no restrictions on the use or distribution of its molecular-variation data (raw/ncbi-policies-excerpt.json)"
+    },
+    {
+      "source": "NCBI policies (ClinVar data licence)",
+      "request": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "payload": "raw/ncbi-policies-excerpt.json"
     }
   ]
 }

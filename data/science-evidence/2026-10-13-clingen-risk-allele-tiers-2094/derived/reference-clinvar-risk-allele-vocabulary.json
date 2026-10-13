@@ -1,8 +1,12 @@
 {
-  "source": "local reference.db clinvar_variants (public ClinVar)",
-  "clinvar_version": "20260707",
-  "accessed": "2026-10-13",
-  "kind": "derived counts",
+  "kind": "derived from raw/reference-clinvar-risk-allele-vocabulary.tsv: each string rated by backend.analysis.evidence on this branch",
+  "source_payload": "raw/reference-clinvar-risk-allele-vocabulary.tsv",
+  "source_payload_sha256": "da3c0c8b9f6bd58f0f4f2776cb9bdd06cf095946c83314845cf61f8535b21fd4",
+  "clinvar_release": {
+    "version": "20260707",
+    "file": "clinvar_GRCh37.vcf.gz",
+    "sha256": "ddda4515b86aa54fefecb9057a6e3eb249b6dd3642ea0654399dc0d1f9f69b89"
+  },
   "strings": [
     {
       "significance": "Uncertain significance/Uncertain risk allele",
@@ -45,7 +49,7 @@
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Pathogenic/Pathogenic, low penetrance",
+      "significance": "Likely pathogenic/Pathogenic, low penetrance",
       "rows": 5,
       "rated": "MODERATE (2)"
     },
@@ -55,17 +59,17 @@
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Likely pathogenic/Pathogenic, low penetrance",
+      "significance": "Pathogenic/Pathogenic, low penetrance",
       "rows": 5,
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Pathogenic/Likely pathogenic, low penetrance",
+      "significance": "Likely pathogenic/Likely pathogenic, low penetrance",
       "rows": 4,
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Likely pathogenic/Likely pathogenic, low penetrance",
+      "significance": "Pathogenic/Likely pathogenic, low penetrance",
       "rows": 4,
       "rated": "MODERATE (2)"
     },
@@ -75,27 +79,7 @@
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Uncertain risk allele|risk factor",
-      "rows": 1,
-      "rated": "PRELIMINARY (1)"
-    },
-    {
-      "significance": "Pathogenic/Pathogenic, low penetrance|risk factor",
-      "rows": 1,
-      "rated": "MODERATE (2)"
-    },
-    {
-      "significance": "Pathogenic/Pathogenic, low penetrance|other",
-      "rows": 1,
-      "rated": "MODERATE (2)"
-    },
-    {
-      "significance": "Pathogenic/Likely pathogenic/Pathogenic, low penetrance/Established risk allele|risk factor",
-      "rows": 1,
-      "rated": "MODERATE (2)"
-    },
-    {
-      "significance": "Pathogenic/Likely pathogenic/Likely pathogenic, low penetrance",
+      "significance": "Established risk allele|association",
       "rows": 1,
       "rated": "MODERATE (2)"
     },
@@ -105,9 +89,29 @@
       "rated": "MODERATE (2)"
     },
     {
-      "significance": "Established risk allele|association",
+      "significance": "Pathogenic/Likely pathogenic/Likely pathogenic, low penetrance",
       "rows": 1,
       "rated": "MODERATE (2)"
+    },
+    {
+      "significance": "Pathogenic/Likely pathogenic/Pathogenic, low penetrance/Established risk allele|risk factor",
+      "rows": 1,
+      "rated": "MODERATE (2)"
+    },
+    {
+      "significance": "Pathogenic/Pathogenic, low penetrance|other",
+      "rows": 1,
+      "rated": "MODERATE (2)"
+    },
+    {
+      "significance": "Pathogenic/Pathogenic, low penetrance|risk factor",
+      "rows": 1,
+      "rated": "MODERATE (2)"
+    },
+    {
+      "significance": "Uncertain risk allele|risk factor",
+      "rows": 1,
+      "rated": "PRELIMINARY (1)"
     }
   ]
 }

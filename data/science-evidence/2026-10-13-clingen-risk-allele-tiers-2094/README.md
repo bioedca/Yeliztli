@@ -53,7 +53,9 @@ For context, every other source restates the same working-group assertion:
 
 ## Affected values
 
-`derived/reference-clinvar-risk-allele-vocabulary.json` lists all 21 lower-penetrance and risk-allele strings in the reference ClinVar (20260707), with row counts and the rating each now receives. Only the three Uncertain-risk-allele strings (179 rows) change, from ★★ to ★.
+`raw/reference-clinvar-risk-allele-vocabulary.tsv` is the raw output of the vocabulary query (`queries.json`). It lists all 21 lower-penetrance and risk-allele strings in the reference ClinVar, with row counts. The release is ClinVar `20260707`, `clinvar_GRCh37.vcf.gz`, SHA-256 `ddda4515b86aa54fefecb9057a6e3eb249b6dd3642ea0654399dc0d1f9f69b89`, as recorded in the reference database's version table.
+
+`derived/reference-clinvar-risk-allele-vocabulary.json` rates each string with this branch's code. Only the three Uncertain-risk-allele strings (179 rows) change, from ★★ to ★.
 
 ## Retention and licences
 
@@ -61,11 +63,12 @@ For context, every other source restates the same working-group assertion:
 - The ClinVar documentation page is likewise kept as excerpts plus a SHA-256.
 - The PubMed efetch record is kept with the publisher abstract and authors' contact details (email addresses) removed. The esummary record is kept whole.
 - Excerpts are text extracted from the fetched markup: tags stripped, whitespace collapsed. Table cells in the ClinVar excerpts run together.
+- ClinVar data: NCBI "places no restrictions on the use or distribution of the data contained therein" (`raw/ncbi-policies-excerpt.json`, accessed 2026-10-13). The vocabulary TSV is therefore kept whole.
 - `derived/` files are summaries and counts, not raw captures.
 
 ## Inventory
 
-This `README.md`, `manifest.json`, and the 8 files that `manifest.json` lists with SHA-256:
+This `README.md`, `manifest.json`, and the 10 files that `manifest.json` lists with SHA-256:
 - `queries.json`
-- `raw/` (5): `pubmed-esummary-38054408.json`, `pubmed-efetch-38054408-sanitized.xml`, `pubmed-comments-corrections-extract.json`, `pmc-PMC10939896-excerpts.json`, `clinvar-docs-clinsig-excerpts.json`
+- `raw/` (7): `pubmed-esummary-38054408.json`, `pubmed-efetch-38054408-sanitized.xml`, `pubmed-comments-corrections-extract.json`, `pmc-PMC10939896-excerpts.json`, `clinvar-docs-clinsig-excerpts.json`, `ncbi-policies-excerpt.json`, `reference-clinvar-risk-allele-vocabulary.tsv`
 - `derived/` (2): `evidence-ladder-record.json`, `reference-clinvar-risk-allele-vocabulary.json`
