@@ -195,6 +195,49 @@ class TestUpdateSampleMetadata:
         )
         assert r.status_code == 404
 
+    @pytest.mark.parametrize("blank", ["", "   ", "\t\n"])
+    def test_blank_name_is_rejected_and_nothing_is_committed(self, client, blank):
+        """A sample's name is its identifier everywhere it is listed (#2099).
+
+        The editor's Save button accepted an emptied Name field and the API
+        stored it, leaving a sample with no name in the header selector, the
+        sample list and reports. Notes ride in the same PATCH and land in the
+        per-sample DB, so the rejection must also keep them from half-applying.
+        """
+        sid = _create_sample(client)
+        before = client.get(f"/api/samples/{sid}").json()
+        assert before["name"].strip()
+
+        r = client.patch(f"/api/samples/{sid}", json={"name": blank, "notes": "should not land"})
+        assert r.status_code == 422
+        assert "name" in r.json()["detail"].lower()
+
+        after = client.get(f"/api/samples/{sid}").json()
+        assert after["name"] == before["name"]
+        assert after["notes"] == before["notes"]
+        assert after["updated_at"] == before["updated_at"]
+
+    def test_nonexistent_sample_reports_404_even_with_a_blank_name(self, client):
+        """Existence outranks field validation, as for the date (#2041)."""
+        r = client.patch("/api/samples/999", json={"name": "  "})
+        assert r.status_code == 404
+
+    def test_name_is_stored_without_surrounding_whitespace(self, client):
+        sid = _create_sample(client)
+        r = client.patch(f"/api/samples/{sid}", json={"name": "  Mother's kit  "})
+        assert r.status_code == 200
+        assert r.json()["name"] == "Mother's kit"
+        assert client.get(f"/api/samples/{sid}").json()["name"] == "Mother's kit"
+
+    def test_omitting_the_name_leaves_it_alone(self, client):
+        """Only a supplied name is validated; a notes-only edit still works."""
+        sid = _create_sample(client)
+        before = client.get(f"/api/samples/{sid}").json()
+        r = client.patch(f"/api/samples/{sid}", json={"notes": "just a note"})
+        assert r.status_code == 200
+        assert r.json()["name"] == before["name"]
+        assert r.json()["notes"] == "just a note"
+
     def test_update_invalid_date_format_returns_422(self, client):
         sid = _create_sample(client)
         r = client.patch(f"/api/samples/{sid}", json={"date_collected": "invalid-date"})

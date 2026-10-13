@@ -284,6 +284,82 @@ describe("SampleMetadataEditor", () => {
   })
 })
 
+// ── A sample cannot be saved without a name (#2099) ──────────────────
+
+describe("SampleMetadataEditor — name is required", () => {
+  async function openEditor() {
+    const patches: string[] = []
+    mockFetch.mockImplementation(
+      makeRouter({
+        samples: () => jsonResponse(SAMPLE_LIST),
+        sampleDetail: (_id, init) => {
+          if ((init?.method ?? "GET").toUpperCase() === "PATCH") {
+            patches.push(String(init?.body))
+            return jsonResponse({ ...SAMPLE_DETAIL, ...JSON.parse(String(init?.body)) })
+          }
+          return jsonResponse(SAMPLE_DETAIL)
+        },
+      }),
+    )
+    render(<SampleMetadataEditor />)
+    await waitFor(() => expect(screen.getByTestId("sample-edit-1")).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId("sample-edit-1"))
+    await waitFor(() => expect(screen.getByTestId("sample-name-input")).toBeInTheDocument())
+    return patches
+  }
+
+  it.each([
+    ["empty", ""],
+    ["whitespace only", "   "],
+  ])("keeps Save disabled, and says why, when the name is %s", async (_label, value) => {
+    const patches = await openEditor()
+    fireEvent.change(screen.getByTestId("sample-name-input"), { target: { value } })
+
+    const save = screen.getByTestId("sample-save-btn")
+    expect(save).toBeDisabled()
+    const reason = screen.getByText("Enter a name for this sample before saving.")
+    expect(save).toHaveAttribute("aria-describedby", reason.id)
+    expect(screen.getByTestId("sample-name-input")).toHaveAttribute("aria-invalid", "true")
+
+    fireEvent.click(save)
+    expect(patches).toHaveLength(0)
+  })
+
+  it("keeps Save disabled for a blank name even when another field changed", async () => {
+    const patches = await openEditor()
+    fireEvent.change(screen.getByTestId("sample-notes-input"), { target: { value: "new note" } })
+    expect(screen.getByTestId("sample-save-btn")).toBeEnabled()
+
+    fireEvent.change(screen.getByTestId("sample-name-input"), { target: { value: "" } })
+    expect(screen.getByTestId("sample-save-btn")).toBeDisabled()
+    fireEvent.click(screen.getByTestId("sample-save-btn"))
+    expect(patches).toHaveLength(0)
+  })
+
+  it("sends the name trimmed", async () => {
+    const patches = await openEditor()
+    fireEvent.change(screen.getByTestId("sample-name-input"), {
+      target: { value: "  Mother's kit  " },
+    })
+    const save = screen.getByTestId("sample-save-btn")
+    expect(save).toBeEnabled()
+    expect(save).not.toHaveAttribute("aria-describedby")
+    expect(screen.queryByText("Enter a name for this sample before saving.")).not.toBeInTheDocument()
+
+    fireEvent.click(save)
+    await waitFor(() => expect(patches).toHaveLength(1))
+    expect(JSON.parse(patches[0]).name).toBe("Mother's kit")
+  })
+
+  it("does not count whitespace around the current name as a change", async () => {
+    await openEditor()
+    fireEvent.change(screen.getByTestId("sample-name-input"), {
+      target: { value: `  ${SAMPLE_DETAIL.name}  ` },
+    })
+    expect(screen.getByTestId("sample-save-btn")).toBeDisabled()
+  })
+})
+
 // ── Source-deletion cascade UI (Step 66 / Plan §10.8) ────────────────
 
 describe("SampleMetadataEditor — delete cascade", () => {
