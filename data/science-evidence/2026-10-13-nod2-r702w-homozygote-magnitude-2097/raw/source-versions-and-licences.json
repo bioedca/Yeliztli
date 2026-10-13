@@ -16,12 +16,12 @@
     {
       "source": "Scite (search_literature MCP)",
       "version": "not exposed by the tool",
-      "licence": "Scite terms of service; tool output is not redistributed: only a derived summary is kept (derived/evidence-ladder-record.json)."
+      "licence": "Scite terms of service. Kept: bibliographic metadata, tallies and notice screening (raw/scite-doi-lookup-sanitized.json). Not kept: abstracts, citation snippets, account-bound access links."
     },
     {
       "source": "Consensus (bio-research plugin endpoint)",
       "version": "not exposed by the tool",
-      "licence": "Consensus terms of service; tool output is not redistributed: only a derived summary is kept."
+      "licence": "Consensus terms of service. Kept: bibliographic metadata and the complete returned ranking (raw/consensus-search-sanitized.json). Not kept: abstracts."
     },
     {
       "source": "Scholar Gateway",

@@ -204,8 +204,8 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
     # The per-SNP recommendation is panel prose stored in the same blob, and
     # this endpoint hands the blob back as-is (#2021).
     detail = refreshed_detail_recommendation(row.module, row.category, row.rsid, detail)
-    # So is a gene-health effect summary, in the text and the pathway blob (#2097).
-    corrected_text, detail = refreshed_gene_health_row(
+    # So is a gene-health effect summary, with the citations behind it (#2097).
+    corrected_text, detail, pmids = refreshed_gene_health_row(
         row.module,
         row.category,
         row.rsid,
@@ -213,6 +213,7 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
         row.pathway_level,
         corrected_text,
         detail,
+        pmids,
     )
 
     provenance: dict | None = None
@@ -442,6 +443,7 @@ def findings_summary(
                 r.pathway_level,
                 preview,
                 detail_blob if isinstance(detail_blob, dict) else None,
+                [],
             )[0]
             top_by_module[r.module] = preview
 

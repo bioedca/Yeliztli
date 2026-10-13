@@ -3,7 +3,11 @@
   "files": [
     {
       "path": "queries.json",
-      "sha256": "744e61807d2280793e741bd1bb44527ab556f65e8e613b1c8822b9cf7b85a3b2"
+      "sha256": "39628daf62b65b1fc4d68e8da5f96ba17f325e9c078da8703a3ab7d4a8a3aae3"
+    },
+    {
+      "path": "raw/consensus-search-sanitized.json",
+      "sha256": "4dca94487abb97156cb1454ab645b96fd20409d9e5d6baceea135194c94751dd"
     },
     {
       "path": "raw/pubmed-abstract-excerpts.json",
@@ -22,12 +26,16 @@
       "sha256": "4fbb8787eda391da39f3ff9eca32be3c19279035043e49aa3f18c3d6352c4855"
     },
     {
+      "path": "raw/scite-doi-lookup-sanitized.json",
+      "sha256": "aebb25640f811a3e283cfe5c0474808a5b3318234605e99e508552f912ad4252"
+    },
+    {
       "path": "raw/source-versions-and-licences.json",
-      "sha256": "77ed920e2756ac28d8ace1ca9fdf8fcef129d492e6189b22af6316cacf496671"
+      "sha256": "4c2d4d010b2b2e29c5acd861882ea10b03277663ecd5a317faec50a5297ad618"
     },
     {
       "path": "derived/evidence-ladder-record.json",
-      "sha256": "ea465c562931be9a8a3f4ff652d9b9f669c4f6eb2393b4da09a8eb6d2f686ebc"
+      "sha256": "4bedbb7c07c0d199a8fa6ac03663ecf28118dc72547d8f26a2d61bd38836f71a"
     }
   ]
 }

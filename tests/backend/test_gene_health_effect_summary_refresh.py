@@ -51,6 +51,19 @@ def _panel_effects(rsid: str) -> dict[str, dict]:
 
 CURRENT_TT = _panel_effects(NOD2)["TT"]["effect_summary"]
 CURRENT_CC = _panel_effects(NOD2)["CC"]["effect_summary"]
+# The row's citations before #2097, and the two pooled-estimate sources it added.
+LEGACY_PMIDS = ["11385577", "11385576", "11875755"]
+POOLED_SOURCES = {"11910337", "15571588"}
+
+
+def _panel_pmids(rsid: str) -> list[str]:
+    panel = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+    rows = [snp for pathway in panel["pathways"] for snp in pathway["snps"] if snp["rsid"] == rsid]
+    assert len(rows) == 1
+    return rows[0]["pmids"]
+
+
+CURRENT_PMIDS = _panel_pmids(NOD2)
 
 
 def test_the_fixture_text_is_what_the_panel_no_longer_says() -> None:
@@ -58,6 +71,8 @@ def test_the_fixture_text_is_what_the_panel_no_longer_says() -> None:
     assert "20-40 fold" in LEGACY_TT
     assert CURRENT_TT != LEGACY_TT
     assert "fold" not in CURRENT_TT.replace("fold-risk", "")
+    assert POOLED_SOURCES <= set(CURRENT_PMIDS)
+    assert not POOLED_SOURCES & set(LEGACY_PMIDS)
 
 
 class TestCurrentEffectSummary:
@@ -98,17 +113,26 @@ class TestCurrentEffectSummary:
 
 
 class TestRefreshedGeneHealthRow:
-    def test_snp_finding_text_is_refreshed_behind_its_stored_prefix(self) -> None:
+    def test_snp_finding_text_and_citations_are_refreshed_together(self) -> None:
         detail = {"variant_name": "R702W", "genotype": "TT"}
-        text, out = refreshed_gene_health_row(
-            "gene_health", "snp_finding", NOD2, "NOD2", "Elevated", LEGACY_TEXT, detail
+        text, out, pmids = refreshed_gene_health_row(
+            "gene_health",
+            "snp_finding",
+            NOD2,
+            "NOD2",
+            "Elevated",
+            LEGACY_TEXT,
+            detail,
+            LEGACY_PMIDS,
         )
         assert text == f"NOD2 R702W (TT) — {CURRENT_TT}"
         assert out == detail
+        # The corrected claim keeps the sources it rests on.
+        assert pmids == CURRENT_PMIDS
 
     def test_a_coverage_note_suffix_is_kept(self) -> None:
         detail = {"variant_name": "R702W", "genotype": "TT", "coverage_note": "Check strand."}
-        text, _ = refreshed_gene_health_row(
+        text, _, _ = refreshed_gene_health_row(
             "gene_health",
             "snp_finding",
             NOD2,
@@ -116,6 +140,7 @@ class TestRefreshedGeneHealthRow:
             "Elevated",
             f"{LEGACY_TEXT} Note: Check strand.",
             detail,
+            LEGACY_PMIDS,
         )
         assert text == f"NOD2 R702W (TT) — {CURRENT_TT} Note: Check strand."
 
@@ -123,23 +148,33 @@ class TestRefreshedGeneHealthRow:
         """The label and genotype are never re-derived from prose."""
         detail = {"variant_name": "R702W", "genotype": "TT"}
         doubled = f"NOD2 NOD2 R702W (TT) — {LEGACY_TT}"
-        text, _ = refreshed_gene_health_row(
-            "gene_health", "snp_finding", NOD2, "NOD2", "Elevated", doubled, detail
+        text, _, pmids = refreshed_gene_health_row(
+            "gene_health", "snp_finding", NOD2, "NOD2", "Elevated", doubled, detail, LEGACY_PMIDS
         )
         assert text == doubled
+        # Its citations stay with the claim that is still on screen.
+        assert pmids == LEGACY_PMIDS
 
     def test_a_row_whose_category_moved_is_left_alone(self) -> None:
         detail = {"variant_name": "R702W", "genotype": "TT"}
-        text, _ = refreshed_gene_health_row(
-            "gene_health", "snp_finding", NOD2, "NOD2", "Moderate", LEGACY_TEXT, detail
+        text, _, pmids = refreshed_gene_health_row(
+            "gene_health",
+            "snp_finding",
+            NOD2,
+            "NOD2",
+            "Moderate",
+            LEGACY_TEXT,
+            detail,
+            LEGACY_PMIDS,
         )
         assert text == LEGACY_TEXT
+        assert pmids == LEGACY_PMIDS
 
     def test_another_modules_row_is_left_alone(self) -> None:
         detail = {"variant_name": "R702W", "genotype": "TT"}
         assert refreshed_gene_health_row(
-            "allergy", "snp_finding", NOD2, "NOD2", "Elevated", LEGACY_TEXT, detail
-        ) == (LEGACY_TEXT, detail)
+            "allergy", "snp_finding", NOD2, "NOD2", "Elevated", LEGACY_TEXT, detail, LEGACY_PMIDS
+        ) == (LEGACY_TEXT, detail, LEGACY_PMIDS)
 
     def test_pathway_summary_entries_are_refreshed_one_by_one(self) -> None:
         unknown = {
@@ -167,8 +202,15 @@ class TestRefreshedGeneHealthRow:
                 unknown,
             ],
         }
-        text, out = refreshed_gene_health_row(
-            "gene_health", "pathway_summary", None, None, "Elevated", "Autoimmune", detail
+        text, out, pmids = refreshed_gene_health_row(
+            "gene_health",
+            "pathway_summary",
+            None,
+            None,
+            "Elevated",
+            "Autoimmune",
+            detail,
+            LEGACY_PMIDS,
         )
         assert text == "Autoimmune"
         assert out is not None
@@ -181,6 +223,48 @@ class TestRefreshedGeneHealthRow:
         assert entries[2] == unknown
         # The stored blob itself is not mutated.
         assert detail["snp_details"][0]["effect_summary"] == LEGACY_TT
+        # A SNP the panel no longer has cannot be re-cited, so the union stays.
+        assert pmids == LEGACY_PMIDS
+
+    def test_pathway_citations_are_the_union_of_its_snps_current_ones(self) -> None:
+        detail = {
+            "snp_details": [
+                {
+                    "rsid": NOD2,
+                    "genotype": "TT",
+                    "category": "Elevated",
+                    "effect_summary": LEGACY_TT,
+                },
+                {
+                    "rsid": "rs9939609",
+                    "genotype": "AT",
+                    "category": "Moderate",
+                    "effect_summary": "One copy of FTO risk allele.",
+                },
+            ]
+        }
+        _, _, pmids = refreshed_gene_health_row(
+            "gene_health", "pathway_summary", None, None, "Elevated", "x", detail, LEGACY_PMIDS
+        )
+        assert pmids == list(dict.fromkeys(CURRENT_PMIDS + _panel_pmids("rs9939609")))
+
+    def test_a_moved_category_in_one_pathway_snp_keeps_the_stored_union(self) -> None:
+        detail = {
+            "snp_details": [
+                {
+                    "rsid": NOD2,
+                    "genotype": "TT",
+                    "category": "Moderate",
+                    "effect_summary": LEGACY_TT,
+                }
+            ]
+        }
+        _, out, pmids = refreshed_gene_health_row(
+            "gene_health", "pathway_summary", None, None, "Moderate", "x", detail, LEGACY_PMIDS
+        )
+        assert out is not None
+        assert out["snp_details"][0]["effect_summary"] == LEGACY_TT
+        assert pmids == LEGACY_PMIDS
 
 
 # ── Every surface that renders the stored rows ────────────────────────────
@@ -194,7 +278,7 @@ LEGACY_FINDINGS = [
         "finding_text": f"{PATHWAY} — Elevated consideration",
         "pathway": PATHWAY,
         "pathway_level": "Elevated",
-        "pmid_citations": json.dumps([]),
+        "pmid_citations": json.dumps(LEGACY_PMIDS),
         "detail_json": json.dumps(
             {
                 "pathway_id": "autoimmune",
@@ -224,7 +308,7 @@ LEGACY_FINDINGS = [
         "finding_text": LEGACY_TEXT,
         "pathway": PATHWAY,
         "pathway_level": "Elevated",
-        "pmid_citations": json.dumps(["11385577", "11385576", "11875755"]),
+        "pmid_citations": json.dumps(LEGACY_PMIDS),
         "detail_json": json.dumps({"variant_name": "R702W", "genotype": "TT"}),
     },
 ]
@@ -279,6 +363,16 @@ class TestEverySurfaceServesTheCorrection:
         assert len(snps) == 1
         assert snps[0]["effect_summary"] == CURRENT_TT
         assert snps[0]["category"] == "Elevated"
+        assert snps[0]["pmids"] == CURRENT_PMIDS
+        assert resp.json()["pmids"] == CURRENT_PMIDS
+
+    def test_pathway_list(self, legacy_sample: tuple[TestClient, int, sa.Engine]) -> None:
+        client, sample_id, _ = legacy_sample
+        resp = client.get(f"/api/analysis/gene_health/pathways?sample_id={sample_id}")
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["pmids"] == CURRENT_PMIDS
 
     def test_generic_findings_list(self, legacy_sample: tuple[TestClient, int, sa.Engine]) -> None:
         client, sample_id, _ = legacy_sample
@@ -290,6 +384,8 @@ class TestEverySurfaceServesTheCorrection:
         entries = rows["pathway_summary"]["detail"]["snp_details"]
         assert len(entries) == 1
         assert entries[0]["effect_summary"] == CURRENT_TT
+        assert rows["snp_finding"]["pmid_citations"] == CURRENT_PMIDS
+        assert rows["pathway_summary"]["pmid_citations"] == CURRENT_PMIDS
 
     def test_findings_summary_preview(
         self, legacy_sample: tuple[TestClient, int, sa.Engine]
@@ -308,10 +404,13 @@ class TestEverySurfaceServesTheCorrection:
         ]
         assert len(rows) == 1
         assert rows[0]["finding_text"] == f"NOD2 R702W (TT) — {CURRENT_TT}"
+        assert rows[0]["pmid_citations"] == CURRENT_PMIDS
         # The rendered document is what the user keeps.
         html = render_report_html(sample_id=sample_id, modules=["gene_health"])
         assert "rather than estimating R702W homozygotes separately" in html
         assert "20-40 fold" not in html
+        for pmid in POOLED_SOURCES:
+            assert pmid in html
 
     def test_variant_card(self, legacy_sample: tuple[TestClient, int, sa.Engine]) -> None:
         _, _, sample_engine = legacy_sample
@@ -321,3 +420,4 @@ class TestEverySurfaceServesTheCorrection:
             ).scalar_one()
         card = _load_single_finding(sample_engine, fid)
         assert card["finding_text"] == f"NOD2 R702W (TT) — {CURRENT_TT}"
+        assert card["pmid_citations"] == CURRENT_PMIDS

@@ -20,10 +20,10 @@ The `evidence` workflow ran on 2026-10-13, followed by direct PubMed and Scite c
 
 | Source | Result |
 | --- | --- |
-| Consensus | Surfaced the primary papers (abstract level). |
+| Consensus | Two searches, repeated 2026-10-13 and kept with their complete ranking (`raw/consensus-search-sanitized.json`). |
 | Scholar Gateway | `ACCESS_DENIED`; fell back to NCBI E-utilities. |
 | PubMed | Abstracts re-read; corrections checked for all six cited PMIDs: `CommentIn` only, no erratum, retraction or expression of concern. |
-| Scite | All six papers indexed; no editorial notices. |
+| Scite | All six papers indexed; no editorial notices (`raw/scite-doi-lookup-sanitized.json`). |
 
 Workflow verdict: **mixed**. Claims 1–3 of the issue were supported. Its claim 4 premise, a "van Heel 2002 RR 58.9", was not found and is **not** encoded (see Withheld).
 
@@ -51,7 +51,7 @@ Workflow verdict: **mixed**. Claims 1–3 of the issue were supported. Its claim
 
 Recorded in `raw/source-versions-and-licences.json`:
 - **PubMed:** build `Build-2026.10.13.12.44` (einfo, 2026-10-13). NCBI: "NLM does not claim the copyright on the abstracts in PubMed ; however, journal publishers or authors may."
-- **Scite and Consensus:** versions are not exposed by the tools, and their output is kept only as a derived summary.
+- **Scite and Consensus:** versions are not exposed by the tools. Their responses are kept as metadata only: no abstracts, snippets, or account-bound links.
 - **Scholar Gateway:** not used (access denied).
 
 ## Retention
@@ -62,7 +62,7 @@ Recorded in `raw/source-versions-and-licences.json`:
 
 ## Inventory
 
-This `README.md`, `manifest.json`, and the 7 files that `manifest.json` lists with SHA-256:
+This `README.md`, `manifest.json`, and the 9 files that `manifest.json` lists with SHA-256:
 - `queries.json`
-- `raw/` (5): `pubmed-esummary.json`, `pubmed-efetch-sanitized.xml`, `pubmed-abstract-excerpts.json`, `pubmed-comments-corrections-extract.json`, `source-versions-and-licences.json`
+- `raw/` (7): `pubmed-esummary.json`, `pubmed-efetch-sanitized.xml`, `pubmed-abstract-excerpts.json`, `pubmed-comments-corrections-extract.json`, `source-versions-and-licences.json`, `scite-doi-lookup-sanitized.json`, `consensus-search-sanitized.json`
 - `derived/` (1): `evidence-ladder-record.json`

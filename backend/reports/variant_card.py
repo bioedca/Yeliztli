@@ -133,8 +133,9 @@ def _load_single_finding(
     corrected_text, resolved_detail = resolved
     if isinstance(resolved_detail, dict):
         detail = resolved_detail
-    # A gene-health effect summary is panel prose frozen the same way (#2097).
-    corrected_text, refreshed_detail = refreshed_gene_health_row(
+    # A gene-health effect summary is panel prose frozen the same way, and its
+    # citations with it (#2097).
+    corrected_text, refreshed_detail, pmids = refreshed_gene_health_row(
         row.module,
         row.category,
         row.rsid,
@@ -142,6 +143,7 @@ def _load_single_finding(
         row.pathway_level,
         corrected_text,
         detail,
+        pmids,
     )
     if isinstance(refreshed_detail, dict):
         detail = refreshed_detail

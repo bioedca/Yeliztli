@@ -215,8 +215,9 @@ def _load_findings(
         resolved_text, resolved_detail = resolved
         if isinstance(detail_blob, dict) and isinstance(resolved_detail, dict):
             detail_blob = resolved_detail
-        # A gene-health effect summary is panel prose frozen the same way (#2097).
-        resolved_text, refreshed_detail = refreshed_gene_health_row(
+        # A gene-health effect summary is panel prose frozen the same way, and
+        # its citations with it (#2097).
+        resolved_text, refreshed_detail, pmids = refreshed_gene_health_row(
             row.module,
             row.category,
             row.rsid,
@@ -224,6 +225,7 @@ def _load_findings(
             row.pathway_level,
             resolved_text,
             detail_blob if isinstance(detail_blob, dict) else None,
+            pmids,
         )
         if isinstance(detail_blob, dict) and isinstance(refreshed_detail, dict):
             detail_blob = refreshed_detail

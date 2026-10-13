@@ -15,12 +15,12 @@
     {
       "source": "Scite",
       "request": "search_literature dois=[6 DOIs listed in derived/evidence-ladder-record.json]",
-      "payload": "derived/evidence-ladder-record.json"
+      "payload": "raw/scite-doi-lookup-sanitized.json"
     },
     {
       "source": "Consensus / Scholar Gateway",
-      "request": "evidence workflow queries (run wf_0af89cb5-eff)",
-      "payload": "derived/evidence-ladder-record.json"
+      "request": "consensus search (no filters): see raw/consensus-search-sanitized.json for both query strings; Scholar Gateway semanticSearch returned ACCESS_DENIED during evidence workflow wf_0af89cb5-eff",
+      "payload": "raw/consensus-search-sanitized.json; derived/evidence-ladder-record.json"
     },
     {
       "source": "PubMed build / NCBI usage policy",

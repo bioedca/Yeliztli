@@ -6,7 +6,7 @@
     {
       "tool": "Consensus (bio-research plugin endpoint)",
       "available": true,
-      "result": "Surfaced the primary papers used here (abstract level)."
+      "result": "Two searches repeated on 2026-10-13 and kept: raw/consensus-search-sanitized.json (complete returned ranking)."
     },
     {
       "tool": "Scholar Gateway semanticSearch",
@@ -21,7 +21,7 @@
     {
       "tool": "Scite search_literature (6 DOIs)",
       "available": true,
-      "result": "All six papers indexed; no editorialNotices on any (DOIs: 10.1111/j.1572-0241.2004.40304.x, 10.1053/gast.2002.32415, 10.1086/339432, 10.1038/35079107, 10.1038/35079114, 10.1038/sj.ejhg.5201839)."
+      "result": "All six cited papers indexed; no editorialNotices on any. Response kept: raw/scite-doi-lookup-sanitized.json."
     }
   ],
   "withheld": [

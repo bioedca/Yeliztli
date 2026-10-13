@@ -1,0 +1,83 @@
+{
+  "service": "Consensus (bio-research plugin endpoint)",
+  "accessed": "2026-10-13",
+  "filters": "none",
+  "tier_note": "Free tier: three results per search. The searches were repeated on 2026-10-13 so their result sets could be kept. The evidence workflow's own Consensus responses were not kept.",
+  "sanitization": "Bibliographic metadata and the complete returned ranking only. Abstracts are removed (publisher or author copyright). The consensus.app links carry no account identifier.",
+  "searches": [
+    {
+      "query": "NOD2 R702W homozygote Crohn's disease risk compound heterozygote two risk alleles odds ratio",
+      "status": "success",
+      "results_returned": 3,
+      "complete_result_ranking": [
+        {
+          "rank": 1,
+          "title": "Distribution of CARD15/NOD2 Variants in Crohn’s Disease, Ulcerative Colitis, and Healthy Controls in a Djiboutian Population",
+          "first_author": "Fatouma Mohamed Abdoul-latif",
+          "year": 2026,
+          "journal": "Gastrointestinal Disorders",
+          "citation_count_reported": 0,
+          "url": "https://consensus.app/papers/details/8a7b2ec1bb9058b8914f2ae227e36145/",
+          "used": "no — carrier/allele frequencies only, no two-allele estimate"
+        },
+        {
+          "rank": 2,
+          "title": "The Prognostic Power of the NOD2 Genotype for Complicated Crohn's Disease: A Meta-Analysis",
+          "first_author": "Jeremy Adler",
+          "year": 2011,
+          "journal": "The American Journal of Gastroenterology",
+          "citation_count_reported": 207,
+          "url": "https://consensus.app/papers/details/112ba2d822c85916b1fa6cedf62bcbc7/",
+          "used": "no — disease behaviour (complicated disease), not disease risk"
+        },
+        {
+          "rank": 3,
+          "title": "NOD2/CARD15 gene polymorphisms in Crohn's disease: a genotype–phenotype analysis",
+          "first_author": "D. Heresbach",
+          "year": 2004,
+          "journal": "European Journal of Gastroenterology & Hepatology",
+          "citation_count_reported": 84,
+          "url": "https://consensus.app/papers/details/b01aac94a5d25384a8bba8a1b51a4bca/",
+          "used": "corroborating only, not relied on — its abstract likewise pools 'homozygotes and compound heterozygotes combined' (OR 12.0 vs 2.2 for heterozygotes) in a north-western French cohort; not counted toward independence because its population overlaps the French lineage of Lesage 2002"
+        }
+      ]
+    },
+    {
+      "query": "CARD15 NOD2 gene dosage effect Crohn's disease double mutation homozygous versus heterozygous relative risk",
+      "status": "success",
+      "results_returned": 3,
+      "complete_result_ranking": [
+        {
+          "rank": 1,
+          "title": "CARD15/NOD2 mutational analysis and genotype-phenotype correlation in 612 patients with inflammatory bowel disease.",
+          "first_author": "S. Lesage",
+          "year": 2002,
+          "journal": "American journal of human genetics",
+          "citation_count_reported": 1036,
+          "url": "https://consensus.app/papers/details/b37637900d7850ec957005e8da94848b/",
+          "used": "yes — claim 1 (PMID:11875755)"
+        },
+        {
+          "rank": 2,
+          "title": "Detection of mutations in NOD2/CARD15 gene in Arab patients with Crohn's disease",
+          "first_author": "Iqbal Siddique",
+          "year": 2021,
+          "journal": "Saudi Journal of Gastroenterology",
+          "citation_count_reported": 12,
+          "url": "https://consensus.app/papers/details/1cece3f6b2b35fb3b7ca0700cdf2764b/",
+          "used": "no — R702W not informative in that sample"
+        },
+        {
+          "rank": 3,
+          "title": "NOD2/CARD15 gene polymorphisms in Crohn's disease: a genotype–phenotype analysis",
+          "first_author": "D. Heresbach",
+          "year": 2004,
+          "journal": "European Journal of Gastroenterology & Hepatology",
+          "citation_count_reported": 84,
+          "url": "https://consensus.app/papers/details/b01aac94a5d25384a8bba8a1b51a4bca/",
+          "used": "as above"
+        }
+      ]
+    }
+  ]
+}
