@@ -27,6 +27,9 @@ concurrency:
 # and tests code (no PR comments, releases, or issue filing — those live in
 # nightly.yml / bundle-release.yml, which set their own scopes), so read-only is
 # sufficient. A job that needs more should override `permissions` on itself.
+# Every checkout also sets `persist-credentials: false`: no step here pushes or
+# fetches with the checkout token, and the jobs run dependency and test code
+# that could otherwise read it from .git/config (#2080).
 permissions:
   contents: read
 
@@ -135,6 +138,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -230,6 +235,8 @@ jobs:
         shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -265,6 +272,8 @@ jobs:
             name: macOS ARM64
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -286,6 +295,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -307,6 +318,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -331,6 +344,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -386,6 +401,8 @@ jobs:
             name: macOS ARM64
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -436,6 +453,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Build Docker image
         run: docker compose build
@@ -471,6 +490,8 @@ jobs:
         browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:
@@ -550,6 +571,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:

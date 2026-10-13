@@ -105,6 +105,14 @@ export interface ReportGeneEffect {
   actionability: Actionability
   /** See {@link GeneSummary.gene_caveat}. Mirrors a backend disclaimer. */
   gene_caveat: string | null
+  /**
+   * True when this drug's guidance uses a conservative phenotype because an
+   * untyped allele could change the call. `phenotype` is then the conservative
+   * term and `called_phenotype` the direct call shown in the coverage panel.
+   */
+  conservative_alert?: boolean
+  called_phenotype?: string | null
+  conservative_allele?: string | null
 }
 
 /** All gene effects for one drug, with a drug-level actionability flag. */

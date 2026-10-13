@@ -15,6 +15,9 @@ on:
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
+# Every checkout also sets `persist-credentials: false`: no step here pushes or
+# fetches with the checkout token, and the jobs run dependency and test code
+# that could otherwise read it from .git/config (#2080).
 permissions:
   contents: read
   pages: write
@@ -31,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v6
         with:

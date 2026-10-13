@@ -78,6 +78,13 @@ def _real_vep_bundle_available() -> bool:
         return False
 
 
+# Decided now, against the real data home. tests/backend/conftest.py points
+# get_settings() at a throwaway home when it is imported, which is before
+# collection finishes, so checking from pytest_collection_modifyitems would never
+# find the nightly's staged bundles and would skip every real-bundle test (#2079).
+_REAL_BUNDLE_OK = _real_lai_bundle_available() or _real_vep_bundle_available()
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Auto-skip tests whose runtime prerequisites are not present locally.
 
@@ -91,7 +98,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
       bundles still exercise the matching test class.
     """
     java_ok = _java_available()
-    real_bundle_ok = _real_lai_bundle_available() or _real_vep_bundle_available()
+    real_bundle_ok = _REAL_BUNDLE_OK
     skip_java = pytest.mark.skip(reason="Java runtime not available")
     skip_real_bundle = pytest.mark.skip(
         reason="Real production bundle not available (slow-tier nightly only)"

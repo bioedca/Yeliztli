@@ -673,23 +673,27 @@ def get_all_version_stamps(engine: Engine) -> list[dict]:
     ]
 
 
-# Databases that use YYYYMMDD date-based versioning.
-DATE_VERSIONED_DATABASES: set[str] = {"clinvar"}
+def format_version_display(version: str | None) -> str | None:
+    """Format a database version string for display.
 
+    A ``YYYYMMDD`` version is shown as an ISO date (``2026-07-16``). It is
+    recognised from the value rather than a per-database list, so ClinVar, the
+    GWAS Catalog, dbSNP, MONDO/HPO and ENCODE cCREs all read alike, and it keeps
+    the day so ClinVar's weekly builds stay distinguishable (#2081). Other
+    versions are returned as-is.
 
-def format_version_display(version: str | None, db_name: str) -> str | None:
-    """Format a version string for display in the status bar.
-
-    Date-versioned databases (YYYYMMDD) are formatted as "Mar 2026".
-    Other versions are returned as-is.
+    MONDO/HPO stores its source date followed by ``+``-delimited build
+    metadata (``20260716+disease-scope-v2+hpo-…+mondo-sssom-…``), while its
+    update offer is the bare date. Only the leading date is shown, so the
+    row's Current and Latest cells still read alike.
     """
     if version is None:
         return None
 
-    if db_name in DATE_VERSIONED_DATABASES and len(version) == 8 and version.isdigit():
+    date_part = version.partition("+")[0]
+    if len(date_part) == 8 and date_part.isdigit():
         try:
-            dt = datetime.strptime(version, "%Y%m%d")
-            return dt.strftime("%b %Y")
+            return datetime.strptime(date_part, "%Y%m%d").date().isoformat()
         except ValueError:
             return version
 

@@ -13,10 +13,13 @@ The HTTP-level report tests live in ``test_pharma_api.py``.
 
 from __future__ import annotations
 
+import csv
 import json
 
+import pytest
 import sqlalchemy as sa
 
+from backend.analysis import pharmacogenomics
 from backend.analysis.pharmacogenomics import (
     ACTIONABILITY_ACTIONABLE,
     ACTIONABILITY_INDETERMINATE,
@@ -27,6 +30,7 @@ from backend.analysis.pharmacogenomics import (
     classify_actionability,
     store_prescribing_alerts,
 )
+from backend.annotation.cpic import CPIC_DATA_DIR
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import findings
 
@@ -89,6 +93,12 @@ class TestClassifyActionability:
         # "monitor" is the only action marker here. Without it, the routine
         # "standard...dosing" marker would incorrectly demote this recommendation.
         rec = "Initiate at standard label-recommended dosing; monitor for myelosuppression."
+        assert classify_actionability(rec) == ACTIONABILITY_ACTIONABLE
+
+    def test_routine_marker_plus_consider_is_actionable(self):
+        # "consider" is the only action marker here (#2070). Without it, the
+        # routine "label-recommended" marker would demote this recommendation.
+        rec = "Use label-recommended dosing; consider the synthetic placeholder note."
         assert classify_actionability(rec) == ACTIONABILITY_ACTIONABLE
 
     def test_action_verb_beats_routine_marker(self):
@@ -159,6 +169,66 @@ class TestClassifyActionability:
             classify_actionability("No dose adjustment initially; reduce if intolerant.")
             == ACTIONABILITY_ACTIONABLE
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# classify_actionability over the shipped CPIC guideline corpus (#2070)
+# ═══════════════════════════════════════════════════════════════════════
+
+# Real cpic_guidelines.csv rows that exactly ONE actionable marker keeps
+# actionable: delete that marker and the row's routine marker demotes it to
+# "routine", so its PGx-driven guidance drops out of the medication-safety
+# report's attention section with the suite green (#1269 for "monitor", #2070
+# for "consider"). Keyed (gene, drug, phenotype, activity_score).
+_SINGLE_MARKER_ACTIONABLE_ROWS: dict[tuple[str, str, str, str], str] = {
+    ("UGT1A1", "irinotecan", "Intermediate Metabolizer", ""): "consider",
+    ("CYP2C19", "voriconazole", "Intermediate Metabolizer", ""): "monitor",
+    ("CYP3A5", "tacrolimus", "Poor Metabolizer", ""): "monitor",
+}
+
+
+def _cpic_guideline_rows() -> dict[tuple[str, str, str, str], str]:
+    with (CPIC_DATA_DIR / "cpic_guidelines.csv").open(newline="", encoding="utf-8") as fh:
+        records = [
+            ((r["gene"], r["drug"], r["phenotype"], r["activity_score"]), r["recommendation"])
+            for r in csv.DictReader(fh)
+        ]
+    assert records, "the shipped CPIC guideline corpus is empty"
+    # A duplicate key would collapse to one row here and hide the other from the
+    # scan; production keeps duplicates visible as a data regression, so fail.
+    keys = [key for key, _ in records]
+    duplicates = sorted({key for key in keys if keys.count(key) > 1})
+    assert not duplicates, f"duplicate cpic_guidelines.csv keys: {duplicates}"
+    return dict(records)
+
+
+class TestActionabilityGuidelineCorpus:
+    def test_single_marker_rows_are_actionable(self):
+        rows = _cpic_guideline_rows()
+        for key, marker in _SINGLE_MARKER_ACTIONABLE_ROWS.items():
+            assert key in rows, f"{key} is no longer in cpic_guidelines.csv"
+            assert classify_actionability(rows[key]) == ACTIONABILITY_ACTIONABLE, (key, marker)
+
+    def test_single_marker_registry_matches_the_corpus(self, monkeypatch: pytest.MonkeyPatch):
+        """The registry is exactly the set of rows one marker alone keeps
+        actionable: a new CPIC row that depends on a single marker has to be
+        registered (and is then pinned), and a stale entry is caught."""
+        rows = _cpic_guideline_rows()
+        markers = pharmacogenomics._ACTIONABLE_RECOMMENDATION_MARKERS
+        baseline = {key: classify_actionability(rec) for key, rec in rows.items()}
+        dependent: dict[tuple[str, str, str, str], str] = {}
+        for marker in markers:
+            monkeypatch.setattr(
+                pharmacogenomics,
+                "_ACTIONABLE_RECOMMENDATION_MARKERS",
+                tuple(m for m in markers if m != marker),
+            )
+            for key, rec in rows.items():
+                if classify_actionability(rec) != baseline[key]:
+                    assert key not in dependent, (key, dependent.get(key), marker)
+                    dependent[key] = marker
+
+        assert dependent == _SINGLE_MARKER_ACTIONABLE_ROWS
 
 
 # ═══════════════════════════════════════════════════════════════════════
