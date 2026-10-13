@@ -101,9 +101,7 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
     "gnomad": [("gnomad_af", True)],
     "dbnsfp": [("dbnsfp_scores", True)],
     "alphamissense": [("alphamissense_scores", True)],
-    # gtex_genes names the badge's genes (#2087); a pre-revision install has no
-    # such table and resolves to "partial" on its stamp before this check.
-    "gtex_eqtl": [("gtex_eqtl", True), ("gtex_genes", True)],
+    "gtex_eqtl": [("gtex_eqtl", True)],
     # bundle_metadata only needs to exist; vep_annotations carries the data.
     "vep_bundle": [("vep_annotations", True), ("bundle_metadata", False)],
     "encode_ccres": [("encode_ccres", True)],
@@ -115,7 +113,6 @@ _STANDALONE_TABLE_SPEC: dict[str, list[tuple[str, bool]]] = {
 # compatibility fields stay in the consumer's SELECT fallback logic; these are
 # columns the lookup paths require to run at all.
 _STANDALONE_REQUIRED_COLUMNS: dict[str, dict[str, frozenset[str]]] = {
-    "gtex_eqtl": {"gtex_genes": frozenset({"gene_id", "gene_name"})},
     "gnomad": {
         "gnomad_af": frozenset(
             {
@@ -820,15 +817,7 @@ def get_database_health(
             integ = validate_database(name, settings, engine=engine, deep=False)
             integrity_ok = integ.ok
             integrity_detail = integ.detail
-            if (
-                needs_version
-                and version is not None
-                and not installed_version_is_serviceable(name, version)
-            ):
-                # A finished build from an older loader revision (gtex_eqtl
-                # without gene names, #2087): rebuild it, it is not corrupt.
-                state = "partial"
-            elif not integ.ok:
+            if not integ.ok:
                 state = "corrupt"
             elif needs_version and version is None:
                 # Artifact + data on disk but the finalize never stamped a

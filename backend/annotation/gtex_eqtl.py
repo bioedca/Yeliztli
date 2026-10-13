@@ -60,17 +60,13 @@ GTEX_LOOKUP_URL = (
     "lookup_table.txt.gz"
 )
 GTEX_VERSION = "v8"
-# Loader revision recorded in the version stamp. An install stamped before gene
-# names were loaded (#2087) is not serviceable, so the build flow rebuilds it
-# instead of skipping it as already downloaded.
-GTEX_INGESTION_REVISION = "gene-names-v1"
-GTEX_INSTALLED_VERSION = f"{GTEX_VERSION}+{GTEX_INGESTION_REVISION}"
 
 # GTEx significant cis-eQTL per-tissue files inside the eQTL tar are named
 # ``<Tissue>.v8.signif_variant_gene_pairs.txt.gz`` (e.g. ``Whole_Blood.v8.…``).
 _SIGNIF_PAIRS_RE = re.compile(r"\.v8\.signif_variant_gene_pairs\.txt(\.gz)?$")
 # The same tar's per-tissue ``<Tissue>.v8.egenes.txt.gz`` carry ``gene_id`` and
 # ``gene_name``; the signif-pairs files have only the versioned Ensembl ID (#2087).
+# Format verified in data/science-evidence/2026-10-13-gtex-v8-egenes-gene-names-2087/.
 _EGENES_RE = re.compile(r"\.v8\.egenes\.txt(\.gz)?$")
 _NOT_A_SYMBOL = frozenset({".", "NA"})
 
@@ -262,9 +258,8 @@ def load_gtex_gene_names(eqtl_dir: Path, engine: sa.Engine) -> int:
     Ensembl ID or a placeholder is not a symbol and is skipped.
 
     Raises:
-        ValueError: no gene names parsed. The install stamp asserts names were
-            loaded (:data:`GTEX_INGESTION_REVISION`), so this aborts the build
-            instead of stamping one the badge cannot name genes from.
+        ValueError: no gene names parsed — the release is not the one this
+            loader expects, so the build aborts rather than ship unnamed genes.
     """
     names: dict[str, str] = {}
     egenes_files = sorted(
@@ -289,7 +284,7 @@ def load_gtex_gene_names(eqtl_dir: Path, engine: sa.Engine) -> int:
     if not names:
         raise ValueError(
             f"no GTEx gene names parsed from *.v8.egenes.txt(.gz) under {eqtl_dir} — "
-            f"refusing to stamp a gtex_eqtl.db whose badge cannot name genes."
+            f"refusing to build a gtex_eqtl.db whose badge cannot name genes."
         )
 
     create_gtex_tables(engine)
@@ -324,15 +319,10 @@ def lookup_eqtls_by_rsids(rsids: list[str], engine: sa.Engine) -> dict[str, list
     return out
 
 
-def gtex_eqtl_install_is_serviceable(version: str | None) -> bool:
-    """Whether a ``gtex_eqtl`` stamp records the current loader revision (#2087)."""
-    return version is not None and GTEX_INGESTION_REVISION in version.split("+")
-
-
 def record_gtex_eqtl_version(
     engine: sa.Engine,
     *,
-    version: str = GTEX_INSTALLED_VERSION,
+    version: str = GTEX_VERSION,
     file_path: str | None = None,
     file_size_bytes: int | None = None,
     checksum: str | None = None,

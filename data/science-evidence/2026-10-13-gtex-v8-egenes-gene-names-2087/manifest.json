@@ -1,0 +1,40 @@
+{
+  "packet": "2026-10-13-gtex-v8-egenes-gene-names-2087",
+  "files": [
+    {
+      "path": "queries.json",
+      "sha256": "d17057c8c6374d550799ac9ea642680a6056eb7bb4823de10bb54566c8271521",
+      "kind": "method"
+    },
+    {
+      "path": "derive_gene_name_summary.py",
+      "sha256": "a5c6f4bd6204fba533d62482bccade65983758ed7068e3387c9faebd89c15511",
+      "kind": "method"
+    },
+    {
+      "path": "raw/pubmed-esummary-32913098.json",
+      "sha256": "ee24d1921edfaf94edde6c44988f8e796b7e25a15ed8a6e67dfbe9027115064f",
+      "kind": "raw"
+    },
+    {
+      "path": "raw/pubmed-efetch-32913098.xml",
+      "sha256": "ea2c94f03005562e20ba336955fcb8466f49d9b00fc459f75dd333beb592a54d",
+      "kind": "raw"
+    },
+    {
+      "path": "raw/gtex-v8-eqtl-tar-head.txt",
+      "sha256": "09724e777522aac2d6944d113cc7f8fca2c2cd12edca9ab4c0cdf65ccf9c161c",
+      "kind": "raw"
+    },
+    {
+      "path": "raw/whole-blood-v8-egenes-excerpt.tsv",
+      "sha256": "42e0160f6998d651fda22c07e31b9b51a63105e2f5949996d51aa6ecd0913287",
+      "kind": "raw"
+    },
+    {
+      "path": "derived/egenes-gene-name-summary.json",
+      "sha256": "bcc56f9a1fb88572157179882a145f5b9a7478df218f12eddef1a347f44cc450",
+      "kind": "derived"
+    }
+  ]
+}

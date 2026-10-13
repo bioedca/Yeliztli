@@ -846,22 +846,6 @@ def _execute_build(
             message=f"Building {db_info.display_name} from upstream source...",
         )
 
-        # Determine which engine to pass
-        if db_info.target_db == "reference":
-            target_engine = engine
-        else:
-            registry = get_registry()
-            if db_info.name == "gnomad":
-                target_engine = registry.gnomad_engine
-            elif db_info.name == "dbnsfp":
-                target_engine = registry.dbnsfp_engine
-            elif db_info.name == "alphamissense":
-                target_engine = registry.alphamissense_engine
-            elif db_info.name == "gtex_eqtl":
-                target_engine = registry.gtex_eqtl_engine
-            else:
-                target_engine = engine
-
         # Hardening: a build killed mid-write can leave a corrupt/truncated
         # standalone SQLite with no version stamp. Re-opening it for the rebuild
         # would fail outright (malformed image) or splice onto stale rows. Drop
@@ -870,10 +854,6 @@ def _execute_build(
         if db_info.target_db == "standalone" and db_info.build_mode == "pipeline":
             dest = db_info.dest_path(settings)
             if dest.exists() and not validate_database(db_info.name, settings).ok:
-                # A pooled connection keeps the unlinked inode open, so the
-                # rebuild would write into a file nobody can reopen (#2087).
-                if target_engine is not engine:
-                    target_engine.dispose()
                 for stale in (dest, Path(f"{dest}-wal"), Path(f"{dest}-shm")):
                     try:
                         stale.unlink(missing_ok=True)
@@ -892,6 +872,22 @@ def _execute_build(
         build_fn = get_build_fn(db_info.name)
         if build_fn is None:
             raise ValueError(f"No build function registered for {db_info.name}")
+
+        # Determine which engine to pass
+        if db_info.target_db == "reference":
+            target_engine = engine
+        else:
+            registry = get_registry()
+            if db_info.name == "gnomad":
+                target_engine = registry.gnomad_engine
+            elif db_info.name == "dbnsfp":
+                target_engine = registry.dbnsfp_engine
+            elif db_info.name == "alphamissense":
+                target_engine = registry.alphamissense_engine
+            elif db_info.name == "gtex_eqtl":
+                target_engine = registry.gtex_eqtl_engine
+            else:
+                target_engine = engine
 
         # Throttle progress writes to at most once per 2 seconds per callback
         _last_dl_update = 0.0

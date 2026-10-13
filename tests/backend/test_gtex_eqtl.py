@@ -17,7 +17,6 @@ import sqlalchemy as sa
 import backend.annotation.gtex_eqtl as gtex_mod
 from backend.analysis.gtex import GTEX_PMID, eqtl_regulatory_context
 from backend.annotation.gtex_eqtl import (
-    GTEX_INSTALLED_VERSION,
     GTEX_VERSION,
     create_gtex_tables,
     download_and_load_gtex_eqtl,
@@ -290,8 +289,8 @@ class TestGeneNames:
         }
 
     def test_load_dir_without_gene_names_refuses_to_build(self, tmp_path: Path) -> None:
-        # The stamp asserts names were loaded, so a release without them fails
-        # before the heavy per-tissue ingest instead of stamping an unnamed DB.
+        # A release without gene names fails before the heavy per-tissue ingest
+        # instead of building a DB whose badge cannot name genes.
         eqtl_dir = tmp_path / "ex"
         eqtl_dir.mkdir()
         _write(eqtl_dir, "Whole_Blood.v8.signif_variant_gene_pairs.txt.gz", _SIGNIF, gz=True)
@@ -358,8 +357,7 @@ class TestDownloadAndLoad:
                 sa.select(database_versions).where(database_versions.c.db_name == "gtex_eqtl")
             ).fetchone()
         assert row is not None
-        assert row.version == GTEX_INSTALLED_VERSION
-        assert row.version.startswith(f"{GTEX_VERSION}+")  # release + loader revision
+        assert row.version == GTEX_VERSION
         assert row.genome_build == "GRCh37"  # rsID-joined to GRCh37 despite GTEx b38
 
     def test_empty_tar_refuses_to_build(

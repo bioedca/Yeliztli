@@ -1,0 +1,11 @@
+{
+  "accessed": "2026-10-13",
+  "queries": [
+    {"source": "PubMed eSummary", "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=32913098&retmode=json", "payload": "raw/pubmed-esummary-32913098.json"},
+    {"source": "PubMed efetch (CommentsCorrections)", "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=32913098&retmode=xml", "payload": "raw/pubmed-efetch-32913098.xml"},
+    {"source": "GTEx v8 eQTL tar object metadata", "request": "HEAD https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/single-tissue-cis-qtl/GTEx_Analysis_v8_eQTL.tar", "payload": "raw/gtex-v8-eqtl-tar-head.txt"},
+    {"source": "GTEx v8 Whole_Blood egenes excerpt", "request": "zcat Whole_Blood.v8.egenes.txt.gz | head -4; zcat ... | grep -P '^ENSG00000177000\\.' ; cut -f1-6", "payload": "raw/whole-blood-v8-egenes-excerpt.tsv"},
+    {"source": "GTEx v8 egenes/signif-pairs summary (derived)", "request": "python derive_gene_name_summary.py <extracted GTEx_Analysis_v8_eQTL dir>", "payload": "derived/egenes-gene-name-summary.json"},
+    {"source": "GTEx Portal license page", "request": "https://gtexportal.org/home/license", "payload": null, "note": "JavaScript application; no readable terms returned. Not captured."}
+  ]
+}
