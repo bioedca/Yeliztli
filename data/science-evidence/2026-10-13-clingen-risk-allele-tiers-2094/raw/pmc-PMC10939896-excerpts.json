@@ -9,11 +9,11 @@
   "excerpts": [
     {
       "claim": "three ordered tiers",
-      "text": "the qualifying terms – Established risk allele , Likely risk allele , and Uncertain risk allele – corresponding to the three classification tiers initially suggested by the ACMG/AMP Mendelian sequence variant classification guidelines ( Figure 1 )."
+      "text": "We use the term risk allele for variants associated with a very small increased risk of disease and the qualifying terms – Established risk allele , Likely risk allele , and Uncertain risk allele – corresponding to the three classification tiers initially suggested by the ACMG/AMP Mendelian sequence variant classification guidelines ( Figure 1 )."
     },
     {
       "claim": "confidence ordering",
-      "text": "levels of confidence ranging from uncertain to likely to established based on the strength of the genetic evidence in the form of association studies ( Table 2 )."
+      "text": "The criteria listed above can be used to generate classifications with levels of confidence ranging from uncertain to likely to established based on the strength of the genetic evidence in the form of association studies ( Table 2 )."
     },
     {
       "claim": "uncertain tier = limited or conflicting evidence",
@@ -21,11 +21,11 @@
     },
     {
       "claim": "no-evidence variants are not given the uncertain tier",
-      "text": "any evidence of association with disease would not be classified as an uncertain risk allele ( or uncertain protective allele )."
+      "text": "Thus, a variant that lacks any evidence of association with disease would not be classified as an uncertain risk allele ( or uncertain protective allele )."
     },
     {
       "claim": "terminology made available in ClinVar (so ClinVar is not independent)",
-      "text": "recommended terminology has recently been made available in ClinVar."
+      "text": "As such, we are engaging the community, including ClinGen and its associated Clinical Domain Working Groups, to implement these new recommendations, and our recommended terminology has recently been made available in ClinVar."
     }
   ]
 }

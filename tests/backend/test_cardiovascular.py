@@ -1429,6 +1429,47 @@ class TestStoreCardiovascularFindings:
         fetched = _fetch_cardiovascular_findings(sample_engine)
         assert fetched[0]["clinvar_low_penetrance_or_risk_allele"] is True
 
+    def test_uncertain_risk_allele_is_stored_at_preliminary_evidence(
+        self, panel: CardiovascularPanel, sample_engine: sa.Engine
+    ) -> None:
+        """#2094 — the stored finding for an Uncertain risk allele is rated ★, not
+        the ★★ cap of the confident risk-allele tiers, through extraction + storage."""
+        from backend.api.routes.cardiovascular import _fetch_cardiovascular_findings
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                {
+                    "rsid": "rs_ldlr_uncertain_risk",
+                    "chrom": "19",
+                    "pos": 11200090,
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "gene_symbol": "LDLR",
+                    "clinvar_significance": "Uncertain significance/Uncertain risk allele",
+                    "clinvar_review_stars": 2,
+                    "clinvar_conditions": "Familial hypercholesterolemia",
+                    "annotation_coverage": 2,
+                },
+            )
+        result = extract_cardiovascular_variants(panel, sample_engine)
+        store_cardiovascular_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(findings).where(findings.c.rsid == "rs_ldlr_uncertain_risk")
+            ).one()
+
+        assert row.category == LOWER_PENETRANCE_RISK_ALLELE_CATEGORY
+        assert row.evidence_level == 1
+        fetched = [
+            f
+            for f in _fetch_cardiovascular_findings(sample_engine)
+            if f["rsid"] == "rs_ldlr_uncertain_risk"
+        ]
+        assert len(fetched) == 1
+        assert fetched[0]["evidence_level"] == 1
+
     def test_low_penetrance_risk_allele_peer_does_not_make_ar_plp_biallelic(
         self, sample_engine: sa.Engine
     ) -> None:

@@ -59,7 +59,7 @@ The maintainer decided on 2026-10-13 that the defining document plus the registr
 
 - The PMC full text is licensed for text mining and fair use, so only verbatim excerpts are kept, with the SHA-256 of the full payload as fetched.
 - The ClinVar documentation page is likewise kept as excerpts plus a SHA-256.
-- The PubMed efetch record is kept with the publisher abstract removed. The esummary record is kept whole.
+- The PubMed efetch record is kept with the publisher abstract and authors' contact details (email addresses) removed. The esummary record is kept whole.
 - Excerpts are text extracted from the fetched markup: tags stripped, whitespace collapsed. Table cells in the ClinVar excerpts run together.
 - `derived/` files are summaries and counts, not raw captures.
 

@@ -11,7 +11,7 @@
     },
     {
       "path": "raw/pmc-PMC10939896-excerpts.json",
-      "sha256": "33d083d97f7cd0c85e7d334d990c9c2a180be044026cbcebe2acdbb7bc5a8a31"
+      "sha256": "fe523bfb8f393c9a6d22d430c64fa7e7a1dae1ce6ecac5587dc98f6d45046af1"
     },
     {
       "path": "raw/pubmed-comments-corrections-extract.json",
@@ -19,7 +19,7 @@
     },
     {
       "path": "raw/pubmed-efetch-38054408-sanitized.xml",
-      "sha256": "974e418d5816d57e8a70e7fa4abd4adc977d231f813517b3a394aa09f44083a2"
+      "sha256": "8565ce5213d698326b8b65a6b7973cf6eab5b154f3f5c91cec31e6d213d399dd"
     },
     {
       "path": "raw/pubmed-esummary-38054408.json",
