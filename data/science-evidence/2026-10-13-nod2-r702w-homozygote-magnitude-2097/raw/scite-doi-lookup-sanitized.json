@@ -1,0 +1,178 @@
+{
+  "service": "Scite",
+  "accessed": "2026-10-13",
+  "endpoint": "search_literature",
+  "params": {
+    "dois": [
+      "10.1038/35079107",
+      "10.1038/35079114",
+      "10.1038/sj.ejhg.5201839",
+      "10.1086/339432",
+      "10.1053/gast.2002.32415",
+      "10.1111/j.1572-0241.2004.40304.x"
+    ],
+    "limit": 10
+  },
+  "status": "success",
+  "total_hits": 6,
+  "sanitization": "Bibliographic metadata, citation tallies, open-access flags and editorial-notice screening only. Removed: abstracts and Smart Citation snippets (third-party publisher text), and every access/url/agAccess field — those are signed or account-bound links, two of which embed the requesting account's e-mail address. The canonical DOI is kept instead.",
+  "editorial_notice_screening": "The response carries no editorialNotices key on any of the six hits, which Scite returns only when a retraction, correction, concern or erratum is recorded. The PubMed CommentsCorrections check in raw/pubmed-comments-corrections-extract.json agrees: CommentIn only.",
+  "records": [
+    {
+      "doi": "10.1038/35079107",
+      "title": "Association of NOD2 leucine-rich repeat variants with susceptibility to Crohn's disease",
+      "journal": "nature",
+      "publisher": "Springer Science and Business Media LLC",
+      "year": 2001,
+      "date": "2001-05-01",
+      "volume": "411",
+      "issue": "6837",
+      "page": "599-603",
+      "tally": {
+        "total": 3743,
+        "supporting": 82,
+        "contrasting": 10,
+        "mentioning": 3569,
+        "citingPublications": 5579
+      },
+      "is_open_access": false,
+      "oa_status": "closed",
+      "authors_returned": [
+        "Jean‐Pierre Hugot",
+        "Mathias Chamaillard",
+        "Habib Zouali"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1038/35079114",
+      "title": "A frameshift mutation in NOD2 associated with susceptibility to Crohn's disease",
+      "journal": "nature",
+      "publisher": "Springer Science and Business Media LLC",
+      "year": 2001,
+      "date": "2001-05-01",
+      "volume": "411",
+      "issue": "6837",
+      "page": "603-606",
+      "tally": {
+        "total": 3271,
+        "supporting": 59,
+        "contrasting": 5,
+        "mentioning": 3134,
+        "citingPublications": 4945
+      },
+      "is_open_access": true,
+      "oa_status": "green",
+      "authors_returned": [
+        "Yasunori Ogura",
+        "Denise K. Bonen",
+        "Naohiro Inohara"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1038/sj.ejhg.5201839",
+      "title": "Estimating the odds ratios of Crohn disease for the main CARD15/NOD2 mutations using a conditional maximum likelihood method in pedigrees collected via affected family members",
+      "journal": "european journal of human genetics",
+      "publisher": "Springer Science and Business Media LLC",
+      "year": 2007,
+      "date": "2007-04-25",
+      "volume": "15",
+      "issue": "8",
+      "page": "864-871",
+      "tally": {
+        "total": 11,
+        "supporting": 0,
+        "contrasting": 0,
+        "mentioning": 10,
+        "citingPublications": 12
+      },
+      "is_open_access": false,
+      "oa_status": "closed",
+      "authors_returned": [
+        "Leigh Pascoe",
+        "Habib Zouali",
+        "Mourad Sahbatou"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1086/339432",
+      "title": "CARD15/NOD2 Mutational Analysis and Genotype-Phenotype Correlation in 612 Patients with Inflammatory Bowel Disease",
+      "journal": "the american journal of human genetics",
+      "publisher": "Elsevier BV",
+      "year": 2002,
+      "date": "2002-04-01",
+      "volume": "70",
+      "issue": "4",
+      "page": "845-857",
+      "tally": {
+        "total": 865,
+        "supporting": 76,
+        "contrasting": 17,
+        "mentioning": 747,
+        "citingPublications": 963
+      },
+      "is_open_access": true,
+      "oa_status": "bronze",
+      "authors_returned": [
+        "Suzanne Lesage",
+        "Habib Zouali",
+        "Jean‐Pierre Cézard"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1053/gast.2002.32415",
+      "title": "The contribution of NOD2 gene mutations to the risk and site of disease in inflammatory bowel disease",
+      "journal": "gastroenterology",
+      "publisher": "Elsevier BV",
+      "year": 2002,
+      "date": "2002-04-01",
+      "volume": "122",
+      "issue": "4",
+      "page": "867-874",
+      "tally": {
+        "total": 467,
+        "supporting": 42,
+        "contrasting": 10,
+        "mentioning": 395,
+        "citingPublications": 687
+      },
+      "is_open_access": true,
+      "oa_status": "bronze",
+      "authors_returned": [
+        "Andrew Cuthbert",
+        "Sheila Fisher",
+        "Muddassar M. Mirza"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1111/j.1572-0241.2004.40304.x",
+      "title": "Differential Effects of NOD2 Variants on Crohn's Disease Risk and Phenotype in Diverse Populations: A Metaanalysis",
+      "journal": "the american journal of gastroenterology",
+      "publisher": "Ovid Technologies (Wolters Kluwer Health)",
+      "year": 2004,
+      "date": "2004-12-01",
+      "volume": "99",
+      "issue": "12",
+      "page": "2393-2404",
+      "tally": {
+        "total": 345,
+        "supporting": 18,
+        "contrasting": 3,
+        "mentioning": 313,
+        "citingPublications": 439
+      },
+      "is_open_access": false,
+      "oa_status": "closed",
+      "authors_returned": [
+        "Michael Economou",
+        "Thomas A Trikalinos",
+        "Konstantinos T. Loizou"
+      ],
+      "editorial_notices": []
+    }
+  ]
+}

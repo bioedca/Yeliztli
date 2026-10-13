@@ -34,6 +34,7 @@ from backend.analysis.cross_module_links import (
     live_cross_module_clause,
     normalize_cross_module_row,
 )
+from backend.analysis.gene_health import refreshed_gene_health_row
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -214,6 +215,20 @@ def _load_findings(
         resolved_text, resolved_detail = resolved
         if isinstance(detail_blob, dict) and isinstance(resolved_detail, dict):
             detail_blob = resolved_detail
+        # A gene-health effect summary is panel prose frozen the same way, and
+        # its citations with it (#2097).
+        resolved_text, refreshed_detail, pmids = refreshed_gene_health_row(
+            row.module,
+            row.category,
+            row.rsid,
+            row.gene_symbol,
+            row.pathway_level,
+            resolved_text,
+            detail_blob if isinstance(detail_blob, dict) else None,
+            pmids,
+        )
+        if isinstance(detail_blob, dict) and isinstance(refreshed_detail, dict):
+            detail_blob = refreshed_detail
 
         result.append(
             {

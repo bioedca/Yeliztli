@@ -16,6 +16,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -2495,7 +2496,13 @@ class TestGeneHealthCitationRemediation:
         "rs58542926": {"24531328", "24978903", "26331730"},  # TM6SF2 E167K NAFLD
         "rs2476601": {"15208781", "17804836", "17259401"},  # PTPN22 R620W autoimmune
         "rs689": {"17554260", "19430480", "9054945"},  # INS T1D
-        "rs2066844": {"11385577", "11385576", "11875755"},  # NOD2 Crohn
+        "rs2066844": {
+            "11385577",
+            "11385576",
+            "11875755",
+            "11910337",
+            "15571588",
+        },  # NOD2 Crohn; two-allele estimates (#2097)
         "rs11209026": {"17435756", "21297633", "17068223"},  # IL23R IBD
         "rs2241880": {"17435756", "17200669", "24553140"},  # ATG16L1 T300A Crohn
         "rs1143679": {"18204098", "18204448", "22586164"},  # ITGAM R77H SLE
@@ -2753,3 +2760,26 @@ class TestCrossModuleCardWording:
         assert _score_snp(snp, "TT").category == INDETERMINATE
         assert _score_snp(snp, "AA").category == INDETERMINATE
         assert _score_snp(snp, "AT").category == MODERATE
+
+
+def test_nod2_r702w_homozygote_is_not_given_the_pooled_two_allele_fold_risk() -> None:
+    """#2097 — the ~20-40-fold Crohn's figure is pooled over any two NOD2 risk
+    alleles (Economou 2004, PMID:15571588; Cuthbert 2002, PMID:11910337), not an
+    R702W-homozygote estimate, so the TT text must not attach it to this genotype."""
+    panel_json = json.loads(PANEL_PATH.read_text(encoding="utf-8"))
+    rows = [
+        snp
+        for pathway in panel_json["pathways"]
+        for snp in pathway["snps"]
+        if snp["rsid"] == "rs2066844"
+    ]
+    assert len(rows) == 1
+    effects = rows[0]["genotype_effects"]
+
+    homozygote = effects["TT"]["effect_summary"]
+    assert re.search(r"\d[\d\s.~\-–]*fold", homozygote) is None, homozygote
+    assert "rather than estimating R702W homozygotes separately" in homozygote
+    assert effects["TT"]["category"] == "Elevated"
+    # The heterozygote's per-allele magnitude is supported and unchanged.
+    assert "2-3 fold" in effects["CT"]["effect_summary"]
+    assert effects["CT"]["effect_summary"] == effects["TC"]["effect_summary"]

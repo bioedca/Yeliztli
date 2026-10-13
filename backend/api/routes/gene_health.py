@@ -24,7 +24,7 @@ from backend.analysis.cross_module_links import (
     panel_cross_module_links,
     refreshed_finding_text,
 )
-from backend.analysis.gene_health import load_gene_health_panel
+from backend.analysis.gene_health import load_gene_health_panel, refreshed_gene_health_row
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -173,17 +173,29 @@ def _fetch_gene_health_findings(
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Failed to parse pmid_citations for finding id=%s", row.id)
 
+        # Effect summaries and their citations are panel prose frozen at
+        # scoring time; both pathway endpoints serve the loaded panel (#2097).
+        finding_text, refreshed_detail, pmids = refreshed_gene_health_row(
+            "gene_health",
+            row.category,
+            row.rsid,
+            row.gene_symbol,
+            row.pathway_level,
+            row.finding_text,
+            detail,
+            pmids,
+        )
         result.append(
             {
                 "category": row.category,
                 "evidence_level": row.evidence_level,
                 "gene_symbol": row.gene_symbol,
                 "rsid": row.rsid,
-                "finding_text": row.finding_text,
+                "finding_text": finding_text,
                 "pathway": row.pathway,
                 "pathway_level": row.pathway_level,
                 "pmids": pmids,
-                "detail": detail,
+                "detail": refreshed_detail if refreshed_detail is not None else detail,
             }
         )
 

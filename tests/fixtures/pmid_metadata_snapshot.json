@@ -2,10 +2,21 @@
   "_provenance": {
     "source": "NCBI E-utilities esummary (db=pubmed)",
     "accessed": "2026-07-19",
-    "pmid_count": 442,
+    "pmid_count": 444,
     "generator": "scripts/build_pmid_metadata_snapshot.py",
     "note": "Committed offline reference for the citation topic-consistency guard (#365). Regenerate deliberately; never fetched at test time.",
-    "unresolved_pmids": []
+    "unresolved_pmids": [],
+    "additions": [
+      {
+        "pmids": [
+          "11910337",
+          "15571588"
+        ],
+        "accessed": "2026-10-13",
+        "source": "NCBI E-utilities esummary (db=pubmed)",
+        "issue": "#2097"
+      }
+    ]
   },
   "pmids": {
     "1301956": {
@@ -198,6 +209,11 @@
       "journal": "Lancet",
       "year": "2002"
     },
+    "11910337": {
+      "title": "The contribution of NOD2 gene mutations to the risk and site of disease in inflammatory bowel disease.",
+      "journal": "Gastroenterology",
+      "year": "2002"
+    },
     "12007216": {
       "title": "Cystic fibrosis: a worldwide analysis of CFTR mutations--correlation with incidence data and application to screening.",
       "journal": "Hum Mutat",
@@ -346,6 +362,11 @@
     "15564880": {
       "title": "Contribution of common polymorphisms in reduced folate carrier and gamma-glutamylhydrolase to methotrexate polyglutamate levels in patients with rheumatoid arthritis.",
       "journal": "Pharmacogenetics",
+      "year": "2004"
+    },
+    "15571588": {
+      "title": "Differential effects of NOD2 variants on Crohn's disease risk and phenotype in diverse populations: a metaanalysis.",
+      "journal": "Am J Gastroenterol",
       "year": "2004"
     },
     "15642756": {

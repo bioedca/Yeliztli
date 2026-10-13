@@ -1,0 +1,32 @@
+{
+  "accessed": "2026-10-13",
+  "checked_for": [
+    "ErratumIn",
+    "RetractionIn",
+    "ExpressionOfConcernIn",
+    "CorrectedAndRepublishedIn"
+  ],
+  "reftypes_by_pmid": {
+    "15571588": [],
+    "11910337": [
+      "CommentIn",
+      "CommentIn"
+    ],
+    "11875755": [],
+    "11385576": [
+      "CommentIn"
+    ],
+    "11385577": [
+      "CommentIn"
+    ],
+    "17457368": []
+  },
+  "flagged": {
+    "15571588": [],
+    "11910337": [],
+    "11875755": [],
+    "11385576": [],
+    "11385577": [],
+    "17457368": []
+  }
+}

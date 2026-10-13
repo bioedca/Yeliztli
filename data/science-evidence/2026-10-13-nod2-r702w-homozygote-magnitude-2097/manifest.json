@@ -1,0 +1,41 @@
+{
+  "packet": "2026-10-13-nod2-r702w-homozygote-magnitude-2097",
+  "files": [
+    {
+      "path": "queries.json",
+      "sha256": "39628daf62b65b1fc4d68e8da5f96ba17f325e9c078da8703a3ab7d4a8a3aae3"
+    },
+    {
+      "path": "raw/consensus-search-sanitized.json",
+      "sha256": "4dca94487abb97156cb1454ab645b96fd20409d9e5d6baceea135194c94751dd"
+    },
+    {
+      "path": "raw/pubmed-abstract-excerpts.json",
+      "sha256": "a36e2fa42dd37db672d62c9d66aaece656394947a62aa28e5752f5329978277b"
+    },
+    {
+      "path": "raw/pubmed-comments-corrections-extract.json",
+      "sha256": "8f7c8df2e2bbab8920e5e307b369c4160f7a7688faa42714c9d1491d2e3fd57e"
+    },
+    {
+      "path": "raw/pubmed-efetch-sanitized.xml",
+      "sha256": "36282e16de2836c280f06b484d61689902a4fc055b646fc0438dae1e87aaafa4"
+    },
+    {
+      "path": "raw/pubmed-esummary.json",
+      "sha256": "4fbb8787eda391da39f3ff9eca32be3c19279035043e49aa3f18c3d6352c4855"
+    },
+    {
+      "path": "raw/scite-doi-lookup-sanitized.json",
+      "sha256": "aebb25640f811a3e283cfe5c0474808a5b3318234605e99e508552f912ad4252"
+    },
+    {
+      "path": "raw/source-versions-and-licences.json",
+      "sha256": "4c2d4d010b2b2e29c5acd861882ea10b03277663ecd5a317faec50a5297ad618"
+    },
+    {
+      "path": "derived/evidence-ladder-record.json",
+      "sha256": "4bedbb7c07c0d199a8fa6ac03663ecf28118dc72547d8f26a2d61bd38836f71a"
+    }
+  ]
+}

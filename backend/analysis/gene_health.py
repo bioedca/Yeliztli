@@ -34,7 +34,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
+from typing import Any
 
 import sqlalchemy as sa
 import structlog
@@ -338,6 +340,21 @@ def _apply_ancestry_caveat(
     return caveat, True
 
 
+def _gated_category(snp: PanelSNP, effect: dict) -> str:
+    """The curated category for ``effect``, after evidence-level gating.
+
+    ★☆ (evidence_level=1) variants are hard-capped at Moderate.
+    """
+    category = effect.get("category", STANDARD)
+    if snp.evidence_level < _ELEVATED_MIN_STARS and category == ELEVATED:
+        return MODERATE
+    return category
+
+
+def _curated_effect_summary(effect: dict) -> str:
+    return effect.get("effect_summary", "Effect not documented.")
+
+
 def _score_snp(
     snp: PanelSNP,
     genotype: str | None,
@@ -440,12 +457,9 @@ def _score_snp(
             ),
         )
 
-    category = effect.get("category", STANDARD)
-    effect_summary = effect.get("effect_summary", "Effect not documented.")
-
-    # Evidence-level gating: ★☆ hard-caps at Moderate
-    if snp.evidence_level < _ELEVATED_MIN_STARS and category == ELEVATED:
-        category = MODERATE
+    category = _gated_category(snp, effect)
+    effect_summary = _curated_effect_summary(effect)
+    if category != effect.get("category", STANDARD):
         logger.debug(
             "evidence_gating_applied",
             rsid=snp.rsid,
@@ -748,7 +762,11 @@ def _is_standard_carrier_context(snp: SNPResult) -> bool:
     """Return true for called Standard variants that still need carrier display."""
     if not snp.present_in_sample:
         return False
-    text = snp.effect_summary.lower()
+    return _names_reproductive_carrier_status(snp.effect_summary)
+
+
+def _names_reproductive_carrier_status(effect_summary: str) -> bool:
+    text = effect_summary.lower()
     return "carrier" in text and "reproductive" in text
 
 
@@ -939,6 +957,162 @@ def store_gene_health_findings(
 
     logger.info("gene_health_findings_stored", count=len(rows))
     return len(rows)
+
+
+# ── Read-time refresh of stored effect summaries ─────────────────────────
+
+# Categories whose stored ``finding_text`` is "<variant> (<genotype>) — <effect>".
+_EFFECT_TEXT_CATEGORIES = frozenset({"snp_finding", _CARRIER_CONTEXT_CATEGORY})
+
+
+@cache
+def _panel_snps_by_rsid() -> dict[str, PanelSNP]:
+    return {snp.rsid: snp for pathway in load_gene_health_panel().pathways for snp in pathway.snps}
+
+
+def _current_curated_effect(rsid: str | None, genotype: str | None) -> tuple[str, str] | None:
+    """``(category, effect_summary)`` the loaded panel gives a stored genotype.
+
+    Mirrors scoring for a genotype that resolves to a curated entry. None for
+    anything scoring describes in its own words instead (not genotyped, an
+    unmodelled allele, a strand-ambiguous homozygote), whose stored text is not
+    panel prose and has nothing to be refreshed from.
+    """
+    if not rsid or not genotype:
+        return None
+    snp = _panel_snps_by_rsid().get(rsid)
+    if snp is None or is_strand_ambiguous(
+        {gt: eff.get("category") for gt, eff in snp.genotype_effects.items()}, genotype
+    ):
+        return None
+    effect = lookup_by_genotype(snp.genotype_effects, genotype)
+    if effect is None:
+        return None
+    return _gated_category(snp, effect), _curated_effect_summary(effect)
+
+
+def current_effect_summary(
+    rsid: str | None,
+    genotype: str | None,
+    stored_category: str | None,
+    stored: str | None,
+) -> str | None:
+    """The panel's current effect summary for a stored called SNP, else what was stored.
+
+    ``effect_summary`` is panel prose copied into the pathway summary's
+    ``snp_details`` and into each SNP finding's text when the module is scored,
+    and sample staleness is keyed on reference bundles, so a corrected summary
+    otherwise reaches only samples analysed afterwards: an R702W homozygote kept
+    being shown the pooled two-allele "~20-40 fold" figure (#2097).
+
+    The new text is served only while the re-scored genotype keeps the category
+    the sample was shown. A correction that also moves the category needs a
+    re-score, not a sentence that disagrees with the badge beside it.
+    """
+    if not stored:
+        return stored
+    current = _current_curated_effect(rsid, genotype)
+    if current is None or current[0] != stored_category:
+        return stored
+    return current[1]
+
+
+def _current_snp_pmids(
+    rsid: str | None, genotype: str | None, stored_category: str | None
+) -> list[str] | None:
+    """The panel's citations for a stored SNP, or None to keep what was stored.
+
+    Citations follow the panel under the same condition as the prose, so the
+    claim on screen and its sources always come from the same panel row.
+    """
+    snp = _panel_snps_by_rsid().get(rsid) if rsid else None
+    if snp is None:
+        return None
+    current = _current_curated_effect(rsid, genotype)
+    if current is not None and current[0] != stored_category:
+        return None
+    return list(snp.pmids)
+
+
+def refreshed_gene_health_row(
+    module: str | None,
+    category: str | None,
+    rsid: str | None,
+    gene_symbol: str | None,
+    pathway_level: str | None,
+    finding_text: str | None,
+    detail: dict[str, Any] | None,
+    pmids: list[str],
+) -> tuple[str | None, dict[str, Any] | None, list[str]]:
+    """Bring one stored gene-health row's effect summaries up to the loaded panel.
+
+    The pathway routes, the generic findings aggregator, reports and variant
+    cards all render these stored rows. A pathway summary carries one summary
+    per called SNP in ``detail["snp_details"]``; a SNP finding carries its own
+    in ``finding_text``. The text is replaced only when it still has the exact
+    shape scoring wrote, so the variant label and genotype are never re-derived
+    from prose. The row's ``pmid_citations`` are refreshed with it: a corrected
+    claim shown beside the sources of the claim it replaced would lose its
+    support (#2097). Any other row is returned untouched.
+    """
+    if module != MODULE_NAME or not isinstance(detail, dict):
+        return finding_text, detail, pmids
+    if category == "pathway_summary":
+        entries = detail.get("snp_details")
+        if not isinstance(entries, list) or not entries:
+            return finding_text, detail, pmids
+        refreshed = []
+        # Scoring stores the union of every called SNP's citations, in order.
+        cited: list[str] | None = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                refreshed.append(entry)
+                cited = None
+                continue
+            rsid_, genotype_, category_ = (
+                entry.get("rsid"),
+                entry.get("genotype"),
+                entry.get("category"),
+            )
+            current = current_effect_summary(
+                rsid_, genotype_, category_, entry.get("effect_summary")
+            )
+            if current != entry.get("effect_summary"):
+                entry = {**entry, "effect_summary": current}
+            refreshed.append(entry)
+            entry_pmids = _current_snp_pmids(rsid_, genotype_, category_)
+            if entry_pmids is None or cited is None:
+                cited = None
+            else:
+                cited.extend(entry_pmids)
+        # One SNP the panel cannot vouch for leaves the whole union as stored.
+        current_pmids = pmids if cited is None else list(dict.fromkeys(cited))
+        return finding_text, {**detail, "snp_details": refreshed}, current_pmids
+    if category not in _EFFECT_TEXT_CATEGORIES or not finding_text:
+        return finding_text, detail, pmids
+    genotype = detail.get("genotype")
+    prefix = f"{variant_label(gene_symbol, detail.get('variant_name'))} ({genotype}) — "
+    coverage_note = detail.get("coverage_note")
+    suffix = f" Note: {coverage_note}" if coverage_note else ""
+    if not finding_text.startswith(prefix) or not finding_text.endswith(suffix):
+        return finding_text, detail, pmids
+    stored = finding_text[len(prefix) : len(finding_text) - len(suffix)]
+    current = _current_curated_effect(rsid, genotype)
+    current_pmids = _current_snp_pmids(rsid, genotype, pathway_level)
+    if (
+        not stored
+        or current is None
+        or current_pmids is None
+        or current[0] != pathway_level
+        # A carrier-context row exists only because its summary names
+        # reproductive carrier status; text that no longer does is not one.
+        or (
+            category == _CARRIER_CONTEXT_CATEGORY
+            and not _names_reproductive_carrier_status(current[1])
+        )
+    ):
+        return finding_text, detail, pmids
+    return f"{prefix}{current[1]}{suffix}", detail, current_pmids
 
 
 # ── Annotation coverage bitmask ─────────────────────────────────────────
