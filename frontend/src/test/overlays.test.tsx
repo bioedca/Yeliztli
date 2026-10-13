@@ -294,10 +294,10 @@ describe("OverlaysView", () => {
 
 const PREVIEW_OK = { file_type: "bed", column_names: ["score"], record_count: 3, warnings: [] }
 
-type PreviewReply = "ok" | "fail" | "pending"
+type PreviewReply = "ok" | "fail" | "pending" | "unavailable" | "offline"
 
 /** Route every overlay request; `previews` answers successive parse calls in order. */
-function mockUploadFlow(previews: PreviewReply[], uploadOk = true) {
+function mockUploadFlow(previews: PreviewReply[], upload: "ok" | "fail" | "pending" | boolean = "ok") {
   const uploads: string[] = []
   const queue = [...previews]
   mockFetch.mockImplementation(async (url: string) => {
@@ -307,6 +307,10 @@ function mockUploadFlow(previews: PreviewReply[], uploadOk = true) {
     if (url === "/api/overlays/parse") {
       const reply = queue.shift() ?? "ok"
       if (reply === "pending") return new Promise(() => {})
+      if (reply === "offline") throw new TypeError("Failed to fetch")
+      if (reply === "unavailable") {
+        return { ok: false, status: 503, text: async () => "Service Unavailable" }
+      }
       if (reply === "fail") {
         return {
           ok: false,
@@ -318,7 +322,8 @@ function mockUploadFlow(previews: PreviewReply[], uploadOk = true) {
     }
     if (url.startsWith("/api/overlays/upload")) {
       uploads.push(url)
-      if (!uploadOk) {
+      if (upload === "pending") return new Promise(() => {})
+      if (upload === "fail" || upload === false) {
         return { ok: false, status: 500, text: async () => JSON.stringify({ detail: "disk full" }) }
       }
       return {
@@ -411,4 +416,71 @@ describe("OverlaysView upload is gated on the parse preview (#2098)", () => {
     await waitFor(() => expect(screen.getByText(/Selected: second\.bed/)).toBeInTheDocument())
     expect(screen.queryByText(/Upload failed/)).not.toBeInTheDocument()
   })
+
+  it("ignores a new file while an upload is still in flight", async () => {
+    const uploads = mockUploadFlow(["ok", "ok"], "pending")
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("first.bed")
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(uploads).toHaveLength(1))
+    await waitFor(() => expect(uploadButton()).toBeDisabled())
+    const parseCalls = () => mockFetch.mock.calls.filter(([u]) => u === "/api/overlays/parse").length
+    const parsesBefore = parseCalls()
+
+    dropFile("second.bed")
+    // The pending upload keeps its file, its state, and its single request.
+    expect(screen.getByText(/Selected: first\.bed/)).toBeInTheDocument()
+    expect(parseCalls()).toBe(parsesBefore)
+    expect(uploadButton()).toBeDisabled()
+    fireEvent.click(uploadButton())
+    expect(uploads).toHaveLength(1)
+  })
+
+  it.each([
+    ["the service is unavailable", "unavailable"],
+    ["the network request fails", "offline"],
+  ] as const)("offers to check the file again when %s", async (_label, reply) => {
+    const uploads = mockUploadFlow([reply, "ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("good.bed")
+
+    const reason = await screen.findByText(/could not be checked/)
+    // A transient failure says nothing about the file itself.
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument()
+    expect(uploadButton()).toBeDisabled()
+    expect(uploadButton()).toHaveAttribute("aria-describedby", reason.id)
+
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }))
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    expect(screen.queryByText(/could not be checked/)).not.toBeInTheDocument()
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(uploads).toHaveLength(1))
+  })
+
+  it("does not offer a re-check for a file the server rejected", async () => {
+    mockUploadFlow(["fail"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("malformed.bed")
+    await screen.findByText(/could not be read/)
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument()
+  })
+
+  it("lets the same file be chosen again from the picker", async () => {
+    mockUploadFlow(["ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    // jsdom never gives a file input a value; a browser reports the picked path.
+    Object.defineProperty(input, "value", {
+      value: "C:\\fakepath\\again.bed",
+      writable: true,
+      configurable: true,
+    })
+    const file = new File(["chr1\t1\t2\n"], "again.bed", { type: "text/plain" })
+    fireEvent.change(input, { target: { files: [file] } })
+    await screen.findByText(/Selected: again\.bed/)
+    // A retained value would swallow the change event for an identical pick.
+    expect(input.value).toBe("")
+  })
+
 })

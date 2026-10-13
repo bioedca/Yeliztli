@@ -30,9 +30,14 @@ import {
   useOverlayResults,
   useParseOverlayPreview,
 } from "@/api/overlays"
+import { ApiError } from "@/api/errors"
 import type { OverlayConfig, OverlayApplyResponse } from "@/types/overlays"
 
 const OVERLAY_FILE_EXTENSION_RE = /\.(bed|vcf(?:\.gz)?)$/i
+
+// Statuses the parse endpoint uses to reject the file itself (bad name or
+// encoding, too large, unparseable). Anything else says nothing about the file.
+const FILE_REJECTED_STATUSES = new Set([400, 413, 415, 422])
 
 export default function OverlaysView() {
   const [searchParams] = useSearchParams()
@@ -92,6 +97,8 @@ function UploadPanel() {
   const previewMutation = useParseOverlayPreview()
 
   const handleFileSelect = (file: File) => {
+    // The in-flight upload owns the selected file until it settles.
+    if (uploadMutation.isPending) return
     // Guard both entry points: the picker's `accept` only filters the OS dialog,
     // so a dropped file can still be an unsupported type.
     if (!OVERLAY_FILE_EXTENSION_RE.test(file.name)) {
@@ -103,7 +110,7 @@ function UploadPanel() {
     setFileError(null)
     setSelectedFile(file)
     // A failure from the previous file's upload no longer describes this one.
-    uploadMutation.reset()
+    if (uploadMutation.isError) uploadMutation.reset()
     if (!name) {
       setName(file.name.replace(OVERLAY_FILE_EXTENSION_RE, ""))
     }
@@ -112,10 +119,15 @@ function UploadPanel() {
 
   // Saving re-parses the same file on the server, so a file whose preview has
   // not succeeded can only fail again (#2098).
+  const previewRejectedFile =
+    previewMutation.error instanceof ApiError &&
+    FILE_REJECTED_STATUSES.has(previewMutation.error.status)
   const uploadBlockedReason = previewMutation.isPending
     ? "Checking the file…"
     : previewMutation.isError
-      ? "This file could not be read, so it cannot be saved. Choose a valid BED, VCF, or gzipped VCF file."
+      ? previewRejectedFile
+        ? "This file could not be read, so it cannot be saved. Choose a valid BED, VCF, or gzipped VCF file."
+        : "The file could not be checked, so it cannot be saved yet. Check it again."
       : null
 
   const handleUpload = () => {
@@ -149,7 +161,10 @@ function UploadPanel() {
             ? "border-teal-500 bg-teal-50 dark:bg-teal-950/20"
             : "border-muted-foreground/25 hover:border-muted-foreground/50"
         )}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (!uploadMutation.isPending) fileInputRef.current?.click()
+        }}
+        aria-disabled={uploadMutation.isPending || undefined}
         onDragOver={(e) => {
           e.preventDefault()
           setDragOver(true)
@@ -175,6 +190,8 @@ function UploadPanel() {
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0]
+            // Clear the value so choosing the same file again still fires.
+            e.target.value = ""
             if (file) handleFileSelect(file)
           }}
         />
@@ -260,6 +277,15 @@ function UploadPanel() {
             <p id="overlay-upload-blocked" className="text-sm text-muted-foreground">
               {uploadBlockedReason}
             </p>
+          )}
+          {previewMutation.isError && !previewRejectedFile && selectedFile && (
+            <button
+              type="button"
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+              onClick={() => previewMutation.mutate(selectedFile)}
+            >
+              Check again
+            </button>
           )}
           {uploadMutation.isError && (
             <p className="text-sm text-destructive">{uploadMutation.error.message}</p>
