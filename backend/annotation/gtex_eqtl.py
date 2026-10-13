@@ -64,6 +64,11 @@ GTEX_VERSION = "v8"
 # GTEx significant cis-eQTL per-tissue files inside the eQTL tar are named
 # ``<Tissue>.v8.signif_variant_gene_pairs.txt.gz`` (e.g. ``Whole_Blood.v8.…``).
 _SIGNIF_PAIRS_RE = re.compile(r"\.v8\.signif_variant_gene_pairs\.txt(\.gz)?$")
+# The same tar's per-tissue ``<Tissue>.v8.egenes.txt.gz`` carry ``gene_id`` and
+# ``gene_name``; the signif-pairs files have only the versioned Ensembl ID (#2087).
+# Format verified in data/science-evidence/2026-10-13-gtex-v8-egenes-gene-names-2087/.
+_EGENES_RE = re.compile(r"\.v8\.egenes\.txt(\.gz)?$")
+_NOT_A_SYMBOL = frozenset({".", "NA"})
 
 # variant_id format: chr1_64764_C_T_b38  (GRCh38, 'chr'-prefixed).
 _VARIANT_ID_RE = re.compile(r"^chr([0-9XYM]+)_(\d+)_([ACGT]+)_([ACGT]+)_b38$", re.IGNORECASE)
@@ -86,6 +91,15 @@ gtex_eqtl = sa.Table(
 sa.Index("idx_gtex_eqtl_rsid", gtex_eqtl.c.rsid)
 sa.Index("idx_gtex_eqtl_gene", gtex_eqtl.c.gene_id)
 
+# GTEx's gene symbol per Ensembl gene ID, as written in ``gtex_eqtl.gene_id``.
+# Absent from a gtex_eqtl.db built before #2087; readers must tolerate that.
+gtex_genes = sa.Table(
+    "gtex_genes",
+    _metadata,
+    sa.Column("gene_id", sa.Text, primary_key=True),
+    sa.Column("gene_name", sa.Text, nullable=False),
+)
+
 
 @dataclass
 class GtexLoadStats:
@@ -98,7 +112,7 @@ class GtexLoadStats:
 
 
 def create_gtex_tables(engine: sa.Engine) -> None:
-    """Create the GTEx eQTL table if absent (idempotent)."""
+    """Create the GTEx eQTL tables if absent (idempotent)."""
     _metadata.create_all(engine)
 
 
@@ -237,6 +251,60 @@ def load_gtex_eqtl(
     )
 
 
+def load_gtex_gene_names(eqtl_dir: Path, engine: sa.Engine) -> int:
+    """Load ``gene_id → gene_name`` from every ``*.v8.egenes.txt(.gz)`` under ``eqtl_dir``.
+
+    Returns the number of genes stored. A name that is only the gene's own
+    Ensembl ID or a placeholder is not a symbol and is skipped.
+
+    Raises:
+        ValueError: no gene names parsed — the release is not the one this
+            loader expects, so the build aborts rather than ship unnamed genes.
+    """
+    names: dict[str, str] = {}
+    egenes_files = sorted(
+        p for p in eqtl_dir.rglob("*") if p.is_file() and _EGENES_RE.search(p.name)
+    )
+    for path in egenes_files:
+        with _open_maybe_gzip(path) as fh:
+            header = fh.readline().rstrip("\n").split("\t")
+            idx = {name: i for i, name in enumerate(header)}
+            i_id, i_name = idx.get("gene_id"), idx.get("gene_name")
+            if i_id is None or i_name is None:
+                raise ValueError(f"{path.name}: egenes missing gene_id/gene_name (have {header})")
+            for line in fh:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) <= max(i_id, i_name):
+                    continue
+                gene_id, gene_name = parts[i_id].strip(), parts[i_name].strip()
+                if gene_id and gene_name and gene_name not in _NOT_A_SYMBOL:
+                    if gene_name != re.sub(r"\.\d+$", "", gene_id):
+                        names.setdefault(gene_id, gene_name)
+
+    if not names:
+        raise ValueError(
+            f"no GTEx gene names parsed from *.v8.egenes.txt(.gz) under {eqtl_dir} — "
+            f"refusing to build a gtex_eqtl.db whose badge cannot name genes."
+        )
+
+    create_gtex_tables(engine)
+    rows = [{"gene_id": gene_id, "gene_name": name} for gene_id, name in names.items()]
+    with engine.begin() as conn:
+        conn.execute(gtex_genes.delete())
+        for i in range(0, len(rows), 1000):
+            conn.execute(gtex_genes.insert(), rows[i : i + 1000])
+    return len(rows)
+
+
+def lookup_gene_names(gene_ids: list[str], engine: sa.Engine) -> dict[str, str]:
+    """Return ``{gene_id: gene_name}``; empty for a DB built before gene names (#2087)."""
+    if not gene_ids or not sa.inspect(engine).has_table(gtex_genes.name):
+        return {}
+    with engine.connect() as conn:
+        stmt = sa.select(gtex_genes).where(gtex_genes.c.gene_id.in_(gene_ids))
+        return {r.gene_id: r.gene_name for r in conn.execute(stmt)}
+
+
 def lookup_eqtls_by_rsids(rsids: list[str], engine: sa.Engine) -> dict[str, list[dict]]:
     """Return ``{rsid: [eQTL rows]}`` for the given rsids (batched IN query)."""
     if not rsids:
@@ -332,6 +400,9 @@ def load_gtex_eqtl_dir(
             f"refusing to build an empty gtex_eqtl.db."
         )
 
+    # Gene names first: cheap, and a release without them must fail the build
+    # before the heavy per-tissue ingest rather than after it.
+    load_gtex_gene_names(eqtl_dir, engine)
     rsid_lookup = load_variant_rsid_lookup(lookup_path)
 
     create_gtex_tables(engine)

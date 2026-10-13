@@ -1,0 +1,18 @@
+{
+  "egenes_files": 49,
+  "signif_pairs_files": 49,
+  "egenes_columns_include": [
+    "gene_id",
+    "gene_name"
+  ],
+  "distinct_gene_ids": 39832,
+  "gene_ids_with_conflicting_names": 0,
+  "placeholder_names": 0,
+  "signif_pair_gene_ids": 34548,
+  "signif_pair_gene_ids_without_name": 0,
+  "example": {
+    "ENSG00000177000.10": [
+      "MTHFR"
+    ]
+  }
+}

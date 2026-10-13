@@ -15,12 +15,17 @@ from backend.disclaimers import GTEX_EQTL_CONTEXT_ONLY
 GTEX_PMID = "32913098"
 
 
-def eqtl_regulatory_context(rsid: str, eqtls: list[dict[str, Any]]) -> dict[str, Any] | None:
+def eqtl_regulatory_context(
+    rsid: str,
+    eqtls: list[dict[str, Any]],
+    gene_names: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
     """Summarize a variant's GTEx eQTL associations (context only), or None if none.
 
-    ``eqtls`` is the per-rsid list from ``lookup_eqtls_by_rsids``. Returns the set
-    of associated genes + tissue count, with the strongest (smallest p-value)
-    association highlighted. Never an ACMG vote.
+    ``eqtls`` is the per-rsid list from ``lookup_eqtls_by_rsids``; ``gene_names``
+    maps its Ensembl gene IDs to GTEx's gene symbols (``lookup_gene_names``).
+    Returns the set of associated genes + tissue count, with the strongest
+    (smallest p-value) association highlighted. Never an ACMG vote.
     """
     if not eqtls:
         return None
@@ -34,6 +39,7 @@ def eqtl_regulatory_context(rsid: str, eqtls: list[dict[str, Any]]) -> dict[str,
         "tissues": tissues,
         "n_associations": len(eqtls),
         "top_gene_id": top.get("gene_id") if top else None,
+        "top_gene_symbol": (gene_names or {}).get(top.get("gene_id")) if top else None,
         "top_tissue": top.get("tissue") if top else None,
         "top_pval_nominal": top.get("pval_nominal") if top else None,
         "acmg_evidence": False,  # eQTL = association, never an ACMG criterion

@@ -1346,6 +1346,29 @@ class TestGtexEqtlBadge:
         assert badge["acmg_evidence"] is False
         assert badge["context_only"] is True
 
+    def test_badge_names_the_top_gene(self, gtex_client, tmp_data_dir: Path):
+        # #2087: GTEx's own gene name for the Ensembl ID, not the bare accession.
+        from backend.annotation.gtex_eqtl import gtex_genes
+
+        eng = sa.create_engine(f"sqlite:///{tmp_data_dir / 'gtex_eqtl.db'}")
+        with eng.begin() as conn:
+            conn.execute(
+                gtex_genes.insert(), [{"gene_id": "ENSG00000001626", "gene_name": "CFTR"}]
+            )
+        eng.dispose()
+        tc, sid = gtex_client
+        badge = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()["gtex_eqtl_badge"]
+        assert badge["top_gene_id"] == "ENSG00000001626"
+        assert badge["top_gene_symbol"] == "CFTR"
+
+    def test_badge_without_gene_names_still_renders(self, gtex_client):
+        # Without gene names (none stored; a pre-#2087 DB has no table at all,
+        # see test_gtex_eqtl.py) the badge is unchanged apart from a null symbol.
+        tc, sid = gtex_client
+        badge = tc.get(f"/api/variants/rs123456789?sample_id={sid}").json()["gtex_eqtl_badge"]
+        assert badge["top_gene_id"] == "ENSG00000001626"
+        assert badge["top_gene_symbol"] is None
+
     def test_no_badge_for_variant_without_eqtl(self, gtex_client):
         tc, sid = gtex_client
         # rs80357906 (BRCA1) is annotated but absent from gtex_eqtl.db.

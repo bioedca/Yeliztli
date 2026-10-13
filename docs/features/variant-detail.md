@@ -23,7 +23,10 @@ summary, then **Open full detail** for the full page, organised into tabs:
    (CADD, SIFT, PolyPhen-2, REVEL, MutPred2, VEST4, MetaSVM, MetaLR, GERP++, phyloP, MPC,
    PrimateAI, plus an [ensemble-pathogenic flag](../modules/interpretation-reference.md#ensemble-pathogenic)),
    GTEx eQTL and SpliceAI context badges, and
-   gene–disease associations (MONDO/HPO, plus OMIM if you've added a key).
+   gene–disease associations (MONDO/HPO, plus OMIM if you've added a key). The GTEx eQTL
+   badge names its top gene by GTEx's gene symbol, with the Ensembl gene ID beside it. A GTEx
+   eQTL database built before gene names were stored shows the labelled Ensembl ID alone until
+   it is [rebuilt](../install/reference-data.md).
 5. **Literature** — the gene-level, cache-backed PubMed results returned by the same service as
    **[Gene Detail](gene-detail.md)**. Each card links to PubMed and shows the article title,
    authors, journal, year, and an expandable abstract when one is available. A link opens the

@@ -9,6 +9,11 @@
 import { Activity } from "lucide-react"
 import type { GTExEqtlBadge } from "@/types/variant-detail"
 
+/** GTEx stores versioned Ensembl IDs ("ENSG00000177000.10"); drop the version. */
+function unversionedEnsemblId(geneId: string): string {
+  return geneId.replace(/\.\d+$/, "")
+}
+
 export default function GTExEqtlBadgeCard({ badge }: { badge: GTExEqtlBadge | null | undefined }) {
   if (!badge) return null
 
@@ -27,7 +32,21 @@ export default function GTExEqtlBadgeCard({ badge }: { badge: GTExEqtlBadge | nu
             {badge.top_gene_id && (
               <div className="flex justify-between gap-2">
                 <dt className="text-sky-700/80 dark:text-sky-400/80">Top gene</dt>
-                <dd className="font-mono">{badge.top_gene_id}</dd>
+                <dd className="text-right" data-testid="gtex-eqtl-top-gene">
+                  {badge.top_gene_symbol ? (
+                    <>
+                      <span className="font-semibold">{badge.top_gene_symbol}</span>{" "}
+                      <span className="font-mono text-sky-700/80 dark:text-sky-400/80">
+                        {unversionedEnsemblId(badge.top_gene_id)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono">{unversionedEnsemblId(badge.top_gene_id)}</span>{" "}
+                      (Ensembl ID)
+                    </>
+                  )}
+                </dd>
               </div>
             )}
             {badge.top_tissue && (
