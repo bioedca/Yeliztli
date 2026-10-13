@@ -289,3 +289,198 @@ describe("OverlaysView", () => {
     window.confirm = originalConfirm
   })
 })
+
+// ── Upload gated on the parse preview (#2098) ──────────────────────
+
+const PREVIEW_OK = { file_type: "bed", column_names: ["score"], record_count: 3, warnings: [] }
+
+type PreviewReply = "ok" | "fail" | "pending" | "unavailable" | "offline"
+
+/** Route every overlay request; `previews` answers successive parse calls in order. */
+function mockUploadFlow(previews: PreviewReply[], upload: "ok" | "fail" | "pending" | boolean = "ok") {
+  const uploads: string[] = []
+  const queue = [...previews]
+  mockFetch.mockImplementation(async (url: string) => {
+    if (url === "/api/overlays") {
+      return { ok: true, json: async () => ({ items: [], total: 0 }), text: async () => "" }
+    }
+    if (url === "/api/overlays/parse") {
+      const reply = queue.shift() ?? "ok"
+      if (reply === "pending") return new Promise(() => {})
+      if (reply === "offline") throw new TypeError("Failed to fetch")
+      if (reply === "unavailable") {
+        return { ok: false, status: 503, text: async () => "Service Unavailable" }
+      }
+      if (reply === "fail") {
+        return {
+          ok: false,
+          status: 422,
+          text: async () => JSON.stringify({ detail: "No valid BED records found" }),
+        }
+      }
+      return { ok: true, json: async () => PREVIEW_OK, text: async () => "" }
+    }
+    if (url.startsWith("/api/overlays/upload")) {
+      uploads.push(url)
+      if (upload === "pending") return new Promise(() => {})
+      if (upload === "fail" || upload === false) {
+        return { ok: false, status: 500, text: async () => JSON.stringify({ detail: "disk full" }) }
+      }
+      return {
+        ok: true,
+        json: async () => ({ ...MOCK_OVERLAYS.items[1], id: 9, name: "good" }),
+        text: async () => "",
+      }
+    }
+    return { ok: false, status: 404, text: async () => "Not found" }
+  })
+  return uploads
+}
+
+function dropFile(name: string) {
+  const dropZone = screen
+    .getAllByRole("button")
+    .find((b) => b.textContent?.includes("click to browse") || b.textContent?.includes("Selected:"))
+  expect(dropZone).toBeDefined()
+  fireEvent.drop(dropZone as HTMLElement, {
+    dataTransfer: { files: [new File(["chr1\tABC\t100\n"], name, { type: "text/plain" })] },
+  })
+}
+
+const uploadButton = () => screen.getByRole("button", { name: /Upload & Save/ })
+
+describe("OverlaysView upload is gated on the parse preview (#2098)", () => {
+  it("keeps Upload & Save disabled, with a visible reason, when the preview fails", async () => {
+    const uploads = mockUploadFlow(["fail"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("malformed.bed")
+
+    await waitFor(() => expect(screen.getByText(/Parse failed/)).toBeInTheDocument())
+    // The name auto-fills, so the name is not what blocks the submit.
+    expect(screen.getByLabelText("Name")).toHaveValue("malformed")
+    expect(uploadButton()).toBeDisabled()
+    const reason = screen.getByText(/could not be read/)
+    expect(uploadButton()).toHaveAttribute("aria-describedby", reason.id)
+
+    fireEvent.click(uploadButton())
+    expect(uploads).toHaveLength(0)
+  })
+
+  it("keeps Upload & Save disabled while the preview is still running", async () => {
+    const uploads = mockUploadFlow(["pending"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("slow.bed")
+
+    await waitFor(() => expect(screen.getByText(/Checking the file/)).toBeInTheDocument())
+    expect(uploadButton()).toBeDisabled()
+    fireEvent.click(uploadButton())
+    expect(uploads).toHaveLength(0)
+  })
+
+  it("enables Upload & Save once the preview succeeds, and uploads", async () => {
+    const uploads = mockUploadFlow(["ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("good.bed")
+
+    await waitFor(() => expect(screen.getByText("Format:")).toBeInTheDocument())
+    expect(uploadButton()).toBeEnabled()
+    expect(uploadButton()).not.toHaveAttribute("aria-describedby")
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument()
+
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(uploads).toHaveLength(1))
+    expect(uploads[0]).toContain("name=good")
+  })
+
+  it("re-enables Upload & Save when a valid file replaces a rejected one", async () => {
+    mockUploadFlow(["fail", "ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("malformed.bed")
+    await waitFor(() => expect(uploadButton()).toBeDisabled())
+    await waitFor(() => expect(screen.getByText(/could not be read/)).toBeInTheDocument())
+
+    dropFile("fixed.bed")
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument()
+  })
+
+  it("clears a previous upload failure when another file is chosen", async () => {
+    mockUploadFlow(["ok", "ok"], false)
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("first.bed")
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(screen.getByText(/Upload failed/)).toBeInTheDocument())
+
+    dropFile("second.bed")
+    await waitFor(() => expect(screen.getByText(/Selected: second\.bed/)).toBeInTheDocument())
+    expect(screen.queryByText(/Upload failed/)).not.toBeInTheDocument()
+  })
+
+  it("ignores a new file while an upload is still in flight", async () => {
+    const uploads = mockUploadFlow(["ok", "ok"], "pending")
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("first.bed")
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(uploads).toHaveLength(1))
+    await waitFor(() => expect(uploadButton()).toBeDisabled())
+    const parseCalls = () => mockFetch.mock.calls.filter(([u]) => u === "/api/overlays/parse").length
+    const parsesBefore = parseCalls()
+
+    dropFile("second.bed")
+    // The pending upload keeps its file, its state, and its single request.
+    expect(screen.getByText(/Selected: first\.bed/)).toBeInTheDocument()
+    expect(parseCalls()).toBe(parsesBefore)
+    expect(uploadButton()).toBeDisabled()
+    fireEvent.click(uploadButton())
+    expect(uploads).toHaveLength(1)
+  })
+
+  it.each([
+    ["the service is unavailable", "unavailable"],
+    ["the network request fails", "offline"],
+  ] as const)("offers to check the file again when %s", async (_label, reply) => {
+    const uploads = mockUploadFlow([reply, "ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("good.bed")
+
+    const reason = await screen.findByText(/could not be checked/)
+    // A transient failure says nothing about the file itself.
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument()
+    expect(uploadButton()).toBeDisabled()
+    expect(uploadButton()).toHaveAttribute("aria-describedby", reason.id)
+
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }))
+    await waitFor(() => expect(uploadButton()).toBeEnabled())
+    expect(screen.queryByText(/could not be checked/)).not.toBeInTheDocument()
+    fireEvent.click(uploadButton())
+    await waitFor(() => expect(uploads).toHaveLength(1))
+  })
+
+  it("does not offer a re-check for a file the server rejected", async () => {
+    mockUploadFlow(["fail"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    dropFile("malformed.bed")
+    await screen.findByText(/could not be read/)
+    expect(screen.queryByRole("button", { name: "Check again" })).not.toBeInTheDocument()
+  })
+
+  it("lets the same file be chosen again from the picker", async () => {
+    mockUploadFlow(["ok"])
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    // jsdom never gives a file input a value; a browser reports the picked path.
+    Object.defineProperty(input, "value", {
+      value: "C:\\fakepath\\again.bed",
+      writable: true,
+      configurable: true,
+    })
+    const file = new File(["chr1\t1\t2\n"], "again.bed", { type: "text/plain" })
+    fireEvent.change(input, { target: { files: [file] } })
+    await screen.findByText(/Selected: again\.bed/)
+    // A retained value would swallow the change event for an identical pick.
+    expect(input.value).toBe("")
+  })
+
+})
