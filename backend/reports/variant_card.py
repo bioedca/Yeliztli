@@ -29,6 +29,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.analysis.clinvar_conditions import format_clinvar_conditions_text
 from backend.analysis.cross_module_links import normalize_cross_module_row
+from backend.analysis.gene_health import refreshed_gene_health_row
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -132,6 +133,18 @@ def _load_single_finding(
     corrected_text, resolved_detail = resolved
     if isinstance(resolved_detail, dict):
         detail = resolved_detail
+    # A gene-health effect summary is panel prose frozen the same way (#2097).
+    corrected_text, refreshed_detail = refreshed_gene_health_row(
+        row.module,
+        row.category,
+        row.rsid,
+        row.gene_symbol,
+        row.pathway_level,
+        corrected_text,
+        detail,
+    )
+    if isinstance(refreshed_detail, dict):
+        detail = refreshed_detail
 
     return {
         "id": row.id,

@@ -26,6 +26,7 @@ from backend.analysis.cross_module_links import (
     normalize_cross_module_row,
     refreshed_detail_recommendation,
 )
+from backend.analysis.gene_health import refreshed_gene_health_row
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -203,6 +204,16 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
     # The per-SNP recommendation is panel prose stored in the same blob, and
     # this endpoint hands the blob back as-is (#2021).
     detail = refreshed_detail_recommendation(row.module, row.category, row.rsid, detail)
+    # So is a gene-health effect summary, in the text and the pathway blob (#2097).
+    corrected_text, detail = refreshed_gene_health_row(
+        row.module,
+        row.category,
+        row.rsid,
+        row.gene_symbol,
+        row.pathway_level,
+        corrected_text,
+        detail,
+    )
 
     provenance: dict | None = None
     raw_provenance = row.provenance
@@ -423,6 +434,15 @@ def findings_summary(
             )
             if resolved_preview is not None:
                 preview = resolved_preview[0]
+            preview = refreshed_gene_health_row(
+                r.module,
+                r.category,
+                r.rsid,
+                r.gene_symbol,
+                r.pathway_level,
+                preview,
+                detail_blob if isinstance(detail_blob, dict) else None,
+            )[0]
             top_by_module[r.module] = preview
 
     modules = []

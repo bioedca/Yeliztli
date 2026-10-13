@@ -24,7 +24,7 @@ from backend.analysis.cross_module_links import (
     panel_cross_module_links,
     refreshed_finding_text,
 )
-from backend.analysis.gene_health import load_gene_health_panel
+from backend.analysis.gene_health import current_effect_summary, load_gene_health_panel
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -330,7 +330,11 @@ def pathway_detail(
             variant_name=sd.get("variant_name", ""),
             genotype=sd.get("genotype"),
             category=sd.get("category", "Standard"),
-            effect_summary=sd.get("effect_summary", ""),
+            # Also panel prose frozen at scoring time (#2097).
+            effect_summary=current_effect_summary(
+                rsid, sd.get("genotype"), sd.get("category"), sd.get("effect_summary", "")
+            )
+            or "",
             evidence_level=sd.get("evidence_level", 1),
             recommendation=recommendation,
             pmids=pmids,
