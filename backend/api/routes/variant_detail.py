@@ -24,7 +24,7 @@ from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.gtex import eqtl_regulatory_context
 from backend.analysis.spliceai import spliceai_splice_context
-from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids
+from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids, lookup_gene_names
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
 from backend.annotation.mondo_hpo import lookup_gene_phenotypes, mondo_hpo_install_is_serviceable
 from backend.annotation.spliceai import lookup_spliceai_by_variant
@@ -455,11 +455,13 @@ def _attach_gtex_eqtl_badge(data: dict[str, Any], registry: Any) -> None:
         return  # optional DB not installed → no badge
 
     try:
-        hits = lookup_eqtls_by_rsids([rsid], registry.gtex_eqtl_engine)
+        eqtls = lookup_eqtls_by_rsids([rsid], registry.gtex_eqtl_engine).get(rsid, [])
+        gene_ids = sorted({e["gene_id"] for e in eqtls if e.get("gene_id")})
+        gene_names = lookup_gene_names(gene_ids, registry.gtex_eqtl_engine)
     except sa.exc.SQLAlchemyError:
         logger.debug("gtex_eqtl_badge_lookup_failed", exc_info=True)
         return
-    data["gtex_eqtl_badge"] = eqtl_regulatory_context(rsid, hits.get(rsid, []))
+    data["gtex_eqtl_badge"] = eqtl_regulatory_context(rsid, eqtls, gene_names)
 
 
 def _attach_spliceai_badge(data: dict[str, Any], registry: Any) -> None:

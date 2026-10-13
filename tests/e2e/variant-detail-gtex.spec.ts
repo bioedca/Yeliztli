@@ -80,7 +80,8 @@ const VARIANT_WITH_EQTL = {
     gene_ids: ['ENSG00000228327'],
     tissues: ['Whole_Blood', 'Lung'],
     n_associations: 2,
-    top_gene_id: 'ENSG00000228327',
+    top_gene_id: 'ENSG00000228327.3',
+    top_gene_symbol: null,
     top_tissue: 'Whole_Blood',
     top_pval_nominal: 2.4e-11,
     acmg_evidence: false,
@@ -102,7 +103,8 @@ test.describe('GTEx eQTL badge on variant detail (SW-F3)', () => {
     await page.getByRole('tab', { name: /clinical/i }).click()
 
     await expect(page.getByText('GTEx eQTL regulatory context')).toBeVisible()
-    await expect(page.getByText('ENSG00000228327')).toBeVisible()
+    // No GTEx gene name in this DB: the unversioned Ensembl ID, labelled (#2087).
+    await expect(page.getByTestId('gtex-eqtl-top-gene')).toHaveText('ENSG00000228327 (Ensembl ID)')
     await expect(page.getByText('Whole Blood')).toBeVisible() // underscores humanized
     // The "not ACMG evidence" caveat travels with the badge.
     await expect(page.getByText(/not ACMG evidence/i)).toBeVisible()

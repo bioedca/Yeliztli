@@ -140,6 +140,8 @@ export interface GTExEqtlBadge {
   tissues: string[]
   n_associations: number
   top_gene_id: string | null
+  /** GTEx's gene symbol for `top_gene_id`; null when gtex_eqtl.db predates gene names. */
+  top_gene_symbol: string | null
   top_tissue: string | null
   top_pval_nominal: number | null
   acmg_evidence: boolean
