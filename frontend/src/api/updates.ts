@@ -27,6 +27,12 @@ export interface DatabaseStatus {
 export interface UpdateAvailable {
   db_name: string
   latest_version: string
+  /**
+   * `latest_version` formatted like `DatabaseStatus.version_display`, so a
+   * row's Current and Latest cells read alike (#2081). Optional — older
+   * backends omit it.
+   */
+  latest_version_display?: string | null
   download_size_bytes: number
   release_date: string | null
 }

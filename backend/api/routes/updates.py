@@ -45,6 +45,9 @@ router = APIRouter(prefix="/updates", tags=["updates"])
 class UpdateAvailable(BaseModel):
     db_name: str
     latest_version: str
+    # Formatted like DatabaseStatus.version_display, so a row's Current and
+    # Latest cells read alike (#2081).
+    latest_version_display: str | None = None
     download_size_bytes: int
     release_date: str | None = None
 
@@ -329,6 +332,7 @@ async def check_for_updates() -> UpdateCheckResponse:
             UpdateAvailable(
                 db_name=v.db_name,
                 latest_version=v.latest_version,
+                latest_version_display=format_version_display(v.latest_version),
                 download_size_bytes=v.download_size_bytes,
                 release_date=v.release_date,
             )
@@ -526,7 +530,7 @@ async def get_database_statuses() -> list[DatabaseStatus]:
                 db_name=db_name,
                 display_name=display_name,
                 current_version=version,
-                version_display=format_version_display(version, db_name),
+                version_display=format_version_display(version),
                 downloaded_at=downloaded_at,
                 file_size_bytes=file_size_bytes,
                 auto_update=auto_update,
