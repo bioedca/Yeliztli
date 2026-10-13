@@ -2,7 +2,6 @@
   "kind": "derived record (MCP/tool results have no wire payload; this summarises what each tool returned)",
   "accessed": "2026-10-13",
   "workflow": "evidence (run wf_1739b0db-e35): verdict withhold, confidence moderate, agreeing independent sources 1; facts verified, nothing refuted; withheld only on the two-independent-source rule",
-  "maintainer_decision": "2026-10-13: maintainer accepted the defining paper plus the ClinVar registry that implements its terms as sufficient for this ordering claim, given the change only lowers a rating (see README 'Independence').",
   "sources": [
     {
       "tool": "Consensus (bio-research plugin endpoint, free tier: 3 results/query, abstracts only)",
@@ -34,5 +33,6 @@
       "id": "PMID:39191897 / DOI:10.1038/s41598-024-70864-y",
       "why": "only shows the term occurring in ClinVar."
     }
-  ]
+  ],
+  "rule_applied": "Definitional claim under the evidence rule as amended in #2431: defining document (PMID:38054408) plus the implementing registry (ClinVar clinsig docs), non-independence recorded in README."
 }

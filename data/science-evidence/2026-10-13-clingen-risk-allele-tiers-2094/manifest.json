@@ -27,7 +27,7 @@
     },
     {
       "path": "derived/evidence-ladder-record.json",
-      "sha256": "7cfd24def1a37b3a397b0600cbf825d07d6e96d9ef15c507cdaa83ac7794f2db"
+      "sha256": "af70087da81237b98839d88f53b7ca461a5fb16b53f90b2edf073d3d2ed64f96"
     },
     {
       "path": "derived/reference-clinvar-risk-allele-vocabulary.json",

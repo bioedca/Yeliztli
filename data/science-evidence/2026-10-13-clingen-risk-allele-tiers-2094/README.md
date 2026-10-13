@@ -45,11 +45,11 @@ Correction/retraction check: PubMed efetch for PMID 38054408 shows no `CommentsC
 
 The two sources are **not independent**. ClinVar's terms were "introduced by ClinGen", and the paper says its "recommended terminology has recently been made available in ClinVar".
 
-For a terminology claim like this one, every other source restates the same working-group assertion, so the two-independent-source rule cannot be met by construction:
+Both claims here are **definitional**: what ClinGen's risk-allele terms mean and how its tiers are ordered, and how ClinVar's registry classifies them. Under the evidence rule as amended in #2431 (`CLAUDE.md` / `AGENTS.md`), a definitional claim is met by its defining document plus the authoritative registry that implements it, with their non-independence recorded. That is what this packet records. The rule does not extend to effect claims, and none is made: the change lowers an evidence rating; it says nothing about the size of any risk.
+
+For context, every other source restates the same working-group assertion:
 - Senol-Cosar et al. 2019 (PMID:31147632) shares authors with the paper and does not name the tiers.
 - Asgarian et al. 2024 (PMID:39191897) only shows the term in use in ClinVar.
-
-The maintainer decided on 2026-10-13 that the defining document plus the registry implementing it suffice for this ordering claim, because the change **only lowers** a rating. The repository's own rubric also reserves ★★ for a VUS *with functional support* (`docs/modules/interpretation-reference.md`).
 
 ## Affected values
 
