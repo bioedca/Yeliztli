@@ -195,28 +195,51 @@ class TestPathwayDetailStrand:
 
     DETAIL_URL = "/api/analysis/methylation/pathway/folate_mthfr?sample_id=1"
 
-    # rsid -> (genotype, VEP bundle alleles as (ref, alt) rows, sample annotated pair)
+    # (rsid, chrom, pos) of the sample's raw row -> (genotype, bundle rows as
+    # (chrom, pos, ref, alt), sample annotated pair)
     CASES: dict[
-        tuple[str, str, int], tuple[str, list[tuple[str, str]], tuple[str, str] | None]
+        tuple[str, str, int],
+        tuple[str, list[tuple[str, int, str, str]], tuple[str, str] | None],
     ] = {
-        A1298C: ("GT", [("T", "G")], ("T", "G")),  # plus
-        ("rs202676", "8", 49979000): ("TC", [("A", "G")], ("A", "G")),  # minus
-        C677T: ("GG", [("G", "A"), ("G", "C")], ("G", "A")),  # G>A,C: fits both
-        ("rs1801198", "22", 31012379): ("CC", [("G", "A"), ("G", "C")], ("G", "C")),
+        A1298C: ("GT", [("1", 11854476, "T", "G")], ("T", "G")),  # plus
+        ("rs202676", "11", 49227620): ("TC", [("11", 49227620, "A", "G")], ("A", "G")),  # minus
+        # G>A,C: GG fits both strands.
+        C677T: ("GG", [("1", 11856378, "G", "A"), ("1", 11856378, "G", "C")], ("G", "A")),
+        ("rs1801198", "22", 31012379): (
+            "CC",
+            [("22", 31012379, "G", "A"), ("22", 31012379, "G", "C")],
+            ("G", "C"),
+        ),
         # The bundle records T>C only; the sample's annotation adds G, so GG
         # fits both strands. Without the sample pair it would read as minus.
-        ("rs1051266", "21", 46957794): ("GG", [("T", "C")], ("T", "G")),
-        ("rs1677693", "5", 79950000): ("GA", [], None),  # not in the bundle
+        ("rs1051266", "21", 46957794): ("GG", [("21", 46957794, "T", "C")], ("T", "G")),
+        # The bundle's record for this rsid is at another coordinate, so it does
+        # not describe the sample's row; coordinate-blind it would read as plus.
+        ("rs1677693", "5", 79950000): ("GT", [("5", 79950999, "G", "T")], None),
+        ("rs3758149", "10", 97000000): ("CC", [("10", 97000000, "C", "T")], None),  # plus
+    }
+    # An annotated row at another coordinate does not describe the sample's
+    # row either; counted, its G would make rs3758149 CC fit both strands.
+    STRAY_ANNOTATION = {
+        "rsid": "rs3758149",
+        "chrom": "10",
+        "pos": 97000001,
+        "ref": "C",
+        "alt": "G",
     }
 
     def _write_bundle(self, engine: sa.Engine) -> Path:
         bundle = Path(str(engine.url.database)).parent.parent / "vep_bundle.db"
         with sa.create_engine(f"sqlite:///{bundle}").begin() as conn:
-            conn.exec_driver_sql("CREATE TABLE vep_annotations (rsid TEXT, ref TEXT, alt TEXT)")
+            conn.exec_driver_sql(
+                "CREATE TABLE vep_annotations "
+                "(rsid TEXT, chrom TEXT, pos INTEGER, ref TEXT, alt TEXT)"
+            )
             for (rsid, _c, _p), (_gt, vep_rows, _pair) in self.CASES.items():
-                for ref, alt in vep_rows:
+                for chrom, pos, ref, alt in vep_rows:
                     conn.exec_driver_sql(
-                        "INSERT INTO vep_annotations VALUES (?, ?, ?)", (rsid, ref, alt)
+                        "INSERT INTO vep_annotations VALUES (?, ?, ?, ?, ?)",
+                        (rsid, chrom, pos, ref, alt),
                     )
         return bundle
 
@@ -229,7 +252,8 @@ class TestPathwayDetailStrand:
                     {"rsid": rsid, "chrom": chrom, "pos": pos, "ref": pair[0], "alt": pair[1]}
                     for (rsid, chrom, pos), (_gt, _v, pair) in self.CASES.items()
                     if pair is not None
-                ],
+                ]
+                + [self.STRAY_ANNOTATION],
             )
         assert client.post(RUN_URL).status_code == 200
         resp = client.get(self.DETAIL_URL)
@@ -245,6 +269,8 @@ class TestPathwayDetailStrand:
         assert snps["rs1801131"]["genotype_strand"] == "plus"
         assert snps["rs202676"]["genotype"] == "TC"
         assert snps["rs202676"]["genotype_strand"] == "minus"
+        assert snps["rs3758149"]["genotype"] == "CC"
+        assert snps["rs3758149"]["genotype_strand"] == "plus"
 
     def test_no_strand_is_claimed_when_the_call_fits_both_or_neither(
         self, client: TestClient, _env: sa.Engine
@@ -254,7 +280,8 @@ class TestPathwayDetailStrand:
         assert snps["rs1801133"]["genotype_strand"] is None  # multi-allelic G>A,C
         assert snps["rs1801198"]["genotype_strand"] is None  # C/G palindrome
         assert snps["rs1051266"]["genotype_strand"] is None  # widened by the sample pair
-        assert snps["rs1677693"]["genotype_strand"] is None  # not in the bundle
+        assert snps["rs1677693"]["genotype"] == "GT"
+        assert snps["rs1677693"]["genotype_strand"] is None  # bundle record elsewhere
 
     def test_without_a_bundle_nothing_is_labelled_and_none_is_created(
         self, client: TestClient, _env: sa.Engine

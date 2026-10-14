@@ -25,7 +25,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
-from backend.db.tables import annotated_variants, findings, samples
+from backend.db.tables import annotated_variants, findings, raw_variants, samples
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,10 @@ def _locus_alleles(sample_engine: sa.Engine, rsids: list[str]) -> dict[str, set[
 
     The VEP bundle holds one row per alternate allele, so it carries the whole
     locus (rs1801133 is G>A and G>C); the sample's own annotated pair is added
-    in case it is not among them. An rsid the bundle does not cover is left out,
+    in case it is not among them. A record counts only when its chromosome and
+    position match the sample's raw row for that rsid, as in the annotation
+    engine, so an rsid uploaded at another coordinate is not described by a
+    different locus. An rsid with no matching bundle record is left out,
     because one record's pair alone cannot rule out another allele that would
     make the opposite strand fit too.
     """
@@ -72,28 +75,46 @@ def _locus_alleles(sample_engine: sa.Engine, rsids: list[str]) -> dict[str, set[
     # Checked first so a missing bundle is never created as an empty file.
     if not rsids or not registry.settings.vep_bundle_db_path.exists():
         return {}
-    alleles: dict[str, set[str]] = {}
     try:
         with registry.vep_engine.connect() as conn:
-            rows = conn.execute(
+            vep_rows = conn.execute(
                 sa.text(
-                    "SELECT rsid, ref, alt FROM vep_annotations WHERE rsid IN :rsids"
+                    "SELECT rsid, chrom, pos, ref, alt FROM vep_annotations WHERE rsid IN :rsids"
                 ).bindparams(sa.bindparam("rsids", expanding=True)),
                 {"rsids": rsids},
-            )
-            for row in rows:
-                alleles.setdefault(row.rsid, set()).update(a for a in (row.ref, row.alt) if a)
+            ).fetchall()
     except Exception as exc:  # A missing or unreadable bundle labels nothing.
         logger.debug("VEP bundle unavailable for strand lookup: %s", exc)
         return {}
-    if alleles:
-        with sample_engine.connect() as conn:
+    if not vep_rows:
+        return {}
+
+    with sample_engine.connect() as conn:
+        coords = {
+            row.rsid: (str(row.chrom), int(row.pos))
             for row in conn.execute(
-                sa.select(
-                    annotated_variants.c.rsid, annotated_variants.c.ref, annotated_variants.c.alt
-                ).where(annotated_variants.c.rsid.in_(list(alleles)))
-            ):
-                alleles[row.rsid].update(a for a in (row.ref, row.alt) if a)
+                sa.select(raw_variants.c.rsid, raw_variants.c.chrom, raw_variants.c.pos).where(
+                    raw_variants.c.rsid.in_(rsids)
+                )
+            )
+        }
+        annotated = conn.execute(
+            sa.select(
+                annotated_variants.c.rsid,
+                annotated_variants.c.chrom,
+                annotated_variants.c.pos,
+                annotated_variants.c.ref,
+                annotated_variants.c.alt,
+            ).where(annotated_variants.c.rsid.in_(rsids))
+        ).fetchall()
+
+    alleles: dict[str, set[str]] = {}
+    for row in vep_rows:
+        if coords.get(row.rsid) == (str(row.chrom), int(row.pos)):
+            alleles.setdefault(row.rsid, set()).update(a for a in (row.ref, row.alt) if a)
+    for row in annotated:
+        if row.rsid in alleles and coords.get(row.rsid) == (str(row.chrom), int(row.pos)):
+            alleles[row.rsid].update(a for a in (row.ref, row.alt) if a)
     return alleles
 
 
