@@ -100,7 +100,7 @@ function PreviewShell({ children }: { children: ReactNode }) {
 export default function FindingsPreview({ sampleId }: { sampleId: number | null }) {
   const [searchParams] = useSearchParams()
   const sampleParam = searchParams.get('sample_id')
-  const { data: summary, isLoading, isError, refetch } = useFindingsSummary(sampleId)
+  const { data: summary, isLoading, isFetching, isError, refetch } = useFindingsSummary(sampleId)
 
   const highConfidence = summary?.high_confidence_findings ?? []
 
@@ -131,8 +131,11 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
 
   // The summary takes seconds on a real sample. Until it arrives, or if it
   // fails, an empty list says nothing about the sample, so neither state may
-  // fall through to "No findings yet — Run annotation" (#2106).
-  if (isLoading) {
+  // fall through to "No findings yet — Run annotation" (#2106). That includes a
+  // cached empty summary being refetched after annotation starts or finishes:
+  // TanStack keeps the cached data while fetching, so `isLoading` is false.
+  const listIsEmpty = highConfidence.length === 0
+  if (isLoading || (listIsEmpty && isFetching)) {
     return (
       <PreviewShell>
         <p role="status" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -143,10 +146,12 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
     )
   }
 
-  if (isError && !summary) {
+  if (isError && (!summary || listIsEmpty)) {
     return (
       <PreviewShell>
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load findings.</p>
+        <p role="alert" className="text-sm text-muted-foreground">
+          Couldn&apos;t load findings.
+        </p>
         <button
           type="button"
           onClick={() => void refetch()}
@@ -158,7 +163,7 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
     )
   }
 
-  if (highConfidence.length === 0) {
+  if (listIsEmpty) {
     // An annotated sample can have findings without any high-confidence ones;
     // telling it to run annotation would be wrong (#2106).
     if ((summary?.total_findings ?? 0) > 0) {

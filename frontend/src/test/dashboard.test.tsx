@@ -556,7 +556,8 @@ describe('FindingsPreview', () => {
     })
     render(<FindingsPreview sampleId={2} />, { route: '/?sample_id=2' })
 
-    expect(await screen.findByText(/Couldn.t load findings/)).toBeInTheDocument()
+    // Announced: the loading status it replaces was a live region too.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load findings/)
     expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
     expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
 
@@ -577,6 +578,50 @@ describe('FindingsPreview', () => {
     expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
     const link = screen.getByRole('link', { name: /Show all findings/ })
     expect(link).toHaveAttribute('href', '/findings?sample_id=2')
+  })
+
+  // A cached empty summary is refetched when annotation starts or finishes
+  // (invalidateAnnotationResultQueries); TanStack keeps the cached data while
+  // it fetches, so `isLoading` is false for that whole slow request.
+  const renderWithCachedEmptySummary = () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+    })
+    client.setQueryData(['findings-summary', 2], {
+      total_findings: 0,
+      modules: [],
+      evidence_level_counts: [],
+      high_confidence_findings: [],
+    })
+    baseRender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/?sample_id=2']}>
+          <FindingsPreview sampleId={2} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    return client
+  }
+
+  it('shows loading, not the cached empty state, while an empty summary refetches (#2106)', async () => {
+    mockFetch.mockImplementation(() => new Promise(() => {}))
+    const client = renderWithCachedEmptySummary()
+    expect(screen.getByText('No findings yet')).toBeInTheDocument()
+
+    void client.invalidateQueries({ queryKey: ['findings-summary'] })
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading findings')
+    expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
+  })
+
+  it('reports a failed refetch of a cached empty summary instead of keeping "No findings yet" (#2106)', async () => {
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({ ok: false, status: 500, json: async () => ({}), text: async () => '' }),
+    )
+    const client = renderWithCachedEmptySummary()
+
+    void client.invalidateQueries({ queryKey: ['findings-summary'] })
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Couldn.t load findings/)
+    expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
   })
 
   it('keeps "No findings yet — Run annotation" for a sample with no findings at all (#2106)', async () => {
