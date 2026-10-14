@@ -41,7 +41,6 @@ downstream zygosity / QC stay consistent.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from backend.analysis.zygosity import COMPLEMENT, is_no_call
@@ -254,39 +253,6 @@ def imputed_effect_dosage(
     if pair == {COMPLEMENT[r], COMPLEMENT[a]}:  # complemented strand
         return alt_dosage if ea == COMPLEMENT[a] else 2.0 - alt_dosage
     return None  # alleles fit neither strand (different/triallelic variant)
-
-
-def observed_strand(genotype: str | None, locus_alleles: Iterable[str | None]) -> str | None:
-    """The genome strand an array genotype was read on: ``"plus"``, ``"minus"`` or None.
-
-    ``locus_alleles`` is every allele recorded at the locus on the genome (plus)
-    strand: the reference and *all* alternates, not just the pair one record
-    carries. A call that fits those alleles but not their Watson–Crick
-    complements was read on the plus strand; one that fits only the complements
-    was read on the minus strand, as arrays report some probes on their design
-    strand (see the module docstring). When the call fits both it is ambiguous:
-    an A/T or C/G locus, or a multi-allelic one such as G>A,C, where a ``GG``
-    may be plus G/G or a minus-strand report of C/C. Ambiguous, unmatched,
-    no-call and non-A/C/G/T genotypes, non-SNV loci, and loci with fewer than
-    two distinct alleles all return None.
-    """
-    if is_no_call(genotype):
-        return None
-    assert genotype is not None
-    alleles_at_locus = {a.upper() for a in locus_alleles if a}
-    if len(alleles_at_locus) < 2 or not alleles_at_locus <= COMPLEMENT.keys():
-        return None
-    complement = {COMPLEMENT[a] for a in alleles_at_locus}
-    observed = _parse_alleles(genotype)
-    if observed is None:
-        return None
-    fits_plus = observed <= alleles_at_locus
-    fits_minus = observed <= complement
-    if fits_plus and not fits_minus:
-        return "plus"
-    if fits_minus and not fits_plus:
-        return "minus"
-    return None
 
 
 def canonical_alleles(

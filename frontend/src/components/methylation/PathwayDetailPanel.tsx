@@ -24,17 +24,10 @@ import {
   TrendingUp,
 } from "lucide-react"
 
-/** The strand label for a genotype, or null when no strand is known.
- *
- * Arrays report some probes on their design strand, so the strand comes from
- * the backend's comparison with the sample's annotated genome alleles, never
- * from an assumption. It is null for an A/T or C/G pair, an unannotated SNP,
- * an unmodelled allele or an insertion/deletion call (#2103).
- */
-function strandLabel(snp: SNPDetail): string | null {
-  if (snp.genotype_strand === "plus") return "plus strand"
-  if (snp.genotype_strand === "minus") return "minus strand"
-  return null
+/** Whether a genotype is a nucleotide call whose letters can be compared with
+ * a variant name. Vendor insertion/deletion tokens ("ID") cannot (#2103). */
+function isNucleotideCall(snp: SNPDetail): boolean {
+  return snp.genotype != null && /^[ACGT]+$/.test(snp.genotype)
 }
 
 interface PathwayDetailPanelProps {
@@ -73,12 +66,6 @@ function SNPRow({ snp }: { snp: SNPDetail }) {
         <p className="text-sm mb-1">
           <span className="text-muted-foreground">Genotype: </span>
           <span className="font-mono font-medium">{snp.genotype}</span>
-          {strandLabel(snp) && (
-            <>
-              {" "}
-              <span className="text-xs text-muted-foreground">({strandLabel(snp)})</span>
-            </>
-          )}
         </p>
       )}
 
@@ -256,17 +243,17 @@ export default function PathwayDetailPanel({
 
               {showAdvanced && (
                 <div id="snp-details-list">
-                  {detailQuery.data.snp_details.some((snp) => strandLabel(snp) !== null) && (
+                  {detailQuery.data.snp_details.some(isNucleotideCall) && (
                     <p className="flex items-start gap-2 text-xs text-muted-foreground mb-3">
                       <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
                       <span>
-                        Where a genotype is labelled plus or minus strand, that is the genome
-                        strand your array read it on. Names written as DNA changes, such as
-                        C677T, follow the gene&apos;s own transcript, which can run on either
-                        strand. A genotype read on the other strand shows the complementary
-                        letters (A pairs with T, C with G). Names written as protein changes,
-                        such as Val158Met, use amino-acid codes and cannot be compared letter
-                        by letter with a genotype.
+                        Genotypes are shown as your array reported them. A variant name
+                        written as a DNA change, such as C677T, follows the strand its gene is
+                        read from, and arrays report some variants on the other strand. When
+                        they do, the genotype shows the complementary letters (A pairs with T,
+                        C with G). Names written as protein changes, such as Val158Met, use
+                        amino-acid codes and cannot be compared letter by letter with a
+                        genotype.
                       </span>
                     </p>
                   )}

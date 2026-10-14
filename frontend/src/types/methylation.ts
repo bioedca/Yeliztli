@@ -17,9 +17,6 @@ export interface SNPDetail {
   recommendation: string | null
   pmids: string[]
   coverage_note: string | null
-  /** The genome strand the array read this genotype on, from the sample's
-   * annotated alleles; null or absent when it cannot be told. */
-  genotype_strand?: "plus" | "minus" | null
 }
 
 /** Summary of a single methylation pathway. */
