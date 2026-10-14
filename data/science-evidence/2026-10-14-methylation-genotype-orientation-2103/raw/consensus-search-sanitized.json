@@ -1,0 +1,99 @@
+{
+  "service": "Consensus (bio-research plugin endpoint)",
+  "accessed": "2026-10-14",
+  "filters": "none",
+  "tier_note": "Free tier: three results per search.",
+  "sanitization": "Bibliographic metadata and the complete returned ranking only; abstracts removed.",
+  "searches": [
+    {
+      "query": "HGVS sequence variant nomenclature coding DNA reference sequence c. notation recommendations",
+      "results_returned": 3,
+      "complete_result_ranking": [
+        {
+          "rank": 1,
+          "title": "HGVS Recommendations for the Description of Sequence Variants: 2016 Update",
+          "first_author": "J. D. den Dunnen",
+          "year": 2016,
+          "journal": "Human Mutation",
+          "used": "yes: PMID:26931183"
+        },
+        {
+          "rank": 2,
+          "title": "HGVS Nomenclature 2024: improvements to community engagement, usability, and computability",
+          "first_author": "Reece K. Hart",
+          "year": 2024,
+          "journal": "Genome Medicine",
+          "used": "yes: PMID:39702242"
+        },
+        {
+          "rank": 3,
+          "title": "Describing Sequence Variants Using HGVS Nomenclature.",
+          "first_author": "J. D. den Dunnen",
+          "year": 2016,
+          "journal": "Methods in molecular biology",
+          "used": "no: same author and version as rank 1"
+        }
+      ]
+    },
+    {
+      "query": "genotyping array strand flip harmonization alleles reported on reverse strand between platforms",
+      "results_returned": 3,
+      "complete_result_ranking": [
+        {
+          "rank": 1,
+          "title": "StrandScript: evaluation of Illumina genotyping array design and strand correction",
+          "first_author": "Jing Wang",
+          "year": 2017,
+          "journal": "Bioinformatics",
+          "used": "yes: PMID:28402386"
+        },
+        {
+          "rank": 2,
+          "title": "SNPchiMp: a database to disentangle the SNPchip jungle in bovine livestock",
+          "first_author": "E. Nicolazzi",
+          "year": 2014,
+          "journal": "BMC Genomics",
+          "used": "yes: PMID:24517501"
+        },
+        {
+          "rank": 3,
+          "title": "Before and After: A Comparison of Legacy and Harmonized TCGA Data at the Genomic Data Commons",
+          "first_author": "G. Gao",
+          "year": 2019,
+          "journal": "Cell systems",
+          "used": "no: genome-build harmonization, not array strand"
+        }
+      ]
+    },
+    {
+      "query": "Illumina TOP BOT strand designation SNP genotype allele reporting forward strand",
+      "results_returned": 3,
+      "complete_result_ranking": [
+        {
+          "rank": 1,
+          "title": "StrandScript: evaluation of Illumina genotyping array design and strand correction",
+          "first_author": "Jing Wang",
+          "year": 2017,
+          "journal": "Bioinformatics",
+          "used": "yes (as above; counted once)"
+        },
+        {
+          "rank": 2,
+          "title": "Erratum to Cytokine SNPs: Comparison of allele frequencies by race and implications for future studies",
+          "first_author": "Alison L. Van Dyke",
+          "year": 2010,
+          "journal": "Cytokine",
+          "used": "no: corroborating (TOP/BOT export left uncorrected), not relied on"
+        },
+        {
+          "rank": 3,
+          "title": "The effect of strand bias in Illumina short-read sequencing data",
+          "first_author": "Yan Guo",
+          "year": 2012,
+          "journal": "BMC Genomics",
+          "used": "no: sequencing strand bias, a different phenomenon"
+        }
+      ]
+    }
+  ]
+}

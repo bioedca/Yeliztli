@@ -1,0 +1,41 @@
+{
+  "accessed": "2026-10-14",
+  "repository_base": "de1ce9a7aac357748eb723a527ac9067d469dd46",
+  "queries": [
+    {
+      "source": "Consensus",
+      "request": "three searches; strings in raw/consensus-search-sanitized.json",
+      "payload": "raw/consensus-search-sanitized.json"
+    },
+    {
+      "source": "Scite",
+      "request": "search_literature dois=[5 DOIs]",
+      "payload": "raw/scite-doi-lookup-sanitized.json"
+    },
+    {
+      "source": "PubMed esearch",
+      "request": "title/author searches resolving the five PMIDs",
+      "payload": "raw/pubmed-esummary.json"
+    },
+    {
+      "source": "PubMed esummary/efetch",
+      "request": "db=pubmed&id=26931183,39702242,28402386,24517501,13054692",
+      "payload": "raw/pubmed-esummary.json; raw/pubmed-efetch-sanitized.xml; raw/pubmed-abstract-excerpts.json; raw/pubmed-comments-corrections-extract.json"
+    },
+    {
+      "source": "HGVS Nomenclature",
+      "request": "https://hgvs-nomenclature.org/stable/background/refseq/ ; https://hgvs-nomenclature.org/stable/recommendations/protein/substitution/",
+      "payload": "raw/hgvs-refseq-page.html; raw/hgvs-protein-substitution-page.html"
+    },
+    {
+      "source": "NCBI dbSNP RefSNP",
+      "request": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1801133",
+      "payload": "raw/ncbi-refsnp-1801133-extract.json"
+    },
+    {
+      "source": "NCBI PubMed einfo",
+      "request": "einfo db=pubmed",
+      "payload": "raw/source-versions-and-licences.json"
+    }
+  ]
+}

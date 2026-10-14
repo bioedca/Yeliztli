@@ -1,0 +1,111 @@
+{
+  "service": "Scite",
+  "accessed": "2026-10-14",
+  "endpoint": "search_literature",
+  "params": {
+    "dois": [
+      "10.1002/humu.22981",
+      "10.1186/s13073-024-01421-5",
+      "10.1093/bioinformatics/btx186",
+      "10.1186/1471-2164-15-123",
+      "10.1038/171737a0"
+    ],
+    "limit": 10
+  },
+  "status": "success",
+  "total_hits": 5,
+  "sanitization": "Bibliographic metadata, citation tallies, open-access/licence flags and editorial-notice screening only. Removed: abstracts, Smart Citation snippets, and every access/url/agAccess field (signed or account-bound links, one of which embeds the requesting account's e-mail address).",
+  "editorial_notice_screening": "No hit carries an editorialNotices key, which Scite returns only when a retraction, correction, concern or erratum is recorded. PubMed CommentsCorrections agrees (raw/pubmed-comments-corrections-extract.json).",
+  "records": [
+    {
+      "doi": "10.1002/humu.22981",
+      "title": "HGVS Recommendations for the Description of Sequence Variants: 2016 Update",
+      "journal": "human mutation",
+      "year": 2016,
+      "volume": "37",
+      "issue": "6",
+      "page": "564-569",
+      "tally_total": 1185,
+      "is_open_access": true,
+      "oa_status": "bronze",
+      "authors_returned": [
+        "Johan T. den Dunnen",
+        "Raymond Dalgleish",
+        "Donna Maglott"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1186/s13073-024-01421-5",
+      "title": "HGVS Nomenclature 2024: improvements to community engagement, usability, and computability",
+      "journal": "genome medicine",
+      "year": 2024,
+      "volume": "16",
+      "issue": "1",
+      "tally_total": 29,
+      "is_open_access": true,
+      "oa_status": "gold",
+      "license": "cc-by",
+      "authors_returned": [
+        "Reece K. Hart",
+        "Ivo F.A.C. Fokkema",
+        "Marina T. DiStefano"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1093/bioinformatics/btx186",
+      "title": "StrandScript: evaluation of Illumina genotyping array design and strand correction",
+      "journal": "bioinformatics",
+      "year": 2017,
+      "volume": "33",
+      "issue": "15",
+      "page": "2399-2401",
+      "tally_total": 9,
+      "is_open_access": true,
+      "oa_status": "bronze",
+      "authors_returned": [
+        "Jing Wang",
+        "David C. Samuels",
+        "Yu Shyr"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1186/1471-2164-15-123",
+      "title": "SNPchiMp: a database to disentangle the SNPchip jungle in bovine livestock",
+      "journal": "bmc genomics",
+      "year": 2014,
+      "volume": "15",
+      "issue": "1",
+      "page": "123",
+      "tally_total": 51,
+      "is_open_access": true,
+      "oa_status": "gold",
+      "license": "cc-by",
+      "authors_returned": [
+        "Ezequiel Luís Nicolazzi",
+        "Matteo Picciolini",
+        "Francesco Strozzi"
+      ],
+      "editorial_notices": []
+    },
+    {
+      "doi": "10.1038/171737a0",
+      "title": "Molecular Structure of Nucleic Acids: A Structure for Deoxyribose Nucleic Acid",
+      "journal": "nature",
+      "year": 1953,
+      "volume": "171",
+      "issue": "4356",
+      "page": "737-738",
+      "tally_total": 5316,
+      "is_open_access": false,
+      "oa_status": "closed",
+      "authors_returned": [
+        "James Dewey Watson",
+        "Francis Crick"
+      ],
+      "editorial_notices": []
+    }
+  ]
+}

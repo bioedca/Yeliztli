@@ -243,6 +243,14 @@ export default function PathwayDetailPanel({
 
               {showAdvanced && (
                 <div id="snp-details-list">
+                  {/* Orientation note (#2103). Evidence and claim mapping:
+                      data/science-evidence/2026-10-14-methylation-genotype-orientation-2103/
+                      (accessed 2026-10-14). DNA-change names follow the gene's
+                      transcriptional orientation: HGVS Nomenclature v21.1.5;
+                      PMID:26931183; PMID:39702242; dbSNP rs1801133
+                      NC_000001.10:g.11856378G>A = NM_005957.5:c.665C>T. Arrays report
+                      some variants on the other strand: PMID:28402386;
+                      PMID:24517501. Base pairing: PMID:13054692. */}
                   {detailQuery.data.snp_details.some(isNucleotideCall) && (
                     <p className="flex items-start gap-2 text-xs text-muted-foreground mb-3">
                       <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />

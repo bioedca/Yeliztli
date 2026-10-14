@@ -1,0 +1,33 @@
+{
+  "accessed": "2026-10-14",
+  "sources": [
+    {
+      "source": "HGVS Nomenclature (hgvs-nomenclature.org)",
+      "version": "21.1.5 (2026-09-17), per the page header",
+      "licence": "CC0 1.0 Universal, per the page footer; pages kept whole."
+    },
+    {
+      "source": "NCBI dbSNP RefSNP API",
+      "version": "rs1801133 last_update_build_id 157 (2024-11-2T16:03Z)",
+      "licence": "NCBI-produced data; extract kept, full payload hashed."
+    },
+    {
+      "source": "PubMed (NCBI E-utilities)",
+      "version": {
+        "einfo_dbbuild": "Build-2026.10.14.12.03",
+        "einfo_lastupdate": "2026/10/14 12:03"
+      },
+      "licence": "NLM does not claim copyright on PubMed abstracts; publishers or authors may. Abstracts removed from the efetch record; short verbatim sentences kept."
+    },
+    {
+      "source": "Scite (search_literature MCP)",
+      "version": "not exposed by the tool",
+      "licence": "Scite terms of service; metadata and notice screening kept, no abstracts, snippets or account-bound links."
+    },
+    {
+      "source": "Consensus (bio-research plugin endpoint)",
+      "version": "not exposed by the tool",
+      "licence": "Consensus terms of service; metadata and complete returned ranking kept, no abstracts."
+    }
+  ]
+}
