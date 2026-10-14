@@ -80,7 +80,9 @@ describe("Methylation Advanced View genotype orientation note (#2103)", () => {
   it("explains that a genotype's letters can be the complements of its name's", () => {
     renderPanel([C677T])
     const note = screen.getByText(NOTE)
-    expect(note).toHaveTextContent(/DNA change, such as\s+C677T/)
+    expect(note).toHaveTextContent(/coding-DNA change, such as\s+C677T, follows the strand its\s+gene is read from/)
+    // The rule is transcript-specific; a genomic (g.) description is not.
+    expect(note).toHaveTextContent(/genomic description, written with g\., follows the\s+genome's reference strand instead/)
     expect(note).toHaveTextContent(/arrays report some variants on the other strand/)
     expect(note).toHaveTextContent(/complementary letters \(A pairs with T,\s+C with G\)/)
   })

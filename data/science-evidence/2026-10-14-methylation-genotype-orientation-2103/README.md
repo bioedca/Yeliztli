@@ -4,7 +4,7 @@
 
 This packet supports the explanatory note added to the MTHFR & Methylation Advanced View in `frontend/src/components/methylation/PathwayDetailPanel.tsx`. The note makes four claims:
 
-- **(a)** A variant name written as a DNA change, such as C677T, follows the strand its gene is read from.
+- **(a)** A variant name written as a coding-DNA change, such as C677T, follows the strand its gene is read from, while a genomic description (`g.`) follows the genome's reference strand.
 - **(b)** Arrays report some variants on the other strand.
 - **(c)** When they do, the genotype shows the complementary letters (A pairs with T, C with G).
 - **(d)** Names written as protein changes, such as Val158Met, use amino-acid codes and cannot be compared letter by letter with a genotype.
@@ -27,9 +27,10 @@ Access date: `2026-10-14`
 
 ## Claim mapping
 
-**(a) DNA-change names follow the gene's transcriptional orientation.** This is a definitional claim, so the defining document plus the registry that implements it suffices.
+**(a) Coding-DNA names follow the gene's transcriptional orientation; genomic names follow the reference.** This is a definitional claim, so the defining document plus the registry that implements it suffices.
 - The HGVS Nomenclature specification v21.1.5 (`raw/hgvs-refseq-page.html`, accessed 2026-10-14) states:
   - "c. = coding DNA reference sequence (based on a protein coding transcript)";
+  - "linear genomic reference sequences are indicated using a g. prefix";
   - "Nucleotide numbering on coding DNA and RNA level are based on the transcriptional orientation of the gene";
   - "the gene of interest may be on the minus (-) strand".
 - It is published as PMID:26931183 / DOI:10.1002/humu.22981 (den Dunnen 2016) and PMID:39702242 / DOI:10.1186/s13073-024-01421-5 (Hart 2024).
