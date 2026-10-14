@@ -1,0 +1,49 @@
+{
+  "packet": "2026-10-14-methylation-genotype-orientation-2103",
+  "files": [
+    {
+      "path": "queries.json",
+      "sha256": "c14dc7b05e2020f306ad6de00b1c7b210d20543a07a63527d45808b46b79cce0"
+    },
+    {
+      "path": "raw/consensus-search-sanitized.json",
+      "sha256": "97586995b4a94085a25d23050db116adec328312e7e48516cc57a62a0b726b4e"
+    },
+    {
+      "path": "raw/hgvs-protein-substitution-page.html",
+      "sha256": "1e1cd664dc592b427fe97c81faa21ec24dcf34e9cd97d7f76a4abc0123380118"
+    },
+    {
+      "path": "raw/hgvs-refseq-page.html",
+      "sha256": "0df4eca86cafd49fdc47c42e77cfb3dc9232cc539ef737e12897bfc0266f5606"
+    },
+    {
+      "path": "raw/ncbi-refsnp-1801133-extract.json",
+      "sha256": "988ac56ace696b72906671559b2d5aa9d4982f5538f442e8a568008c5d6d51e8"
+    },
+    {
+      "path": "raw/pubmed-abstract-excerpts.json",
+      "sha256": "b64308779e890571af695d5bfecd6adbda3c1003c5ced7a46dba201b5623c628"
+    },
+    {
+      "path": "raw/pubmed-comments-corrections-extract.json",
+      "sha256": "9d75ea08774034bf12c4eee0501a31fb76c601c673eed198176c9b97f23d3bb5"
+    },
+    {
+      "path": "raw/pubmed-efetch-sanitized.xml",
+      "sha256": "b993feb54979758517491c53896401b306d8fa921f31a864fcd4d02a05267e39"
+    },
+    {
+      "path": "raw/pubmed-esummary.json",
+      "sha256": "372c43801f372b9f084585323e1c1bf270c80b747487f2c408ba6b097e3fdf4c"
+    },
+    {
+      "path": "raw/scite-doi-lookup-sanitized.json",
+      "sha256": "08b878e6f5a845a92fa26361ff6bb3f4ebf469be5fa0ed3504c8b57ab7c1fd0b"
+    },
+    {
+      "path": "raw/source-versions-and-licences.json",
+      "sha256": "d90a5f2ad402bf117aa067a574fb3f8930c49495b496c95226f24eefcdeb9e04"
+    }
+  ]
+}

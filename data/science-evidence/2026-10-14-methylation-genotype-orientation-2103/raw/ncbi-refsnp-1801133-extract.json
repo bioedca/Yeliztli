@@ -1,0 +1,22 @@
+{
+  "accessed": "2026-10-14",
+  "request": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/1801133",
+  "refsnp_id": "1801133",
+  "last_update_date": "2024-11-2T16:03Z",
+  "last_update_build_id": "157",
+  "full_payload_sha256": "53397a8cb1af5212b5cb46a8ff8519de4691024fb03ee541c413b6852c1f4d27",
+  "hgvs_GRCh37_NM_005957.5_NP_005948.3": [
+    "NC_000001.10:g.11856378=",
+    "NC_000001.10:g.11856378G>A",
+    "NC_000001.10:g.11856378G>C",
+    "NC_000001.10:g.11856378G>T",
+    "NM_005957.5:c.665=",
+    "NM_005957.5:c.665C>A",
+    "NM_005957.5:c.665C>G",
+    "NM_005957.5:c.665C>T",
+    "NP_005948.3:p.Ala222=",
+    "NP_005948.3:p.Ala222Asp",
+    "NP_005948.3:p.Ala222Gly",
+    "NP_005948.3:p.Ala222Val"
+  ]
+}

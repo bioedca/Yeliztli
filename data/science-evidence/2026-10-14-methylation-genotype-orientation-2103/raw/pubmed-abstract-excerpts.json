@@ -1,0 +1,22 @@
+{
+  "accessed": "2026-10-14",
+  "source": "PubMed efetch abstracts (db=pubmed), verbatim sentences only",
+  "excerpts": [
+    {
+      "pmid": "28402386",
+      "claim": "b",
+      "text": "One technical issue that has always plagued the post-processing of Illumina genotyping array data is the strand definition."
+    },
+    {
+      "pmid": "28402386",
+      "claim": "b",
+      "text": "Against convention, Illumina uses their own definition of strand, which is inconsistent with the standard reference forward and reverse definition."
+    },
+    {
+      "pmid": "24517501",
+      "claim": "b",
+      "text": "iv) SNPs can be coded using different formats and referencing different strands (e.g. A/B or A/C/T/G alleles, referencing forward/reverse, top/bottom or plus/minus strand)",
+      "note": "Verbatim clause iv) from the abstract's Background list."
+    }
+  ]
+}

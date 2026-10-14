@@ -1,0 +1,14 @@
+{
+  "accessed": "2026-10-14",
+  "full_efetch_sha256": "1429756399fee68041729143f679e59ef06ae656b2a807234a025e7b4ef2ee74",
+  "reftypes_by_pmid": {
+    "26931183": [],
+    "39702242": [],
+    "28402386": [],
+    "24517501": [],
+    "13054692": [
+      "CommentIn"
+    ]
+  },
+  "note": "No ErratumIn, RetractionIn or ExpressionOfConcernIn on any cited PMID."
+}
