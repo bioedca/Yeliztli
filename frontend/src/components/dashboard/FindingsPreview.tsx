@@ -4,6 +4,7 @@
  * findings summary API. Links to the full findings explorer page.
  */
 
+import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import {
@@ -21,6 +22,7 @@ import {
   Globe,
   SearchCheck,
   ClipboardList,
+  Loader2,
   type LucideIcon,
 } from 'lucide-react'
 import EvidenceStars from '@/components/ui/EvidenceStars'
@@ -83,10 +85,22 @@ function FindingItem({ finding, sampleParam }: { finding: Finding; sampleParam: 
   )
 }
 
+/** The section frame shared by every non-list state. */
+function PreviewShell({ children }: { children: ReactNode }) {
+  return (
+    <section aria-label="High-confidence findings">
+      <h2 className="text-sm font-semibold text-foreground mb-3">
+        High-Confidence Findings
+      </h2>
+      <div className={cn('rounded-lg border bg-card p-6 text-center')}>{children}</div>
+    </section>
+  )
+}
+
 export default function FindingsPreview({ sampleId }: { sampleId: number | null }) {
   const [searchParams] = useSearchParams()
   const sampleParam = searchParams.get('sample_id')
-  const { data: summary } = useFindingsSummary(sampleId)
+  const { data: summary, isLoading, isError, refetch } = useFindingsSummary(sampleId)
 
   const highConfidence = summary?.high_confidence_findings ?? []
 
@@ -115,25 +129,67 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
     return `/findings${query ? `?${query}` : ''}`
   })()
 
-  // No findings: show placeholder
-  if (highConfidence.length === 0) {
+  // The summary takes seconds on a real sample. Until it arrives, or if it
+  // fails, an empty list says nothing about the sample, so neither state may
+  // fall through to "No findings yet — Run annotation" (#2106).
+  if (isLoading) {
     return (
-      <section aria-label="High-confidence findings">
-        <h2 className="text-sm font-semibold text-foreground mb-3">
-          High-Confidence Findings
-        </h2>
-        <div className={cn('rounded-lg border bg-card p-6 text-center')}>
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-            <Star className="h-5 w-5 text-muted-foreground" />
-          </div>
-          <p className="mt-3 text-sm text-muted-foreground">
-            No findings yet
-          </p>
+      <PreviewShell>
+        <p role="status" className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading findings…
+        </p>
+      </PreviewShell>
+    )
+  }
+
+  if (isError && !summary) {
+    return (
+      <PreviewShell>
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load findings.</p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="mt-2 text-xs text-primary hover:underline"
+        >
+          Try again
+        </button>
+      </PreviewShell>
+    )
+  }
+
+  if (highConfidence.length === 0) {
+    // An annotated sample can have findings without any high-confidence ones;
+    // telling it to run annotation would be wrong (#2106).
+    if ((summary?.total_findings ?? 0) > 0) {
+      return (
+        <PreviewShell>
+          <p className="text-sm text-muted-foreground">No high-confidence findings</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Run annotation to see high-confidence findings across all analysis modules.
+            None of this sample&apos;s findings is rated {HIGH_CONFIDENCE_MIN_STARS} stars or
+            higher.
           </p>
+          <Link
+            to={`/findings${sampleParam ? `?sample_id=${sampleParam}` : ''}`}
+            className="mt-2 inline-block text-xs text-primary hover:underline"
+          >
+            Show all findings
+          </Link>
+        </PreviewShell>
+      )
+    }
+    return (
+      <PreviewShell>
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+          <Star className="h-5 w-5 text-muted-foreground" />
         </div>
-      </section>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No findings yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Run annotation to see high-confidence findings across all analysis modules.
+        </p>
+      </PreviewShell>
     )
   }
 

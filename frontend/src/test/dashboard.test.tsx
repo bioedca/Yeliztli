@@ -523,6 +523,74 @@ describe('FindingsPreview', () => {
     expect(link).toHaveTextContent('Show all findings')
     expect(link).not.toHaveTextContent('311472')
   })
+
+  // ── #2106: loading and failure are not "no findings" ─────────────────────
+  //
+  // The summary takes seconds on a real sample; while it was in flight (or if
+  // it failed) the panel fell through to "No findings yet — Run annotation",
+  // telling a fully annotated user they had nothing.
+
+  it('shows a loading state, not "No findings yet", while the summary loads (#2106)', async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/api/analysis/findings/summary')) return new Promise(() => {})
+      return Promise.resolve({ ok: true, json: async () => [] })
+    })
+    render(<FindingsPreview sampleId={2} />, { route: '/?sample_id=2' })
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading findings')
+    expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
+  })
+
+  it('says the summary failed, and can retry, instead of "No findings yet" (#2106)', async () => {
+    let calls = 0
+    mockFetch.mockImplementation((url: string) => {
+      if (String(url).includes('/api/analysis/findings/summary')) {
+        calls += 1
+        if (calls === 1) {
+          return Promise.resolve({ ok: false, status: 500, json: async () => ({}), text: async () => '' })
+        }
+        return Promise.resolve({ ok: true, json: async () => summaryWith([[4, 1]], 1) })
+      }
+      return Promise.resolve({ ok: true, json: async () => [] })
+    })
+    render(<FindingsPreview sampleId={2} />, { route: '/?sample_id=2' })
+
+    expect(await screen.findByText(/Couldn.t load findings/)).toBeInTheDocument()
+    expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Example high-confidence finding')).toBeInTheDocument()
+  })
+
+  it('does not tell an annotated sample to run annotation when none of its findings are high-confidence (#2106)', async () => {
+    renderPreview({
+      total_findings: 311,
+      modules: [],
+      evidence_level_counts: [{ evidence_level: 1, count: 311 }],
+      high_confidence_findings: [],
+    })
+
+    expect(await screen.findByText('No high-confidence findings')).toBeInTheDocument()
+    expect(screen.queryByText('No findings yet')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
+    const link = screen.getByRole('link', { name: /Show all findings/ })
+    expect(link).toHaveAttribute('href', '/findings?sample_id=2')
+  })
+
+  it('keeps "No findings yet — Run annotation" for a sample with no findings at all (#2106)', async () => {
+    renderPreview({
+      total_findings: 0,
+      modules: [],
+      evidence_level_counts: [],
+      high_confidence_findings: [],
+    })
+
+    expect(await screen.findByText('No findings yet')).toBeInTheDocument()
+    expect(screen.getByText(/Run annotation/)).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
 })
 
 // ─── QualityControl ─────────────────────────────────────────
