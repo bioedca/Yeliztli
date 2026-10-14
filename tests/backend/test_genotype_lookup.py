@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
-    is_palindromic_homozygote,
     is_strand_ambiguous,
     lookup_by_genotype,
 )
@@ -139,33 +138,3 @@ class TestIsStrandAmbiguous:
     def test_indel_and_nocall_not_flagged(self) -> None:
         assert is_strand_ambiguous({"DD": "x", "II": "y"}, "DD") is False
         assert is_strand_ambiguous(self._AT, "--") is False
-
-
-class TestIsPalindromicHomozygote:
-    """A homozygote whose strand cannot be told from the call (#2103).
-
-    Broader than strand ambiguity: it does not ask whether the two strands
-    would score differently, because the letters themselves are unverifiable.
-    """
-
-    def test_flags_a_palindromic_homozygote_even_when_both_strands_agree(self) -> None:
-        same = {"AA": "Standard", "AT": "Standard", "TT": "Standard"}
-        assert is_palindromic_homozygote(same, "AA") is True
-        assert is_palindromic_homozygote(same, "tt") is True
-        # ...which strand ambiguity, by design, does not flag.
-        assert is_strand_ambiguous(same, "AA") is False
-
-    def test_flags_what_strand_ambiguity_flags(self) -> None:
-        cg = {"CC": "Standard", "CG": "Moderate", "GG": "Elevated"}
-        assert is_palindromic_homozygote(cg, "CC") is True
-        assert is_strand_ambiguous(cg, "CC") is True
-
-    def test_heterozygote_and_non_palindromic_homozygote_are_not_flagged(self) -> None:
-        cg = {"CC": "Standard", "CG": "Moderate", "GG": "Elevated"}
-        assert is_palindromic_homozygote(cg, "CG") is False
-        ga = {"GG": "Standard", "GA": "Moderate", "AA": "Elevated"}
-        assert is_palindromic_homozygote(ga, "GG") is False
-
-    def test_needs_both_homozygotes_curated(self) -> None:
-        assert is_palindromic_homozygote({"CC": "Standard", "CT": "Moderate"}, "CC") is False
-        assert is_palindromic_homozygote({"CC": "Standard", "GG": None}, "CC") is False

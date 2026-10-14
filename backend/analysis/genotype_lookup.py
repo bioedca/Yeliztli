@@ -123,23 +123,6 @@ def is_acgt_genotype(genotype: str | None) -> bool:
 # base complementation.)
 
 
-def is_palindromic_homozygote(mapping: dict[str, object], genotype: str) -> bool:
-    """Whether ``genotype`` is a homozygote whose strand cannot be told from the call.
-
-    True when the genotype is a homozygote and the curated ``mapping`` keys both
-    it and its Watson–Crick complement: only an A/T or C/G (palindromic) SNP
-    keys both, and there ``"AA"`` read on one strand is ``"TT"`` on the other.
-    Unlike :func:`is_strand_ambiguous` this does not ask whether the two strands
-    would score differently, so it also covers a palindromic homozygote whose
-    category happens not to flip — its letters are still unverifiable.
-    """
-    gt = genotype.upper()
-    if len(gt) != 2 or gt[0] != gt[1] or gt[0] not in COMPLEMENT:
-        return False
-    complement = "".join(COMPLEMENT[base] for base in gt)
-    return mapping.get(gt) is not None and mapping.get(complement) is not None
-
-
 def is_strand_ambiguous(mapping: dict[str, object], genotype: str) -> bool:
     """Whether ``genotype`` is a strand-unresolvable palindromic homozygote.
 
@@ -152,8 +135,10 @@ def is_strand_ambiguous(mapping: dict[str, object], genotype: str) -> bool:
     and palindromic homozygotes whose two strands map to the *same* value return
     ``False`` (strand cannot change the resolved category).
     """
-    if not is_palindromic_homozygote(mapping, genotype):
-        return False
     gt = genotype.upper()
+    if len(gt) != 2 or gt[0] != gt[1] or gt[0] not in COMPLEMENT:
+        return False
     complement = "".join(COMPLEMENT[base] for base in gt)
-    return mapping[gt] != mapping[complement]
+    forward = mapping.get(gt)
+    reverse = mapping.get(complement)
+    return forward is not None and reverse is not None and forward != reverse

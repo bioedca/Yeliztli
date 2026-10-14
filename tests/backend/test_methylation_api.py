@@ -26,7 +26,7 @@ from fastapi.testclient import TestClient
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import raw_variants, reference_metadata, samples
+from backend.db.tables import annotated_variants, raw_variants, reference_metadata, samples
 
 # (rsid, chrom, pos) for the two MTHFR variants the compound-het call rests on,
 # matching the coordinates test_methylation.py seeds.
@@ -184,53 +184,55 @@ class TestCompoundHetHandoff:
 
 
 class TestPathwayDetailStrand:
-    """The detail route says whether a genotype's strand can be vouched for (#2103).
+    """The detail route says which genome strand each genotype was read on (#2103).
 
-    The Advanced View labels genotypes "plus strand" from this field, not from
-    the ``Indeterminate`` category: scoring gives that category both to a
-    palindromic homozygote (strand unknown) and to an unmodelled allele
-    (strand known).
+    Variant names follow the gene's transcript, so the Advanced View needs the
+    strand to explain why a genotype's letters can be the name's complements.
+    Arrays report some probes on their design strand, so it is told from the
+    sample's annotated genome alleles, never assumed.
     """
 
-    # rs1801198 (TCN2) is a C/G palindrome; rs1677693 (DHFR) is G/T, so an A
-    # is an allele the panel does not model.
-    GENOTYPES = {
-        C677T: "GG",
-        ("rs1801198", "22", 31012379): "CC",
-        ("rs1677693", "5", 79950000): "GA",
-    }
     DETAIL_URL = "/api/analysis/methylation/pathway/folate_mthfr?sample_id=1"
 
+    # (rsid, chrom, pos) -> (genotype, annotated genome ref, alt or None for unannotated)
+    CASES = {
+        C677T: ("GG", "G", "A"),  # 23andMe-style: plus strand
+        A1298C: ("AC", "T", "G"),  # read on the minus strand
+        ("rs1801198", "22", 31012379): ("CC", "G", "C"),  # C/G palindrome
+        ("rs1677693", "5", 79950000): ("GA", "G", "T"),  # A is not a modelled allele
+        ("rs1051266", "21", 46957794): ("CT", None, None),  # not annotated
+    }
+
     def _snps(self, client: TestClient, engine: sa.Engine) -> dict[str, dict]:
-        _seed_mthfr(engine, self.GENOTYPES)
+        _seed_mthfr(engine, {key: gt for key, (gt, _r, _a) in self.CASES.items()})
+        with engine.begin() as conn:
+            conn.execute(
+                sa.insert(annotated_variants),
+                [
+                    {"rsid": rsid, "chrom": chrom, "pos": pos, "ref": ref, "alt": alt}
+                    for (rsid, chrom, pos), (_gt, ref, alt) in self.CASES.items()
+                    if ref is not None
+                ],
+            )
         assert client.post(RUN_URL).status_code == 200
         resp = client.get(self.DETAIL_URL)
         assert resp.status_code == 200
         return {s["rsid"]: s for s in resp.json()["snp_details"]}
 
-    def test_a_palindromic_homozygote_is_unresolved(
+    def test_each_call_reports_the_strand_it_was_read_on(
         self, client: TestClient, _env: sa.Engine
     ) -> None:
-        snps = self._snps(client, _env)
-        assert snps["rs1801198"]["genotype"] == "CC"
-        assert snps["rs1801198"]["category"] == "Indeterminate"
-        assert snps["rs1801198"]["strand_unresolved"] is True
-
-    def test_an_unmodelled_allele_is_indeterminate_but_resolved(
-        self, client: TestClient, _env: sa.Engine
-    ) -> None:
-        snps = self._snps(client, _env)
-        assert snps["rs1677693"]["genotype"] == "GA"
-        assert snps["rs1677693"]["category"] == "Indeterminate"
-        assert snps["rs1677693"]["strand_unresolved"] is False
-
-    def test_an_ordinary_call_is_resolved(self, client: TestClient, _env: sa.Engine) -> None:
         snps = self._snps(client, _env)
         assert snps["rs1801133"]["genotype"] == "GG"
-        assert snps["rs1801133"]["strand_unresolved"] is False
+        assert snps["rs1801133"]["genotype_strand"] == "plus"
+        assert snps["rs1801131"]["genotype"] == "AC"
+        assert snps["rs1801131"]["genotype_strand"] == "minus"
 
-    def test_a_snp_the_panel_no_longer_carries_is_not_vouched_for(self) -> None:
-        from backend.api.routes.methylation import _strand_unresolved
-
-        assert _strand_unresolved("rs0000000000", "GG") is True
-        assert _strand_unresolved("rs1801133", "GG") is False
+    def test_no_strand_is_claimed_when_it_cannot_be_told(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        snps = self._snps(client, _env)
+        assert snps["rs1801198"]["genotype_strand"] is None  # palindrome
+        assert snps["rs1677693"]["category"] == "Indeterminate"
+        assert snps["rs1677693"]["genotype_strand"] is None  # unmodelled allele
+        assert snps["rs1051266"]["genotype_strand"] is None  # not annotated

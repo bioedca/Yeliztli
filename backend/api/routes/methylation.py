@@ -12,22 +12,20 @@ from __future__ import annotations
 
 import json
 import logging
-from functools import cache
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.genotype_lookup import is_palindromic_homozygote
-from backend.analysis.methylation import load_methylation_panel
+from backend.analysis.allele_match import observed_strand
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
-from backend.db.tables import findings, samples
+from backend.db.tables import annotated_variants, findings, samples
 
 logger = logging.getLogger(__name__)
 
@@ -54,33 +52,11 @@ class SNPDetail(BaseModel):
     recommendation: str | None = None
     pmids: list[str] = []
     coverage_note: str | None = None
-    # Whether the genotype's strand cannot be told from the call, so the UI must
-    # not present it as a plus-strand reading (#2103). Not the same as an
-    # ``Indeterminate`` category, which an unmodelled allele also produces.
-    strand_unresolved: bool = False
-
-
-@cache
-def _panel_genotype_effects() -> dict[str, dict[str, Any]]:
-    """Map rsid -> the curated genotype effects of the loaded methylation panel."""
-    return {
-        snp.rsid: snp.genotype_effects
-        for pathway in load_methylation_panel().pathways
-        for snp in pathway.snps
-    }
-
-
-def _strand_unresolved(rsid: str, genotype: str | None) -> bool:
-    """Whether a stored genotype's strand cannot be vouched for.
-
-    A palindromic homozygote reads the same letters as its complement on the
-    other strand. A SNP the panel no longer carries cannot be checked at all,
-    so it is not vouched for either.
-    """
-    effects = _panel_genotype_effects().get(rsid)
-    if effects is None:
-        return True
-    return genotype is not None and is_palindromic_homozygote(effects, genotype)
+    # The genome strand the array read this genotype on, from the sample's
+    # annotated plus-strand alleles, or None when it cannot be told (#2103).
+    # Variant names follow the gene's transcript, so the UI needs this to
+    # explain why a genotype's letters may be the name's complements.
+    genotype_strand: Literal["plus", "minus"] | None = None
 
 
 class PathwaySummary(BaseModel):
@@ -309,6 +285,18 @@ def pathway_detail(
             if rsid:
                 snp_findings_map[rsid] = f
 
+    # Genome alleles for the listed SNPs, to tell which strand each call was read on.
+    listed_rsids = [sd.get("rsid") for sd in snp_details_data if sd.get("rsid")]
+    genome_alleles: dict[str, tuple[str | None, str | None]] = {}
+    if listed_rsids:
+        with sample_engine.connect() as conn:
+            for row in conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid, annotated_variants.c.ref, annotated_variants.c.alt
+                ).where(annotated_variants.c.rsid.in_(listed_rsids))
+            ):
+                genome_alleles[row.rsid] = (row.ref, row.alt)
+
     snp_details: list[SNPDetail] = []
     for sd in snp_details_data:
         rsid = sd.get("rsid", "")
@@ -328,7 +316,9 @@ def pathway_detail(
             recommendation=recommendation,
             pmids=pmids,
             coverage_note=sd.get("coverage_note"),
-            strand_unresolved=_strand_unresolved(rsid, sd.get("genotype")),
+            genotype_strand=observed_strand(
+                sd.get("genotype"), *genome_alleles.get(rsid, (None, None))
+            ),
         )
         if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
             snp_details.append(snp_detail)

@@ -24,6 +24,7 @@ from backend.analysis.allele_match import (
     UNRESOLVED,
     imputed_effect_dosage,
     match_effect_allele_dosage,
+    observed_strand,
     risk_dosage,
 )
 from backend.analysis.prs import _count_effect_allele
@@ -274,3 +275,44 @@ class TestImputedEffectDosage:
     def test_non_snp_or_equal_alleles_dropped(self) -> None:
         assert imputed_effect_dosage("AT", "G", 1.0, "G", "A") is None  # ref not single-base
         assert imputed_effect_dosage("A", "A", 1.0, "A", "A") is None  # ref == alt
+
+
+class TestObservedStrand:
+    """Which genome strand an array genotype was read on (#2103).
+
+    Arrays report some probes on their design strand: AncestryDNA gives MTHFR
+    C677T (rs1801133, genome G/A) as ``CT`` where 23andMe gives ``GG``.
+    """
+
+    def test_alleles_within_the_genome_pair_were_read_on_the_plus_strand(self) -> None:
+        assert observed_strand("GG", "G", "A") == "plus"
+        assert observed_strand("GA", "G", "A") == "plus"
+        assert observed_strand("AG", "G", "A") == "plus"
+
+    def test_alleles_within_the_complement_were_read_on_the_minus_strand(self) -> None:
+        assert observed_strand("CT", "G", "A") == "minus"
+        assert observed_strand("CC", "G", "A") == "minus"
+        assert observed_strand("ac", "T", "G") == "minus"
+
+    def test_a_palindromic_pair_cannot_be_told_apart(self) -> None:
+        # Both strands read the same letters for A/T and C/G.
+        assert observed_strand("CC", "G", "C") is None
+        assert observed_strand("CG", "G", "C") is None
+        assert observed_strand("AA", "A", "T") is None
+
+    def test_an_allele_matching_neither_strand_is_unknown(self) -> None:
+        assert observed_strand("GA", "G", "T") is None
+
+    def test_a_single_allele_call_resolves_like_a_pair(self) -> None:
+        assert observed_strand("A", "G", "A") == "plus"
+        assert observed_strand("T", "G", "A") == "minus"
+
+    def test_unusable_inputs_are_unknown(self) -> None:
+        assert observed_strand("--", "G", "A") is None
+        assert observed_strand(None, "G", "A") is None
+        assert observed_strand("ID", "G", "A") is None
+        assert observed_strand("GG", None, "A") is None
+        assert observed_strand("GG", "G", None) is None
+        assert observed_strand("GG", "GT", "G") is None  # not a single-base SNV
+        assert observed_strand("GG", "G", "A,T") is None  # multi-allelic annotation
+        assert observed_strand("NN", "G", "A") is None

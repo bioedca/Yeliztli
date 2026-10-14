@@ -1,9 +1,9 @@
-/** The Methylation Advanced View says which strand a genotype is read on (#2103).
+/** The Methylation Advanced View says which strand a genotype was read on (#2103).
  *
- * Genotypes are shown on the genome's plus strand, while variant names such as
- * "C677T" follow the gene's transcript. For a gene transcribed from the minus
- * strand the two never share a letter ("C677T — Genotype: GG"), which reads as
- * a data error unless the orientation is stated.
+ * Variant names such as "C677T" follow the gene's transcript, while an array
+ * reports each probe on its own design strand, so a name and a genotype can
+ * share no letter ("C677T — Genotype: GG"). The backend tells the strand from
+ * the sample's annotated genome alleles; the view labels it and explains it.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
@@ -29,40 +29,32 @@ function snp(overrides: Record<string, unknown>) {
   }
 }
 
-const C677T = snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG", strand_unresolved: false })
-const A1298C = snp({
+// 23andMe-style: read on the genome's plus strand.
+const C677T_PLUS = snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG", genotype_strand: "plus" })
+// AncestryDNA-style: read on the minus strand.
+const A1298C_MINUS = snp({
   rsid: "rs1801131",
   variant_name: "A1298C",
-  genotype: "GT",
+  genotype: "AC",
   category: "Moderate",
-  strand_unresolved: false,
+  genotype_strand: "minus",
 })
-// Vendor insertion/deletion tokens name no strand at all.
-const DHFR_INDEL = snp({
-  rsid: "rs70991108",
-  gene: "DHFR",
-  variant_name: "19bp deletion",
-  genotype: "ID",
-  strand_unresolved: false,
-})
-// A palindromic homozygote whose strand the backend could not resolve.
+// A C/G palindrome: both strands read the same letters.
 const PALINDROME = snp({
   rsid: "rs1801198",
   gene: "TCN2",
   variant_name: "C776G (Pro259Arg)",
   genotype: "CC",
   category: "Indeterminate",
-  coverage_note: "Strand-ambiguous palindromic SNP — confirm the genotyping strand.",
-  strand_unresolved: true,
+  genotype_strand: null,
 })
-// An allele the panel does not model is Indeterminate too, but its strand is known.
-const UNMODELLED = snp({
-  rsid: "rs1677693",
+// Vendor insertion/deletion tokens name no strand.
+const DHFR_INDEL = snp({
+  rsid: "rs70991108",
   gene: "DHFR",
-  variant_name: "DHFR intronic tagSNP",
-  genotype: "GA",
-  category: "Indeterminate",
-  strand_unresolved: false,
+  variant_name: "19bp deletion",
+  genotype: "ID",
+  genotype_strand: null,
 })
 
 function renderPanel(snpDetails: unknown[]) {
@@ -101,58 +93,49 @@ function row(rsid: string) {
   return within(card as HTMLElement)
 }
 
-const NOTE = /Genotypes are shown as read on the genome's plus strand/
+const NOTE = /Where a genotype is labelled plus or minus strand/
+const ANY_LABEL = /\((plus|minus) strand\)/
 
-describe("Methylation Advanced View genotype orientation (#2103)", () => {
+describe("Methylation Advanced View genotype strand (#2103)", () => {
   beforeEach(() => {
     hook.mockReset()
   })
 
-  it("explains that genotypes and variant names can be in opposite orientations", () => {
-    renderPanel([C677T, A1298C])
-    const note = screen.getByText(NOTE)
-    expect(note).toHaveTextContent("C677T")
-    expect(note).toHaveTextContent(/DNA changes.*complements/)
-    // The complement rule is for nucleotide names only; protein names use
-    // amino-acid codes, which are not bases.
-    expect(note).toHaveTextContent(/protein changes, such as Val158Met.*cannot be compared/)
-  })
-
-  it("tags each nucleotide genotype with the strand it is read on", () => {
-    renderPanel([C677T, A1298C])
+  it("labels each genotype with the strand the backend says it was read on", () => {
+    renderPanel([C677T_PLUS, A1298C_MINUS])
     expect(row("rs1801133").getByText("GG")).toBeInTheDocument()
     expect(row("rs1801133").getByText("(plus strand)")).toBeInTheDocument()
-    expect(row("rs1801131").getByText("GT")).toBeInTheDocument()
-    expect(row("rs1801131").getByText("(plus strand)")).toBeInTheDocument()
+    expect(row("rs1801131").getByText("AC")).toBeInTheDocument()
+    expect(row("rs1801131").getByText("(minus strand)")).toBeInTheDocument()
+    // Read as one phrase by screen readers and copy-paste, not "GG(plus strand)".
+    expect(row("rs1801133").getByText(/^Genotype:/).closest("p")).toHaveTextContent(
+      "Genotype: GG (plus strand)",
+    )
   })
 
-  it("does not tag an insertion/deletion call, which names no strand", () => {
-    renderPanel([C677T, DHFR_INDEL])
-    expect(row("rs70991108").getByText("ID")).toBeInTheDocument()
-    expect(row("rs70991108").queryByText("(plus strand)")).not.toBeInTheDocument()
+  it("explains the labels, scoped to the labelled genotypes", () => {
+    renderPanel([C677T_PLUS, A1298C_MINUS])
+    const note = screen.getByText(NOTE)
+    expect(note).toHaveTextContent(/DNA changes, such as\s+C677T.*complementary/)
+    // The complement rule is for nucleotide names only.
+    expect(note).toHaveTextContent(/protein changes,\s+such as Val158Met.*cannot be compared/)
   })
 
-  it("does not claim a strand for a genotype whose strand could not be determined", () => {
-    renderPanel([C677T, PALINDROME])
+  it("claims no strand when the backend could not tell it", () => {
+    renderPanel([C677T_PLUS, PALINDROME, DHFR_INDEL])
     expect(row("rs1801198").getByText("CC")).toBeInTheDocument()
-    expect(row("rs1801198").queryByText("(plus strand)")).not.toBeInTheDocument()
+    expect(row("rs1801198").queryByText(ANY_LABEL)).not.toBeInTheDocument()
+    expect(row("rs70991108").getByText("ID")).toBeInTheDocument()
+    expect(row("rs70991108").queryByText(ANY_LABEL)).not.toBeInTheDocument()
   })
 
-  it("tags an unmodelled allele, which is Indeterminate but strand-resolved", () => {
-    renderPanel([UNMODELLED])
-    expect(row("rs1677693").getByText("GA")).toBeInTheDocument()
-    expect(row("rs1677693").getByText("(plus strand)")).toBeInTheDocument()
-    expect(screen.getByText(NOTE)).toBeInTheDocument()
-  })
-
-  it("does not vouch for a genotype when the strand field is absent", () => {
-    // An older response without the field: the call is not vouched for.
+  it("claims no strand when the response has no strand field", () => {
     renderPanel([snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG" })])
-    expect(row("rs1801133").queryByText("(plus strand)")).not.toBeInTheDocument()
+    expect(row("rs1801133").queryByText(ANY_LABEL)).not.toBeInTheDocument()
   })
 
-  it("omits the note when no genotype on the list is tagged", () => {
-    renderPanel([DHFR_INDEL, PALINDROME])
+  it("omits the note when no genotype is labelled", () => {
+    renderPanel([PALINDROME, DHFR_INDEL])
     expect(screen.queryByText(NOTE)).not.toBeInTheDocument()
   })
 })

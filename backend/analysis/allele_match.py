@@ -255,6 +255,38 @@ def imputed_effect_dosage(
     return None  # alleles fit neither strand (different/triallelic variant)
 
 
+def observed_strand(genotype: str | None, ref: str | None, alt: str | None) -> str | None:
+    """The genome strand an array genotype was read on: ``"plus"``, ``"minus"`` or None.
+
+    ``ref``/``alt`` are the variant's genome (plus-strand) alleles. A call whose
+    alleles all fall within that pair was read on the plus strand; one whose
+    alleles fall within its Watson–Crick complement was read on the minus
+    strand, as arrays report some probes on their design strand (see the module
+    docstring). None when that cannot be told: a no-call or non-A/C/G/T
+    genotype, an annotation that is not a single-base SNV, an A/T or C/G pair
+    (its two strands read the same letters), or alleles matching neither.
+    """
+    if is_no_call(genotype):
+        return None
+    assert genotype is not None
+    if not ref or not alt or len(ref) != 1 or len(alt) != 1:
+        return None
+    pair = {ref.upper(), alt.upper()}
+    if not pair <= COMPLEMENT.keys():
+        return None
+    complement = {COMPLEMENT[a] for a in pair}
+    if pair == complement:
+        return None
+    alleles = _parse_alleles(genotype)
+    if alleles is None:
+        return None
+    if alleles <= pair:
+        return "plus"
+    if alleles <= complement:
+        return "minus"
+    return None
+
+
 def canonical_alleles(
     genotype: str | None,
     ref: str | None,

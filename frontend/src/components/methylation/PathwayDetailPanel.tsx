@@ -24,18 +24,17 @@ import {
   TrendingUp,
 } from "lucide-react"
 
-/** Whether a genotype is a plus-strand nucleotide call the app can vouch for.
+/** The strand label for a genotype, or null when no strand is known.
  *
- * Genotypes are stored and shown on the genome's plus strand. Vendor
- * insertion/deletion tokens ("ID") name no strand, and the backend flags a call
- * whose strand cannot be told from it (a palindromic homozygote), so neither is
- * labelled. The category is not used: an unmodelled allele is Indeterminate
- * too, yet its strand is known (#2103).
+ * Arrays report some probes on their design strand, so the strand comes from
+ * the backend's comparison with the sample's annotated genome alleles, never
+ * from an assumption. It is null for an A/T or C/G pair, an unannotated SNP,
+ * an unmodelled allele or an insertion/deletion call (#2103).
  */
-function isPlusStrandCall(snp: SNPDetail): boolean {
-  return (
-    snp.genotype != null && /^[ACGT]+$/.test(snp.genotype) && snp.strand_unresolved === false
-  )
+function strandLabel(snp: SNPDetail): string | null {
+  if (snp.genotype_strand === "plus") return "plus strand"
+  if (snp.genotype_strand === "minus") return "minus strand"
+  return null
 }
 
 interface PathwayDetailPanelProps {
@@ -74,8 +73,11 @@ function SNPRow({ snp }: { snp: SNPDetail }) {
         <p className="text-sm mb-1">
           <span className="text-muted-foreground">Genotype: </span>
           <span className="font-mono font-medium">{snp.genotype}</span>
-          {isPlusStrandCall(snp) && (
-            <span className="ml-1.5 text-xs text-muted-foreground">(plus strand)</span>
+          {strandLabel(snp) && (
+            <>
+              {" "}
+              <span className="text-xs text-muted-foreground">({strandLabel(snp)})</span>
+            </>
           )}
         </p>
       )}
@@ -254,17 +256,17 @@ export default function PathwayDetailPanel({
 
               {showAdvanced && (
                 <div id="snp-details-list">
-                  {detailQuery.data.snp_details.some(isPlusStrandCall) && (
+                  {detailQuery.data.snp_details.some((snp) => strandLabel(snp) !== null) && (
                     <p className="flex items-start gap-2 text-xs text-muted-foreground mb-3">
                       <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
                       <span>
-                        Genotypes are shown as read on the genome&apos;s plus strand. Names
-                        written as DNA changes, such as C677T, follow the gene&apos;s own
-                        transcript, which for some genes is read from the opposite strand.
-                        For those genes the genotype&apos;s letters are the complements of the
-                        ones in the name (A pairs with T, C with G). Names written as protein
-                        changes, such as Val158Met, use amino-acid codes and cannot be
-                        compared letter by letter with a genotype.
+                        Where a genotype is labelled plus or minus strand, that is the genome
+                        strand your array read it on. Names written as DNA changes, such as
+                        C677T, follow the gene&apos;s own transcript, which can run on either
+                        strand. A genotype read on the other strand shows the complementary
+                        letters (A pairs with T, C with G). Names written as protein changes,
+                        such as Val158Met, use amino-acid codes and cannot be compared letter
+                        by letter with a genotype.
                       </span>
                     </p>
                   )}
