@@ -27,12 +27,14 @@ import {
 /** Whether a genotype is a plus-strand nucleotide call the app can vouch for.
  *
  * Genotypes are stored and shown on the genome's plus strand. Vendor
- * insertion/deletion tokens ("ID") name no strand, and an Indeterminate row is
- * one whose strand could not be resolved, so neither is labelled (#2103).
+ * insertion/deletion tokens ("ID") name no strand, and the backend flags a call
+ * whose strand cannot be told from it (a palindromic homozygote), so neither is
+ * labelled. The category is not used: an unmodelled allele is Indeterminate
+ * too, yet its strand is known (#2103).
  */
 function isPlusStrandCall(snp: SNPDetail): boolean {
   return (
-    snp.genotype != null && /^[ACGT]+$/.test(snp.genotype) && snp.category !== "Indeterminate"
+    snp.genotype != null && /^[ACGT]+$/.test(snp.genotype) && snp.strand_unresolved === false
   )
 }
 
@@ -256,11 +258,13 @@ export default function PathwayDetailPanel({
                     <p className="flex items-start gap-2 text-xs text-muted-foreground mb-3">
                       <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
                       <span>
-                        Genotypes are shown as read on the genome&apos;s plus strand. Variant
-                        names written as base or amino-acid changes, such as C677T, follow
-                        the gene&apos;s own transcript, which for some genes is read from the
-                        opposite strand. For those genes the genotype&apos;s letters are the
-                        complements of the ones in the name (A pairs with T, C with G).
+                        Genotypes are shown as read on the genome&apos;s plus strand. Names
+                        written as DNA changes, such as C677T, follow the gene&apos;s own
+                        transcript, which for some genes is read from the opposite strand.
+                        For those genes the genotype&apos;s letters are the complements of the
+                        ones in the name (A pairs with T, C with G). Names written as protein
+                        changes, such as Val158Met, use amino-acid codes and cannot be
+                        compared letter by letter with a genotype.
                       </span>
                     </p>
                   )}

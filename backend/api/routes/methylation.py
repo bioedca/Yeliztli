@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import json
 import logging
+from functools import cache
 from typing import Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.genotype_lookup import is_palindromic_homozygote
+from backend.analysis.methylation import load_methylation_panel
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -51,6 +54,33 @@ class SNPDetail(BaseModel):
     recommendation: str | None = None
     pmids: list[str] = []
     coverage_note: str | None = None
+    # Whether the genotype's strand cannot be told from the call, so the UI must
+    # not present it as a plus-strand reading (#2103). Not the same as an
+    # ``Indeterminate`` category, which an unmodelled allele also produces.
+    strand_unresolved: bool = False
+
+
+@cache
+def _panel_genotype_effects() -> dict[str, dict[str, Any]]:
+    """Map rsid -> the curated genotype effects of the loaded methylation panel."""
+    return {
+        snp.rsid: snp.genotype_effects
+        for pathway in load_methylation_panel().pathways
+        for snp in pathway.snps
+    }
+
+
+def _strand_unresolved(rsid: str, genotype: str | None) -> bool:
+    """Whether a stored genotype's strand cannot be vouched for.
+
+    A palindromic homozygote reads the same letters as its complement on the
+    other strand. A SNP the panel no longer carries cannot be checked at all,
+    so it is not vouched for either.
+    """
+    effects = _panel_genotype_effects().get(rsid)
+    if effects is None:
+        return True
+    return genotype is not None and is_palindromic_homozygote(effects, genotype)
 
 
 class PathwaySummary(BaseModel):
@@ -298,6 +328,7 @@ def pathway_detail(
             recommendation=recommendation,
             pmids=pmids,
             coverage_note=sd.get("coverage_note"),
+            strand_unresolved=_strand_unresolved(rsid, sd.get("genotype")),
         )
         if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
             snp_details.append(snp_detail)

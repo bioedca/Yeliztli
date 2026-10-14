@@ -17,6 +17,9 @@ export interface SNPDetail {
   recommendation: string | null
   pmids: string[]
   coverage_note: string | null
+  /** The genotype's strand cannot be told from the call (a palindromic
+   * homozygote, or a SNP the panel no longer carries). Absent means unknown. */
+  strand_unresolved?: boolean
 }
 
 /** Summary of a single methylation pathway. */

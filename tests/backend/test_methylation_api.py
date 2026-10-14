@@ -181,3 +181,56 @@ class TestCompoundHetHandoff:
         assert body["items"] == []
         assert body["total"] == 0
         assert body["compound_het"] is None
+
+
+class TestPathwayDetailStrand:
+    """The detail route says whether a genotype's strand can be vouched for (#2103).
+
+    The Advanced View labels genotypes "plus strand" from this field, not from
+    the ``Indeterminate`` category: scoring gives that category both to a
+    palindromic homozygote (strand unknown) and to an unmodelled allele
+    (strand known).
+    """
+
+    # rs1801198 (TCN2) is a C/G palindrome; rs1677693 (DHFR) is G/T, so an A
+    # is an allele the panel does not model.
+    GENOTYPES = {
+        C677T: "GG",
+        ("rs1801198", "22", 31012379): "CC",
+        ("rs1677693", "5", 79950000): "GA",
+    }
+    DETAIL_URL = "/api/analysis/methylation/pathway/folate_mthfr?sample_id=1"
+
+    def _snps(self, client: TestClient, engine: sa.Engine) -> dict[str, dict]:
+        _seed_mthfr(engine, self.GENOTYPES)
+        assert client.post(RUN_URL).status_code == 200
+        resp = client.get(self.DETAIL_URL)
+        assert resp.status_code == 200
+        return {s["rsid"]: s for s in resp.json()["snp_details"]}
+
+    def test_a_palindromic_homozygote_is_unresolved(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        snps = self._snps(client, _env)
+        assert snps["rs1801198"]["genotype"] == "CC"
+        assert snps["rs1801198"]["category"] == "Indeterminate"
+        assert snps["rs1801198"]["strand_unresolved"] is True
+
+    def test_an_unmodelled_allele_is_indeterminate_but_resolved(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        snps = self._snps(client, _env)
+        assert snps["rs1677693"]["genotype"] == "GA"
+        assert snps["rs1677693"]["category"] == "Indeterminate"
+        assert snps["rs1677693"]["strand_unresolved"] is False
+
+    def test_an_ordinary_call_is_resolved(self, client: TestClient, _env: sa.Engine) -> None:
+        snps = self._snps(client, _env)
+        assert snps["rs1801133"]["genotype"] == "GG"
+        assert snps["rs1801133"]["strand_unresolved"] is False
+
+    def test_a_snp_the_panel_no_longer_carries_is_not_vouched_for(self) -> None:
+        from backend.api.routes.methylation import _strand_unresolved
+
+        assert _strand_unresolved("rs0000000000", "GG") is True
+        assert _strand_unresolved("rs1801133", "GG") is False

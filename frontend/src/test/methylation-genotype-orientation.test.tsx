@@ -29,10 +29,22 @@ function snp(overrides: Record<string, unknown>) {
   }
 }
 
-const C677T = snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG" })
-const A1298C = snp({ rsid: "rs1801131", variant_name: "A1298C", genotype: "GT", category: "Moderate" })
+const C677T = snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG", strand_unresolved: false })
+const A1298C = snp({
+  rsid: "rs1801131",
+  variant_name: "A1298C",
+  genotype: "GT",
+  category: "Moderate",
+  strand_unresolved: false,
+})
 // Vendor insertion/deletion tokens name no strand at all.
-const DHFR_INDEL = snp({ rsid: "rs70991108", gene: "DHFR", variant_name: "19bp deletion", genotype: "ID" })
+const DHFR_INDEL = snp({
+  rsid: "rs70991108",
+  gene: "DHFR",
+  variant_name: "19bp deletion",
+  genotype: "ID",
+  strand_unresolved: false,
+})
 // A palindromic homozygote whose strand the backend could not resolve.
 const PALINDROME = snp({
   rsid: "rs1801198",
@@ -41,6 +53,16 @@ const PALINDROME = snp({
   genotype: "CC",
   category: "Indeterminate",
   coverage_note: "Strand-ambiguous palindromic SNP — confirm the genotyping strand.",
+  strand_unresolved: true,
+})
+// An allele the panel does not model is Indeterminate too, but its strand is known.
+const UNMODELLED = snp({
+  rsid: "rs1677693",
+  gene: "DHFR",
+  variant_name: "DHFR intronic tagSNP",
+  genotype: "GA",
+  category: "Indeterminate",
+  strand_unresolved: false,
 })
 
 function renderPanel(snpDetails: unknown[]) {
@@ -90,7 +112,10 @@ describe("Methylation Advanced View genotype orientation (#2103)", () => {
     renderPanel([C677T, A1298C])
     const note = screen.getByText(NOTE)
     expect(note).toHaveTextContent("C677T")
-    expect(note).toHaveTextContent(/complement/i)
+    expect(note).toHaveTextContent(/DNA changes.*complements/)
+    // The complement rule is for nucleotide names only; protein names use
+    // amino-acid codes, which are not bases.
+    expect(note).toHaveTextContent(/protein changes, such as Val158Met.*cannot be compared/)
   })
 
   it("tags each nucleotide genotype with the strand it is read on", () => {
@@ -111,6 +136,19 @@ describe("Methylation Advanced View genotype orientation (#2103)", () => {
     renderPanel([C677T, PALINDROME])
     expect(row("rs1801198").getByText("CC")).toBeInTheDocument()
     expect(row("rs1801198").queryByText("(plus strand)")).not.toBeInTheDocument()
+  })
+
+  it("tags an unmodelled allele, which is Indeterminate but strand-resolved", () => {
+    renderPanel([UNMODELLED])
+    expect(row("rs1677693").getByText("GA")).toBeInTheDocument()
+    expect(row("rs1677693").getByText("(plus strand)")).toBeInTheDocument()
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
+  })
+
+  it("does not vouch for a genotype when the strand field is absent", () => {
+    // An older response without the field: the call is not vouched for.
+    renderPanel([snp({ rsid: "rs1801133", variant_name: "C677T", genotype: "GG" })])
+    expect(row("rs1801133").queryByText("(plus strand)")).not.toBeInTheDocument()
   })
 
   it("omits the note when no genotype on the list is tagged", () => {
