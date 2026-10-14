@@ -2046,6 +2046,10 @@ def call_star_alleles_for_gene(
 
             called_alleles.extend([allele["allele_name"]] * max_copies)
 
+    # Both slots taken by non-reference alleles: needed to tell an allele that
+    # was crowded out from one that was simply not called (#2113).
+    slots_full = len(called_alleles) >= 2
+
     # Fill remaining slots with reference allele
     while len(called_alleles) < 2:
         called_alleles.append(ref_allele_name)
@@ -2153,6 +2157,49 @@ def call_star_alleles_for_gene(
         confidence_note = f"{confidence_note} {phase_note}".strip()
         if call_confidence == CallConfidence.COMPLETE:
             call_confidence = CallConfidence.PARTIAL
+
+    # An observed alt copy that no called allele consumed (#2113). Its slot was
+    # filled with the reference allele, so the called diplotype does not show a
+    # variant the sample carries; nothing used to surface that.
+    residual_alts = {key: count for key, count in remaining_alts.items() if count > 0}
+    if residual_alts:
+        # With both slots taken by non-reference alleles, an allele whose every
+        # defining variant is still left over was crowded out: more
+        # non-reference alleles were observed than a diplotype holds, so the
+        # call cannot be right as reported. With a slot left, a leftover was
+        # deliberately not called (e.g. an unphased NUDT15 indel that gets a
+        # phase caveat instead) and is not an overflow.
+        crowded_out = (
+            sorted(
+                allele["allele_name"]
+                for allele in non_ref_alleles
+                if all(
+                    remaining_alts.get(_variant_key(v), 0) > 0 for v in allele["defining_variants"]
+                )
+            )
+            if slots_full
+            else []
+        )
+        logger.warning(
+            "pgx_residual_alt_discarded",
+            gene=gene,
+            diplotype=diplotype,
+            residual={f"{rsid}:{ref}>{alt}": n for (rsid, ref, alt), n in residual_alts.items()},
+            crowded_out=crowded_out,
+        )
+        # Otherwise the leftover belongs only to multi-variant alleles whose other
+        # components are absent. That is either a known partial haplotype (SLCO1B1
+        # g.-11187G>A without c.521C is deliberately *1B, #110) or an allele the
+        # table lacks (CYP2B6 785A>G before *4, #1985); the engine cannot tell them
+        # apart, so the call stands and only the warning above records it.
+        if crowded_out:
+            call_confidence = CallConfidence.INSUFFICIENT
+            confidence_note = (
+                f"{confidence_note} More non-reference alleles were observed than a "
+                f"two-allele diplotype holds ({', '.join(crowded_out)} also fit the "
+                f"remaining variants), so the reported diplotype cannot account for "
+                f"them and is not used for prescribing."
+            ).strip()
 
     result = StarAlleleResult(
         gene=gene,
