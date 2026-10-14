@@ -1132,3 +1132,91 @@ describe('Outside-window tooltip and Force update', () => {
     // afterEach() calls vi.unstubAllGlobals() so no manual cleanup needed.
   })
 })
+
+
+// ── Size column is the installed size, never the update download (#2104) ──
+
+describe('UpdateManager Size column (#2104)', () => {
+  const statuses = [
+    {
+      db_name: 'cpic',
+      display_name: 'CPIC',
+      current_version: 'v1.58.0',
+      version_display: 'v1.58.0',
+      downloaded_at: '2026-06-01T00:00:00',
+      auto_update: true,
+      update_available: false,
+      file_size_bytes: 5_000_000,
+    },
+    {
+      db_name: 'clinvar',
+      display_name: 'ClinVar',
+      current_version: '20260315',
+      version_display: '2026-03-15',
+      downloaded_at: '2026-03-15T00:00:00',
+      auto_update: true,
+      update_available: false,
+      file_size_bytes: 1_610_612_736,
+    },
+    {
+      db_name: 'gnomad',
+      display_name: 'gnomAD',
+      current_version: '2.1.1',
+      version_display: '2.1.1',
+      downloaded_at: '2026-03-01T00:00:00',
+      auto_update: false,
+      update_available: false,
+      file_size_bytes: 104_857_600,
+    },
+  ]
+  const available = [
+    // A pipeline-built update has no download artifact.
+    { db_name: 'cpic', latest_version: 'v1.59.1', download_size_bytes: 0, release_date: null },
+    {
+      db_name: 'clinvar',
+      latest_version: '20260320',
+      download_size_bytes: 192_303_513,
+      release_date: null,
+    },
+  ]
+
+  async function cells(name: string) {
+    const row = (await screen.findByText(name)).closest('tr')!
+    return within(row).getAllByRole('cell')
+  }
+
+  it('shows the installed size, not a 0 B download, for a pipeline update', async () => {
+    setupFetchMocks({ statuses, available })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const cpic = await cells('CPIC')
+    expect(cpic[3]).toHaveTextContent(/^4\.8 MB$/)
+    expect(cpic[0].closest('tr')).not.toHaveTextContent('0 B')
+    expect(cpic[2]).not.toHaveTextContent(/Download/)
+  })
+
+  it('keeps the installed size under Size and labels the download with the update', async () => {
+    setupFetchMocks({ statuses, available })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const clinvar = await cells('ClinVar')
+    expect(clinvar[3]).toHaveTextContent(/^1\.50 GB$/)
+    expect(clinvar[2]).toHaveTextContent('Download 183.4 MB')
+  })
+
+  it('leaves an up-to-date database showing its installed size', async () => {
+    setupFetchMocks({ statuses, available })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const gnomad = await cells('gnomAD')
+    expect(gnomad[3]).toHaveTextContent(/^100\.0 MB$/)
+  })
+
+  it('shows an unknown installed size as a dash even when an update is pending', async () => {
+    setupFetchMocks({
+      statuses: [{ ...statuses[1], file_size_bytes: null }],
+      available: [available[1]],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    const clinvar = await cells('ClinVar')
+    expect(clinvar[3]).toHaveTextContent(/^—$/)
+    expect(clinvar[2]).toHaveTextContent('Download 183.4 MB')
+  })
+})

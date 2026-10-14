@@ -433,9 +433,18 @@ function DatabaseRow({
       {/* Latest available */}
       <td className="py-3 px-4 text-sm">
         {updateInfo ? (
-          <span className="text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">
-            {updateInfo.latest_version_display ?? updateInfo.latest_version}
-          </span>
+          <>
+            <span className="text-amber-700 dark:text-amber-400 font-medium whitespace-nowrap">
+              {updateInfo.latest_version_display ?? updateInfo.latest_version}
+            </span>
+            {/* The update's own download, beside the update. A pipeline build
+                reports 0 because it has no artifact, so nothing is shown (#2104). */}
+            {updateInfo.download_size_bytes > 0 && (
+              <span className="block text-xs text-muted-foreground whitespace-nowrap">
+                Download {formatBytes(updateInfo.download_size_bytes)}
+              </span>
+            )}
+          </>
         ) : (
           <span className="text-muted-foreground">
             {status.current_version ? 'Up to date' : '—'}
@@ -443,11 +452,10 @@ function DatabaseRow({
         )}
       </td>
 
-      {/* Size */}
+      {/* Size — always what is installed; a pending update's download is shown
+          with the update instead, so one header never means two things (#2104). */}
       <td className="py-3 px-4 text-sm text-muted-foreground">
-        {updateInfo
-          ? formatBytes(updateInfo.download_size_bytes)
-          : formatBytes(status.file_size_bytes)}
+        {formatBytes(status.file_size_bytes)}
       </td>
 
       {/* Last checked */}
