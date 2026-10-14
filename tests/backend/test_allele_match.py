@@ -281,38 +281,47 @@ class TestObservedStrand:
     """Which genome strand an array genotype was read on (#2103).
 
     Arrays report some probes on their design strand: AncestryDNA gives MTHFR
-    C677T (rs1801133, genome G/A) as ``CT`` where 23andMe gives ``GG``.
+    C677T as ``CT`` where 23andMe gives ``GG``. The strand is told from every
+    allele at the locus, so a call that fits both strands is never labelled.
     """
 
-    def test_alleles_within_the_genome_pair_were_read_on_the_plus_strand(self) -> None:
-        assert observed_strand("GG", "G", "A") == "plus"
-        assert observed_strand("GA", "G", "A") == "plus"
-        assert observed_strand("AG", "G", "A") == "plus"
+    def test_a_call_fitting_only_the_genome_alleles_was_read_on_the_plus_strand(self) -> None:
+        assert observed_strand("GT", ["T", "G"]) == "plus"
+        assert observed_strand("GG", ["T", "G"]) == "plus"
+        assert observed_strand("AG", ["G", "A", "C"]) == "plus"
 
-    def test_alleles_within_the_complement_were_read_on_the_minus_strand(self) -> None:
-        assert observed_strand("CT", "G", "A") == "minus"
-        assert observed_strand("CC", "G", "A") == "minus"
-        assert observed_strand("ac", "T", "G") == "minus"
+    def test_a_call_fitting_only_their_complements_was_read_on_the_minus_strand(self) -> None:
+        assert observed_strand("ac", ["T", "G"]) == "minus"
+        assert observed_strand("TC", ["A", "G"]) == "minus"
+        assert observed_strand("CT", ["G", "A", "C"]) == "minus"
 
-    def test_a_palindromic_pair_cannot_be_told_apart(self) -> None:
-        # Both strands read the same letters for A/T and C/G.
-        assert observed_strand("CC", "G", "C") is None
-        assert observed_strand("CG", "G", "C") is None
-        assert observed_strand("AA", "A", "T") is None
+    def test_a_multiallelic_locus_can_make_a_call_fit_both_strands(self) -> None:
+        # rs1801133 is G>A,C: GG may be plus G/G or a minus-strand report of C/C.
+        assert observed_strand("GG", ["G", "A", "C"]) is None
+        assert observed_strand("CC", ["G", "A", "C"]) is None
 
-    def test_an_allele_matching_neither_strand_is_unknown(self) -> None:
-        assert observed_strand("GA", "G", "T") is None
+    def test_a_palindromic_pair_fits_both_strands(self) -> None:
+        assert observed_strand("CC", ["G", "C"]) is None
+        assert observed_strand("CG", ["G", "C"]) is None
+        assert observed_strand("AA", ["A", "T"]) is None
+
+    def test_a_call_fitting_neither_strand_is_unknown(self) -> None:
+        assert observed_strand("GA", ["G", "T"]) is None
 
     def test_a_single_allele_call_resolves_like_a_pair(self) -> None:
-        assert observed_strand("A", "G", "A") == "plus"
-        assert observed_strand("T", "G", "A") == "minus"
+        assert observed_strand("A", ["G", "A"]) == "plus"
+        assert observed_strand("T", ["G", "A"]) == "minus"
 
-    def test_unusable_inputs_are_unknown(self) -> None:
-        assert observed_strand("--", "G", "A") is None
-        assert observed_strand(None, "G", "A") is None
-        assert observed_strand("ID", "G", "A") is None
-        assert observed_strand("GG", None, "A") is None
-        assert observed_strand("GG", "G", None) is None
-        assert observed_strand("GG", "GT", "G") is None  # not a single-base SNV
-        assert observed_strand("GG", "G", "A,T") is None  # multi-allelic annotation
-        assert observed_strand("NN", "G", "A") is None
+    def test_a_locus_without_two_distinct_single_base_alleles_is_unknown(self) -> None:
+        assert observed_strand("AA", ["A", "A"]) is None  # malformed ref == alt
+        assert observed_strand("AA", ["A"]) is None
+        assert observed_strand("GG", []) is None
+        assert observed_strand("GG", ["G", None]) is None
+        assert observed_strand("GG", ["G", "GT"]) is None  # not a single-base SNV
+        assert observed_strand("GG", ["G", "-"]) is None
+
+    def test_unusable_genotypes_are_unknown(self) -> None:
+        assert observed_strand("--", ["G", "A"]) is None
+        assert observed_strand(None, ["G", "A"]) is None
+        assert observed_strand("ID", ["G", "A"]) is None
+        assert observed_strand("NN", ["G", "A"]) is None

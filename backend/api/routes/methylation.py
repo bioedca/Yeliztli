@@ -59,6 +59,44 @@ class SNPDetail(BaseModel):
     genotype_strand: Literal["plus", "minus"] | None = None
 
 
+def _locus_alleles(sample_engine: sa.Engine, rsids: list[str]) -> dict[str, set[str]]:
+    """Every genome allele recorded at each rsid, for telling a call's strand (#2103).
+
+    The VEP bundle holds one row per alternate allele, so it carries the whole
+    locus (rs1801133 is G>A and G>C); the sample's own annotated pair is added
+    in case it is not among them. An rsid the bundle does not cover is left out,
+    because one record's pair alone cannot rule out another allele that would
+    make the opposite strand fit too.
+    """
+    registry = get_registry()
+    # Checked first so a missing bundle is never created as an empty file.
+    if not rsids or not registry.settings.vep_bundle_db_path.exists():
+        return {}
+    alleles: dict[str, set[str]] = {}
+    try:
+        with registry.vep_engine.connect() as conn:
+            rows = conn.execute(
+                sa.text(
+                    "SELECT rsid, ref, alt FROM vep_annotations WHERE rsid IN :rsids"
+                ).bindparams(sa.bindparam("rsids", expanding=True)),
+                {"rsids": rsids},
+            )
+            for row in rows:
+                alleles.setdefault(row.rsid, set()).update(a for a in (row.ref, row.alt) if a)
+    except Exception as exc:  # A missing or unreadable bundle labels nothing.
+        logger.debug("VEP bundle unavailable for strand lookup: %s", exc)
+        return {}
+    if alleles:
+        with sample_engine.connect() as conn:
+            for row in conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid, annotated_variants.c.ref, annotated_variants.c.alt
+                ).where(annotated_variants.c.rsid.in_(list(alleles)))
+            ):
+                alleles[row.rsid].update(a for a in (row.ref, row.alt) if a)
+    return alleles
+
+
 class PathwaySummary(BaseModel):
     """Summary of a single methylation pathway."""
 
@@ -285,17 +323,9 @@ def pathway_detail(
             if rsid:
                 snp_findings_map[rsid] = f
 
-    # Genome alleles for the listed SNPs, to tell which strand each call was read on.
+    # Every genome allele at the listed SNPs, to tell which strand each call was read on.
     listed_rsids = [sd.get("rsid") for sd in snp_details_data if sd.get("rsid")]
-    genome_alleles: dict[str, tuple[str | None, str | None]] = {}
-    if listed_rsids:
-        with sample_engine.connect() as conn:
-            for row in conn.execute(
-                sa.select(
-                    annotated_variants.c.rsid, annotated_variants.c.ref, annotated_variants.c.alt
-                ).where(annotated_variants.c.rsid.in_(listed_rsids))
-            ):
-                genome_alleles[row.rsid] = (row.ref, row.alt)
+    locus_alleles = _locus_alleles(sample_engine, listed_rsids)
 
     snp_details: list[SNPDetail] = []
     for sd in snp_details_data:
@@ -316,9 +346,7 @@ def pathway_detail(
             recommendation=recommendation,
             pmids=pmids,
             coverage_note=sd.get("coverage_note"),
-            genotype_strand=observed_strand(
-                sd.get("genotype"), *genome_alleles.get(rsid, (None, None))
-            ),
+            genotype_strand=observed_strand(sd.get("genotype"), locus_alleles.get(rsid, ())),
         )
         if is_patient_presentable_response_payload(snp_detail.model_dump(mode="json")):
             snp_details.append(snp_detail)

@@ -188,30 +188,47 @@ class TestPathwayDetailStrand:
 
     Variant names follow the gene's transcript, so the Advanced View needs the
     strand to explain why a genotype's letters can be the name's complements.
-    Arrays report some probes on their design strand, so it is told from the
-    sample's annotated genome alleles, never assumed.
+    Arrays report some probes on their design strand, so it is told from every
+    allele the VEP bundle records at the locus plus the sample's own annotated
+    pair, never assumed, and withheld when the call fits both strands.
     """
 
     DETAIL_URL = "/api/analysis/methylation/pathway/folate_mthfr?sample_id=1"
 
-    # (rsid, chrom, pos) -> (genotype, annotated genome ref, alt or None for unannotated)
-    CASES = {
-        C677T: ("GG", "G", "A"),  # 23andMe-style: plus strand
-        A1298C: ("AC", "T", "G"),  # read on the minus strand
-        ("rs1801198", "22", 31012379): ("CC", "G", "C"),  # C/G palindrome
-        ("rs1677693", "5", 79950000): ("GA", "G", "T"),  # A is not a modelled allele
-        ("rs1051266", "21", 46957794): ("CT", None, None),  # not annotated
+    # rsid -> (genotype, VEP bundle alleles as (ref, alt) rows, sample annotated pair)
+    CASES: dict[
+        tuple[str, str, int], tuple[str, list[tuple[str, str]], tuple[str, str] | None]
+    ] = {
+        A1298C: ("GT", [("T", "G")], ("T", "G")),  # plus
+        ("rs202676", "8", 49979000): ("TC", [("A", "G")], ("A", "G")),  # minus
+        C677T: ("GG", [("G", "A"), ("G", "C")], ("G", "A")),  # G>A,C: fits both
+        ("rs1801198", "22", 31012379): ("CC", [("G", "A"), ("G", "C")], ("G", "C")),
+        # The bundle records T>C only; the sample's annotation adds G, so GG
+        # fits both strands. Without the sample pair it would read as minus.
+        ("rs1051266", "21", 46957794): ("GG", [("T", "C")], ("T", "G")),
+        ("rs1677693", "5", 79950000): ("GA", [], None),  # not in the bundle
     }
 
+    def _write_bundle(self, engine: sa.Engine) -> Path:
+        bundle = Path(str(engine.url.database)).parent.parent / "vep_bundle.db"
+        with sa.create_engine(f"sqlite:///{bundle}").begin() as conn:
+            conn.exec_driver_sql("CREATE TABLE vep_annotations (rsid TEXT, ref TEXT, alt TEXT)")
+            for (rsid, _c, _p), (_gt, vep_rows, _pair) in self.CASES.items():
+                for ref, alt in vep_rows:
+                    conn.exec_driver_sql(
+                        "INSERT INTO vep_annotations VALUES (?, ?, ?)", (rsid, ref, alt)
+                    )
+        return bundle
+
     def _snps(self, client: TestClient, engine: sa.Engine) -> dict[str, dict]:
-        _seed_mthfr(engine, {key: gt for key, (gt, _r, _a) in self.CASES.items()})
+        _seed_mthfr(engine, {key: gt for key, (gt, _v, _p) in self.CASES.items()})
         with engine.begin() as conn:
             conn.execute(
                 sa.insert(annotated_variants),
                 [
-                    {"rsid": rsid, "chrom": chrom, "pos": pos, "ref": ref, "alt": alt}
-                    for (rsid, chrom, pos), (_gt, ref, alt) in self.CASES.items()
-                    if ref is not None
+                    {"rsid": rsid, "chrom": chrom, "pos": pos, "ref": pair[0], "alt": pair[1]}
+                    for (rsid, chrom, pos), (_gt, _v, pair) in self.CASES.items()
+                    if pair is not None
                 ],
             )
         assert client.post(RUN_URL).status_code == 200
@@ -219,20 +236,31 @@ class TestPathwayDetailStrand:
         assert resp.status_code == 200
         return {s["rsid"]: s for s in resp.json()["snp_details"]}
 
-    def test_each_call_reports_the_strand_it_was_read_on(
+    def test_each_call_reports_the_strand_only_it_fits(
         self, client: TestClient, _env: sa.Engine
     ) -> None:
+        self._write_bundle(_env)
         snps = self._snps(client, _env)
-        assert snps["rs1801133"]["genotype"] == "GG"
-        assert snps["rs1801133"]["genotype_strand"] == "plus"
-        assert snps["rs1801131"]["genotype"] == "AC"
-        assert snps["rs1801131"]["genotype_strand"] == "minus"
+        assert snps["rs1801131"]["genotype"] == "GT"
+        assert snps["rs1801131"]["genotype_strand"] == "plus"
+        assert snps["rs202676"]["genotype"] == "TC"
+        assert snps["rs202676"]["genotype_strand"] == "minus"
 
-    def test_no_strand_is_claimed_when_it_cannot_be_told(
+    def test_no_strand_is_claimed_when_the_call_fits_both_or_neither(
         self, client: TestClient, _env: sa.Engine
     ) -> None:
+        self._write_bundle(_env)
         snps = self._snps(client, _env)
-        assert snps["rs1801198"]["genotype_strand"] is None  # palindrome
-        assert snps["rs1677693"]["category"] == "Indeterminate"
-        assert snps["rs1677693"]["genotype_strand"] is None  # unmodelled allele
-        assert snps["rs1051266"]["genotype_strand"] is None  # not annotated
+        assert snps["rs1801133"]["genotype_strand"] is None  # multi-allelic G>A,C
+        assert snps["rs1801198"]["genotype_strand"] is None  # C/G palindrome
+        assert snps["rs1051266"]["genotype_strand"] is None  # widened by the sample pair
+        assert snps["rs1677693"]["genotype_strand"] is None  # not in the bundle
+
+    def test_without_a_bundle_nothing_is_labelled_and_none_is_created(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        bundle = Path(str(_env.url.database)).parent.parent / "vep_bundle.db"
+        assert not bundle.exists()
+        snps = self._snps(client, _env)
+        assert {s["genotype_strand"] for s in snps.values()} == {None}
+        assert not bundle.exists()
