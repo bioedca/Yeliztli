@@ -140,6 +140,101 @@ class TestRunAndMetrics:
         assert m["het_outlier_status"] == "insufficient_samples"
 
 
+class TestSexConcordanceWiring:
+    """The route compares the genotypes' sex with the *recorded* sex (#2105).
+
+    The concordant test above has recorded == inferred == XX, so a route that
+    returned a constant "concordant", or compared the inferred sex with itself,
+    would still pass it. These cases make the two sides differ, so the check
+    the sample-swap detector rests on is decided by the route's own wiring.
+    """
+
+    @staticmethod
+    def _set_recorded_sex(sample_engine: sa.Engine, sex: str | None) -> None:
+        reference_db = Path(str(sample_engine.url.database)).parent.parent / "reference.db"
+        engine = sa.create_engine(f"sqlite:///{reference_db}")
+        with engine.begin() as conn:
+            conn.execute(
+                sa.update(individuals).where(individuals.c.id == 1).values(biological_sex=sex)
+            )
+        engine.dispose()
+
+    @staticmethod
+    def _use_xy_genotypes(sample_engine: sa.Engine) -> None:
+        """Replace the XX sex-chromosome calls with an unambiguous XY sample.
+
+        One X (hemizygous non-PAR calls, no heterozygotes) and a called chrY,
+        each above the inference's minimum-evidence floors.
+        """
+        with sample_engine.begin() as conn:
+            conn.execute(sa.delete(raw_variants).where(raw_variants.c.chrom.in_(["X", "Y"])))
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    *(
+                        {
+                            "rsid": f"rx_hemi_{i}",
+                            "chrom": "X",
+                            "pos": 5_000_000 + i,
+                            "genotype": "G",
+                        }
+                        for i in range(100)
+                    ),
+                    *(
+                        {
+                            "rsid": f"ry_call_{i}",
+                            "chrom": "Y",
+                            "pos": 2_800_000 + i,
+                            "genotype": "C",
+                        }
+                        for i in range(50)
+                    ),
+                ],
+            )
+
+    @staticmethod
+    def _metrics(client: TestClient) -> dict:
+        assert client.post("/api/analysis/qc/run?sample_id=1").status_code == 200
+        resp = client.get("/api/analysis/qc/metrics?sample_id=1")
+        assert resp.status_code == 200
+        return resp.json()
+
+    def test_recorded_xy_against_xx_genotypes_is_discordant(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        self._set_recorded_sex(_env, "XY")
+        m = self._metrics(client)
+        assert m["genetic_sex"] == "XX"
+        assert m["recorded_sex"] == "XY"
+        assert m["sex_check"] == "discordant"
+
+    def test_recorded_xx_against_xy_genotypes_is_discordant(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        self._use_xy_genotypes(_env)
+        m = self._metrics(client)
+        assert m["genetic_sex"] == "XY"
+        assert m["recorded_sex"] == "XX"
+        assert m["sex_check"] == "discordant"
+
+    def test_recorded_xy_against_xy_genotypes_is_concordant(
+        self, client: TestClient, _env: sa.Engine
+    ) -> None:
+        self._use_xy_genotypes(_env)
+        self._set_recorded_sex(_env, "XY")
+        m = self._metrics(client)
+        assert m["genetic_sex"] == "XY"
+        assert m["recorded_sex"] == "XY"
+        assert m["sex_check"] == "concordant"
+
+    def test_no_recorded_sex_is_indeterminate(self, client: TestClient, _env: sa.Engine) -> None:
+        self._set_recorded_sex(_env, None)
+        m = self._metrics(client)
+        assert m["genetic_sex"] == "XX"
+        assert m["recorded_sex"] is None
+        assert m["sex_check"] == "indeterminate"
+
+
 class TestCallRatePassBoundary:
     def test_threshold_is_98_percent(self) -> None:
         assert CALL_RATE_PASS == 0.98
