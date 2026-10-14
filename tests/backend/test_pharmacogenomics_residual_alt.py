@@ -63,7 +63,20 @@ def _call(gene, alleles, genotypes, reference_engine):
 
 
 def _residual_events(logs: list[dict]) -> list[dict]:
-    return [e for e in logs if e.get("event") == "pgx_residual_alt_discarded"]
+    events = [e for e in logs if e.get("event") == "pgx_residual_alt_discarded"]
+    for event in events:
+        # Log fields are persisted and shown in the Log Explorer, so the warning
+        # carries counts only: no rsid, allele, star-allele name or diplotype.
+        assert set(event) <= {
+            "event",
+            "log_level",
+            "gene",
+            "residual_variants",
+            "crowded_out_alleles",
+            "withheld",
+        }, event
+        assert "rs" not in str({k: v for k, v in event.items() if k != "event"})
+    return events
 
 
 def test_a_leftover_no_bundled_allele_explains_is_logged_not_withheld(
@@ -88,8 +101,9 @@ def test_a_leftover_no_bundled_allele_explains_is_logged_not_withheld(
     events = _residual_events(logs)
     assert len(events) == 1
     assert events[0]["gene"] == "CYP2B6"
-    assert events[0]["residual"] == {"rs2279343:A>G": 1}
-    assert events[0]["crowded_out"] == []
+    assert events[0]["residual_variants"] == 1
+    assert events[0]["crowded_out_alleles"] == 0
+    assert events[0]["withheld"] is False
     assert events[0]["log_level"] == "warning"
     # Not crowded out, so the call is not withheld: it stands as the reference
     # sample's does.
@@ -138,7 +152,8 @@ def test_more_non_reference_alleles_than_slots_is_flagged(reference_engine: sa.E
     assert CROWDED in result.confidence_note
     events = _residual_events(logs)
     assert len(events) == 1
-    assert events[0]["crowded_out"], "the allele left without a slot is named"
+    assert events[0]["crowded_out_alleles"] >= 1
+    assert events[0]["withheld"] is True
     # An insufficient call issues no prescribing guidance.
     alerts = generate_prescribing_alerts([result], reference_engine)
     assert [a for a in alerts if a.gene == "NAT2"] == []
@@ -159,4 +174,28 @@ def test_slco1b1_partial_star17_haplotype_keeps_its_deliberate_call(
     assert CROWDED not in result.confidence_note
     events = _residual_events(logs)
     assert len(events) == 1
-    assert events[0]["crowded_out"] == []
+    assert events[0]["withheld"] is False
+
+
+def test_structurally_uncallable_alleles_are_not_counted_as_crowded_out(
+    reference_engine: sa.Engine,
+) -> None:
+    """NUDT15 *3.002/*6/*9 are never called from a D/I token, so a full *3/*4
+    call with rs746071566 DI is not an overflow and keeps its guidance."""
+    alleles = _fetch_alleles_for_gene("NUDT15", reference_engine)
+    genotypes = {
+        "rs116855232": "CT",  # *3
+        "rs147390019": "GA",  # *4
+        "rs186364861": "GG",
+        "rs746071566": "DI",
+    }
+
+    with capture_logs() as logs:
+        result = _call("NUDT15", alleles, genotypes, reference_engine)
+
+    assert result.diplotype == "*3/*4"
+    assert result.call_confidence != CallConfidence.INSUFFICIENT
+    assert CROWDED not in result.confidence_note
+    assert all(not e["withheld"] for e in _residual_events(logs))
+    alerts = generate_prescribing_alerts([result], reference_engine)
+    assert [a for a in alerts if a.gene == "NUDT15"], "thiopurine guidance is still issued"

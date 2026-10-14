@@ -2169,23 +2169,29 @@ def call_star_alleles_for_gene(
         # call cannot be right as reported. With a slot left, a leftover was
         # deliberately not called (e.g. an unphased NUDT15 indel that gets a
         # phase caveat instead) and is not an overflow.
+        # Structurally uncallable alleles are never called from array tokens
+        # (NUDT15 *3.002/*6/*9 from a D/I call), so they cannot be crowded out.
         crowded_out = (
             sorted(
                 allele["allele_name"]
                 for allele in non_ref_alleles
-                if all(
+                if allele["allele_name"] not in structural_uncallable
+                and all(
                     remaining_alts.get(_variant_key(v), 0) > 0 for v in allele["defining_variants"]
                 )
             )
             if slots_full
             else []
         )
+        # Counts only: the leftover variants and allele names reconstruct the
+        # sample's genotype, and structured log fields are persisted and shown
+        # in the admin Log Explorer.
         logger.warning(
             "pgx_residual_alt_discarded",
             gene=gene,
-            diplotype=diplotype,
-            residual={f"{rsid}:{ref}>{alt}": n for (rsid, ref, alt), n in residual_alts.items()},
-            crowded_out=crowded_out,
+            residual_variants=len(residual_alts),
+            crowded_out_alleles=len(crowded_out),
+            withheld=bool(crowded_out),
         )
         # Otherwise the leftover belongs only to multi-variant alleles whose other
         # components are absent. That is either a known partial haplotype (SLCO1B1
