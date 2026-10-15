@@ -33,7 +33,8 @@ interface AutoScoreOptions {
  *   the failure.
  * - Starts at most ``MAX_AUTO_RUNS`` per sample per visit, so a result that
  *   never settles cannot loop minutes-long runs.
- * - A response without a state (an older backend) is scored, as every visit was.
+ * - A response without a state (an older backend) is scored once per visit, as
+ *   every visit was before.
  * - Switching sample on the same page resets the run and these guards, so one
  *   sample's progress or failure is not shown on another's and a sample shown
  *   again decides afresh.
@@ -50,8 +51,9 @@ export function useAutoScore({
 }: AutoScoreOptions): void {
   const shownSample = useRef(sampleId)
   const inFlight = useRef(false)
-  // The state whose automatic run last failed, until the state changes.
-  const failedFor = useRef<string | null>(null)
+  // A state not to run again automatically until it changes: its run failed,
+  // or the response reports no state, so a success cannot be told apart.
+  const blockedFor = useRef<string | null>(null)
   const autoRuns = useRef(0)
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export function useAutoScore({
     shownSample.current = sampleId
     // reset() drops the pending run's callbacks, so clear what they would have.
     inFlight.current = false
-    failedFor.current = null
+    blockedFor.current = null
     autoRuns.current = 0
     reset()
   }, [sampleId, reset])
@@ -67,19 +69,20 @@ export function useAutoScore({
   // No dependency list: the decision reads refs the run's callbacks update, so
   // it is re-evaluated after every render; it starts a run only when allowed.
   useEffect(() => {
-    if (scoringState === "current") failedFor.current = null
+    if (scoringState === "current") blockedFor.current = null
     if (sampleId == null || !settled || inFlight.current || scoringState === "current") return
     const key = `${sampleId}:${scoringState ?? "unknown"}`
-    if (failedFor.current === key || autoRuns.current >= MAX_AUTO_RUNS) return
+    if (blockedFor.current === key || autoRuns.current >= MAX_AUTO_RUNS) return
     inFlight.current = true
     autoRuns.current += 1
     run(undefined, {
       onSuccess: () => {
         inFlight.current = false
+        if (scoringState === undefined) blockedFor.current = key
       },
       onError: () => {
         inFlight.current = false
-        failedFor.current = key
+        blockedFor.current = key
       },
     })
   })

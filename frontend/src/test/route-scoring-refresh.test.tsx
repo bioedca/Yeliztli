@@ -26,7 +26,7 @@ const markCurrentOnSuccess = (sample: string) => {
 }
 let afterRun: (sample: string) => void = markCurrentOnSuccess
 
-function ebmdBody(scoring_state: ScoringState) {
+function ebmdBody(scoring_state: ScoringState | undefined) {
   return {
     available: false,
     recommended_pgs_id: "PGS000657",
@@ -79,7 +79,7 @@ beforeEach(() => {
       const sample = url.searchParams.get("sample_id") ?? ""
       if (url.pathname === "/api/analysis/ebmd/prs") {
         const status = getOutcome.get(sample) ?? 200
-        return status === 200 ? json(ebmdBody(states.get(sample)!)) : json({ detail: "down" }, status)
+        return status === 200 ? json(ebmdBody(states.get(sample))) : json({ detail: "down" }, status)
       }
       if (url.pathname === "/api/analysis/metabolic/prs") {
         return json({ items: [], total: 0, coverage_context: "", scoring_state: states.get(sample) })
@@ -193,6 +193,10 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await waitFor(() => expect(queryClient.getQueryState(["ebmd", 1])?.status).toBe("error"))
 
     expect(runCalls).toEqual(["1"])
+    // The cached results stay on screen, with a warning instead of a page error.
+    expect(screen.getByText("Not a DXA or FRAX substitute.")).toBeInTheDocument()
+    expect(screen.queryByText("Failed to load data")).toBeNull()
+    expect(screen.getByText(/Couldn't check these results for changes/)).toBeInTheDocument()
   })
 
   it("shows anchors re-scored by another client on the next visit", async () => {
@@ -265,6 +269,10 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled())
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(runCalls).toHaveLength(3)
+    // Having stopped, the page still says the results may be out of date.
+    expect(within(screen.getByTestId("scoring-status")).getByRole("status")).toHaveTextContent(
+      "may be out of date",
+    )
   })
 
   it("runs again after a failure once the state was current in between", async () => {
@@ -300,5 +308,16 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await userEvent.click(screen.getByRole("link", { name: "Sample 2" }))
 
     await waitFor(() => expect(runCalls).toEqual(["1", "2"]), { timeout: 5000 })
+  })
+
+  it("scores once per visit when the response reports no state", async () => {
+    // states has no entry, so the response omits scoring_state (an older backend).
+    afterRun = () => {}
+    render(page(client(), "/ebmd?sample_id=1"))
+
+    await waitFor(() => expect(runCalls).toEqual(["1"]))
+    await waitFor(() => expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled())
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(runCalls).toEqual(["1"])
   })
 })

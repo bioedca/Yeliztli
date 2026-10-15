@@ -164,6 +164,22 @@ describe("EBMDView scoring (#2118)", () => {
     expect(mockRunMutate).toHaveBeenCalledTimes(1)
   })
 
+  it("keeps saying a stale score may be out of date when it is not re-scoring", () => {
+    withState("stale")
+    render(<EBMDView />)
+    expect(within(screen.getByTestId("scoring-status")).getByRole("status")).toHaveTextContent(
+      "may be out of date",
+    )
+  })
+
+  it("shows the stored score with a warning when its re-fetch failed", () => {
+    mockUseEbmd.mockReturnValue(q({ data: EBMD_RESPONSE, isError: true, error: new Error("503") }))
+    render(<EBMDView />)
+    expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
+    expect(screen.queryByText("Failed to load eBMD score.")).toBeNull()
+    expect(screen.getByText(/Couldn't check these results for changes/)).toBeInTheDocument()
+  })
+
   it("says why it is re-scoring and disables the button meanwhile", () => {
     withState("stale")
     mockUseRunEbmd.mockReturnValue(q({ mutate: mockRunMutate, isPending: true }))

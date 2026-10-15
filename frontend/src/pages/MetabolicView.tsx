@@ -88,7 +88,10 @@ export default function MetabolicView() {
   // must not blank the successfully-loaded results after they render. This is
   // the same narrowing #642 applied to the anchor-SNP query.
   const isLoading = prsQuery.isLoading
-  const hasError = prsQuery.isError
+  // Only an error with nothing to show blocks the page; a failed re-fetch keeps
+  // the cached results on screen with a warning (#2118).
+  const hasError = prsQuery.isError && prsQuery.data === undefined
+  const anchorsError = anchorsQuery.isError && anchorsQuery.data === undefined
 
   return (
     <div className="p-6">
@@ -109,6 +112,7 @@ export default function MetabolicView() {
           scoringState={prsQuery.data.scoring_state}
           isScoring={run.isPending}
           error={run.error}
+          refreshFailed={prsQuery.isError || (anchorsQuery.isError && !anchorsError)}
           onRescore={() => runMutate()}
         />
       )}
@@ -158,7 +162,7 @@ export default function MetabolicView() {
               error/spinner so an anchors failure or slow load never hides the
               PRS results above (#642). Hidden entirely only when it resolved
               with no items. */}
-          {(anchorsQuery.isError ||
+          {(anchorsError ||
             anchorsQuery.isLoading ||
             (anchorsQuery.data && anchorsQuery.data.items.length > 0)) && (
             <section aria-label="Established anchor SNPs" className="mt-8">
@@ -166,7 +170,7 @@ export default function MetabolicView() {
               <p className="text-sm text-muted-foreground mb-4">
                 Directly-typed, large-effect common variants — interpretable on their own.
               </p>
-              {anchorsQuery.isError ? (
+              {anchorsError ? (
                 <SectionError
                   label="established anchor SNPs"
                   message={

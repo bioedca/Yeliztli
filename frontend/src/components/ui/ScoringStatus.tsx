@@ -7,6 +7,8 @@ interface ScoringStatusProps {
   scoringState: ScoringState | undefined
   isScoring: boolean
   error: unknown
+  /** The stored results are from cache because the latest re-fetch failed. */
+  refreshFailed: boolean
   onRescore: () => void
 }
 
@@ -27,17 +29,21 @@ export default function ScoringStatus({
   scoringState,
   isScoring,
   error,
+  refreshFailed,
   onRescore,
 }: ScoringStatusProps) {
   return (
     <div className="mb-6 space-y-2" data-testid="scoring-status">
       <div className="flex flex-wrap items-center gap-3">
         <div role="status" aria-live="polite" className="text-sm text-muted-foreground">
-          {isScoring && (
+          {isScoring ? (
             <span className="inline-flex items-center gap-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
               {scoringMessage(scoringState)}
             </span>
+          ) : (
+            scoringState === "stale" &&
+            "This sample's inputs changed since it was last scored, so the results below may be out of date. Re-score to update them."
           )}
         </div>
         <button
@@ -51,6 +57,15 @@ export default function ScoringStatus({
           Re-score
         </button>
       </div>
+      {refreshFailed && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm"
+        >
+          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" aria-hidden="true" />
+          <p>Couldn't check these results for changes; showing the last ones loaded.</p>
+        </div>
+      )}
       {!isScoring && error != null && (
         <div
           role="alert"

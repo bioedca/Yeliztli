@@ -49,7 +49,9 @@ export default function EBMDView() {
   // results behind a multi-minute spinner on every visit, and a failed background
   // refresh must not blank the loaded results (#1992).
   const isLoading = query.isLoading
-  const hasError = query.isError
+  // Only an error with nothing to show blocks the page; a failed re-fetch keeps
+  // the cached results on screen with a warning (#2118).
+  const hasError = query.isError && query.data === undefined
   const data = query.data
 
   return (
@@ -71,6 +73,7 @@ export default function EBMDView() {
           scoringState={data.scoring_state}
           isScoring={run.isPending}
           error={run.error}
+          refreshFailed={query.isError}
           onRescore={() => runMutate()}
         />
       )}
