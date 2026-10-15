@@ -249,8 +249,11 @@ def _rerender_svgs(env: _Env) -> None:
 
 def _rewrite_ancestry_identically(env: _Env) -> None:
     # Re-running ancestry deletes and re-inserts its rows: new ids and
-    # timestamps, same content.
+    # timestamps, same content. A later row stops SQLite reusing the old id.
+    env.add_finding(module="traits", category="trait", rsid="rs_later")
+    ancestry = sa.select(findings.c.id).where(findings.c.module == "ancestry")
     with env.sample_engine.begin() as conn:
+        old_ids = set(conn.execute(ancestry).scalars())
         rows = [
             {k: v for k, v in row._mapping.items() if k not in ("id", "created_at")}
             for row in conn.execute(sa.select(findings).where(findings.c.module == "ancestry"))
@@ -258,6 +261,7 @@ def _rewrite_ancestry_identically(env: _Env) -> None:
         assert rows, "the fixture's ancestry finding should exist"
         conn.execute(sa.delete(findings).where(findings.c.module == "ancestry"))
         conn.execute(sa.insert(findings), rows)
+        assert old_ids.isdisjoint(conn.execute(ancestry).scalars())
 
 
 def _score_another_module(env: _Env) -> None:
