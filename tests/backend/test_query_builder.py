@@ -874,6 +874,89 @@ def mixed_carriage_client(tmp_data_dir: Path):
     yield from _setup_client(tmp_data_dir, MIXED_CARRIAGE_VARIANTS)
 
 
+def _shared_key_row(rsid: str, chrom: str, pos: int, zygosity: str = "het") -> dict:
+    genotype = {"het": "AG", "hom_alt": "GG", "hom_ref": "AA"}[zygosity]
+    return {
+        "rsid": rsid,
+        "chrom": chrom,
+        "pos": pos,
+        "ref": "A",
+        "alt": "G",
+        "genotype": genotype,
+        "zygosity": zygosity,
+    }
+
+
+# Inserted out of order on purpose. Several rsids share 1:500, and the
+# non-canonical contigs all fall in one chromosome-order bucket, with
+# GL000193.1:10 sitting between GL000192.1:10 and GL000192.1:20 by position (#2115).
+SHARED_KEY_VARIANTS = [
+    _shared_key_row("rs_gl193", "GL000193.1", 10),
+    _shared_key_row("rs_pos500_c", "1", 500),
+    _shared_key_row("rs_after", "2", 1),
+    _shared_key_row("rs_gl192_20", "GL000192.1", 20),
+    _shared_key_row("rs_pos500_a", "1", 500, "hom_alt"),
+    _shared_key_row("rs_pos500_ref", "1", 500, "hom_ref"),
+    _shared_key_row("rs_gl192_b", "GL000192.1", 10),
+    _shared_key_row("rs_before", "1", 100),
+    _shared_key_row("rs_pos500_b", "1", 500),
+    _shared_key_row("rs_gl192_a", "GL000192.1", 10),
+]
+
+# Chromosome order, then chromosome, position and rsid.
+SHARED_KEY_CARRIED_ORDER = [
+    "rs_before",
+    "rs_pos500_a",
+    "rs_pos500_b",
+    "rs_pos500_c",
+    "rs_after",
+    "rs_gl192_a",
+    "rs_gl192_b",
+    "rs_gl192_20",
+    "rs_gl193",
+]
+SHARED_KEY_ALL_ORDER = [
+    "rs_before",
+    "rs_pos500_a",
+    "rs_pos500_b",
+    "rs_pos500_c",
+    "rs_pos500_ref",
+    "rs_after",
+    "rs_gl192_a",
+    "rs_gl192_b",
+    "rs_gl192_20",
+    "rs_gl193",
+]
+
+
+@pytest.fixture
+def shared_key_client(tmp_data_dir: Path):
+    yield from _setup_client(tmp_data_dir, SHARED_KEY_VARIANTS)
+
+
+def _all_pages(tc, sid: int, limit: int, **extra) -> tuple[list[str], list[dict]]:
+    """Follow next_cursor_* until has_more is false; return rsids and page bodies."""
+    request = {"sample_id": sid, "filter": {"combinator": "and", "rules": []}, "limit": limit}
+    request.update(extra)
+    rsids: list[str] = []
+    pages: list[dict] = []
+    cursor: dict = {}
+    for _ in range(50):
+        resp = tc.post("/api/query", json={**request, **cursor})
+        assert resp.status_code == 200, resp.text
+        page = resp.json()
+        pages.append(page)
+        rsids.extend(item["rsid"] for item in page["items"])
+        if not page["has_more"]:
+            return rsids, pages
+        cursor = {
+            "cursor_chrom": page["next_cursor_chrom"],
+            "cursor_pos": page["next_cursor_pos"],
+            "cursor_rsid": page["next_cursor_rsid"],
+        }
+    raise AssertionError("pagination did not terminate")
+
+
 class TestQueryFields:
     """GET /api/query/fields — metadata endpoint."""
 
@@ -982,6 +1065,7 @@ class TestQueryEndpoint:
         assert [item["rsid"] for item in first_data["items"]] == ["rs_carried"]
         assert first_data["next_cursor_chrom"] == "17"
         assert first_data["next_cursor_pos"] == 100
+        assert first_data["next_cursor_rsid"] == "rs_carried"
 
         second = tc.post(
             "/api/query",
@@ -989,6 +1073,7 @@ class TestQueryEndpoint:
                 **request,
                 "cursor_chrom": first_data["next_cursor_chrom"],
                 "cursor_pos": first_data["next_cursor_pos"],
+                "cursor_rsid": first_data["next_cursor_rsid"],
             },
         )
         assert second.status_code == 200
@@ -1025,6 +1110,7 @@ class TestQueryEndpoint:
                 **request,
                 "cursor_chrom": first_data["next_cursor_chrom"],
                 "cursor_pos": first_data["next_cursor_pos"],
+                "cursor_rsid": first_data["next_cursor_rsid"],
             },
         )
         assert second.status_code == 200
@@ -1156,6 +1242,7 @@ class TestQueryEndpoint:
                 "limit": 2,
                 "cursor_chrom": data["next_cursor_chrom"],
                 "cursor_pos": data["next_cursor_pos"],
+                "cursor_rsid": data["next_cursor_rsid"],
             },
         )
         data2 = resp2.json()
@@ -1411,3 +1498,89 @@ class TestQueryErrors:
         assert data["total_matching"] == 1
         assert data["items"][0]["gene_symbol"] == "BRCA1"
         assert data["items"][0]["rsid"] == "rs80357906"
+
+
+class TestQueryCursorIsLossless:
+    """A page boundary never skips or repeats rows that share a position (#2115)."""
+
+    @pytest.mark.parametrize("limit", [1, 2, 3, 4])
+    def test_every_carried_row_is_returned_exactly_once_in_key_order(
+        self, shared_key_client, limit: int
+    ) -> None:
+        tc, sid = shared_key_client
+
+        rsids, pages = _all_pages(tc, sid, limit)
+
+        assert rsids == SHARED_KEY_CARRIED_ORDER
+        assert pages[0]["total_matching"] == len(SHARED_KEY_CARRIED_ORDER)
+        assert all(page["total_matching"] is None for page in pages[1:])
+        assert all(len(page["items"]) <= limit for page in pages)
+        # The cursor is the last row of each page that has more.
+        for page in pages[:-1]:
+            last = page["items"][-1]
+            assert (
+                page["next_cursor_chrom"],
+                page["next_cursor_pos"],
+                page["next_cursor_rsid"],
+            ) == (last["chrom"], last["pos"], last["rsid"])
+        assert pages[-1]["next_cursor_rsid"] is None
+
+    def test_a_boundary_inside_a_shared_position_resumes_at_the_next_rsid(
+        self, shared_key_client
+    ) -> None:
+        tc, sid = shared_key_client
+
+        _, pages = _all_pages(tc, sid, 2)
+
+        # Page 1 ends on the first of three rsids at 1:500; the other two follow.
+        assert [i["rsid"] for i in pages[0]["items"]] == ["rs_before", "rs_pos500_a"]
+        assert [i["rsid"] for i in pages[1]["items"]] == ["rs_pos500_b", "rs_pos500_c"]
+
+    @pytest.mark.parametrize("limit", [1, 3])
+    def test_all_positions_opt_in_is_lossless_across_shared_positions(
+        self, shared_key_client, limit: int
+    ) -> None:
+        tc, sid = shared_key_client
+
+        rsids, _ = _all_pages(tc, sid, limit, include_all_positions=True)
+
+        assert rsids == SHARED_KEY_ALL_ORDER
+        assert "rs_pos500_ref" in rsids
+
+    def test_the_default_gate_still_excludes_a_hom_ref_row_at_a_shared_position(
+        self, shared_key_client
+    ) -> None:
+        tc, sid = shared_key_client
+
+        rsids, _ = _all_pages(tc, sid, 1)
+
+        assert "rs_pos500_ref" not in rsids
+        assert {"rs_pos500_a", "rs_pos500_b", "rs_pos500_c"} <= set(rsids)
+
+    def test_repeated_pagination_returns_the_same_order(self, shared_key_client) -> None:
+        tc, sid = shared_key_client
+
+        first, _ = _all_pages(tc, sid, 2)
+        second, _ = _all_pages(tc, sid, 2)
+
+        assert first == second == SHARED_KEY_CARRIED_ORDER
+
+    @pytest.mark.parametrize(
+        "cursor",
+        [
+            {"cursor_chrom": "1", "cursor_pos": 500},
+            {"cursor_rsid": "rs_pos500_a"},
+            {"cursor_chrom": "1", "cursor_rsid": "rs_pos500_a"},
+        ],
+    )
+    def test_a_partial_cursor_is_rejected(self, shared_key_client, cursor: dict) -> None:
+        """A position-only cursor cannot say which rows at the position were sent."""
+        tc, sid = shared_key_client
+
+        resp = tc.post(
+            "/api/query",
+            json={"sample_id": sid, "filter": {"combinator": "and", "rules": []}, **cursor},
+        )
+
+        assert resp.status_code == 422
+        assert "cursor_rsid" in resp.json()["detail"]

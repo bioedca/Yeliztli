@@ -80,6 +80,7 @@ class QueryRequest(BaseModel):
     filter: RuleGroupModel
     cursor_chrom: str | None = None
     cursor_pos: int | None = None
+    cursor_rsid: str | None = None
     limit: int = Field(default=50, ge=1, le=500)
     include_all_positions: bool = False
 
@@ -137,6 +138,7 @@ class QueryResultPage(BaseModel):
     total_matching: int | None = None
     next_cursor_chrom: str | None = None
     next_cursor_pos: int | None = None
+    next_cursor_rsid: str | None = None
     has_more: bool = False
     limit: int
 
@@ -202,20 +204,50 @@ def _chrom_order_expr() -> sa.Case:
     )
 
 
+def _order_key() -> list[sa.ColumnElement]:
+    """Total order of result rows: canonical chromosome, chromosome, position, rsid.
+
+    ``rsid`` is the primary key, so the key is unique and a cursor taken from
+    the last row of a page resumes exactly after it. ``chrom`` separates the
+    contigs that share the non-canonical order bucket; several rsids can share
+    one position (#2115).
+    """
+    return [
+        _chrom_order_expr(),
+        annotated_variants.c.chrom,
+        annotated_variants.c.pos,
+        annotated_variants.c.rsid,
+    ]
+
+
 def _build_cursor_clause(
     cursor_chrom: str | None,
     cursor_pos: int | None,
+    cursor_rsid: str | None,
 ) -> sa.ColumnElement | None:
-    """Build keyset cursor pagination WHERE clause."""
-    if cursor_chrom is None or cursor_pos is None:
+    """Keyset WHERE clause selecting the rows after the cursor in ``_order_key``."""
+    cursor = (cursor_chrom, cursor_pos, cursor_rsid)
+    if all(part is None for part in cursor):
         return None
+    if any(part is None for part in cursor):
+        # A position-only cursor cannot say which rows at that position were
+        # already returned, so resuming from it skips or repeats rows.
+        raise HTTPException(
+            status_code=422,
+            detail="cursor_chrom, cursor_pos and cursor_rsid must be sent together.",
+        )
 
-    cursor_order = _CHROM_ORDER.get(cursor_chrom, 99)
-    expr = _chrom_order_expr()
-
+    columns = _order_key()
+    values = [_CHROM_ORDER.get(cursor_chrom, 99), cursor_chrom, cursor_pos, cursor_rsid]
+    # Lexicographic "key > cursor": equal on every earlier part, greater on this one.
     return sa.or_(
-        expr > cursor_order,
-        sa.and_(expr == cursor_order, annotated_variants.c.pos > cursor_pos),
+        *[
+            sa.and_(
+                *[columns[j] == values[j] for j in range(i)],
+                columns[i] > values[i],
+            )
+            for i in range(len(columns))
+        ]
     )
 
 
@@ -283,7 +315,7 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
     **never** string-interpolated — SQL injection is structurally
     impossible.
 
-    Supports cursor-based keyset pagination on (chrom, pos).
+    Supports cursor-based keyset pagination on (chrom, pos, rsid).
     """
     require_fresh_sample(body.sample_id)
     sample_engine = _get_sample_engine(body.sample_id)
@@ -314,13 +346,11 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
     query = sa.select(annotated_variants).where(where_clause)
 
     # Apply cursor pagination
-    cursor_clause = _build_cursor_clause(body.cursor_chrom, body.cursor_pos)
+    cursor_clause = _build_cursor_clause(body.cursor_chrom, body.cursor_pos, body.cursor_rsid)
     if cursor_clause is not None:
         query = query.where(cursor_clause)
 
-    # Order by canonical chrom, then pos
-    chrom_expr = _chrom_order_expr()
-    query = query.order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
+    query = query.order_by(*(column.asc() for column in _order_key()))
     query = query.limit(body.limit + 1)
 
     with sample_engine.connect() as conn:
@@ -333,14 +363,16 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
 
     next_chrom: str | None = None
     next_pos: int | None = None
+    next_rsid: str | None = None
     if has_more and result_rows:
         last = result_rows[-1]
         next_chrom = last.chrom
         next_pos = last.pos
+        next_rsid = last.rsid
 
     # ── Count total matching (first page only for performance) ────
     total: int | None = None
-    if body.cursor_chrom is None and body.cursor_pos is None:
+    if cursor_clause is None:
         count_query = (
             sa.select(sa.func.count()).select_from(annotated_variants).where(where_clause)
         )
@@ -352,6 +384,7 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
         total_matching=total,
         next_cursor_chrom=next_chrom,
         next_cursor_pos=next_pos,
+        next_cursor_rsid=next_rsid,
         has_more=has_more,
         limit=body.limit,
     )

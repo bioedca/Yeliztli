@@ -146,7 +146,13 @@ export default function QueryBuilderView() {
   const handleLoadMore = () => {
     if (!sampleId || resultPages.length === 0) return
     const lastPage = resultPages[resultPages.length - 1]
-    if (!lastPage.has_more || !lastPage.next_cursor_chrom || lastPage.next_cursor_pos == null) return
+    if (
+      !lastPage.has_more ||
+      !lastPage.next_cursor_chrom ||
+      lastPage.next_cursor_pos == null ||
+      lastPage.next_cursor_rsid == null
+    )
+      return
     const resultGeneration = resultGenerationRef.current
     setLoadMoreError(null)
     setIsFetchingMore(true)
@@ -161,6 +167,7 @@ export default function QueryBuilderView() {
         include_all_positions: includeAllPositions,
         cursor_chrom: lastPage.next_cursor_chrom,
         cursor_pos: lastPage.next_cursor_pos,
+        cursor_rsid: lastPage.next_cursor_rsid,
         limit: 50,
       }),
     })

@@ -63,6 +63,8 @@ export interface QueryResultPage {
   total_matching: number | null
   next_cursor_chrom: string | null
   next_cursor_pos: number | null
+  /** Rows are ordered by chromosome, position, then rsID; the cursor carries all three (#2115). */
+  next_cursor_rsid: string | null
   has_more: boolean
   limit: number
 }
