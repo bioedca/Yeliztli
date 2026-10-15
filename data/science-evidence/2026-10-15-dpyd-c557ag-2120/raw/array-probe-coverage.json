@@ -1,0 +1,21 @@
+{
+  "accessed": "2026-10-15",
+  "method": "Read-only presence check for the rs115232898 probe in the two local sample databases. Probe design only: no genotype, allele or call is recorded here or anywhere in this packet.",
+  "coverage": [
+    {
+      "array": "23andMe v5",
+      "rs115232898_probe_present": true
+    },
+    {
+      "array": "AncestryDNA v2.0",
+      "rs115232898_probe_present": false,
+      "consequence": "On this array the allele cannot be called, so the engine's existing 'Cannot exclude ...' note names it and the call is no longer COMPLETE. Covered by test_an_array_without_c557_cannot_exclude_it."
+    }
+  ],
+  "other_dpyd_probes": {
+    "rs3918290": "both arrays",
+    "rs55886062": "both arrays",
+    "rs67376798": "both arrays",
+    "rs75017182": "23andMe v5 only"
+  }
+}

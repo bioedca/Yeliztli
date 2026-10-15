@@ -31,6 +31,7 @@ DPYD,*2A,"[{""rsid"":""rs3918290"",""ref"":""C"",""alt"":""T""}]",No function,0.
 DPYD,*13,"[{""rsid"":""rs55886062"",""ref"":""A"",""alt"":""C""}]",No function,0.0
 DPYD,c.2846A>T,"[{""rsid"":""rs67376798"",""ref"":""T"",""alt"":""A""}]",Decreased function,0.5
 DPYD,c.1129-5923C>G,"[{""rsid"":""rs75017182"",""ref"":""G"",""alt"":""C""}]",Decreased function,0.5
+DPYD,c.557A>G,"[{""rsid"":""rs115232898"",""ref"":""T"",""alt"":""C""}]",Decreased function,0.5
 TPMT,*1,"[]",Normal function,1.0
 TPMT,*2,"[{""rsid"":""rs1800462"",""ref"":""C"",""alt"":""G""}]",No function,0.0
 TPMT,*3A,"[{""rsid"":""rs1800460"",""ref"":""C"",""alt"":""T""},{""rsid"":""rs1142345"",""ref"":""T"",""alt"":""C""}]",No function,0.0

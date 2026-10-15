@@ -58,6 +58,12 @@ DPYD,*13/c.1129-5923C>G,Poor Metabolizer,DPYD Poor Metabolizer,0.5
 DPYD,c.1129-5923C>G/c.2846A>T,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
 DPYD,c.2846A>T/c.2846A>T,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
 DPYD,c.1129-5923C>G/c.1129-5923C>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
+DPYD,*1/c.557A>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.5
+DPYD,*2A/c.557A>G,Poor Metabolizer,DPYD Poor Metabolizer,0.5
+DPYD,*13/c.557A>G,Poor Metabolizer,DPYD Poor Metabolizer,0.5
+DPYD,c.1129-5923C>G/c.557A>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
+DPYD,c.2846A>T/c.557A>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
+DPYD,c.557A>G/c.557A>G,Intermediate Metabolizer,DPYD Intermediate Metabolizer,1.0
 TPMT,*1/*1,Normal Metabolizer,TPMT Normal Metabolizer,2.0
 TPMT,*1/*3A,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0
 TPMT,*1/*3B,Intermediate Metabolizer,TPMT Intermediate Metabolizer,1.0

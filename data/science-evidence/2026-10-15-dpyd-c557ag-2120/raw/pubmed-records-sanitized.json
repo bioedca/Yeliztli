@@ -1,0 +1,45 @@
+{
+  "accessed": "2026-10-15",
+  "source": "NCBI PubMed via the PubMed MCP connector (get_article_metadata, search_articles)",
+  "records": [
+    {
+      "pmid": "29152729",
+      "doi": "10.1002/cpt.911",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update",
+      "journal": "Clin Pharmacol Ther 2017;103(2):210-216",
+      "article_types": [
+        "Practice Guideline",
+        "Systematic Review"
+      ],
+      "role": "Defining document for the DPYD activity-score dosing framework this panel implements."
+    },
+    {
+      "pmid": "24648345",
+      "doi": "10.1158/0008-5472.CAN-13-2482",
+      "title": "Comparative functional analysis of DPYD variants of potential clinical relevance to dihydropyrimidine dehydrogenase activity",
+      "journal": "Cancer Res 2014;74(9):2545-2554",
+      "article_types": [
+        "Comparative Study"
+      ],
+      "role": "Functional study CPIC cites for c.557A>G (p.Y186C). Independent of CPIC.",
+      "abstract_excerpts": [
+        "Enzyme activity was also significantly reduced for 30 additional variants, 19 of which had <25% activity.",
+        "None of those 30 variants have been previously reported to associate with 5-FU toxicity in clinical association studies, which have been conducted primarily in populations of European ancestry.",
+        "Using publicly available genotype databases, we confirmed the rarity of these variants in European populations but showed that they are detected at appreciable frequencies in other populations."
+      ],
+      "limitation_recorded": "Its discussion reports the Y186C substitution reduced activity by approximately 15% relative to wild type, 'less than we expected', and notes a prior study focused on this variant found a similar reduction. CPIC's Decreased function / 0.5 assignment is therefore a curation judgement over several lines of evidence, not a restatement of this single effect size."
+    },
+    {
+      "pmid": "31641844",
+      "doi": "10.1007/s00280-019-03974-4",
+      "title": "Prevalence of the DPYD variant (Y186C) in Brazilian individuals of African ancestry",
+      "journal": "Cancer Chemother Pharmacol 2019;84(6):1359-1363",
+      "role": "Independent population-frequency source for the African-ancestry relevance.",
+      "abstract_excerpts": [
+        "The variant Y186C (rs115232898) is found almost exclusively in African populations and is related to low DPD function.",
+        "The variant Y186C was found in heterozygosity in two samples from Southeast (2.53%) and one from Northeast (2.77%) Brazil. Overall, the prevalence of this mutation in the 115 African Brazilians was 2.6%.",
+        "should be taken in account in targeted genotyping for fluoropyrimidine risk variants"
+      ]
+    }
+  ]
+}

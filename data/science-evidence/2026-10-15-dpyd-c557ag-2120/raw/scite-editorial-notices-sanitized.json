@@ -1,0 +1,22 @@
+{
+  "accessed": "2026-10-15",
+  "source": "Scite search_literature by DOI",
+  "checked": [
+    "10.1002/cpt.911",
+    "10.1158/0008-5472.can-13-2482"
+  ],
+  "result": "Neither record returned an editorialNotices entry: no retraction, correction, erratum or expression of concern.",
+  "tallies": {
+    "10.1002/cpt.911": {
+      "total": 993,
+      "supporting": 11,
+      "contrasting": 2
+    },
+    "10.1158/0008-5472.can-13-2482": {
+      "total": 213,
+      "supporting": 9,
+      "contrasting": 1
+    }
+  },
+  "note": "The single contrasting citation on the Offer 2014 record is its own self-comparison with the authors' earlier *2A/I560S measurements, not a dispute of the variant classifications."
+}

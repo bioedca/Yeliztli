@@ -40,6 +40,10 @@ _DPYD = {
     "rs55886062": ("1", 97981343, "A", "C"),  # *13  No function
     "rs67376798": ("1", 97547947, "T", "A"),  # c.2846A>T  Decreased
     "rs75017182": ("1", 98045449, "G", "C"),  # HapB3  Decreased
+    # c.557A>G Decreased (#2120): GRCh37 1:98165030 T>C on the plus strand
+    # (minus-strand c.557A>G), per Ensembl GRCh37 and VariantValidator
+    # NM_000110.4:c.557A>G -> NC_000001.10:g.98165030T>C.
+    "rs115232898": ("1", 98165030, "T", "C"),
 }
 
 
@@ -120,6 +124,8 @@ def test_reference_is_normal_not_poor(reference_engine: sa.Engine) -> None:
             "Intermediate Metabolizer",
         ),  # AS 1.5 (HapB3 het)
         ({"rs67376798": "AA"}, "c.2846A>T/c.2846A>T", "Intermediate Metabolizer"),  # AS 1.0
+        ({"rs115232898": "TC"}, "*1/c.557A>G", "Intermediate Metabolizer"),  # AS 1.5 (#2120)
+        ({"rs115232898": "CC"}, "c.557A>G/c.557A>G", "Intermediate Metabolizer"),  # AS 1.0
     ],
 )
 def test_dpyd_diplotype_phenotypes(
@@ -147,6 +153,83 @@ def test_compound_het_poor_metabolizer_not_dropped(reference_engine: sa.Engine) 
     assert result.phenotype == "Poor Metabolizer"
     assert result.call_confidence == CallConfidence.PARTIAL
     assert "unphased" in result.confidence_note
+
+
+# ── c.557A>G, a CPIC decreased-function allele (#2120) ──────────────────────
+
+
+@pytest.mark.parametrize(
+    "genotype,expected_diplotype,expected_activity",
+    [("TC", "*1/c.557A>G", 1.5), ("CC", "c.557A>G/c.557A>G", 1.0)],
+)
+def test_c557_carrier_is_intermediate_with_its_activity_score(
+    reference_engine: sa.Engine,
+    genotype: str,
+    expected_diplotype: str,
+    expected_activity: float,
+) -> None:
+    """CPIC: c.557A>G is decreased function (activity 0.5), so a carrier is not
+    the *1/*1 Normal Metabolizer the panel called before the allele existed."""
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898=genotype))
+    assert result.diplotype == expected_diplotype
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.activity_score == expected_activity
+    assert "rs115232898" in result.involved_rsids
+
+
+def test_c557_with_star2a_is_a_poor_metabolizer(reference_engine: sa.Engine) -> None:
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898="TC", rs3918290="CT"))
+    assert result.diplotype == "*2A/c.557A>G"
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.activity_score == 0.5
+
+
+def test_c557_reference_genotype_stays_normal(reference_engine: sa.Engine) -> None:
+    """Negative control: typed reference at c.557A>G (TT) keeps *1/*1 Normal."""
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898="TT"))
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "c.557A>G" not in result.confidence_note
+
+
+@pytest.mark.parametrize("drug", ["fluorouracil", "capecitabine"])
+@pytest.mark.parametrize(
+    "overrides,expected_activity,expected_phrase",
+    [
+        # Every activity score c.557A>G can reach needs its own AS-keyed guideline
+        # row (#2119), so each is locked end-to-end through the alert text.
+        ({"rs115232898": "TC"}, 1.5, "Reduce starting dose by 50%"),  # *1/c.557A>G
+        ({"rs115232898": "CC"}, 1.0, "Reduce starting dose by 50%"),  # homozygous
+        ({"rs115232898": "TC", "rs3918290": "CT"}, 0.5, "Avoid"),  # with *2A
+    ],
+)
+def test_every_c557_activity_score_has_dosing_guidance(
+    reference_engine: sa.Engine,
+    drug: str,
+    overrides: dict[str, str],
+    expected_activity: float,
+    expected_phrase: str,
+) -> None:
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(**overrides))
+    assert result.activity_score == expected_activity
+    alerts = [a for a in generate_prescribing_alerts([result], reference_engine) if a.drug == drug]
+    assert len(alerts) == 1
+    assert expected_phrase in alerts[0].recommendation
+    assert "label-recommended" not in alerts[0].recommendation
+
+
+def test_an_array_without_c557_cannot_exclude_it(reference_engine: sa.Engine) -> None:
+    """A sample whose array does not type rs115232898 (e.g. AncestryDNA v2.0) is
+    not told it is a confident Normal Metabolizer: the allele is named as
+    un-excludable instead."""
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+    assert result.diplotype == "*1/*1"
+    assert result.call_confidence != CallConfidence.COMPLETE
+    assert "Cannot exclude" in result.confidence_note
+    assert "c.557A>G" in result.confidence_note
 
 
 # ── Absent-allele / fatal-toxicity caveat ────────────────────────────────────
