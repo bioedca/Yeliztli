@@ -99,6 +99,7 @@ from backend.db.database_registry import (
 from backend.db.db_health import recover_orphaned_downloads
 from backend.db.reference_schema import (
     bootstrap_reference_schema_tables,
+    ensure_log_entry_presentation_policy,
     ensure_reference_schema_current,
 )
 from backend.logging_config import configure_logging
@@ -158,6 +159,17 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
     visible to the lifespan caller after all cleanup steps have been attempted.
     """
     cleanup_errors: list[Exception] = []
+
+    # Logged *before* the registry is disposed, deliberately. Since #2126 this
+    # stdlib record reaches the structlog DB processor, which calls
+    # ``engine.begin()``; SQLAlchemy lets a disposed engine open a fresh pool, so
+    # emitting it afterwards reopened reference.db and left a pooled SQLite
+    # handle behind on the way out — retaining descriptors across repeated
+    # lifespans and blocking temporary-database cleanup where file locking is
+    # strict. The message describes the disposal that is about to happen, and a
+    # failure in either step is still reported by the handler below.
+    logger.info("DBRegistry disposing - closing all engines")
+
     for resource_name, cleanup in (
         ("download executor", shutdown_executor),
         ("database registry", reset_registry),
@@ -172,9 +184,6 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
         if len(cleanup_errors) == 1:
             raise cleanup_errors[0]
         raise ExceptionGroup("FastAPI lifespan cleanup failed", cleanup_errors)
-
-    if not cleanup_errors:
-        logger.info("DBRegistry disposed - all engines closed")
 
 
 @asynccontextmanager
@@ -203,6 +212,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
+        # Repair the log_entries schema before enabling DB-backed logging. On a
+        # database that predates ``presentation_policy_version`` the insert
+        # below names a column that does not exist yet, and the DB processor
+        # swallows the SQL error — so without this the diagnostics that moving
+        # configure_logging earlier is meant to preserve would still be lost, on
+        # exactly the legacy upgrade where they matter most. The Huey worker
+        # bootstrap already orders these two the same way. Idempotent, and
+        # ensure_reference_schema_current re-checks it later.
+        ensure_log_entry_presentation_policy(registry.reference_engine)
         # Configure structured logging with DB persistence as soon as there is an
         # engine to persist to (#2126). It used to run after the schema backfill,
         # the HLA-proxy load and the genome-build check, so those steps' own

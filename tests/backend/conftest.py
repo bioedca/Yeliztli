@@ -8,6 +8,7 @@ sample database pre-loaded with raw variants.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -39,6 +40,43 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+
+
+@pytest.fixture(autouse=True)
+def _detach_backend_log_handler():
+    """Remove the stdlib log handler ``configure_logging`` installs (#2126).
+
+    Routing stdlib logging into structlog attaches a handler to the ``backend``
+    logger whose formatter carries the **database** processor. A test that calls
+    ``configure_logging`` therefore leaves a live writer bound to its own
+    temporary engine behind, and every later test in the same process that logs
+    through ``logging.getLogger("backend.…")`` drives it — writing to, or
+    failing against, a database that belongs to a finished test. The previous
+    ``logging.basicConfig`` was harmless to leak because it only wrote to
+    stderr, so nothing used to need this.
+
+    Levels are restored too: ``configure_logging`` sets the ``backend`` logger
+    to INFO, and an intermediate logger's level filters records before they
+    propagate, so a leaked level can silence ``caplog`` assertions in unrelated
+    tests.
+    """
+    logger = logging.getLogger("backend")
+    previous_handlers = logger.handlers[:]
+    previous_level = logger.level
+    yield
+    # A full restore, not just a removal. ``configure_logging`` *replaces* the
+    # handlers on this logger, and one is already installed at import time by
+    # ``backend/tasks/huey_tasks.py`` (``_configure_worker_logging()`` runs at
+    # module scope). Removing only what the test added therefore left the logger
+    # with no handler at all, so every later test silently lost logging —
+    # trading one kind of cross-test pollution for another.
+    for handler in logger.handlers[:]:
+        if handler not in previous_handlers:
+            logger.removeHandler(handler)
+            handler.close()
+    logger.handlers[:] = previous_handlers
+    logger.setLevel(previous_level)
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Throwaway data home (#2079)

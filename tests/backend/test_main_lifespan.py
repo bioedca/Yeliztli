@@ -27,6 +27,9 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.get_registry", return_value=registry) as get_registry,
         patch("backend.main.bootstrap_reference_schema_tables") as bootstrap_schema,
         patch("backend.main.ensure_reference_schema_current") as ensure_schema,
+        # Repairs the log_entries schema before DB-backed logging is enabled
+        # (#2126); the fake registry's engine is a sentinel, not a real engine.
+        patch("backend.main.ensure_log_entry_presentation_policy") as ensure_log_schema,
         patch("backend.main.load_hla_proxy_data", return_value=0),
         patch("backend.main.check_genome_build_consistency", return_value={}) as build_check,
         patch("backend.main.configure_logging") as configure_logging_mock,
@@ -43,6 +46,7 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         call_order: list[str] = []
         configure_logging_mock.side_effect = lambda *a, **k: call_order.append("configure_logging")
         bootstrap_schema.side_effect = lambda *a, **k: call_order.append("bootstrap_schema")
+        ensure_log_schema.side_effect = lambda *a, **k: call_order.append("ensure_log_schema")
         ensure_schema.side_effect = lambda *a, **k: call_order.append("ensure_schema")
 
         yield SimpleNamespace(
@@ -52,6 +56,7 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
             reset_registry=reset_registry,
             shutdown_executor=shutdown_executor,
             configure_logging=configure_logging_mock,
+            ensure_log_schema=ensure_log_schema,
             build_check=build_check,
             call_order=call_order,
         )
@@ -283,3 +288,30 @@ async def test_logging_is_configured_before_the_steps_it_persists(
     assert "configure_logging" in order, order
     assert order.index("configure_logging") < order.index("bootstrap_schema"), order
     assert order.index("configure_logging") < order.index("ensure_schema"), order
+    # ...and the narrow log-schema repair precedes activation, or a legacy
+    # database would swallow every insert the reordering exists to capture.
+    assert order.index("ensure_log_schema") < order.index("configure_logging"), order
+
+
+@pytest.mark.asyncio
+async def test_shutdown_log_precedes_registry_disposal(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """The final shutdown record is emitted before the registry is disposed.
+
+    Since #2126 that stdlib record reaches the structlog DB processor, which
+    calls ``engine.begin()``. SQLAlchemy lets a disposed engine open a fresh
+    pool, so logging it after disposal reopened reference.db and left a pooled
+    SQLite handle behind on the way out.
+    """
+    order: list[str] = []
+    lifespan_dependencies.reset_registry.side_effect = lambda: order.append("reset_registry")
+
+    with patch("backend.main.logger") as shutdown_logger:
+        shutdown_logger.info.side_effect = lambda *a, **k: order.append(f"log:{a[0]}")
+        async with lifespan(FastAPI()):
+            pass
+
+    disposing = [i for i, step in enumerate(order) if step.startswith("log:DBRegistry disposing")]
+    assert disposing, order
+    assert disposing[0] < order.index("reset_registry"), order

@@ -323,13 +323,29 @@ def _route_stdlib_logging_through_structlog(engine_getter: callable | None) -> N
         # the Log Explorer's Component column under its real module path.
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
-        # Stdlib records are redacted on the same terms as native events; a
-        # module that logs through `logging` must not become a privacy bypass.
-        _redact_sensitive_log_fields,
+        # ProcessorFormatter builds a foreign event dict from the rendered
+        # message and metadata only, so fields passed as ``extra={...}`` are
+        # dropped unless this adds them. Without it, newly persisted events such
+        # as sample_delete_cascade and sample_merge_complete would reach the Log
+        # Explorer as a bare event name with their ids, counts and error details
+        # discarded. It runs here, before ``remove_processors_meta``, because it
+        # reads ``_record`` — and before the redactor below, so imported fields
+        # are sanitised on the same terms as everything else.
+        structlog.stdlib.ExtraAdder(),
     ]
 
     formatter_processors: list[structlog.types.Processor] = [
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+        # Redaction runs *after* the formatter metadata is removed, not in the
+        # pre-chain. The fail-closed path for a withheld prescribing pair calls
+        # ``event_dict.clear()``, which would also drop ProcessorFormatter's
+        # ``_record`` and ``_from_structlog`` keys; ``remove_processors_meta``
+        # then deletes them unconditionally and raises ``KeyError``, so the
+        # neutral replacement was neither stored nor rendered and stdlib's
+        # ``handleError`` printed the original message — publishing the held pair
+        # it was supposed to withhold. Running the redactor once the meta keys
+        # are gone makes clearing safe.
+        _redact_sensitive_log_fields,
     ]
     if engine_getter is not None:
         formatter_processors.append(_db_processor_factory(engine_getter))
