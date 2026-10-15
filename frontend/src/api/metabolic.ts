@@ -43,6 +43,8 @@ export function useMetabolicAnchors(sampleId: number | null) {
       ),
     enabled: sampleId != null,
     staleTime: Infinity,
+    // Re-scored with the PRS, possibly by another client; re-checked with it (#2118).
+    refetchOnMount: "always",
   })
 }
 

@@ -11,7 +11,9 @@ The fingerprint is deliberately conservative. A false ``stale`` costs one
 re-score; a false ``current`` would show a score computed from inputs the
 sample no longer has, so anything that might change a score is included:
 
-- the scoring code, the bundled score registry and the app version;
+- every backend module and the bundled score registry, and the app version
+  (the scorers reach well beyond ``backend/analysis``, e.g. the ancestry
+  finding selection in ``backend/services``);
 - the installed ``pgs_scores.db`` file's identity (size, mtime, inode, and a
   non-empty WAL), because its tables carry no content version and a reload
   can change weights without changing their metadata;
@@ -61,22 +63,28 @@ _BACKEND_DIR = Path(__file__).resolve().parents[1]
 _VOLATILE_FINDING_COLUMNS = frozenset({"id", "created_at", "svg_path"})
 
 
-@functools.cache
-def _code_digest() -> str:
-    """Digest of the analysis code and score registry the scorers run."""
-    paths = sorted((_BACKEND_DIR / "analysis").rglob("*.py"))
-    paths += [
-        _BACKEND_DIR / "annotation" / "pgs_catalog.py",
-        _BACKEND_DIR / "data" / "panels" / "pgs_score_registry.json",
-    ]
+def _source_paths(root: Path) -> list[Path]:
+    """Every backend module plus the bundled score registry under ``root``."""
+    paths = sorted(root.rglob("*.py"))
+    paths.append(root / "data" / "panels" / "pgs_score_registry.json")
+    return paths
+
+
+def _source_digest(root: Path) -> str:
     digest = hashlib.sha256()
-    for path in paths:
+    for path in _source_paths(root):
         try:
             content = hashlib.sha256(path.read_bytes()).hexdigest()
         except OSError:
             content = "unreadable"
-        digest.update(f"{path.relative_to(_BACKEND_DIR)}\0{content}\n".encode())
+        digest.update(f"{path.relative_to(root)}\0{content}\n".encode())
     return digest.hexdigest()
+
+
+@functools.cache
+def _code_digest() -> str:
+    """Digest of the code the scorers run, cached for the process's lifetime."""
+    return _source_digest(_BACKEND_DIR)
 
 
 def _file_identity(path: Path) -> list[int] | None:
@@ -146,6 +154,24 @@ def record_scoring_fingerprint(module: str, sample_engine: sa.Engine, fingerprin
     value = json.dumps({"fingerprint": fingerprint, "scored_at": datetime.now(UTC).isoformat()})
     with sample_engine.begin() as conn:
         upsert_state(conn, _FINGERPRINT_KEY_PREFIX + module, value)
+
+
+def recheck_scoring_state(
+    first: ScoringState,
+    module: str,
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+) -> ScoringState:
+    """Confirm a ``current`` state once the response's findings have been read.
+
+    Call with the state read before the findings. An input that changed while
+    they were read (a re-annotation swap, an imputation write) then turns the
+    response ``stale`` instead of serving the old findings as current; a state
+    that was not ``current`` already makes the page re-score.
+    """
+    if first != "current":
+        return first
+    return read_scoring_state(module, sample_engine, reference_engine)
 
 
 def read_scoring_state(

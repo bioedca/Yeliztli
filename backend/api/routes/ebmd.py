@@ -27,6 +27,7 @@ from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
     read_scoring_state,
+    recheck_scoring_state,
     record_scoring_fingerprint,
 )
 
@@ -141,6 +142,9 @@ def get_ebmd_prs(
             evidence_level=row.evidence_level or 1,
         )
 
+    scoring_state = recheck_scoring_state(
+        scoring_state, MODULE_NAME, sample_engine, get_registry().reference_engine
+    )
     return EbmdResponse(
         available=prs is not None,
         prs=prs,

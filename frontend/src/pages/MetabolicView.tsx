@@ -64,7 +64,8 @@ export default function MetabolicView() {
   const runMutate = run.mutate
   useAutoScore({
     sampleId,
-    settled: prsQuery.data !== undefined && !prsQuery.isFetching,
+    // A failed re-check leaves the cached state unconfirmed, so it does not run.
+    settled: prsQuery.data !== undefined && !prsQuery.isFetching && !prsQuery.isError,
     scoringState: prsQuery.data?.scoring_state,
     run: runMutate,
     reset: run.reset,

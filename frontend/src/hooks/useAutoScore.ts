@@ -3,7 +3,7 @@ import type { ScoringState } from "@/types/route-scoring"
 
 interface AutoScoreOptions {
   sampleId: number | null
-  /** The stored result has loaded and no refetch is in flight. */
+  /** The stored result loaded, its latest fetch succeeded and none is in flight. */
   settled: boolean
   scoringState: ScoringState | undefined
   run: () => void

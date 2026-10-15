@@ -32,6 +32,7 @@ from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
     read_scoring_state,
+    recheck_scoring_state,
     record_scoring_fingerprint,
 )
 
@@ -198,6 +199,9 @@ def list_metabolic_prs(
                 source_url=d.get("source_url"),
             )
         )
+    scoring_state = recheck_scoring_state(
+        scoring_state, MODULE_NAME, sample_engine, get_registry().reference_engine
+    )
     response = MetabolicPRSListResponse(items=items, total=len(items), scoring_state=scoring_state)
     # Coverage context is fixed reference text; only patient-derived DTOs form
     # the aggregate that can expose a cross-record prescribing pair.

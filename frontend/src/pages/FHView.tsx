@@ -28,7 +28,8 @@ export default function FHView() {
   const runMutate = run.mutate
   useAutoScore({
     sampleId,
-    settled: query.data !== undefined && !query.isFetching,
+    // A failed re-check leaves the cached state unconfirmed, so it does not run.
+    settled: query.data !== undefined && !query.isFetching && !query.isError,
     scoringState: query.data?.scoring_state,
     run: runMutate,
     reset: run.reset,

@@ -380,3 +380,57 @@ def test_the_ebmd_get_never_pairs_an_older_finding_with_current(env: _Env) -> No
 
     assert body["scoring_state"] == "current"
     assert body["available"] is True, "a current state must come with the run's finding"
+
+
+@pytest.mark.parametrize("module", sorted(MODULES))
+def test_an_input_written_while_the_get_reads_findings_makes_it_stale(
+    env: _Env, module: str
+) -> None:
+    """A re-annotation swap landing between the GET's state check and its
+    findings read must not let the old findings be served as current."""
+    import importlib
+
+    route = importlib.import_module(f"backend.api.routes.{module}")
+    assert env.run(module) == 200
+    real_read_state = route.read_scoring_state
+
+    def swap_lands_after_the_check(*args):
+        state = real_read_state(*args)
+        _replace_annotated_variants(env)
+        return state
+
+    with patch.object(route, "read_scoring_state", swap_lands_after_the_check):
+        body = env.client.get(f"{MODULES[module]}?sample_id=1").json()
+
+    assert body["scoring_state"] == "stale"
+
+
+def test_the_code_digest_follows_modules_outside_analysis(tmp_path: Path) -> None:
+    """The scorers' ancestry selection lives in backend/services (#2118 review)."""
+    root = tmp_path / "backend"
+    (root / "services").mkdir(parents=True)
+    (root / "data" / "panels").mkdir(parents=True)
+    (root / "data" / "panels" / "pgs_score_registry.json").write_text("{}")
+    selection = root / "services" / "lai_production_coverage.py"
+    selection.write_text("ELIGIBLE = True\n")
+    before = route_scoring_state._source_digest(root)
+
+    selection.write_text("ELIGIBLE = False\n")
+
+    assert route_scoring_state._source_digest(root) != before
+
+
+@pytest.mark.parametrize("module", sorted(MODULES))
+def test_every_backend_module_a_run_loads_is_in_the_code_digest(env: _Env, module: str) -> None:
+    import sys
+
+    assert env.run(module) == 200
+
+    hashed = set(route_scoring_state._source_paths(route_scoring_state._BACKEND_DIR))
+    loaded = {
+        Path(m.__file__).resolve()
+        for name, m in list(sys.modules.items())
+        if name.startswith("backend.") and getattr(m, "__file__", None)
+    }
+    assert loaded, "the run should load backend modules"
+    assert loaded <= hashed, sorted(str(p) for p in loaded - hashed)[:5]

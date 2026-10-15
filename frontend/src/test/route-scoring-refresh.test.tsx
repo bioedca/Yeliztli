@@ -12,9 +12,12 @@ import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom"
 import EBMDView from "@/pages/EBMDView"
+import MetabolicView from "@/pages/MetabolicView"
 import type { ScoringState } from "@/types/route-scoring"
 
 const states = new Map<string, ScoringState>()
+const getOutcome = new Map<string, number>()
+let anchorGenotype = "CT"
 const runOutcome = new Map<string, number>()
 const runCalls: string[] = []
 
@@ -34,6 +37,22 @@ function ebmdBody(scoring_state: ScoringState) {
   }
 }
 
+function anchor(genotype: string) {
+  return {
+    trait: "t2d",
+    trait_label: "Type 2 diabetes",
+    gene: "TCF7L2",
+    rsid: "rs7903146",
+    effect_allele: "T",
+    genotype,
+    dosage: genotype.split("T").length - 1,
+    indeterminate: false,
+    summary: "Anchor variant.",
+    evidence_level: 3,
+    pmids: [],
+  }
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -43,6 +62,8 @@ function json(body: unknown, status = 200): Response {
 
 beforeEach(() => {
   states.clear()
+  getOutcome.clear()
+  anchorGenotype = "CT"
   runOutcome.clear()
   runCalls.length = 0
   vi.stubGlobal(
@@ -50,7 +71,16 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input), "http://localhost")
       const sample = url.searchParams.get("sample_id") ?? ""
-      if (url.pathname === "/api/analysis/ebmd/prs") return json(ebmdBody(states.get(sample)!))
+      if (url.pathname === "/api/analysis/ebmd/prs") {
+        const status = getOutcome.get(sample) ?? 200
+        return status === 200 ? json(ebmdBody(states.get(sample)!)) : json({ detail: "down" }, status)
+      }
+      if (url.pathname === "/api/analysis/metabolic/prs") {
+        return json({ items: [], total: 0, coverage_context: "", scoring_state: states.get(sample) })
+      }
+      if (url.pathname === "/api/analysis/metabolic/anchors") {
+        return json({ items: [anchor(anchorGenotype)], total: 1 })
+      }
       if (url.pathname === "/api/analysis/ebmd/run" && init?.method === "POST") {
         runCalls.push(sample)
         const status = runOutcome.get(sample) ?? 200
@@ -71,6 +101,18 @@ function client() {
   return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+}
+
+function metabolicPage(queryClient: QueryClient) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/metabolic?sample_id=1"]}>
+        <Routes>
+          <Route path="/metabolic" element={<MetabolicView />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 function page(queryClient: QueryClient, path: string) {
@@ -125,6 +167,38 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await waitFor(() => expect(queryClient.isFetching()).toBe(0))
 
     expect(runCalls).toEqual(["1"])
+  })
+
+  it("does not score from a cached state the re-check could not confirm", async () => {
+    const queryClient = client()
+    states.set("1", "never")
+    runOutcome.set("1", 500)
+    const first = render(page(queryClient, "/ebmd?sample_id=1"))
+    await within(await screen.findByTestId("scoring-status")).findByRole("alert")
+    first.unmount()
+
+    // The backend cannot be reached on the next visit; the cache still says "never".
+    getOutcome.set("1", 503)
+    render(page(queryClient, "/ebmd?sample_id=1"))
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+    await waitFor(() => expect(queryClient.getQueryState(["ebmd", 1])?.status).toBe("error"))
+
+    expect(runCalls).toEqual(["1"])
+  })
+
+  it("shows anchors re-scored by another client on the next visit", async () => {
+    const queryClient = client()
+    states.set("1", "current")
+    const first = render(metabolicPage(queryClient))
+    expect(await screen.findByText("CT")).toBeInTheDocument()
+    first.unmount()
+
+    // Another tab re-scored after a re-annotation changed the anchor call.
+    anchorGenotype = "TT"
+    render(metabolicPage(queryClient))
+
+    expect(await screen.findByText("TT")).toBeInTheDocument()
+    expect(runCalls).toEqual([])
   })
 
   it("does not show one sample's failed run on another", async () => {

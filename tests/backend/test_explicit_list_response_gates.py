@@ -215,6 +215,7 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     monkeypatch.setattr(metabolic, "_get_sample_engine", lambda _sample_id: prs_engine)
     # Freshness is out of scope here and needs a real sample DB (#2118).
     monkeypatch.setattr(metabolic, "read_scoring_state", lambda *_args: "current")
+    monkeypatch.setattr(metabolic, "recheck_scoring_state", lambda first, *_args: first)
 
     cancer_response = cancer.list_cancer_prs(sample_id=1)
     metabolic_response = metabolic.list_metabolic_prs(sample_id=1)
