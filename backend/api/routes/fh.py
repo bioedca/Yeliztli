@@ -37,6 +37,7 @@ from backend.services.route_scoring_state import (
     read_scoring_state,
     recheck_scoring_state,
     record_scoring_fingerprint,
+    serialized_scoring_run,
 )
 
 logger = logging.getLogger(__name__)
@@ -273,24 +274,27 @@ def run_fh_analysis(
 
     sample_engine = _get_sample_engine(sample_id)
     reference_engine = get_registry().reference_engine
-    # Taken before scoring, so an input that changes mid-run leaves it stale.
-    fingerprint = compute_scoring_fingerprint(MODULE_NAME, sample_engine, reference_engine)
-    pgs_engine = get_pgs_scores_engine()
-    try:
-        inferred = get_inferred_ancestry(sample_engine)
-        top_fraction = get_top_ancestry_fraction(sample_engine)
-        assessment = assess_fh(
-            sample_engine,
-            pgs_engine,
-            inferred,
-            top_fraction,
-            reference_engine=reference_engine,
-        )
-        count = store_fh_findings(assessment, sample_engine)
-    finally:
-        if pgs_engine is not None:
-            pgs_engine.dispose()
-    record_scoring_fingerprint(MODULE_NAME, sample_engine, fingerprint)
+    # One run per sample at a time: overlapping runs could pair one run's
+    # findings with the other's fingerprint.
+    with serialized_scoring_run(MODULE_NAME, sample_engine):
+        # Taken before scoring, so an input that changes mid-run leaves it stale.
+        fingerprint = compute_scoring_fingerprint(MODULE_NAME, sample_engine, reference_engine)
+        pgs_engine = get_pgs_scores_engine()
+        try:
+            inferred = get_inferred_ancestry(sample_engine)
+            top_fraction = get_top_ancestry_fraction(sample_engine)
+            assessment = assess_fh(
+                sample_engine,
+                pgs_engine,
+                inferred,
+                top_fraction,
+                reference_engine=reference_engine,
+            )
+            count = store_fh_findings(assessment, sample_engine)
+        finally:
+            if pgs_engine is not None:
+                pgs_engine.dispose()
+        record_scoring_fingerprint(MODULE_NAME, sample_engine, fingerprint)
 
     return FhRunResponse(
         findings_count=count,

@@ -20,6 +20,11 @@ const getOutcome = new Map<string, number>()
 let anchorGenotype = "CT"
 const runOutcome = new Map<string, number>()
 const runCalls: string[] = []
+// Called after each run; by default a successful run leaves its score current.
+const markCurrentOnSuccess = (sample: string) => {
+  if ((runOutcome.get(sample) ?? 200) === 200) states.set(sample, "current")
+}
+let afterRun: (sample: string) => void = markCurrentOnSuccess
 
 function ebmdBody(scoring_state: ScoringState) {
   return {
@@ -66,6 +71,7 @@ beforeEach(() => {
   anchorGenotype = "CT"
   runOutcome.clear()
   runCalls.length = 0
+  afterRun = markCurrentOnSuccess
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -83,6 +89,8 @@ beforeEach(() => {
       }
       if (url.pathname === "/api/analysis/ebmd/run" && init?.method === "POST") {
         runCalls.push(sample)
+        afterRun(sample)
+        if (runOutcome.get(sample) === 0) return new Promise<Response>(() => {}) // never settles
         const status = runOutcome.get(sample) ?? 200
         return status === 200
           ? json({ findings_count: 0, prs_computed: false })
@@ -234,5 +242,59 @@ describe("route-only scoring with the real hooks (#2118)", () => {
 
     // Sample 1 is still unscored, so coming back to it tries again.
     await waitFor(() => expect(runCalls).toEqual(["1", "1"]))
+  })
+
+  it("runs again when an input changed during the run", async () => {
+    states.set("1", "stale")
+    // The first run finishes with the result recorded stale (an input changed
+    // mid-run); the second one makes it current.
+    afterRun = () => states.set("1", runCalls.length >= 2 ? "current" : "stale")
+    render(page(client(), "/ebmd?sample_id=1"))
+
+    await waitFor(() => expect(runCalls).toEqual(["1", "1"]), { timeout: 5000 })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled())
+    expect(runCalls).toEqual(["1", "1"])
+  })
+
+  it("stops starting runs automatically when the score never becomes current", async () => {
+    states.set("1", "stale")
+    afterRun = () => {} // every run leaves it stale
+    render(page(client(), "/ebmd?sample_id=1"))
+
+    await waitFor(() => expect(runCalls).toHaveLength(3), { timeout: 5000 })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled())
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(runCalls).toHaveLength(3)
+  })
+
+  it("runs again after a failure once the state was current in between", async () => {
+    const queryClient = client()
+    states.set("1", "stale")
+    runOutcome.set("1", 500)
+    render(page(queryClient, "/ebmd?sample_id=1"))
+    await within(await screen.findByTestId("scoring-status")).findByRole("alert")
+
+    // Another client scores it, then its inputs change again.
+    runOutcome.delete("1")
+    states.set("1", "current")
+    await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
+    // Let the page render the current state before it changes again.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    states.set("1", "stale")
+    await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
+
+    await waitFor(() => expect(runCalls).toEqual(["1", "1"]), { timeout: 5000 })
+  })
+
+  it("scores the next sample even when it is chosen while a run is still going", async () => {
+    states.set("1", "never")
+    states.set("2", "never")
+    runOutcome.set("1", 0) // sample 1's run is still going when sample 2 is chosen
+    render(page(client(), "/ebmd?sample_id=1"))
+    await waitFor(() => expect(runCalls).toEqual(["1"]))
+
+    await userEvent.click(screen.getByRole("link", { name: "Sample 2" }))
+
+    await waitFor(() => expect(runCalls).toEqual(["1", "2"]), { timeout: 5000 })
   })
 })

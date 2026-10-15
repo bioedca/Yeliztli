@@ -434,3 +434,58 @@ def test_every_backend_module_a_run_loads_is_in_the_code_digest(env: _Env, modul
     }
     assert loaded, "the run should load backend modules"
     assert loaded <= hashed, sorted(str(p) for p in loaded - hashed)[:5]
+
+
+RUNS = {
+    "metabolic": ("run_metabolic_analysis", "backend.analysis.metabolic_prs.run_metabolic_prs"),
+    "fh": ("run_fh_analysis", "backend.analysis.fh.assess_fh"),
+    "ebmd": ("run_ebmd_analysis", "backend.analysis.ebmd_prs.score_ebmd_prs"),
+}
+
+
+@pytest.mark.parametrize("module", sorted(RUNS))
+def test_overlapping_runs_for_one_sample_do_not_interleave(env: _Env, module: str) -> None:
+    """Two runs storing findings and fingerprints in separate transactions could
+    leave one run's findings under the other's fingerprint, so the second waits."""
+    import importlib
+    import threading
+
+    route_fn_name, scorer_path = RUNS[module]
+    route = importlib.import_module(f"backend.api.routes.{module}")
+    scorer_module, scorer_name = scorer_path.rsplit(".", 1)
+    real_scorer = getattr(importlib.import_module(scorer_module), scorer_name)
+    entered: list[int] = []
+    first_inside = threading.Event()
+    release_first = threading.Event()
+
+    def held_scorer(*args, **kwargs):
+        entered.append(len(entered))
+        if len(entered) == 1:
+            first_inside.set()
+            assert release_first.wait(10)
+        return real_scorer(*args, **kwargs)
+
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            getattr(route, route_fn_name)(sample_id=1)
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+
+    with patch(scorer_path, held_scorer):
+        first = threading.Thread(target=run)
+        first.start()
+        assert first_inside.wait(10)
+        second = threading.Thread(target=run)
+        second.start()
+        second.join(0.5)
+        overlapped = len(entered) > 1
+        release_first.set()
+        first.join(30)
+        second.join(30)
+
+    assert errors == []
+    assert not overlapped, "the second run started scoring while the first was still running"
+    assert len(entered) == 2
+    assert env.state(module) == "current"

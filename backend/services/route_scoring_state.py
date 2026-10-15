@@ -34,6 +34,9 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -142,6 +145,27 @@ def compute_scoring_fingerprint(
         "sample": sample_inputs,
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+_run_locks: dict[tuple[str, str], threading.Lock] = {}
+_run_locks_guard = threading.Lock()
+
+
+@contextmanager
+def serialized_scoring_run(module: str, sample_engine: sa.Engine) -> Iterator[None]:
+    """Let one run of ``module`` per sample proceed at a time.
+
+    A run takes its fingerprint, stores its findings and then records the
+    fingerprint, in separate transactions. Two overlapping runs whose inputs
+    differ could leave one run's findings under the other's fingerprint, so a
+    second run waits for the first. The app serves from a single process
+    (``backend/main.py``), so an in-process lock covers every run.
+    """
+    key = (module, str(sample_engine.url.database))
+    with _run_locks_guard:
+        lock = _run_locks.setdefault(key, threading.Lock())
+    with lock:
+        yield
 
 
 def record_scoring_fingerprint(module: str, sample_engine: sa.Engine, fingerprint: str) -> None:
