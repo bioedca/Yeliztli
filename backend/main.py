@@ -203,6 +203,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
+        # Configure structured logging with DB persistence as soon as there is an
+        # engine to persist to (#2126). It used to run after the schema backfill,
+        # the HLA-proxy load and the genome-build check, so those steps' own
+        # diagnostics — exactly what someone triaging a boot failure in the Log
+        # Explorer wants — were emitted before the DB processor existed and were
+        # never stored. Only the pre-registry privacy warning above remains
+        # console-only, which is irreducible without buffering: there is no
+        # engine to write to before this line.
+        configure_logging(engine_getter=lambda: registry.reference_engine)
         # Ensure reference tables exist under SQLite's cross-process DDL lock.
         bootstrap_reference_schema_tables(registry.reference_engine)
         # create_all only creates missing *tables*, never adds *columns* to
@@ -230,13 +239,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # legitimate GRCh38 coordinates are expected and not flagged.
         build_skew = check_genome_build_consistency(registry.reference_engine)
         if build_skew:
+            # Formatted into the message for the same reason as the privacy
+            # warning above: ``logger`` here is a stdlib logger, and passing it
+            # arbitrary keywords raises TypeError out of ``Logger._log``. This
+            # site did pass ``sources=``/``pipeline_build=``, so the moment a
+            # skew was actually detected the warning aborted startup instead of
+            # reporting it — the one condition it exists to survive (#2126).
             logger.warning(
-                "genome_build_skew_detected",
-                sources=build_skew,
-                pipeline_build=PIPELINE_GENOME_BUILD,
+                "genome_build_skew_detected: sources=%s pipeline_build=%s",
+                build_skew,
+                PIPELINE_GENOME_BUILD,
             )
-        # Configure structured logging with DB persistence
-        configure_logging(engine_getter=lambda: registry.reference_engine)
         warn_if_insecure_network_bind(settings)
         # Mark any leftover in-progress download sessions as interrupted/stale
         cleanup_interrupted_sessions(registry.reference_engine)

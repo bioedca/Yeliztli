@@ -115,6 +115,11 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             ],
         )
 
+    # Highest seeded log id, so the lifespan's own entries can be identified
+    # below without depending on how many rows were seeded or what they contain.
+    with engine.connect() as conn:
+        seeded_log_high_water = conn.execute(sa.select(sa.func.max(log_entries.c.id))).scalar_one()
+
     engine.dispose()
 
     with (
@@ -144,7 +149,23 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                         }
                     ],
                 )
-            post_engine.dispose()
+            # Startup diagnostics now persist (#2126): the lifespan logs
+            # "DBRegistry initialised" and "hla_proxy_lookup populated" through
+            # stdlib logging, which reaches the database as of that change. That
+            # is the behaviour #2126 asked for and it is covered directly in
+            # tests/backend/test_logging_config.py and test_main_lifespan.py.
+            #
+            # These tests are about the Log Explorer's pagination, filtering and
+            # gating semantics over a *known* row set, so they are isolated from
+            # it here rather than by rewriting every expected count — which
+            # would also have perturbed test_pagination's deliberate
+            # offset + page_size == total boundary probe.
+            cleanup_engine = sa.create_engine(f"sqlite:///{ref_path}")
+            with cleanup_engine.begin() as conn:
+                conn.execute(
+                    sa.delete(log_entries).where(log_entries.c.id > seeded_log_high_water)
+                )
+            cleanup_engine.dispose()
             yield tc
         reset_registry()
 

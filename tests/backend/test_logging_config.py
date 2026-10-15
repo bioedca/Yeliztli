@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import warnings
 
 import pytest
@@ -472,4 +473,212 @@ def test_nameless_logger_persists_null_component_not_empty_string(tmp_path) -> N
         assert logger_name is None
     finally:
         structlog.reset_defaults()
+        engine.dispose()
+
+
+# ── Stdlib logging reaches the Log Explorer (#2126) ──────────────────────────
+
+
+def test_stdlib_logger_persists_to_log_entries(tmp_path) -> None:
+    """A ``logging.getLogger`` call reaches the DB, so the Log Explorer shows it.
+
+    ``configure_logging`` used to end with ``logging.basicConfig(...)`` under a
+    comment claiming it routed stdlib logging through structlog. It did not:
+    ``basicConfig`` installs a plain ``StreamHandler`` that formats the record
+    itself and never touches a processor, so all 65 ``logging.getLogger``
+    call sites in ``backend/`` wrote to stderr and nothing else. Verified against
+    a real database before the fix — ``DBRegistry initialised``, logged every
+    boot, had zero rows in ``log_entries``.
+
+    This asserts the message, the level and the component, because a route that
+    stored the text under an empty logger would still leave the Component filter
+    blind to every stdlib site.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.main").info(
+            "DBRegistry initialised (reference.db engine ready)"
+        )
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(log_entries.c.logger, log_entries.c.level).where(
+                    log_entries.c.message == "DBRegistry initialised (reference.db engine ready)"
+                )
+            ).one()
+
+        assert row.logger == "backend.main"
+        assert row.level == "INFO"
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
+        engine.dispose()
+
+
+def test_stdlib_percent_formatting_persists_interpolated(tmp_path) -> None:
+    """``%s`` arguments are interpolated before storage, not stored as a template.
+
+    The lifespan's surviving stdlib sites use ``%``-style arguments precisely
+    because a stdlib logger rejects keywords, so storing ``"...: %s"`` with the
+    value dropped would make those rows useless.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.main").warning(
+            "data_directory_not_private: %s", "world-readable"
+        )
+
+        with engine.connect() as conn:
+            message = conn.execute(
+                sa.select(log_entries.c.message).where(log_entries.c.level == "WARNING")
+            ).scalar_one()
+
+        assert message == "data_directory_not_private: world-readable"
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
+        engine.dispose()
+
+
+def test_stdlib_routing_does_not_duplicate_native_events(tmp_path) -> None:
+    """Native structlog events are still stored exactly once.
+
+    The routing handler lives on the stdlib root logger. This app's
+    ``logger_factory`` is a ``PrintLoggerFactory``, so native events never pass
+    through stdlib and cannot be written twice — but a future switch to
+    ``structlog.stdlib.LoggerFactory`` would double every row, which is the
+    failure this pins.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("backend.analysis.metabolic").info("native_only_event")
+
+        with engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(log_entries)
+                .where(log_entries.c.message == "native_only_event")
+            ).scalar_one()
+
+        assert count == 1
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
+        engine.dispose()
+
+
+def test_stdlib_records_are_redacted_before_storage(tmp_path) -> None:
+    """A stdlib record is redacted on the same terms as a native event.
+
+    The vector is a **bound contextvar**, not a keyword: a stdlib logger cannot
+    take structured keywords at all, and ``extra=`` is not merged into the event
+    dict by ``ProcessorFormatter``. What *does* reach a foreign record is
+    anything bound with ``bind_contextvars`` — request middleware or an analysis
+    routine binds a diplotype, and any stdlib line logged inside that scope
+    would carry it. Routing stdlib logs into the database must not turn that
+    into a privacy bypass, so the redactor runs in the foreign pre-chain.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.contextvars.bind_contextvars(diplotype="*1/*2", sample_rsid_genotype="AG")
+        try:
+            logging.getLogger("backend.analysis.pharmacogenomics").info("stdlib_in_bound_scope")
+        finally:
+            structlog.contextvars.clear_contextvars()
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "stdlib_in_bound_scope"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        # The keys survive (they are useful structure); the values must not.
+        assert "*1/*2" not in stored
+        assert '"AG"' not in stored
+        assert _REDACTED_LOG_VALUE in stored
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
+        engine.dispose()
+
+
+def test_repeated_configuration_does_not_stack_root_handlers(tmp_path) -> None:
+    """``configure_logging`` is idempotent on the root logger.
+
+    The API lifespan configures once, and tests and the Huey worker bootstrap
+    configure again in the same process. Appending a handler each time would
+    duplicate every stdlib line on the console and every row in the DB.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        configure_logging(engine_getter=lambda: engine)
+        configure_logging(engine_getter=lambda: engine)
+
+        assert len(logging.getLogger("backend").handlers) == 1
+
+        logging.getLogger("backend.main").info("configured_thrice")
+        with engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(log_entries)
+                .where(log_entries.c.message == "configured_thrice")
+            ).scalar_one()
+        assert count == 1
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
+        engine.dispose()
+
+
+def test_logging_after_deletion_does_not_recreate_the_database(tmp_path) -> None:
+    """A log line emitted after the database is deleted must not recreate it.
+
+    SQLite creates the file on connect, so the DB processor would resurrect
+    ``reference.db`` moments after the nuclear-delete endpoint removed it,
+    leaving a "delete all my data" feature with its own artefact on disk. The
+    window became reachable when stdlib logging started flowing through this
+    processor (#2126) — the lifespan and shutdown paths log through stdlib, and
+    the nuclear-delete tests caught the resurrection.
+    """
+    structlog.reset_defaults()
+    database = tmp_path / "reference.db"
+    engine = sa.create_engine(f"sqlite:///{database}")
+    reference_metadata.create_all(engine)
+    assert database.exists()
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        engine.dispose()
+        database.unlink()
+
+        # Both paths into the processor: a native event and a stdlib record.
+        structlog.get_logger("backend.analysis.metabolic").info("after_nuclear_delete")
+        logging.getLogger("backend.main").info("after_nuclear_delete_stdlib")
+
+        assert not database.exists(), "the log processor recreated a deleted database"
+    finally:
+        structlog.reset_defaults()
+        logging.getLogger("backend").handlers.clear()
         engine.dispose()

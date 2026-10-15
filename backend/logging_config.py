@@ -10,6 +10,7 @@ import contextvars
 import json
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 
@@ -153,6 +154,21 @@ def _db_processor_factory(engine_getter: callable) -> callable:
             if engine is None:
                 return event_dict
 
+            # Never resurrect a deleted database. SQLite creates the file on
+            # connect, so a single log line emitted after the nuclear-delete
+            # endpoint removes reference.db would leave a fresh one behind —
+            # a "delete all my data" feature depositing its own artefact. The
+            # window is reachable because stdlib logging now flows through this
+            # processor (#2126); before that, nothing happened to log in it.
+            if engine.dialect.name == "sqlite":
+                database_path = engine.url.database
+                if (
+                    database_path
+                    and database_path != ":memory:"
+                    and not Path(database_path).exists()
+                ):
+                    return event_dict
+
             import sqlalchemy as sa
 
             from backend.db.tables import LOG_ENTRY_PRESENTATION_POLICY_VERSION, log_entries
@@ -262,8 +278,87 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         cache_logger_on_first_use=False,
     )
 
-    # Also route stdlib logging through structlog
-    logging.basicConfig(
-        format="%(message)s",
-        level=logging.INFO,
+    _route_stdlib_logging_through_structlog(engine_getter)
+
+
+def _route_stdlib_logging_through_structlog(engine_getter: callable | None) -> None:
+    """Send records from ``logging.getLogger`` through the structlog chain (#2126).
+
+    The previous implementation was ``logging.basicConfig(...)`` under a comment
+    claiming it routed stdlib logging through structlog. It does not: it installs
+    a plain :class:`logging.StreamHandler` on the root logger, which formats and
+    writes the record itself and never touches a structlog processor. Everything
+    logged through the 65 ``logging.getLogger(__name__)`` call sites in
+    ``backend/`` — including the lifespan's own startup diagnostics — reached
+    stderr and nothing else, so the Log Explorer, whose rows come from the DB
+    processor, showed none of it. Verified against a real database before the
+    fix: ``DBRegistry initialised``, logged on every boot, had zero rows in
+    ``log_entries``.
+
+    :class:`structlog.stdlib.ProcessorFormatter` is the supported way to do what
+    the comment described. Foreign (stdlib) records run through
+    ``foreign_pre_chain`` to gain the same level, logger name, timestamp and
+    **redaction** a native structlog event gets, then through the formatter's own
+    processors, which is where the DB processor sits.
+
+    The DB processor runs *after* ``remove_processors_meta`` deliberately. That
+    call strips the ``_record`` and ``_from_structlog`` keys ProcessorFormatter
+    adds, and ``_record`` is a :class:`logging.LogRecord` — passing it to the DB
+    writer would put an unserialisable object into the stored payload.
+
+    Native structlog events do not pass through here at all: this app's
+    ``logger_factory`` is a :class:`~structlog.PrintLoggerFactory`, so structlog
+    writes straight to stderr and never through the stdlib root logger. This
+    handler therefore only ever sees foreign records, and no event is recorded
+    twice.
+
+    Root handlers are replaced rather than appended, so calling
+    ``configure_logging`` more than once (the API lifespan reconfigures once the
+    reference engine exists) cannot stack duplicate handlers.
+    """
+    foreign_pre_chain: list[structlog.types.Processor] = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        # Reads ``record.name`` for foreign records, so a stdlib logger lands in
+        # the Log Explorer's Component column under its real module path.
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso"),
+        # Stdlib records are redacted on the same terms as native events; a
+        # module that logs through `logging` must not become a privacy bypass.
+        _redact_sensitive_log_fields,
+    ]
+
+    formatter_processors: list[structlog.types.Processor] = [
+        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+    ]
+    if engine_getter is not None:
+        formatter_processors.append(_db_processor_factory(engine_getter))
+    formatter_processors.append(
+        structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
     )
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=foreign_pre_chain,
+            processors=formatter_processors,
+        )
+    )
+
+    # Attached to the ``backend`` logger, not the root logger. The gap this
+    # closes is the application's own 65 ``logging.getLogger(__name__)`` sites;
+    # routing *every* stdlib logger would also persist third-party chatter
+    # (httpx, uvicorn, sqlalchemy, huey) into the Log Explorer, which is both
+    # noise and a behaviour change nobody asked for. Verified by the admin Log
+    # Explorer tests, which count rows and failed on the extra entries when this
+    # was installed on root.
+    #
+    # Handlers are replaced rather than appended, so repeated configuration (the
+    # API lifespan, the Huey worker bootstrap, tests in one process) cannot stack
+    # duplicates. ``propagate`` stays on so anything the host application has
+    # configured above ``backend`` still sees these records.
+    backend_logger = logging.getLogger("backend")
+    for existing in backend_logger.handlers[:]:
+        backend_logger.removeHandler(existing)
+    backend_logger.addHandler(handler)
+    backend_logger.setLevel(logging.INFO)
