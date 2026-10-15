@@ -269,6 +269,29 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       ? "Watch status unavailable — could not load your watched variants"
       : "Loading your watched variants…"
 
+  // Once membership moves away from what it was when an attempt failed, that
+  // failure is dropped for good rather than merely hidden. Filtering at render
+  // alone left the entry in state, so a later change *back* to the original
+  // membership re-matched it and resurrected the alert, ring and retry tooltip
+  // for a failure that was long gone (false -> true -> false).
+  useEffect(() => {
+    if (querySampleId == null) return
+    const prefix = `${querySampleId}:`
+    setWatchErrors((current) => {
+      let next: Map<string, { message: string; watchedWhenFailed: boolean }> | null = null
+      for (const [key, entry] of current) {
+        if (!key.startsWith(prefix)) continue
+        if (watchedRsids.has(key.slice(prefix.length)) !== entry.watchedWhenFailed) {
+          next ??= new Map(current)
+          next.delete(key)
+        }
+      }
+      return next ?? current
+    })
+  }, [watchedRsids, querySampleId])
+
+  // The render-time filter stays as well, so the frame between a membership
+  // change and the pruning effect never shows a failure that has gone stale.
   // A failure is shown only while membership still matches what it was when the
   // attempt failed; otherwise something else changed this variant and the
   // failure no longer describes reality.

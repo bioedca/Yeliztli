@@ -648,6 +648,23 @@ describe("VariantTable row watch toggle (#2123)", () => {
     const rs1 = screen.getByRole("button", { name: "Watch rs1" })
     expect(rs1.getAttribute("title")).toBe("Unwatch rs1")
     expect(rs1.getAttribute("title")).not.toMatch(/retry/i)
+
+    // ...and it must not come back when membership returns to its original
+    // value. A presentation-only filter left the entry in state, so the
+    // false -> true -> false sequence resurrected the old failure.
+    rs1WatchedExternally = false
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      )
+    })
+    expect(screen.queryByRole("alert")).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Watch rs1" }).getAttribute("title"),
+    ).toBe("Watch rs1")
   })
 
   it("keeps the toggle out of the column-visibility menu", async () => {
