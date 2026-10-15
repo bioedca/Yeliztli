@@ -207,9 +207,22 @@ describe("RowWatchToggle (#2123)", () => {
 
     const button = screen.getByRole("button", { name: "Watch rs42" })
     expect(button).toBeDisabled()
+    // The spinner carries no text, so the description is the only textual
+    // signal that the write is still running — and it must not offer an action
+    // that cannot be taken.
+    expect(button).toHaveAttribute("title", "Watching rs42…")
     await user.click(button)
 
     expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it("describes an in-flight unwatch rather than offering Unwatch", () => {
+    render(<RowWatchToggle rsid="rs42" isWatched isPending onToggle={() => {}} />)
+
+    expect(screen.getByRole("button", { name: "Watch rs42" })).toHaveAttribute(
+      "title",
+      "Unwatching rs42…",
+    )
   })
 })
 
@@ -538,6 +551,52 @@ describe("VariantTable row watch toggle (#2123)", () => {
     const button = screen.getByRole("button", { name: "Watch rs1" })
     expect(button).toBeEnabled()
     expect(button.getAttribute("title")).toMatch(/retry/i)
+  })
+
+  it.each([
+    ["rs1 last", ["rs2", "rs1"]],
+    ["rs2 last", ["rs1", "rs2"]],
+  ])("keeps both concurrent row failures when %s settles", async (_label, order) => {
+    // A single error slot meant whichever rejection settled last erased the
+    // other row's alert, ring and retry tooltip. Both settlement orders are
+    // covered because the bug is order-dependent.
+    const gates = new Map<string, () => void>()
+    setupFetchMock(["rs1", "rs2"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && init?.method === "POST") {
+        const rsid = JSON.parse(String(init.body ?? "{}")).rsid as string
+        await new Promise<void>((resolve) => gates.set(rsid, resolve))
+        return { ok: false, status: 500, json: async () => ({ detail: `boom ${rsid}` }) }
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+    await waitFor(() => expect(gates.size).toBe(2))
+
+    for (const rsid of order) {
+      await act(async () => {
+        gates.get(rsid)!()
+      })
+    }
+
+    const alert = await waitFor(() => screen.getByRole("alert"))
+    expect(alert).toHaveTextContent(/rs1/)
+    expect(alert).toHaveTextContent(/rs2/)
+    // Both controls offer a retry, not just the one that settled last.
+    for (const rsid of ["rs1", "rs2"]) {
+      const button = screen.getByRole("button", { name: `Watch ${rsid}` })
+      expect(button).toBeEnabled()
+      expect(button.getAttribute("title")).toMatch(/retry/i)
+    }
   })
 
   it("keeps the toggle out of the column-visibility menu", async () => {

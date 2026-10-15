@@ -42,8 +42,8 @@ export interface VariantTableWatchMeta {
    * already-watched variant and turn a click into a rejected duplicate write.
    */
   unavailableReason: string | null
-  /** rsID whose last watch/unwatch attempt failed, if any. */
-  failedRsid: string | null
+  /** The failure message for this row's last attempt, or null. */
+  failureFor: (rsid: string) => string | null
 }
 
 interface VariantTableMeta {
@@ -142,7 +142,7 @@ const watchColumn = col.display({
       isWatched: watch.isWatched(rsid),
       isPending: watch.isPending(rsid),
       unavailableReason: watch.unavailableReason,
-      hasFailed: watch.failedRsid === rsid,
+      hasFailed: watch.failureFor(rsid) != null,
       onToggle: watch.toggle,
     })
   },

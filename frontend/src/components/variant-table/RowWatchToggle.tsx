@@ -74,11 +74,18 @@ export default function RowWatchToggle({
   // the user cannot take.
   const action =
     unavailableReason ??
-    (hasFailed
-      ? `Last attempt failed — retry ${isWatched ? "unwatching" : "watching"} ${rsid}`
-      : isWatched
-        ? `Unwatch ${rsid}`
-        : `Watch ${rsid}`)
+    // A pending control must not offer an action that cannot be taken, and the
+    // spinner carries no text, so the description is the only textual signal
+    // that the write is still running.
+    (isPending
+      ? isWatched
+        ? `Unwatching ${rsid}…`
+        : `Watching ${rsid}…`
+      : hasFailed
+        ? `Last attempt failed — retry ${isWatched ? "unwatching" : "watching"} ${rsid}`
+        : isWatched
+          ? `Unwatch ${rsid}`
+          : `Watch ${rsid}`)
 
   return (
     <button

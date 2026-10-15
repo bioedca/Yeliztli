@@ -236,11 +236,13 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   const [pendingWatchKeys, setPendingWatchKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
-  const [watchError, setWatchError] = useState<{
-    sampleId: number
-    rsid: string
-    message: string
-  } | null>(null)
+  // Keyed by `${sampleId}:${rsid}`, not a single entry: two rows can fail
+  // concurrently, and a single slot meant whichever rejected last erased the
+  // other row's failure ring, retry tooltip and alert — making one failed
+  // action indistinguishable from an ignored click.
+  const [watchErrors, setWatchErrors] = useState<ReadonlyMap<string, string>>(
+    () => new Map(),
+  )
   const settleWatch = useCallback((key: string) => {
     setPendingWatchKeys((current) => {
       if (!current.has(key)) return current
@@ -261,6 +263,16 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       ? "Watch status unavailable — could not load your watched variants"
       : "Loading your watched variants…"
 
+  const currentSampleWatchFailures = useMemo(
+    () =>
+      querySampleId == null
+        ? []
+        : [...watchErrors.entries()]
+            .filter(([key]) => key.startsWith(`${querySampleId}:`))
+            .map(([key, message]) => [key.slice(String(querySampleId).length + 1), message]),
+    [watchErrors, querySampleId],
+  ) as [string, string][]
+
   const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
     if (querySampleId == null) return undefined
     const sampleId = querySampleId
@@ -269,14 +281,17 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       isWatched: (rsid: string) => watchedRsids.has(rsid),
       isPending: (rsid: string) => pendingWatchKeys.has(keyFor(rsid)),
       unavailableReason: watchUnavailableReason,
-      failedRsid: watchError?.sampleId === sampleId ? watchError.rsid : null,
+      failureFor: (rsid: string) => watchErrors.get(keyFor(rsid)) ?? null,
       toggle: (rsid: string) => {
         const key = keyFor(rsid)
         if (watchUnavailableReason != null || pendingWatchKeys.has(key)) return
         setPendingWatchKeys((current) => new Set(current).add(key))
-        setWatchError((current) =>
-          current?.sampleId === sampleId && current.rsid === rsid ? null : current,
-        )
+        setWatchErrors((current) => {
+          if (!current.has(key)) return current
+          const next = new Map(current)
+          next.delete(key)
+          return next
+        })
         const wasWatched = watchedRsids.has(rsid)
         const mutation = wasWatched ? unwatchMutation : watchMutation
         // `mutateAsync` rather than `mutate` with an onSettled callback: a
@@ -297,16 +312,16 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
             }),
           )
           .catch((error: unknown) =>
-            setWatchError({
-              sampleId,
-              rsid,
-              message:
+            setWatchErrors((current) =>
+              new Map(current).set(
+                key,
                 error instanceof Error
                   ? error.message
                   : wasWatched
                     ? "Could not unwatch this variant."
                     : "Could not watch this variant.",
-            }),
+              ),
+            ),
           )
           .finally(() => settleWatch(key))
       },
@@ -319,7 +334,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     watchedRsids,
     pendingWatchKeys,
     watchUnavailableReason,
-    watchError,
+    watchErrors,
     settleWatch,
     queryClient,
   ])
@@ -689,12 +704,14 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
           tabIndex={0}
         >
-          {watchError != null && watchError.sampleId === querySampleId && (
+          {currentSampleWatchFailures.length > 0 && (
             <div
               role="alert"
               className="mx-3 mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
             >
-              {`${watchError.rsid}: ${watchError.message}`}
+              {currentSampleWatchFailures.map(([rsid, message]) => (
+                <div key={rsid}>{`${rsid}: ${message}`}</div>
+              ))}
             </div>
           )}
           <table className="w-full text-sm border-collapse">
