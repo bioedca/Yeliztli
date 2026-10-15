@@ -3,10 +3,10 @@
  * Composes monogenic FH (LDLR/APOB/PCSK9), the APOB R3527Q / rs5742904 (FDB)
  * variant, and an LDL-C polygenic score — framed against the Dutch Lipid Clinic
  * Network / Simon Broome criteria, explicitly NOT a clinical FH diagnosis.
- * Route-only: triggers POST /run on mount, then renders the assessment.
+ * Route-only: scored by POST /run, which the page triggers only when the stored
+ * assessment is missing or stale (#2118), then renders the assessment.
  */
 
-import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { HeartPulse, AlertTriangle } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -15,6 +15,8 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useFhAssessment, useRunFh } from "@/api/fh"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
 export default function FHView() {
@@ -24,9 +26,7 @@ export default function FHView() {
   const run = useRunFh(sampleId)
   const query = useFhAssessment(sampleId)
   const runMutate = run.mutate
-  useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+  useAutoScore(sampleId, query.data !== undefined, query.data?.scoring_state, runMutate)
 
   if (sampleId == null) {
     return (
@@ -58,6 +58,15 @@ export default function FHView() {
           </p>
         </div>
       </div>
+
+      {a && (
+        <ScoringStatus
+          scoringState={a.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Assessing FH genetics..." />}
       {hasError && !isLoading && (

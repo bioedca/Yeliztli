@@ -3,10 +3,10 @@
  * A heel estimated-bone-mineral-density polygenic score (gSOS / PGS000657),
  * framed strictly as NOT a substitute for DXA or FRAX. The score is
  * non-commercially licensed → not bundled; when it is not installed the view
- * shows BYO guidance. Route-only: triggers POST /run on mount.
+ * shows BYO guidance. Route-only: scored by POST /run, which the page triggers
+ * only when the stored score is missing or stale (#2118).
  */
 
-import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Bone, Info } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -15,6 +15,8 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useEbmd, useRunEbmd } from "@/api/ebmd"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
 export default function EBMDView() {
@@ -24,9 +26,7 @@ export default function EBMDView() {
   const run = useRunEbmd(sampleId)
   const query = useEbmd(sampleId)
   const runMutate = run.mutate
-  useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+  useAutoScore(sampleId, query.data !== undefined, query.data?.scoring_state, runMutate)
 
   if (sampleId == null) {
     return (
@@ -58,6 +58,15 @@ export default function EBMDView() {
           </p>
         </div>
       </div>
+
+      {data && (
+        <ScoringStatus
+          scoringState={data.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Scoring eBMD polygenic risk..." />}
       {hasError && !isLoading && (

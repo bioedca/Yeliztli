@@ -1,7 +1,9 @@
 /** Tests for the standalone eBMD page. */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
+import { StrictMode } from "react"
+import { render, screen, within } from "./test-utils"
+import userEvent from "@testing-library/user-event"
 import type { EbmdResponse } from "@/types/ebmd"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
@@ -55,6 +57,7 @@ const EBMD_RESPONSE: EbmdResponse = {
     byo: "Bring your own licensed score bundle.",
   },
   research_use_only: true,
+  scoring_state: "current",
 }
 
 function q(over: Record<string, unknown> = {}) {
@@ -104,7 +107,70 @@ describe("EBMDView", () => {
     render(<EBMDView />)
 
     expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
-    expect(screen.queryByText("eBMD run failed: 500")).not.toBeInTheDocument()
     expect(screen.queryByText("Failed to load eBMD score.")).not.toBeInTheDocument()
+    // Reported beside the stored score, not in place of it (#2118): with scoring
+    // gated on its state, a silent failure would read as "no score".
+    expect(within(screen.getByTestId("scoring-status")).getByRole("alert")).toHaveTextContent(
+      "eBMD run failed: 500",
+    )
+  })
+})
+
+describe("EBMDView scoring (#2118)", () => {
+  function withState(scoring_state: EbmdResponse["scoring_state"] | undefined) {
+    const data = { ...EBMD_RESPONSE, scoring_state } as EbmdResponse
+    mockUseEbmd.mockReturnValue(q({ data }))
+  }
+
+  it.each(["never", "stale"] as const)("scores once when the stored score is %s", (state) => {
+    withState(state)
+    const { rerender } = render(<EBMDView />)
+    rerender(<EBMDView />)
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not re-score a current score", () => {
+    withState("current")
+    render(<EBMDView />)
+    expect(mockRunMutate).not.toHaveBeenCalled()
+  })
+
+  it("waits for the stored score before deciding", () => {
+    mockUseEbmd.mockReturnValue(q({ isLoading: true }))
+    render(<EBMDView />)
+    expect(mockRunMutate).not.toHaveBeenCalled()
+  })
+
+  it("scores when the response does not report a state", () => {
+    withState(undefined)
+    render(<EBMDView />)
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("starts one run under StrictMode's double effect", () => {
+    withState("never")
+    render(
+      <StrictMode>
+        <EBMDView />
+      </StrictMode>,
+    )
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("re-scores a current score on request", async () => {
+    withState("current")
+    render(<EBMDView />)
+    await userEvent.click(screen.getByRole("button", { name: "Re-score" }))
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("says why it is re-scoring and disables the button meanwhile", () => {
+    withState("stale")
+    mockUseRunEbmd.mockReturnValue(q({ mutate: mockRunMutate, isPending: true }))
+    render(<EBMDView />)
+    expect(screen.getByRole("status")).toHaveTextContent("inputs changed since it was last scored")
+    expect(screen.getByRole("button", { name: "Re-score" })).toBeDisabled()
+    // The previous score stays on screen while it re-scores.
+    expect(screen.getByText("Heel eBMD")).toBeInTheDocument()
   })
 })

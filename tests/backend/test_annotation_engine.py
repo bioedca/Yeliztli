@@ -72,6 +72,7 @@ from backend.annotation.mondo_hpo import (
     load_mondo_hpo_from_csv,
     record_mondo_hpo_version,
 )
+from backend.db.sample_generations import ANNOTATED_VARIANTS_GENERATION_KEY
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -1571,10 +1572,13 @@ class TestCoverageStatsSideEffects:
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """Per-sample `annotation_state` has zero rows touched by `run_annotation` alone.
+        """`run_annotation` alone writes no provenance into `annotation_state`.
 
         The Huey-task wrapper is responsible for upserting provenance after
-        analysis returns; the engine itself must leave the table empty.
+        analysis returns. The engine's only key is the annotated-variants
+        generation token, written in the same transaction as the variant swap
+        so a run that fails after the swap still marks scores read from those
+        rows stale (#2118).
         """
         _stamp_bundle_version(mock_registry.reference_engine, "v2.0.0")
         _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
@@ -1589,8 +1593,8 @@ class TestCoverageStatsSideEffects:
         assert result.coverage_stats != {}
 
         with sample_with_variants.connect() as conn:
-            after_rows = conn.execute(sa.select(annotation_state)).fetchall()
-        assert after_rows == []
+            after_keys = conn.execute(sa.select(annotation_state.c.key)).scalars().all()
+        assert after_keys == [ANNOTATED_VARIANTS_GENERATION_KEY]
 
 
 # ═══════════════════════════════════════════════════════════════════════

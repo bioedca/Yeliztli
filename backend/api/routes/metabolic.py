@@ -20,7 +20,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.metabolic_prs import COVERAGE_CONTEXT
+from backend.analysis.metabolic_prs import COVERAGE_CONTEXT, MODULE_NAME
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -28,6 +28,12 @@ from backend.analysis.pharmacogenomics import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.services.route_scoring_state import (
+    ScoringState,
+    compute_scoring_fingerprint,
+    read_scoring_state,
+    record_scoring_fingerprint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +82,8 @@ class MetabolicPRSListResponse(BaseModel):
     items: list[MetabolicPRSResponse]
     total: int
     coverage_context: str = COVERAGE_CONTEXT
+    # "never" or "stale" tells the page to re-score; see route_scoring_state (#2118).
+    scoring_state: ScoringState
 
 
 class MetabolicAnchorResponse(BaseModel):
@@ -147,6 +155,7 @@ def list_metabolic_prs(
 ) -> MetabolicPRSListResponse:
     """List T2D & BMI PRS results (coverage reported, percentile withheld)."""
     sample_engine = _get_sample_engine(sample_id)
+    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(findings)
@@ -187,13 +196,13 @@ def list_metabolic_prs(
                 source_url=d.get("source_url"),
             )
         )
-    response = MetabolicPRSListResponse(items=items, total=len(items))
+    response = MetabolicPRSListResponse(items=items, total=len(items), scoring_state=scoring_state)
     # Coverage context is fixed reference text; only patient-derived DTOs form
     # the aggregate that can expose a cross-record prescribing pair.
     if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude={"coverage_context"})
+        response.model_dump(mode="json", exclude={"coverage_context", "scoring_state"})
     ):
-        return MetabolicPRSListResponse(items=[], total=0)
+        return MetabolicPRSListResponse(items=[], total=0, scoring_state=scoring_state)
     return response
 
 
@@ -252,6 +261,9 @@ def run_metabolic_analysis(
     from backend.analysis.pgs_bridge import get_pgs_scores_engine
 
     sample_engine = _get_sample_engine(sample_id)
+    reference_engine = get_registry().reference_engine
+    # Taken before scoring, so an input that changes mid-run leaves it stale.
+    fingerprint = compute_scoring_fingerprint(MODULE_NAME, sample_engine, reference_engine)
     pgs_engine = get_pgs_scores_engine()
     try:
         inferred = get_inferred_ancestry(sample_engine)
@@ -261,12 +273,13 @@ def run_metabolic_analysis(
             pgs_engine,
             inferred,
             top_fraction,
-            reference_engine=get_registry().reference_engine,
+            reference_engine=reference_engine,
         )
         count = store_metabolic_findings(result, sample_engine)
     finally:
         if pgs_engine is not None:
             pgs_engine.dispose()
+    record_scoring_fingerprint(MODULE_NAME, sample_engine, fingerprint)
 
     typed_anchors = sum(1 for a in result.anchors if a.reportable)
     return MetabolicRunResponse(

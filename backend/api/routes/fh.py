@@ -19,7 +19,11 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.fh import FH_CRITERIA_CONTEXT, detect_fh_monogenic_with_status
+from backend.analysis.fh import (
+    FH_CRITERIA_CONTEXT,
+    MODULE_NAME,
+    detect_fh_monogenic_with_status,
+)
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -27,6 +31,12 @@ from backend.analysis.pharmacogenomics import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.services.route_scoring_state import (
+    ScoringState,
+    compute_scoring_fingerprint,
+    read_scoring_state,
+    record_scoring_fingerprint,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +102,8 @@ class FhAssessmentResponse(BaseModel):
     ldl_prs: FhLdlPrsResponse | None = None
     criteria_context: dict[str, str] = {}
     research_use_only: bool = True
+    # "never" or "stale" tells the page to re-score; see route_scoring_state (#2118).
+    scoring_state: ScoringState
 
 
 class FhRunResponse(BaseModel):
@@ -137,6 +149,7 @@ def get_fh_assessment(
 ) -> FhAssessmentResponse:
     """Composed FH view: monogenic + APOB FDB + LDL-C PRS + criteria framing."""
     sample_engine = _get_sample_engine(sample_id)
+    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         fdb_rows = conn.execute(
             sa.select(findings)
@@ -219,6 +232,7 @@ def get_fh_assessment(
         apob_fdb=apob_fdb,
         ldl_prs=ldl_prs,
         criteria_context=FH_CRITERIA_CONTEXT,
+        scoring_state=scoring_state,
     )
     dynamic_payload = {
         "monogenic": [item.model_dump(mode="json") for item in response.monogenic],
@@ -237,6 +251,7 @@ def get_fh_assessment(
         return FhAssessmentResponse(
             assessment_status="unavailable",
             has_monogenic=False,
+            scoring_state=scoring_state,
         )
     return response
 
@@ -251,6 +266,9 @@ def run_fh_analysis(
     from backend.analysis.pgs_bridge import get_pgs_scores_engine
 
     sample_engine = _get_sample_engine(sample_id)
+    reference_engine = get_registry().reference_engine
+    # Taken before scoring, so an input that changes mid-run leaves it stale.
+    fingerprint = compute_scoring_fingerprint(MODULE_NAME, sample_engine, reference_engine)
     pgs_engine = get_pgs_scores_engine()
     try:
         inferred = get_inferred_ancestry(sample_engine)
@@ -260,12 +278,13 @@ def run_fh_analysis(
             pgs_engine,
             inferred,
             top_fraction,
-            reference_engine=get_registry().reference_engine,
+            reference_engine=reference_engine,
         )
         count = store_fh_findings(assessment, sample_engine)
     finally:
         if pgs_engine is not None:
             pgs_engine.dispose()
+    record_scoring_fingerprint(MODULE_NAME, sample_engine, fingerprint)
 
     return FhRunResponse(
         findings_count=count,

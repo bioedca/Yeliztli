@@ -2,11 +2,11 @@
  *
  * Genome-wide PGS Catalog scores (T2D PGS000713; multi-ancestry BMI PGS005198)
  * with honest coverage reporting (percentile withheld on un-imputed array data),
- * plus established anchor SNPs (TCF7L2, FTO, MC4R). Route-only module: the view
- * triggers POST /run on mount, then renders the stored results.
+ * plus established anchor SNPs (TCF7L2, FTO, MC4R). Route-only module: scored by
+ * POST /run, which the view triggers only when the stored results are missing or
+ * stale (#2118), then renders the stored results.
  */
 
-import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Activity, FlaskConical, Loader2 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -17,6 +17,8 @@ import SectionError from "@/components/ui/SectionError"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
 import { useMetabolicAnchors, useMetabolicPRS, useRunMetabolic } from "@/api/metabolic"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 import type { MetabolicAnchor } from "@/types/metabolic"
 
@@ -58,11 +60,9 @@ export default function MetabolicView() {
   const prsQuery = useMetabolicPRS(sampleId)
   const anchorsQuery = useMetabolicAnchors(sampleId)
 
-  // Route-only module → compute once on mount for the selected sample.
+  // Route-only module → score only when the stored results are missing or stale.
   const runMutate = run.mutate
-  useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+  useAutoScore(sampleId, prsQuery.data !== undefined, prsQuery.data?.scoring_state, runMutate)
 
   if (sampleId == null) {
     return (
@@ -96,6 +96,15 @@ export default function MetabolicView() {
           </p>
         </div>
       </div>
+
+      {prsQuery.data && (
+        <ScoringStatus
+          scoringState={prsQuery.data.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Scoring metabolic polygenic risk..." />}
 

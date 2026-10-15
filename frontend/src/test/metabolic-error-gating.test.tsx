@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen } from "./test-utils"
+import { render, screen, within } from "./test-utils"
 import type { MetabolicPRS } from "@/types/metabolic"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
@@ -75,7 +75,9 @@ function q(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockRun.mockReturnValue(q())
-  mockPRS.mockReturnValue(q({ data: { items: [PRS], total: 1, coverage_context: "" } }))
+  mockPRS.mockReturnValue(
+    q({ data: { items: [PRS], total: 1, coverage_context: "", scoring_state: "current" } }),
+  )
   mockAnchors.mockReturnValue(q({ data: { items: [], total: 0 } }))
 })
 
@@ -125,8 +127,25 @@ describe("MetabolicView error gating (#642)", () => {
     render(<MetabolicView />)
 
     expect(screen.getByText("Type 2 Diabetes")).toBeInTheDocument()
-    expect(screen.queryByText("Metabolic run failed: 500")).not.toBeInTheDocument()
     expect(screen.queryByText("Failed to load data")).not.toBeInTheDocument()
+    // Reported beside the stored results, not in place of them (#2118).
+    expect(within(screen.getByTestId("scoring-status")).getByRole("alert")).toHaveTextContent(
+      "Metabolic run failed: 500",
+    )
+  })
+
+  it.each([
+    ["current", 0],
+    ["stale", 1],
+    ["never", 1],
+  ] as const)("with %s stored results it runs scoring %i time(s) (#2118)", (state, runs) => {
+    const mutate = vi.fn()
+    mockRun.mockReturnValue(q({ mutate }))
+    mockPRS.mockReturnValue(
+      q({ data: { items: [PRS], total: 1, coverage_context: "", scoring_state: state } }),
+    )
+    render(<MetabolicView />)
+    expect(mutate).toHaveBeenCalledTimes(runs)
   })
 
   it("shows the imputed coverage split on metabolic PRS cards", () => {

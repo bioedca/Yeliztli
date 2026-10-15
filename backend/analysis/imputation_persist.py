@@ -48,6 +48,7 @@ from backend.analysis.imputation_runner import (
     summarize_dr2,
 )
 from backend.annotation.imputation_panel_af import PanelAfLookup
+from backend.db.sample_generations import IMPUTED_VARIANTS_GENERATION_KEY, bump_generation
 from backend.db.tables import imputed_variants
 
 logger = structlog.get_logger(__name__)
@@ -88,6 +89,8 @@ def persist_imputed_variants(
             conn.execute(sa.delete(imputed_variants))
         if rows:
             conn.execute(sa.insert(imputed_variants), rows)
+        # Scores that read imputed dosages re-score when this changes (#2118).
+        bump_generation(conn, IMPUTED_VARIANTS_GENERATION_KEY)
     logger.info("imputed_variants_persisted", n_written=len(rows), replaced=replace)
     return len(rows)
 
