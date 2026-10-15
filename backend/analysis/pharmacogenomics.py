@@ -2183,29 +2183,31 @@ def call_star_alleles_for_gene(
             if slots_full
             else []
         )
+        # Otherwise the leftover belongs only to multi-variant alleles whose other
+        # components are absent. That is either a known partial haplotype (SLCO1B1
+        # g.-11187G>A without c.521C is deliberately *1B, #110) or an allele the
+        # table lacks (CYP2B6 785A>G before *4, #1985); the engine cannot tell them
+        # apart, so the call stands and only the warning below records it.
+        if crowded_out:
+            call_confidence = CallConfidence.INSUFFICIENT
+            # No allele names: this note is logged when the alert is skipped, and
+            # the names would reconstruct the genotype in persisted logs.
+            confidence_note = (
+                f"{confidence_note} More non-reference alleles were observed than a "
+                f"two-allele diplotype holds, so the reported diplotype cannot account "
+                f"for them and is not used for prescribing."
+            ).strip()
         # Counts only: the leftover variants and allele names reconstruct the
         # sample's genotype, and structured log fields are persisted and shown
-        # in the admin Log Explorer.
+        # in the admin Log Explorer. ``withheld`` is the final outcome, whether
+        # from the overflow or from too few usable markers.
         logger.warning(
             "pgx_residual_alt_discarded",
             gene=gene,
             residual_variants=len(residual_alts),
             crowded_out_alleles=len(crowded_out),
-            withheld=bool(crowded_out),
+            withheld=call_confidence == CallConfidence.INSUFFICIENT,
         )
-        # Otherwise the leftover belongs only to multi-variant alleles whose other
-        # components are absent. That is either a known partial haplotype (SLCO1B1
-        # g.-11187G>A without c.521C is deliberately *1B, #110) or an allele the
-        # table lacks (CYP2B6 785A>G before *4, #1985); the engine cannot tell them
-        # apart, so the call stands and only the warning above records it.
-        if crowded_out:
-            call_confidence = CallConfidence.INSUFFICIENT
-            confidence_note = (
-                f"{confidence_note} More non-reference alleles were observed than a "
-                f"two-allele diplotype holds ({', '.join(crowded_out)} also fit the "
-                f"remaining variants), so the reported diplotype cannot account for "
-                f"them and is not used for prescribing."
-            ).strip()
 
     result = StarAlleleResult(
         gene=gene,
