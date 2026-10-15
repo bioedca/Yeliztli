@@ -149,6 +149,16 @@ CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset(
 # indeterminate allele.
 WITHHOLD_CROSS_DIRECTION_GENES: frozenset[str] = frozenset({"CYP3A5"})
 
+# Genes where an untyped reduced/no-function allele has a defined answer: either
+# conservative substitution (alert on the lowest plausible diplotype) or outright
+# withholding. Only for these may a directly observed variant keep its guidance
+# despite thin coverage — see _assess_call_confidence (#2120). Adding a gene to
+# either set above opts it in here, which is the intended coupling: the floor and
+# the "something worse" answer have to travel together.
+_UNTYPED_ALTERNATIVES_HANDLED_GENES: frozenset[str] = (
+    CONSERVATIVE_UNTYPED_PHENOTYPE_GENES | WITHHOLD_CROSS_DIRECTION_GENES
+)
+
 # CPIC's CYP2D6/tamoxifen rows remain in the bundled reference database as a
 # source-faithful, audit-only record (#2019). They must not become Yeliztli
 # prescribing output: the required two independent, agreeing sources for the
@@ -1865,17 +1875,26 @@ def _assess_call_confidence(
     # Insufficient: >50% of defining rsids missing/uncalled.
     #
     # A *directly observed* non-reference allele is excluded from this downgrade
-    # (#2120). The fraction measures panel coverage, so it rises for everyone
-    # whenever an allele is added that few arrays type — and `INSUFFICIENT` makes
+    # (#2120), but **only for a gene whose untyped alternatives are handled**.
+    # The fraction measures panel coverage, so it rises for everyone whenever an
+    # allele is added that few arrays type — and `INSUFFICIENT` makes
     # generate_prescribing_alerts drop the gene's guidance entirely. Together
-    # those would mean adding a rarely-typed allele silently suppresses the alert
-    # of someone whose risk allele *was* typed: adding DPYD c.557A>G moved a
-    # sparse array carrying a typed *2A from 2/4 to 3/5 unusable, turning an
-    # emitted Intermediate Metabolizer alert into no alert at all. Missing
-    # positions mean we cannot rule out something *worse* (the conservative
-    # policy above answers that); they do not unmake an observed variant, so the
-    # call floors at PARTIAL and keeps its guidance.
-    if unusable_fraction > 0.5 and not observed_non_reference:
+    # those meant adding a rarely-typed allele silently suppressed the alert of
+    # someone whose risk allele *was* typed: adding DPYD c.557A>G moved a sparse
+    # array carrying a typed *2A from 2/4 to 3/5 unusable, turning an emitted
+    # Intermediate Metabolizer alert into no alert at all.
+    #
+    # The gene gate is the load-bearing part. Keeping an observed variant's
+    # guidance is sound only when "an untyped allele could make this worse" is
+    # *answered* — by conservative substitution or by withholding. For a gene in
+    # neither set the honest answer to thin coverage is still to withhold: a
+    # sparse CYP2D6 sample typing only *4 would otherwise emit the directly
+    # filled *1/*4 Intermediate result and label-recommended codeine dosing,
+    # while an untyped *3 makes *3/*4 a Poor Metabolizer that CPIC says to avoid
+    # codeine for — trading a suppressed alert for an actively misleading one.
+    if unusable_fraction > 0.5 and not (
+        observed_non_reference and gene in _UNTYPED_ALTERNATIVES_HANDLED_GENES
+    ):
         missing_list = ", ".join(sorted(unusable)[:5])
         suffix = f" (and {len(unusable) - 5} more)" if len(unusable) > 5 else ""
         return (

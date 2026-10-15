@@ -103,9 +103,17 @@ Two independent, **allele-specific** sources sharing no cohort, dataset or upstr
 - **gnomAD v2.1.1** (`raw/gnomad-v2-rs115232898-population-frequencies.json`, accessed
   2026-10-15) measures rs115232898 directly. Exomes (AN = 251,028): African **AF 0.0230** vs
   non-Finnish European **0.000053** — about **435x** — with **374 of 417** alt alleles observed in
-  the African group. Genomes (AN = 31,384): African **AF 0.0187**, and **0.0** in every other
-  population. gnomAD also independently reproduces the coordinates as `1-98165030-T-C`, making it a
-  third agreeing source for claim (b).
+  the African group. Genomes (AN = 31,384): African **AF 0.0187** against **0.0** in the
+  non-Finnish European, Latino/Admixed American, Ashkenazi Jewish, East Asian and Finnish groups;
+  the pooled **"Other" group is 0.00368** (4/1088), which is the only other non-zero genome group.
+  gnomAD also independently reproduces the coordinates as `1-98165030-T-C`, making it a third
+  agreeing source for claim (b).
+
+  *Correction:* an earlier revision of this packet said the genomes were "0.0 in every other
+  population", which the committed payload contradicts — the pooled "Other" group is non-zero.
+  Caught in review of PR #2452 and corrected here, in `manifest.json` and in the user-facing
+  footnote. The African-predominance conclusion is unchanged; the over-broad quantitative
+  phrasing was wrong.
 - Cunha-Junior et al. 2019 (PMID:31641844 / DOI:10.1007/s00280-019-03974-4, accessed 2026-10-15)
   reports that Y186C "is found almost exclusively in African populations and is related to low
   DPD function", measures 2.6% heterozygous prevalence across 115 African Brazilians, and

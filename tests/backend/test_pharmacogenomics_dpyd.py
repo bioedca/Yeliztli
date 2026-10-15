@@ -300,6 +300,43 @@ def test_a_fully_typed_dpyd_array_keeps_label_recommended_dosing(
 # ── Absent-allele / fatal-toxicity caveat ────────────────────────────────────
 
 
+def test_a_sparse_array_keeps_guidance_for_a_typed_carrier(reference_engine: sa.Engine) -> None:
+    """Adding a fifth marker must not silence a confirmed carrier (#2120).
+
+    Call confidence is the fraction of defining positions that are unusable, so
+    adding a rarely-probed allele raises it for everyone. This sample carries a
+    directly typed ``*2A`` and went from 2/4 to 3/5 unusable when c.557A>G was
+    added, crossing the ``>50%`` bar into ``INSUFFICIENT`` — at which point
+    ``generate_prescribing_alerts`` drops the gene entirely, leaving a confirmed
+    no-function carrier with no fluoropyrimidine warning at all.
+    """
+    genotypes = {"rs3918290": "CT", "rs67376798": "TT"}
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert result.diplotype == "*1/*2A"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "3/5 defining positions" in result.confidence_note
+    drugs = {a.drug for a in generate_prescribing_alerts([result], reference_engine)}
+    assert {"fluorouracil", "capecitabine"} <= drugs
+
+
+def test_a_sparse_array_still_withholds_when_nothing_was_observed(
+    reference_engine: sa.Engine,
+) -> None:
+    """Discriminating partner: the coverage downgrade still applies.
+
+    Same gene and the same thin coverage, but with every typed position
+    homozygous reference the diplotype is a reference *fill* rather than a
+    reading, so ``INSUFFICIENT`` remains the honest answer.
+    """
+    genotypes = {"rs3918290": "CC", "rs67376798": "TT"}
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert result.call_confidence == CallConfidence.INSUFFICIENT
+    assert "unreliable" in result.confidence_note
+    assert generate_prescribing_alerts([result], reference_engine) == []
+
+
 def test_caveat_variant_list_matches_the_panel(reference_engine: sa.Engine) -> None:
     """The patient-visible caveat must describe the panel it actually ships.
 

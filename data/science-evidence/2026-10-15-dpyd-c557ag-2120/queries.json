@@ -42,7 +42,8 @@
         "10.1158/0008-5472.CAN-13-2482",
         "10.1002/cpt.911"
       ],
-      "saved": "raw/scite-editorial-notices-sanitized.json"
+      "saved": "raw/scite-editorial-notices-sanitized.json",
+      "note": "First invocation; covered only the two DOIs cited for function and coordinates. The ancestry DOI was checked in the follow-up invocation below, added after review of #2452."
     },
     {
       "tool": "PubMed MCP get_article_metadata",
@@ -57,6 +58,21 @@
       "tool": "PubMed MCP search_articles",
       "query": "DPYD Y186C African American dihydropyrimidine dehydrogenase deficiency",
       "saved": "raw/pubmed-records-sanitized.json"
+    },
+    {
+      "tool": "Scite search_literature",
+      "dois": [
+        "10.1007/s00280-019-03974-4"
+      ],
+      "saved": "raw/scite-editorial-notices-sanitized.json",
+      "note": "Follow-up invocation. Codex review of #2452 noted the docs ancestry footnote depends on this DOI and it had not been checked for editorial notices. Result: no editorialNotices entry; tally 11 total, 1 supporting, 0 contrasting."
+    },
+    {
+      "tool": "curl (POST, GraphQL)",
+      "url": "https://gnomad.broadinstitute.org/api",
+      "body": "{ variant(rsid: \"rs115232898\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+      "saved": "raw/gnomad-v2-rs115232898-population-frequencies.json",
+      "note": "Added after review of #2452: the ancestry claim needed an independent allele-specific source. Population allele frequencies only; no individual-level or repository data was sent. VariantPopulation exposes ac/an but not af, so the frequencies in derived_allele_frequencies are computed as ac/an."
     }
   ]
 }

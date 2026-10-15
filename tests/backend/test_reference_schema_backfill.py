@@ -2088,6 +2088,94 @@ def test_a_customised_dpyd_allele_table_is_left_alone(tmp_path: Path) -> None:
     assert "c.557A>G" not in _dpyd_allele_names(engine)
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("defining_variants", '[{"rsid": "rs3918290", "ref": "T", "alt": "C"}]'),
+        ("function", "Decreased function"),
+        ("activity_score", 0.5),
+    ],
+)
+def test_a_content_customised_dpyd_allele_is_left_alone(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    """Keeping the stock allele *names* is not enough to look like the release.
+
+    The first version of this migration fingerprinted names only, so an install
+    that had edited a defining variant, function or activity score while keeping
+    the names was still classified as the stock release — mixing canonical
+    c.557A>G diplotype scores into locally changed clinical definitions. The
+    fingerprint now covers full row content.
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / f'custom-{field}.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    rows = [dict(row) for row in _LEGACY_DPYD_ALLELES]
+    for row in rows:
+        if row["allele_name"] == "*2A":
+            row[field] = value
+    with engine.begin() as conn:
+        conn.execute(cpic_alleles.insert(), rows)
+
+    ensure_reference_schema_current(engine)
+
+    assert "c.557A>G" not in _dpyd_allele_names(engine)
+    assert _dpyd_c557_diplotypes(engine) == {}
+
+
+def test_a_duplicated_dpyd_allele_row_is_left_alone(tmp_path: Path) -> None:
+    """An unfingerprintable table is never treated as the stock release."""
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'dup.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    rows = [dict(row) for row in _LEGACY_DPYD_ALLELES]
+    rows.append(dict(rows[1]))  # duplicate *2A
+    with engine.begin() as conn:
+        conn.execute(cpic_alleles.insert(), rows)
+
+    ensure_reference_schema_current(engine)
+
+    assert "c.557A>G" not in _dpyd_allele_names(engine)
+
+
+def test_a_customised_unrelated_diplotype_still_gains_the_allele(tmp_path: Path) -> None:
+    """Diplotypes are additive, so an unrelated customised row is not a blocker.
+
+    Stated explicitly because it is the deliberate asymmetry with the allele
+    fingerprint: the clinical *definitions* must be stock, but a site that edited
+    some other DPYD diplotype keeps that edit and still gains the new allele.
+    """
+    engine = _legacy_dpyd_database(tmp_path / "ref.db")
+    with engine.begin() as conn:
+        conn.execute(
+            cpic_diplotypes.insert(),
+            [
+                {
+                    "gene": "DPYD",
+                    "diplotype": "*1/*2A",
+                    "phenotype": "Site-specific phenotype",
+                    "ehr_notation": "custom",
+                    "activity_score": 1.0,
+                }
+            ],
+        )
+
+    assert ensure_reference_schema_current(engine) is True
+
+    assert "c.557A>G" in _dpyd_allele_names(engine)
+    with engine.connect() as conn:
+        preserved = (
+            conn.execute(
+                sa.select(cpic_diplotypes.c.phenotype).where(
+                    sa.and_(
+                        cpic_diplotypes.c.gene == "DPYD", cpic_diplotypes.c.diplotype == "*1/*2A"
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert preserved == ["Site-specific phenotype"], "the customised row was rewritten"
+
+
 def test_a_database_without_dpyd_is_left_to_the_normal_cpic_load(tmp_path: Path) -> None:
     """No DPYD data at all is a different state, not a stale release.
 

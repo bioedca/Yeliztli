@@ -85,8 +85,9 @@
     "PMID:31641844",
     "PMID:24648345"
    ],
-   "independence": "Independent: gnomAD is a population-sequencing dataset with no cohort, dataset or upstream assertion shared with Cunha-Junior's 115 African Brazilians. gnomAD v2.1.1 exomes give African AF 0.0230 vs non-Finnish European 0.000053 (~435x), with 374 of 417 alt alleles in the African group; the genomes give African AF 0.0187 and 0.0 in every other population. These are allele-specific, which is what Offer 2014 is not.",
-   "note": "Offer 2014 (PMID:24648345) is retained only as context: it states that the deficient variants it newly classified are rare in Europeans and occur at appreciable frequencies in other populations, which is a statement about a GROUP of variants and does not by itself establish the distribution of c.557A>G. It is no longer counted toward the two-source rule for this claim (raised in review of #2452)."
+   "independence": "Independent: gnomAD is a population-sequencing dataset with no cohort, dataset or upstream assertion shared with Cunha-Junior's 115 African Brazilians. gnomAD v2.1.1 exomes give African AF 0.0230 vs non-Finnish European 0.000053 (~435x), with 374 of 417 alt alleles in the African group; the genomes give African AF 0.0187 against 0.0 in the non-Finnish European, Latino/Admixed American, Ashkenazi Jewish, East Asian and Finnish groups, with the pooled 'Other' group at 0.00368 (4/1088) as the only other non-zero genome group. These are allele-specific, which is what Offer 2014 is not.",
+   "note": "Offer 2014 (PMID:24648345) is retained only as context: it states that the deficient variants it newly classified are rare in Europeans and occur at appreciable frequencies in other populations, which is a statement about a GROUP of variants and does not by itself establish the distribution of c.557A>G. It is no longer counted toward the two-source rule for this claim (raised in review of #2452).",
+   "correction": "An earlier revision of this manifest and README stated the genomes were 0.0 in every other population. The committed payload shows the pooled 'Other' group at 0.00368, so that phrasing was false and is corrected. Caught in review of PR #2452; the African-predominance conclusion is unaffected."
   }
  },
  "corrections_checked": {

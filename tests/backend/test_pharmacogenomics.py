@@ -1178,12 +1178,13 @@ class TestAssessCallConfidence:
     def test_observed_non_reference_floors_at_partial(self):
         """An observed variant is not downgraded by thin coverage (#2120).
 
-        Same inputs as ``test_insufficient_just_above_half``, which is the point:
-        only the observed-variant flag differs, so this pins the flag itself
-        rather than some other property of the inputs.
+        Same inputs as ``test_insufficient_just_above_half`` except the gene and
+        the flag, which is the point: DPYD is in
+        ``_UNTYPED_ALTERNATIVES_HANDLED_GENES``, so "an untyped allele could make
+        this worse" has an answer and the observed variant may keep its guidance.
         """
         conf, note = _assess_call_confidence(
-            "CYP2C19",
+            "DPYD",
             all_defining_rsids={"rs1", "rs2", "rs3", "rs4", "rs5"},
             missing_rsids={"rs1", "rs2", "rs3"},
             uncalled_rsids=set(),
@@ -1193,14 +1194,33 @@ class TestAssessCallConfidence:
         assert "3/5" in note
         assert "unreliable" not in note
 
+    def test_observed_non_reference_is_ignored_for_an_unhandled_gene(self):
+        """The floor must not reach a gene with no untyped-allele answer (#2120).
+
+        Identical inputs to the test above apart from the gene. CYP2C19 is in
+        neither policy set, so flooring it would emit the directly filled call
+        with no conservative substitution and no withholding — trading a
+        suppressed alert for a potentially under-warning one.
+        """
+        conf, note = _assess_call_confidence(
+            "CYP2C19",
+            all_defining_rsids={"rs1", "rs2", "rs3", "rs4", "rs5"},
+            missing_rsids={"rs1", "rs2", "rs3"},
+            uncalled_rsids=set(),
+            observed_non_reference=True,
+        )
+        assert conf == CallConfidence.INSUFFICIENT
+        assert "unreliable" in note
+
     def test_observed_non_reference_does_not_upgrade_a_structural_gene(self):
         """The flag floors at Partial; it never reaches Complete.
 
-        CYP2D6 is always at best Partial because arrays cannot resolve its
-        copy-number state, and an observed variant must not override that.
+        CYP2B6 is both structural and in the conservative policy set, so it is
+        the case where the flag applies *and* copy-number state is unresolvable:
+        the result must still be Partial with the structural caveat.
         """
         conf, note = _assess_call_confidence(
-            "CYP2D6",
+            "CYP2B6",
             all_defining_rsids={"rs1", "rs2", "rs3"},
             missing_rsids={"rs1", "rs2"},
             uncalled_rsids=set(),
@@ -1292,44 +1312,47 @@ class TestCallConfidenceIntegrated:
         assert result.diplotype == "*1/*2"
         assert result.phenotype == "Normal Metabolizer"
 
-    def test_cyp2c19_majority_missing_but_variant_observed_is_partial(
-        self, pgx_reference_engine: sa.Engine
-    ):
-        """A *typed* variant is not unmade by thin coverage (#2120).
+    def test_cyp2c19_insufficient_majority_missing(self, pgx_reference_engine: sa.Engine):
+        """CYP2C19 with 2/3 rsids missing → Insufficient.
 
-        This case previously returned ``Insufficient`` on the coverage fraction
-        alone (2/3 missing > 50%), which makes ``generate_prescribing_alerts``
-        drop the gene entirely — so a directly observed ``*2`` heterozygote was
-        told nothing at all. The missing positions mean a *worse* diplotype
-        (e.g. ``*2/*3``) cannot be excluded; they do not cast doubt on the ``*2``
-        that was actually read. The call therefore floors at ``Partial`` and
-        keeps its guidance, and the untyped alleles are reported alongside.
+        CYP2C19 is in neither untyped-alternative policy set, so the #2120
+        observed-variant floor deliberately does **not** apply to it and this
+        original expectation stands. See
+        ``test_sparse_cyp2d6_still_withholds_when_alternatives_are_unhandled``
+        for why: without a conservative or withholding answer for the untyped
+        alleles, emitting the directly filled call can under-warn.
         """
         alleles = _fetch_alleles_for_gene("CYP2C19", pgx_reference_engine)
-        # Only provide 1 of 3 defining rsids; rs4986893 and rs12248560 are
-        # missing (2/3 = 67% > 50%). rs4244285 "GA" is a *2 heterozygote.
+        # Only provide 1 of 3 defining rsids
         genotypes = {"rs4244285": "GA"}
-
-        result = call_star_alleles_for_gene("CYP2C19", alleles, genotypes, pgx_reference_engine)
-        assert result.call_confidence == CallConfidence.PARTIAL
-        assert result.diplotype == "*1/*2"
-        assert "2/3 defining positions" in result.confidence_note
-
-    def test_cyp2c19_insufficient_when_majority_missing_and_nothing_observed(
-        self, pgx_reference_engine: sa.Engine
-    ):
-        """The coverage downgrade still applies to a reference-only call.
-
-        Discriminating partner to the test above: with the same thin coverage but
-        no variant observed, the diplotype is a reference *fill* rather than a
-        reading, so ``Insufficient`` remains correct.
-        """
-        alleles = _fetch_alleles_for_gene("CYP2C19", pgx_reference_engine)
-        genotypes = {"rs4244285": "GG"}  # homozygous reference at the one typed site
+        # rs4986893, rs12248560 are missing (2/3 = 67% > 50%)
 
         result = call_star_alleles_for_gene("CYP2C19", alleles, genotypes, pgx_reference_engine)
         assert result.call_confidence == CallConfidence.INSUFFICIENT
-        assert "unreliable" in result.confidence_note
+
+    def test_sparse_cyp2d6_still_withholds_when_alternatives_are_unhandled(
+        self, pgx_reference_engine: sa.Engine
+    ):
+        """The observed-variant floor must not reach a gene with no answer (#2120).
+
+        CYP2D6 is in neither policy set. Flooring it at ``Partial`` would emit
+        the directly filled ``*1/*4`` Intermediate result together with
+        label-recommended codeine dosing, while an untyped ``*3`` makes ``*3/*4``
+        a Poor Metabolizer that CPIC says to avoid codeine for — swapping a
+        suppressed alert for an actively misleading one. Withholding stays
+        correct until that gene's alternatives are handled.
+        """
+        alleles = _fetch_alleles_for_gene("CYP2D6", pgx_reference_engine)
+        genotypes = {"rs3892097": "CT"}  # *4 heterozygote, everything else untyped
+
+        result = call_star_alleles_for_gene("CYP2D6", alleles, genotypes, pgx_reference_engine)
+        assert result.call_confidence == CallConfidence.INSUFFICIENT
+        codeine = [
+            alert
+            for alert in generate_prescribing_alerts([result], pgx_reference_engine)
+            if alert.drug == "codeine"
+        ]
+        assert codeine == []
 
     def test_cyp2c19_insufficient_all_missing(self, pgx_reference_engine: sa.Engine):
         """CYP2C19 with no data → Insufficient."""

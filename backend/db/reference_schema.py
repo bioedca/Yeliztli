@@ -353,10 +353,45 @@ _LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINTS = {
 
 
 _DPYD_C557_ALLELE = "c.557A>G"
-# The four DPYD alleles bundled before #2120. An install holding exactly these
-# is the pre-#2120 release and is safe to extend; anything else is customised or
-# already newer, and is left alone.
-_LEGACY_DPYD_ALLELE_NAMES = frozenset({"*1", "*2A", "*13", "c.2846A>T", "c.1129-5923C>G"})
+# The exact DPYD allele rows released before #2120, fingerprinted on their full
+# content: name -> (defining variants as (rsid, ref, alt) tuples, function,
+# activity score). Comparing only the *names* would classify an install that had
+# edited a defining variant, function or activity score as the stock release and
+# mix canonical c.557A>G diplotype scores into locally changed clinical
+# definitions, which is exactly what "a customised table is left untouched" is
+# supposed to rule out. Defining variants are compared parsed, not as serialised
+# text, so JSON spacing and key order are not part of the fingerprint.
+_LEGACY_DPYD_ALLELE_FINGERPRINT: dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] = {
+    "*1": ((), "Normal function", 1.0),
+    "*2A": ((("rs3918290", "C", "T"),), "No function", 0.0),
+    "*13": ((("rs55886062", "A", "C"),), "No function", 0.0),
+    "c.2846A>T": ((("rs67376798", "T", "A"),), "Decreased function", 0.5),
+    "c.1129-5923C>G": ((("rs75017182", "G", "C"),), "Decreased function", 0.5),
+}
+
+
+def _dpyd_allele_fingerprint(
+    rows: list[sa.Row],
+) -> dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] | None:
+    """Fingerprint installed DPYD allele rows, or ``None`` if not comparable.
+
+    Returns ``None`` when a row is duplicated or its defining variants are not
+    parseable, so a table that cannot be fingerprinted is never treated as the
+    stock release.
+    """
+    fingerprint: dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] = {}
+    for row in rows:
+        if row.allele_name in fingerprint:
+            return None
+        try:
+            defining = json.loads(row.defining_variants or "[]")
+            variants = tuple(
+                (variant["rsid"], variant["ref"], variant["alt"]) for variant in defining
+            )
+        except (TypeError, ValueError, KeyError):
+            return None
+        fingerprint[row.allele_name] = (variants, row.function, row.activity_score)
+    return fingerprint
 
 
 def _install_missing_dpyd_c557_allele(engine: sa.Engine) -> bool:
@@ -370,10 +405,24 @@ def _install_missing_dpyd_c557_allele(engine: sa.Engine) -> bool:
 
     This is an **insert-if-absent**, not a repair: it adds the allele row and any
     of its diplotype rows that are missing, and never edits or deletes an
-    existing row. It is fingerprinted on the pre-#2120 DPYD allele set, so a
-    customised or newer table is untouched. The allele's defining variant is
-    checked against the bundled CSV before insertion, so a non-canonical bundle
-    fails loudly rather than installing a wrong strand.
+    existing row. The allele's defining variant is checked against the bundled
+    CSV before insertion, so a non-canonical bundle fails loudly rather than
+    installing a wrong strand.
+
+    What is fingerprinted, stated precisely because the distinction matters:
+
+    * **DPYD allele rows are compared on full content** — name, parsed defining
+      variants, function and activity score — against
+      :data:`_LEGACY_DPYD_ALLELE_FINGERPRINT`. An install that kept the stock
+      names but edited any clinical definition, or that duplicated a row, is
+      treated as customised and nothing is written. Comparing names alone would
+      have mixed canonical c.557A>G diplotype scores into locally changed
+      definitions.
+    * **Diplotype rows are not fingerprinted**, because the insert is additive
+      and keyed on the diplotype string: an existing row is never rewritten and
+      a duplicate is never created. A site that customised an unrelated DPYD
+      diplotype keeps it and still gains the new allele, which is the same
+      outcome any CPIC data addition has.
     """
     inspector = sa.inspect(engine)
     table_names = set(inspector.get_table_names())
@@ -399,15 +448,22 @@ def _install_missing_dpyd_c557_allele(engine: sa.Engine) -> bool:
     with engine.connect() as conn:
         conn.exec_driver_sql("BEGIN IMMEDIATE")
         try:
-            installed = {
-                row.allele_name
-                for row in conn.execute(
-                    sa.select(cpic_alleles.c.allele_name).where(cpic_alleles.c.gene == "DPYD")
+            installed = _dpyd_allele_fingerprint(
+                conn.execute(
+                    sa.select(
+                        cpic_alleles.c.allele_name,
+                        cpic_alleles.c.defining_variants,
+                        cpic_alleles.c.function,
+                        cpic_alleles.c.activity_score,
+                    ).where(cpic_alleles.c.gene == "DPYD")
                 ).fetchall()
-            }
-            # An install with no DPYD data at all is not a stale release missing
-            # one allele; leave it to the normal CPIC load.
-            if installed != _LEGACY_DPYD_ALLELE_NAMES:
+            )
+            # Full-content comparison, so a table that kept the stock allele
+            # names but edited a defining variant, function or activity score is
+            # recognised as customised and left alone. An install with no DPYD
+            # data at all is not a stale release missing one allele either; leave
+            # it to the normal CPIC load.
+            if installed != _LEGACY_DPYD_ALLELE_FINGERPRINT:
                 conn.rollback()
                 return False
 
