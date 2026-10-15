@@ -28,11 +28,12 @@ Access date: `2026-10-15`
 | Source | Result |
 | --- | --- |
 | Consensus | One search, full ranking in `raw/consensus-search-sanitized.json`. The free tier caps results at 3 and none addressed this allele specifically, so the variant-level evidence came from PubMed. Recorded as a shortfall, not a pass. |
-| Scite | Both cited DOIs indexed; **no** editorial notices on either (`raw/scite-editorial-notices-sanitized.json`). |
+| Scite | All **three** cited DOIs indexed; **no** editorial notices on any (`raw/scite-editorial-notices-sanitized.json`). |
 | PubMed | Records and abstract excerpts in `raw/pubmed-records-sanitized.json`. |
 | CPIC API | `allele`, `allele_definition`, `sequence_location` and `diplotype` endpoints, saved verbatim under `raw/cpic-api-*.json`. |
 | Ensembl GRCh37 REST | RefSNP rs115232898 mapping (`raw/ensembl-grch37-rs115232898.json`). |
 | VariantValidator | `NM_000110.4:c.557A>G` projected to GRCh37 (`raw/variantvalidator-grch37-NM_000110.4-c557AG.json`). |
+| gnomAD v2.1.1 | Per-population allele frequencies for rs115232898, exomes and genomes (`raw/gnomad-v2-rs115232898-population-frequencies.json`). Frequencies only; no individual-level data. |
 
 ## Claim mapping
 
@@ -97,17 +98,24 @@ ref/alt roles preserved. The value is pinned in the strand guard so it cannot re
 
 ### (c) The allele is predominantly African-ancestry, which is why its omission was inequitable
 
-Two independent sources, neither sharing a cohort:
+Two independent, **allele-specific** sources sharing no cohort, dataset or upstream assertion:
 
-- Offer 2014 (PMID:24648345) states that the deficient variants it newly classified are rare in
-  European populations but "detected at appreciable frequencies in other populations", and that
-  prior clinical association studies "have been conducted primarily in populations of European
-  ancestry".
+- **gnomAD v2.1.1** (`raw/gnomad-v2-rs115232898-population-frequencies.json`, accessed
+  2026-10-15) measures rs115232898 directly. Exomes (AN = 251,028): African **AF 0.0230** vs
+  non-Finnish European **0.000053** — about **435x** — with **374 of 417** alt alleles observed in
+  the African group. Genomes (AN = 31,384): African **AF 0.0187**, and **0.0** in every other
+  population. gnomAD also independently reproduces the coordinates as `1-98165030-T-C`, making it a
+  third agreeing source for claim (b).
 - Cunha-Junior et al. 2019 (PMID:31641844 / DOI:10.1007/s00280-019-03974-4, accessed 2026-10-15)
   reports that Y186C "is found almost exclusively in African populations and is related to low
   DPD function", measures 2.6% heterozygous prevalence across 115 African Brazilians, and
   concludes it "should be taken in account in targeted genotyping for fluoropyrimidine risk
-  variants".
+  variants". Its 2.6% agrees with gnomAD's 2.30% African AF.
+
+**Offer 2014 is not counted toward this claim.** It says the deficient variants it newly
+classified are rare in Europeans and occur "at appreciable frequencies in other populations" — a
+statement about a *group* of variants, not about c.557A>G. Review of PR #2452 flagged that relying
+on it made this a one-source claim; gnomAD replaces it, and Offer is kept as context only.
 
 ## Array coverage, reported honestly
 

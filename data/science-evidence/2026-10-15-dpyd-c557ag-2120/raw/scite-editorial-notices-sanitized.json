@@ -3,9 +3,10 @@
   "source": "Scite search_literature by DOI",
   "checked": [
     "10.1002/cpt.911",
-    "10.1158/0008-5472.can-13-2482"
+    "10.1158/0008-5472.can-13-2482",
+    "10.1007/s00280-019-03974-4"
   ],
-  "result": "Neither record returned an editorialNotices entry: no retraction, correction, erratum or expression of concern.",
+  "result": "No record returned an editorialNotices entry: no retraction, correction, erratum or expression of concern on any of the three checked DOIs.",
   "tallies": {
     "10.1002/cpt.911": {
       "total": 993,
@@ -16,7 +17,12 @@
       "total": 213,
       "supporting": 9,
       "contrasting": 1
+    },
+    "10.1007/s00280-019-03974-4": {
+      "total": 11,
+      "supporting": 1,
+      "contrasting": 0
     }
   },
-  "note": "The single contrasting citation on the Offer 2014 record is its own self-comparison with the authors' earlier *2A/I560S measurements, not a dispute of the variant classifications."
+  "note": "The single contrasting citation on the Offer 2014 record is its own self-comparison with the authors' earlier *2A/I560S measurements, not a dispute of the variant classifications. The Cunha-Junior 2019 record was added after review of #2452 pointed out that the docs' ancestry footnote rests on it and it had not been checked; it carries no editorial notice and no contrasting citations."
 }

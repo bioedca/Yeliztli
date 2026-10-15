@@ -16,6 +16,7 @@ function is idempotent, and that a fresh schema is left untouched.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from multiprocessing import get_context
 from pathlib import Path
@@ -30,6 +31,8 @@ from backend.db.reference_schema import (
 )
 from backend.db.tables import (
     LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+    cpic_alleles,
+    cpic_diplotypes,
     cpic_guidelines,
     database_versions,
     log_entries,
@@ -1916,3 +1919,198 @@ def test_customised_row_does_not_block_repair_of_its_legacy_companion(tmp_path: 
             f"{companion} was left stale because {customised_phenotype} had been customised: "
             f"{recommendations[companion]}"
         )
+
+
+# ── DPYD c.557A>G insert-if-absent (#2120) ───────────────────────────────────
+# The sibling migrations above *repair* a wrong row. This one *adds* an allele
+# an existing install never had, so its risks are the mirror image: it must not
+# touch a customised table, and it must not be fooled into inserting twice.
+
+_LEGACY_DPYD_ALLELES = [
+    {
+        "gene": "DPYD",
+        "allele_name": "*1",
+        "defining_variants": "[]",
+        "function": "Normal function",
+        "activity_score": 1.0,
+    },
+    {
+        "gene": "DPYD",
+        "allele_name": "*2A",
+        "defining_variants": '[{"rsid": "rs3918290", "ref": "C", "alt": "T"}]',
+        "function": "No function",
+        "activity_score": 0.0,
+    },
+    {
+        "gene": "DPYD",
+        "allele_name": "*13",
+        "defining_variants": '[{"rsid": "rs55886062", "ref": "A", "alt": "C"}]',
+        "function": "No function",
+        "activity_score": 0.0,
+    },
+    {
+        "gene": "DPYD",
+        "allele_name": "c.2846A>T",
+        "defining_variants": '[{"rsid": "rs67376798", "ref": "T", "alt": "A"}]',
+        "function": "Decreased function",
+        "activity_score": 0.5,
+    },
+    {
+        "gene": "DPYD",
+        "allele_name": "c.1129-5923C>G",
+        "defining_variants": '[{"rsid": "rs75017182", "ref": "G", "alt": "C"}]',
+        "function": "Decreased function",
+        "activity_score": 0.5,
+    },
+]
+
+
+def _dpyd_allele_names(engine: sa.Engine) -> set[str]:
+    with engine.connect() as conn:
+        return {
+            row.allele_name
+            for row in conn.execute(
+                sa.select(cpic_alleles.c.allele_name).where(cpic_alleles.c.gene == "DPYD")
+            ).fetchall()
+        }
+
+
+def _dpyd_c557_diplotypes(engine: sa.Engine) -> dict[str, tuple[str, float | None]]:
+    with engine.connect() as conn:
+        return {
+            row.diplotype: (row.phenotype, row.activity_score)
+            for row in conn.execute(
+                sa.select(
+                    cpic_diplotypes.c.diplotype,
+                    cpic_diplotypes.c.phenotype,
+                    cpic_diplotypes.c.activity_score,
+                ).where(
+                    sa.and_(
+                        cpic_diplotypes.c.gene == "DPYD",
+                        cpic_diplotypes.c.diplotype.like("%c.557A>G%"),
+                    )
+                )
+            ).fetchall()
+        }
+
+
+def _legacy_dpyd_database(path: Path) -> sa.Engine:
+    engine = sa.create_engine(f"sqlite:///{path}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    with engine.begin() as conn:
+        conn.execute(cpic_alleles.insert(), _LEGACY_DPYD_ALLELES)
+    return engine
+
+
+def test_installs_dpyd_c557_on_an_existing_database(tmp_path: Path) -> None:
+    """#2120: an already-installed reference.db must gain the new allele.
+
+    Editing the bundled CSV does not reload an existing database and the CPIC
+    release tag is unchanged, so without this migration only a fresh install can
+    call c.557A>G and every existing user keeps getting *1/*1 Normal Metabolizer
+    for a carrier — the defect the issue reports.
+    """
+    engine = _legacy_dpyd_database(tmp_path / "ref.db")
+    assert "c.557A>G" not in _dpyd_allele_names(engine)
+
+    assert ensure_reference_schema_current(engine) is True
+
+    assert "c.557A>G" in _dpyd_allele_names(engine)
+    with engine.connect() as conn:
+        row = conn.execute(
+            sa.select(
+                cpic_alleles.c.defining_variants,
+                cpic_alleles.c.function,
+                cpic_alleles.c.activity_score,
+            ).where(
+                sa.and_(cpic_alleles.c.gene == "DPYD", cpic_alleles.c.allele_name == "c.557A>G")
+            )
+        ).one()
+    assert row.function == "Decreased function"
+    assert row.activity_score == 0.5
+    # Plus-strand polarity must survive the migration, or it would call
+    # non-carriers as carriers. DPYD is on the minus strand, so CPIC's coding
+    # c.557A>G is stored as the plus-strand T>C with alt the carrier's base.
+    assert [
+        (variant["rsid"], variant["ref"], variant["alt"])
+        for variant in json.loads(row.defining_variants)
+    ] == [("rs115232898", "T", "C")]
+
+    diplotypes = _dpyd_c557_diplotypes(engine)
+    assert diplotypes, "no c.557A>G diplotypes were installed"
+    # The carrier case the issue names, and the compound case, must both be
+    # callable - an allele with no diplotype row yields no phenotype.
+    assert diplotypes["*1/c.557A>G"] == ("Intermediate Metabolizer", 1.5)
+    assert diplotypes["*2A/c.557A>G"] == ("Poor Metabolizer", 0.5)
+
+
+def test_installing_dpyd_c557_is_idempotent(tmp_path: Path) -> None:
+    """A second pass must not duplicate the allele or its diplotypes.
+
+    A duplicated allele row would make the star-allele matcher ambiguous, so
+    re-running startup has to be a no-op.
+    """
+    engine = _legacy_dpyd_database(tmp_path / "ref.db")
+    assert ensure_reference_schema_current(engine) is True
+    first = _dpyd_c557_diplotypes(engine)
+
+    ensure_reference_schema_current(engine)
+
+    with engine.connect() as conn:
+        allele_count = conn.execute(
+            sa.select(sa.func.count())
+            .select_from(cpic_alleles)
+            .where(
+                sa.and_(cpic_alleles.c.gene == "DPYD", cpic_alleles.c.allele_name == "c.557A>G")
+            )
+        ).scalar_one()
+    assert allele_count == 1
+    assert _dpyd_c557_diplotypes(engine) == first
+
+
+def test_a_customised_dpyd_allele_table_is_left_alone(tmp_path: Path) -> None:
+    """A table that is not the pre-#2120 release is never modified.
+
+    The migration is fingerprinted on the exact four-allele set it knows how to
+    extend. A site that removed or added a DPYD allele has made a decision this
+    migration cannot interpret, so it must not silently edit their reference
+    data.
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'custom.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+    customised = [dict(row) for row in _LEGACY_DPYD_ALLELES if row["allele_name"] != "*13"]
+    with engine.begin() as conn:
+        conn.execute(cpic_alleles.insert(), customised)
+
+    ensure_reference_schema_current(engine)
+
+    assert _dpyd_allele_names(engine) == {name["allele_name"] for name in customised}
+    assert "c.557A>G" not in _dpyd_allele_names(engine)
+
+
+def test_a_database_without_dpyd_is_left_to_the_normal_cpic_load(tmp_path: Path) -> None:
+    """No DPYD data at all is a different state, not a stale release.
+
+    Inserting one allele into an empty table would leave a DPYD panel that can
+    match c.557A>G but nothing else, so the migration declines and lets the
+    ordinary CPIC load populate the gene.
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'empty.db'}")
+    reference_metadata.create_all(engine, checkfirst=True)
+
+    ensure_reference_schema_current(engine)
+
+    assert _dpyd_allele_names(engine) == set()
+
+
+def test_an_already_current_dpyd_table_is_not_touched(tmp_path: Path) -> None:
+    """An install that already has the allele is not a migration candidate."""
+    engine = _legacy_dpyd_database(tmp_path / "ref.db")
+    assert ensure_reference_schema_current(engine) is True
+    before = _dpyd_allele_names(engine)
+
+    # A fresh engine on the same file mimics the next app start.
+    restarted = sa.create_engine(f"sqlite:///{tmp_path / 'ref.db'}")
+    ensure_reference_schema_current(restarted)
+
+    assert _dpyd_allele_names(restarted) == before

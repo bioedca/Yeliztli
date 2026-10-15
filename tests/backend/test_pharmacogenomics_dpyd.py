@@ -232,7 +232,101 @@ def test_an_array_without_c557_cannot_exclude_it(reference_engine: sa.Engine) ->
     assert "c.557A>G" in result.confidence_note
 
 
+@pytest.mark.parametrize("drug", ["fluorouracil", "capecitabine"])
+def test_untyped_c557_does_not_get_label_recommended_dosing(
+    reference_engine: sa.Engine, drug: str
+) -> None:
+    """The fix has to reach the prescribing alert, not just the confidence note.
+
+    An array that cannot type rs115232898 (e.g. AncestryDNA v2.0) must not be
+    handed label-recommended fluoropyrimidine dosing off a reference-filled
+    ``*1/*1`` — that is precisely the harm #2120 reports. DPYD is in
+    ``CONSERVATIVE_UNTYPED_PHENOTYPE_GENES``, so the alert is raised to the
+    lowest plausible diplotype (``*1/c.557A>G``, activity score 1.5).
+    """
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+
+    alerts = [a for a in generate_prescribing_alerts([result], reference_engine) if a.drug == drug]
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert "label-recommended" not in alert.recommendation
+    assert "Reduce starting dose by 50%" in alert.recommendation
+    assert alert.phenotype == "Intermediate Metabolizer"
+    # The direct call is still reported rather than overwritten, so the user can
+    # see what was actually typed beside the conservative basis.
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+
+
+def test_untyped_c557_conservative_note_names_the_allele_readably(
+    reference_engine: sa.Engine,
+) -> None:
+    """The conservative note spells an HGVS allele as ``DPYD c.557A>G``.
+
+    Star alleles are written against the symbol (``UGT1A1*28``); HGVS names are
+    not, so the gene and allele must not be concatenated into ``DPYDc.557A>G``.
+    """
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert "DPYD c.557A>G" in result.confidence_note
+    assert "DPYDc.557A>G" not in result.confidence_note
+    assert "Conservative prescribing alert uses Intermediate Metabolizer" in result.confidence_note
+
+
+def test_a_fully_typed_dpyd_array_keeps_label_recommended_dosing(
+    reference_engine: sa.Engine,
+) -> None:
+    """Negative control for the conservative policy.
+
+    When every defining position is assayed, a true ``*1/*1`` keeps CPIC's
+    label-recommended dosing — the conservative substitution must not fire on a
+    complete call, or every Normal Metabolizer would be under-dosed.
+    """
+    result = _call_dpyd(reference_engine, _dpyd_genotypes())
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "Conservative" not in result.confidence_note
+
+    alerts = generate_prescribing_alerts([result], reference_engine)
+    assert alerts
+    for alert in alerts:
+        assert alert.phenotype == "Normal Metabolizer"
+        assert "label-recommended" in alert.recommendation
+
+
 # ── Absent-allele / fatal-toxicity caveat ────────────────────────────────────
+
+
+def test_caveat_variant_list_matches_the_panel(reference_engine: sa.Engine) -> None:
+    """The patient-visible caveat must describe the panel it actually ships.
+
+    ``DPYD_FLUOROPYRIMIDINE_CAVEAT`` states a count and enumerates the typed
+    variants, so adding an allele without updating it leaves every DPYD alert
+    contradicting the call beside it (#2120). Derived from the shipped CPIC
+    table rather than hardcoded, so the next allele added trips this too.
+    """
+    from backend.analysis.pharmacogenomics import _fetch_alleles_for_gene
+    from backend.disclaimers import DPYD_FLUOROPYRIMIDINE_CAVEAT
+
+    typed = [
+        allele["allele_name"]
+        for allele in _fetch_alleles_for_gene("DPYD", reference_engine)
+        if allele["allele_name"] != "*1"
+    ]
+    assert typed, "expected non-reference DPYD alleles in the shipped table"
+    assert f"types only {len(typed)} DPYD variants" in DPYD_FLUOROPYRIMIDINE_CAVEAT
+
+    # The caveat may name an allele by its common label instead of its HGVS
+    # name; anything without an alias must appear verbatim.
+    aliases = {"c.1129-5923C>G": "HapB3"}
+    for allele_name in typed:
+        shown = aliases.get(allele_name, allele_name)
+        assert shown in DPYD_FLUOROPYRIMIDINE_CAVEAT, (
+            f"{allele_name} is typed by the panel but absent from the caveat"
+        )
 
 
 def test_dpyd_alert_carries_fluoropyrimidine_caveat(reference_engine: sa.Engine) -> None:

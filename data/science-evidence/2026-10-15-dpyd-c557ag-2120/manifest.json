@@ -1,144 +1,159 @@
 {
-  "issue": 2120,
-  "title": "DPYD c.557A>G (rs115232898) decreased-function allele",
-  "repository_base": "5c99e911f9f5802c87d00cf1ee550f778b592688",
-  "accessed": "2026-10-15",
-  "citations": [
-    {
-      "id": "PMID:29152729",
-      "doi": "10.1002/cpt.911",
-      "role": "CPIC DPYD guideline, 2017 update (defining document)",
-      "accessed": "2026-10-15",
-      "license": "publisher copyright; abstract/metadata only"
-    },
-    {
-      "id": "PMID:24648345",
-      "doi": "10.1158/0008-5472.CAN-13-2482",
-      "role": "functional study CPIC cites for c.557A>G",
-      "accessed": "2026-10-15",
-      "license": "publisher copyright; abstract/metadata only"
-    },
-    {
-      "id": "PMID:31641844",
-      "doi": "10.1007/s00280-019-03974-4",
-      "role": "African-ancestry prevalence of Y186C",
-      "accessed": "2026-10-15",
-      "license": "publisher copyright; abstract/metadata only"
-    }
-  ],
-  "databases": [
-    {
-      "name": "CPIC API",
-      "endpoints": [
-        "allele",
-        "allele_definition",
-        "sequence_location",
-        "diplotype"
-      ],
-      "version": "allele record version 107",
-      "accessed": "2026-10-15",
-      "license": "CPIC/PharmGKB data, CC-BY-SA-4.0"
-    },
-    {
-      "name": "Ensembl REST (GRCh37)",
-      "endpoint": "variation/human/rs115232898",
-      "accessed": "2026-10-15",
-      "license": "Ensembl: no restrictions (Apache-2.0 code, open data)"
-    },
-    {
-      "name": "VariantValidator",
-      "endpoint": "VariantValidator/variantvalidator/GRCh37/NM_000110.4:c.557A>G/mane_select",
-      "accessed": "2026-10-15",
-      "license": "GPL-3.0 service, open data"
-    }
-  ],
-  "claims": {
-    "a_function": {
-      "statement": "CPIC classifies DPYD c.557A>G as Decreased function, activity value 0.5, with the diplotype phenotypes applied here.",
-      "sources": [
-        "CPIC API allele + diplotype",
-        "PMID:29152729"
-      ],
-      "independence": "NOT independent: both are CPIC products. Recorded per the definitional-claim rule.",
-      "independent_support": "PMID:24648345 (functional, independent of CPIC); its ~15% Y186C reduction is recorded as a limitation of the effect size, not of the classification."
-    },
-    "b_coordinates": {
-      "statement": "GRCh37 plus strand 1:98165030, ref T (normal), alt C (carrier).",
-      "sources": [
-        "Ensembl GRCh37 REST",
-        "VariantValidator on coding HGVS without an rsID",
-        "CPIC sequence_location"
-      ],
-      "independence": "Ensembl and VariantValidator agree; VariantValidator was queried on coding HGVS so it is not the same dbSNP record."
-    },
-    "c_ancestry": {
-      "statement": "The allele occurs predominantly in people of African ancestry.",
-      "sources": [
-        "PMID:24648345",
-        "PMID:31641844"
-      ],
-      "independence": "Independent: different cohorts, datasets and upstream assertions."
-    }
+ "issue": 2120,
+ "title": "DPYD c.557A>G (rs115232898) decreased-function allele",
+ "repository_base": "5c99e911f9f5802c87d00cf1ee550f778b592688",
+ "accessed": "2026-10-15",
+ "citations": [
+  {
+   "id": "PMID:29152729",
+   "doi": "10.1002/cpt.911",
+   "role": "CPIC DPYD guideline, 2017 update (defining document)",
+   "accessed": "2026-10-15",
+   "license": "publisher copyright; abstract/metadata only"
   },
-  "corrections_checked": {
-    "method": "Scite search_literature by DOI",
-    "result": "no retraction, correction, erratum or expression of concern on either checked DOI",
-    "checked": [
-      "10.1002/cpt.911",
-      "10.1158/0008-5472.can-13-2482"
-    ]
+  {
+   "id": "PMID:24648345",
+   "doi": "10.1158/0008-5472.CAN-13-2482",
+   "role": "functional study CPIC cites for c.557A>G",
+   "accessed": "2026-10-15",
+   "license": "publisher copyright; abstract/metadata only"
   },
-  "privacy": "No genotype, allele call or personal data. The array-coverage file records probe presence only.",
-  "raw_payloads": [
-    {
-      "path": "raw/array-probe-coverage.json",
-      "sha256": "10105e0c55b7091e4f2c0760766ee210f08cfa1c98a3db4ae083c84b1991b232",
-      "bytes": 799
-    },
-    {
-      "path": "raw/consensus-search-sanitized.json",
-      "sha256": "6d0c0d7cc0ab0c6cb194b6168a1a815bc4cf6aacf5ddf68a266710622288707b",
-      "bytes": 953
-    },
-    {
-      "path": "raw/cpic-api-allele-definition-c557.json",
-      "sha256": "febda4c9637e32d62a44a34aab36cdde73d3a0ce467bcf6476a171a5e76e449e",
-      "bytes": 124
-    },
-    {
-      "path": "raw/cpic-api-dpyd-alleles.json",
-      "sha256": "47f287db414d916d1c6e872c67cdbe76ecdb51056aff9e1a60642ceb6ce52964",
-      "bytes": 18702
-    },
-    {
-      "path": "raw/cpic-api-dpyd-diplotypes-c557.json",
-      "sha256": "d72fb771ce33e7ef04cd28039f7a20fd1302aece12fadd8743cb9788ca1df3db",
-      "bytes": 8738
-    },
-    {
-      "path": "raw/cpic-api-sequence-location-rs115232898.json",
-      "sha256": "ae1740afa25f6156ab5b91bda3da14e1523ad45661897ab51ad20de626c49e07",
-      "bytes": 205
-    },
-    {
-      "path": "raw/ensembl-grch37-rs115232898.json",
-      "sha256": "1b5418a7331b9f53a7daefc37afca0cd94db978267891365ea26de0dbaff9dea",
-      "bytes": 889
-    },
-    {
-      "path": "raw/pubmed-records-sanitized.json",
-      "sha256": "8cb796f31e39397c4198e098286b552f4e8de6900844adefa4a65ac923ba17e9",
-      "bytes": 2855
-    },
-    {
-      "path": "raw/scite-editorial-notices-sanitized.json",
-      "sha256": "0feb27905fb50007f30789693bbab0f42b75eddfc5436b9e146fe099778e358f",
-      "bytes": 706
-    },
-    {
-      "path": "raw/variantvalidator-grch37-NM_000110.4-c557AG.json",
-      "sha256": "8ef57a682090511cb5c56a2b41b27d57b7873dcba340a6852ab9431279a461ba",
-      "bytes": 2231
-    }
+  {
+   "id": "PMID:31641844",
+   "doi": "10.1007/s00280-019-03974-4",
+   "role": "African-ancestry prevalence of Y186C",
+   "accessed": "2026-10-15",
+   "license": "publisher copyright; abstract/metadata only"
+  }
+ ],
+ "databases": [
+  {
+   "name": "CPIC API",
+   "endpoints": [
+    "allele",
+    "allele_definition",
+    "sequence_location",
+    "diplotype"
+   ],
+   "version": "allele record version 107",
+   "accessed": "2026-10-15",
+   "license": "CPIC/PharmGKB data, CC-BY-SA-4.0"
+  },
+  {
+   "name": "Ensembl REST (GRCh37)",
+   "endpoint": "variation/human/rs115232898",
+   "accessed": "2026-10-15",
+   "license": "Ensembl: no restrictions (Apache-2.0 code, open data)"
+  },
+  {
+   "name": "VariantValidator",
+   "endpoint": "VariantValidator/variantvalidator/GRCh37/NM_000110.4:c.557A>G/mane_select",
+   "accessed": "2026-10-15",
+   "license": "GPL-3.0 service, open data"
+  },
+  {
+   "name": "gnomAD (browser GraphQL API)",
+   "endpoint": "POST https://gnomad.broadinstitute.org/api",
+   "dataset": "gnomad_r2_1 (gnomAD v2.1.1, GRCh37/b37)",
+   "accessed": "2026-10-15",
+   "license": "CC0 / public domain (https://gnomad.broadinstitute.org/policies)"
+  }
+ ],
+ "claims": {
+  "a_function": {
+   "statement": "CPIC classifies DPYD c.557A>G as Decreased function, activity value 0.5, with the diplotype phenotypes applied here.",
+   "sources": [
+    "CPIC API allele + diplotype",
+    "PMID:29152729"
+   ],
+   "independence": "NOT independent: both are CPIC products. Recorded per the definitional-claim rule.",
+   "independent_support": "PMID:24648345 (functional, independent of CPIC); its ~15% Y186C reduction is recorded as a limitation of the effect size, not of the classification."
+  },
+  "b_coordinates": {
+   "statement": "GRCh37 plus strand 1:98165030, ref T (normal), alt C (carrier).",
+   "sources": [
+    "Ensembl GRCh37 REST",
+    "VariantValidator on coding HGVS without an rsID",
+    "CPIC sequence_location"
+   ],
+   "independence": "Ensembl and VariantValidator agree; VariantValidator was queried on coding HGVS so it is not the same dbSNP record."
+  },
+  "c_ancestry": {
+   "statement": "The allele occurs predominantly in people of African ancestry.",
+   "sources": [
+    "gnomAD v2.1.1 exomes + genomes (rs115232898)",
+    "PMID:31641844",
+    "PMID:24648345"
+   ],
+   "independence": "Independent: gnomAD is a population-sequencing dataset with no cohort, dataset or upstream assertion shared with Cunha-Junior's 115 African Brazilians. gnomAD v2.1.1 exomes give African AF 0.0230 vs non-Finnish European 0.000053 (~435x), with 374 of 417 alt alleles in the African group; the genomes give African AF 0.0187 and 0.0 in every other population. These are allele-specific, which is what Offer 2014 is not.",
+   "note": "Offer 2014 (PMID:24648345) is retained only as context: it states that the deficient variants it newly classified are rare in Europeans and occur at appreciable frequencies in other populations, which is a statement about a GROUP of variants and does not by itself establish the distribution of c.557A>G. It is no longer counted toward the two-source rule for this claim (raised in review of #2452)."
+  }
+ },
+ "corrections_checked": {
+  "method": "Scite search_literature by DOI",
+  "result": "no retraction, correction, erratum or expression of concern on any of the three checked DOIs",
+  "checked": [
+   "10.1002/cpt.911",
+   "10.1158/0008-5472.can-13-2482",
+   "10.1007/s00280-019-03974-4"
   ]
+ },
+ "privacy": "No genotype, allele call or personal data. The array-coverage file records probe presence only.",
+ "raw_payloads": [
+  {
+   "path": "raw/array-probe-coverage.json",
+   "sha256": "10105e0c55b7091e4f2c0760766ee210f08cfa1c98a3db4ae083c84b1991b232",
+   "bytes": 799
+  },
+  {
+   "path": "raw/consensus-search-sanitized.json",
+   "sha256": "6d0c0d7cc0ab0c6cb194b6168a1a815bc4cf6aacf5ddf68a266710622288707b",
+   "bytes": 953
+  },
+  {
+   "path": "raw/cpic-api-allele-definition-c557.json",
+   "sha256": "febda4c9637e32d62a44a34aab36cdde73d3a0ce467bcf6476a171a5e76e449e",
+   "bytes": 124
+  },
+  {
+   "path": "raw/cpic-api-dpyd-alleles.json",
+   "sha256": "47f287db414d916d1c6e872c67cdbe76ecdb51056aff9e1a60642ceb6ce52964",
+   "bytes": 18702
+  },
+  {
+   "path": "raw/cpic-api-dpyd-diplotypes-c557.json",
+   "sha256": "d72fb771ce33e7ef04cd28039f7a20fd1302aece12fadd8743cb9788ca1df3db",
+   "bytes": 8738
+  },
+  {
+   "path": "raw/cpic-api-sequence-location-rs115232898.json",
+   "sha256": "ae1740afa25f6156ab5b91bda3da14e1523ad45661897ab51ad20de626c49e07",
+   "bytes": 205
+  },
+  {
+   "path": "raw/ensembl-grch37-rs115232898.json",
+   "sha256": "1b5418a7331b9f53a7daefc37afca0cd94db978267891365ea26de0dbaff9dea",
+   "bytes": 889
+  },
+  {
+   "path": "raw/gnomad-v2-rs115232898-population-frequencies.json",
+   "sha256": "356ff24b4fadd18dd2039a83ad053f333cd873c2065db03d618cb6fff6d07798",
+   "bytes": 7583
+  },
+  {
+   "path": "raw/pubmed-records-sanitized.json",
+   "sha256": "8cb796f31e39397c4198e098286b552f4e8de6900844adefa4a65ac923ba17e9",
+   "bytes": 2855
+  },
+  {
+   "path": "raw/scite-editorial-notices-sanitized.json",
+   "sha256": "79d59fbbb795eb06e079f6fc0faee2c57f416d4de986159af2a12e918f93c0d5",
+   "bytes": 1083
+  },
+  {
+   "path": "raw/variantvalidator-grch37-NM_000110.4-c557AG.json",
+   "sha256": "8ef57a682090511cb5c56a2b41b27d57b7873dcba340a6852ab9431279a461ba",
+   "bytes": 2231
+  }
+ ]
 }

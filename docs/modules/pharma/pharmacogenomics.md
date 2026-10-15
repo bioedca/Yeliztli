@@ -54,8 +54,13 @@ surfaces the relevant CPIC prescribing guidance.
 - **A normal result isn't a guarantee.** For *DPYD*, only a handful of variants are typed — a
   normal call does **not** rule out DPD deficiency, which matters for certain chemotherapy
   drugs. The typed set includes `c.557A>G`, a decreased-function allele carried mainly by people
-  of African ancestry,[^dpyd-c557-ancestry] but not every array includes that probe — when yours
-  does not, the result says the allele could not be excluded rather than calling you normal.
+  of African ancestry,[^dpyd-c557-ancestry] but not every array includes that probe. When yours
+  does not, the *DPYD* card still shows the diplotype that was directly called — which will read
+  `*1/*1` **Normal Metabolizer** if nothing else was found — but marks the call *Partial* and
+  names the allele as one it could not exclude. The fluoropyrimidine guidance beside it is then
+  **Conservative**: it is based on the lowest-activity diplotype the untyped allele could still
+  make, so you are not given label-recommended dosing on the strength of a position that was
+  never assayed.
   For *UGT1A1*, a normal `*1/*1` call does **not** rule out reduced *UGT1A1* activity from
   untyped `*28`, which matters for irinotecan and atazanavir prescribing
   context.[^ugt1a1-irinotecan][^ugt1a1-atazanavir]
@@ -76,7 +81,7 @@ surfaces the relevant CPIC prescribing guidance.
     Pharmacogenomic results here are research/educational. Do not start, stop, or change any
     medication without your prescriber, who can order a clinical PGx test if warranted.
 
-[^dpyd-c557-ancestry]: [Prevalence of the DPYD variant (Y186C) in Brazilian individuals of African ancestry](https://doi.org/10.1007/s00280-019-03974-4) (Cunha-Junior et al., 2019, *Cancer Chemotherapy and Pharmacology*; [PMID 31641844](https://pubmed.ncbi.nlm.nih.gov/31641844/); accessed 2026-10-15) reports that this allele is found almost exclusively in African populations and measures a 2.6% heterozygous prevalence among 115 African Brazilians. Its CPIC decreased-function assignment comes from the CPIC fluoropyrimidine guideline ([PMID 29152729](https://pubmed.ncbi.nlm.nih.gov/29152729/); accessed 2026-10-15).
+[^dpyd-c557-ancestry]: [Prevalence of the DPYD variant (Y186C) in Brazilian individuals of African ancestry](https://doi.org/10.1007/s00280-019-03974-4) (Cunha-Junior et al., 2019, *Cancer Chemotherapy and Pharmacology*; [PMID 31641844](https://pubmed.ncbi.nlm.nih.gov/31641844/); accessed 2026-10-15) reports that this allele is found almost exclusively in African populations and measures a 2.6% heterozygous prevalence among 115 African Brazilians. [gnomAD v2.1.1](https://gnomad.broadinstitute.org/) (accessed 2026-10-15) independently measures the same skew in a separate dataset: an African allele frequency of 2.30% in the exomes against 0.0053% in non-Finnish Europeans, with 374 of 417 observed copies in the African group, and 1.87% versus 0.0% in the genomes. Its CPIC decreased-function assignment comes from the CPIC fluoropyrimidine guideline ([PMID 29152729](https://pubmed.ncbi.nlm.nih.gov/29152729/); accessed 2026-10-15).
 [^ugt1a1-repeat]: [Correlation between the UDP-glucuronosyltransferase (UGT1A1) TATAA box polymorphism and carcinogen detoxification phenotype](https://doi.org/10.1158/1055-9965.epi-03-0070) (Fang & Lazarus, 2004, *Cancer Epidemiology, Biomarkers & Prevention*; [PMID 14744740](https://pubmed.ncbi.nlm.nih.gov/14744740/)) describes `UGT1A1*28` as an additional `(TA)` repeat in the promoter TATA box linked to lower UGT1A1 expression/activity.
 [^ugt1a1-irinotecan]: [Dutch Pharmacogenetics Working Group guideline for the gene-drug interaction between UGT1A1 and irinotecan](https://doi.org/10.1038/s41431-022-01243-2) (Hulshof et al., 2023, *European Journal of Human Genetics*; [PMID 36443464](https://pubmed.ncbi.nlm.nih.gov/36443464/)) describes UGT1A1 poor metabolizers and genotype-informed irinotecan starting-dose adjustment.
 [^ugt1a1-atazanavir]: [Clinical Pharmacogenetics Implementation Consortium guideline for UGT1A1 and atazanavir prescribing](https://doi.org/10.1002/cpt.269) (Gammal et al., 2016, *Clinical Pharmacology & Therapeutics*; [PMID 26417955](https://pubmed.ncbi.nlm.nih.gov/26417955/)) summarizes atazanavir prescribing recommendations when UGT1A1 genotype is known.

@@ -1022,8 +1022,9 @@ ACMG_DRAFT_CONTEXT_ONLY = (
 # changes the finding's metabolizer status or evidence level.
 
 DPYD_FLUOROPYRIMIDINE_CAVEAT = (
-    "DPYD result interpretation (context only). This panel types only 4 DPYD "
-    "variants (DPYD*2A, *13, c.2846A>T, and the HapB3 intronic variant). A "
+    "DPYD result interpretation (context only). This panel types only 5 DPYD "
+    "variants (DPYD*2A, *13, c.2846A>T, c.557A>G, and the HapB3 intronic "
+    "variant), and not every array carries a probe for each of them. A "
     "normal-metabolizer / negative result does NOT rule out dihydropyrimidine "
     "dehydrogenase (DPD) deficiency — rare or untested DPYD variants, and "
     "non-genetic causes, can still reduce DPD activity. DPD deficiency can cause "
