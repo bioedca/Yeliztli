@@ -125,6 +125,7 @@ function page(queryClient: QueryClient, path: string) {
             element={
               <>
                 <EBMDView />
+                <Link to="/ebmd?sample_id=1">Sample 1</Link>
                 <Link to="/ebmd?sample_id=2">Sample 2</Link>
               </>
             }
@@ -216,5 +217,22 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     )
     expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled()
     expect(runCalls).toEqual(["1"])
+  })
+
+  it("scores a sample again when it is shown again on the same page", async () => {
+    states.set("1", "never")
+    states.set("2", "current")
+    runOutcome.set("1", 500)
+    render(page(client(), "/ebmd?sample_id=1"))
+    await within(await screen.findByTestId("scoring-status")).findByRole("alert")
+
+    await userEvent.click(screen.getByRole("link", { name: "Sample 2" }))
+    await waitFor(() =>
+      expect(within(screen.getByTestId("scoring-status")).queryByRole("alert")).toBeNull(),
+    )
+    await userEvent.click(screen.getByRole("link", { name: "Sample 1" }))
+
+    // Sample 1 is still unscored, so coming back to it tries again.
+    await waitFor(() => expect(runCalls).toEqual(["1", "1"]))
   })
 })

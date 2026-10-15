@@ -21,7 +21,7 @@ interface AutoScoreOptions {
  * double effect does not start two runs. A response without a state (an older
  * backend) is scored, as every visit was before. Switching sample on the same
  * page resets the run, so one sample's progress or failure is not shown on
- * another's.
+ * another's, and clears the once-per-state guard for the sample shown next.
  */
 export function useAutoScore({
   sampleId,
@@ -31,13 +31,15 @@ export function useAutoScore({
   reset,
 }: AutoScoreOptions): void {
   const shownSample = useRef(sampleId)
+  const requested = useRef<string | null>(null)
   useEffect(() => {
     if (shownSample.current === sampleId) return
     shownSample.current = sampleId
+    // A sample shown again later decides afresh (A -> B -> A on one page).
+    requested.current = null
     reset()
   }, [sampleId, reset])
 
-  const requested = useRef<string | null>(null)
   useEffect(() => {
     if (sampleId == null || !settled || scoringState === "current") return
     const key = `${sampleId}:${scoringState ?? "unknown"}`
