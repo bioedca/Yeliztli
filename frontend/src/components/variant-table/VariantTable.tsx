@@ -288,7 +288,13 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       }
       return next ?? current
     })
-  }, [watchedRsids, querySampleId])
+    // `watchErrors` is a dependency so an entry inserted *after* the last
+    // membership change is pruned too: another control can change this rsID
+    // while the row request is still in flight, and the later rejection then
+    // records a membership that already mismatches. Re-running on insert is
+    // loop-safe because the updater returns `current` unchanged when there is
+    // nothing to prune, so no state update and no re-render follow.
+  }, [watchedRsids, querySampleId, watchErrors])
 
   // The render-time filter stays as well, so the frame between a membership
   // change and the pruning effect never shows a failure that has gone stale.

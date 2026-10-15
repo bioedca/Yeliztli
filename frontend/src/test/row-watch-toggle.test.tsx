@@ -667,6 +667,77 @@ describe("VariantTable row watch toggle (#2123)", () => {
     ).toBe("Watch rs1")
   })
 
+  it("prunes a failure recorded after membership already changed", async () => {
+    // Codex review round 7: if another control changes this rsID while the row
+    // request is still pending, the rejection records a membership that already
+    // mismatches. The pruning effect must re-run on insert, or the render
+    // filter only hides the entry and a later change back resurrects it.
+    let releaseRs1: (() => void) | null = null
+    let rs1WatchedExternally = false
+    setupFetchMock(["rs1", "rs2"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET"
+      if (url.includes("/api/watches") && method === "POST") {
+        const rsid = JSON.parse(String(init?.body ?? "{}")).rsid as string
+        if (rsid === "rs1") {
+          await new Promise<void>((resolve) => {
+            releaseRs1 = resolve
+          })
+          return { ok: false, status: 500, json: async () => ({ detail: "boom" }) }
+        }
+      }
+      if (url.includes("/api/watches") && method === "GET" && rs1WatchedExternally) {
+        return { ok: true, json: async () => [{ rsid: "rs1" }] }
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    // rs1's write is in flight...
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+    await waitFor(() => expect(releaseRs1).not.toBeNull())
+
+    // ...and rs1 becomes watched elsewhere before that write settles.
+    rs1WatchedExternally = true
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      )
+    })
+
+    // Now the stale rejection lands, recording membership that already differs.
+    await act(async () => {
+      releaseRs1!()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+    expect(screen.queryByRole("alert")).toBeNull()
+
+    // And it must not come back when membership returns to its original value.
+    rs1WatchedExternally = false
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      )
+    })
+    expect(screen.queryByRole("alert")).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Watch rs1" }).getAttribute("title"),
+    ).toBe("Watch rs1")
+  })
+
   it("keeps the toggle out of the column-visibility menu", async () => {
     setupFetchMock(["rs1"])
     render(<VariantTable sampleId={1} />)
