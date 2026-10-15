@@ -20,6 +20,7 @@ touching future or custom data. It is idempotent — safe to run on every startu
 
 from __future__ import annotations
 
+import json
 from collections import Counter
 
 import sqlalchemy as sa
@@ -349,6 +350,212 @@ _LEGACY_CYP2C19_CLOPIDOGREL_FINGERPRINTS = {
         _CYP2C19_CLOPIDOGREL_GUIDELINE_URL,
     ),
 }
+
+
+_DPYD_C557_ALLELE = "c.557A>G"
+# The exact DPYD allele rows released before #2120, fingerprinted on their full
+# content: name -> (defining variants as (rsid, ref, alt) tuples, function,
+# activity score). Comparing only the *names* would classify an install that had
+# edited a defining variant, function or activity score as the stock release and
+# mix canonical c.557A>G diplotype scores into locally changed clinical
+# definitions, which is exactly what "a customised table is left untouched" is
+# supposed to rule out. Defining variants are compared parsed, not as serialised
+# text, so JSON spacing and key order are not part of the fingerprint.
+_LEGACY_DPYD_ALLELE_FINGERPRINT: dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] = {
+    "*1": ((), "Normal function", 1.0),
+    "*2A": ((("rs3918290", "C", "T"),), "No function", 0.0),
+    "*13": ((("rs55886062", "A", "C"),), "No function", 0.0),
+    "c.2846A>T": ((("rs67376798", "T", "A"),), "Decreased function", 0.5),
+    "c.1129-5923C>G": ((("rs75017182", "G", "C"),), "Decreased function", 0.5),
+}
+
+
+def _dpyd_allele_fingerprint(
+    rows: list[sa.Row],
+) -> dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] | None:
+    """Fingerprint installed DPYD allele rows, or ``None`` if not comparable.
+
+    Returns ``None`` when a row is duplicated or its defining variants are not
+    parseable, so a table that cannot be fingerprinted is never treated as the
+    stock release.
+    """
+    fingerprint: dict[str, tuple[tuple[tuple[str, str, str], ...], str, float]] = {}
+    for row in rows:
+        if row.allele_name in fingerprint:
+            return None
+        try:
+            defining = json.loads(row.defining_variants or "[]")
+            variants = tuple(
+                (variant["rsid"], variant["ref"], variant["alt"]) for variant in defining
+            )
+        except (TypeError, ValueError, KeyError):
+            return None
+        fingerprint[row.allele_name] = (variants, row.function, row.activity_score)
+    return fingerprint
+
+
+def _install_missing_dpyd_c557_allele(engine: sa.Engine) -> bool:
+    """Add the DPYD ``c.557A>G`` allele and diplotypes to an existing database.
+
+    Editing the bundled CSVs does not reload an installed ``reference.db``, and
+    ``check_cpic_update()`` compares only the CPIC release tag — which #2120 does
+    not move. Without this, only a fresh or explicitly rebuilt database gains the
+    allele, so every existing install keeps calling typed carriers ``*1/*1``
+    Normal Metabolizer and the fix reaches nobody who already had the app.
+
+    This is an **insert-if-absent**, not a repair: it adds the allele row and any
+    of its diplotype rows that are missing, and never edits or deletes an
+    existing row. The allele's defining variant is checked against the bundled
+    CSV before insertion, so a non-canonical bundle fails loudly rather than
+    installing a wrong strand.
+
+    What is fingerprinted, stated precisely because the distinction matters:
+
+    * **DPYD allele rows are compared on full content** — name, parsed defining
+      variants, function and activity score — against
+      :data:`_LEGACY_DPYD_ALLELE_FINGERPRINT`. An install that kept the stock
+      names but edited any clinical definition, or that duplicated a row, is
+      treated as customised and nothing is written. Comparing names alone would
+      have mixed canonical c.557A>G diplotype scores into locally changed
+      definitions.
+    * **Diplotype rows are not fingerprinted**, because the insert is additive
+      and keyed on the diplotype string: an existing row is never rewritten and
+      a duplicate is never created. A site that customised an unrelated DPYD
+      diplotype keeps it and still gains the new allele, which is the same
+      outcome any CPIC data addition has.
+    """
+    inspector = sa.inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if not {"cpic_alleles", "cpic_diplotypes"} <= table_names:
+        return False
+    allele_columns = {column["name"] for column in inspector.get_columns("cpic_alleles")}
+    diplotype_columns = {column["name"] for column in inspector.get_columns("cpic_diplotypes")}
+    if not {"gene", "allele_name", "defining_variants", "function", "activity_score"} <= (
+        allele_columns
+    ):
+        return False
+    if not {"gene", "diplotype", "phenotype", "ehr_notation", "activity_score"} <= (
+        diplotype_columns
+    ):
+        return False
+
+    from backend.db.tables import cpic_alleles, cpic_diplotypes
+
+    # Same reserved-lock discipline as the sibling repairs: sqlite3's legacy
+    # transaction mode does not begin a DB transaction for SELECT, so take the
+    # write lock before fingerprinting or a concurrent write could land between
+    # the SELECT and the insert.
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            installed = _dpyd_allele_fingerprint(
+                conn.execute(
+                    sa.select(
+                        cpic_alleles.c.allele_name,
+                        cpic_alleles.c.defining_variants,
+                        cpic_alleles.c.function,
+                        cpic_alleles.c.activity_score,
+                    ).where(cpic_alleles.c.gene == "DPYD")
+                ).fetchall()
+            )
+            # Full-content comparison, so a table that kept the stock allele
+            # names but edited a defining variant, function or activity score is
+            # recognised as customised and left alone. An install with no DPYD
+            # data at all is not a stale release missing one allele either; leave
+            # it to the normal CPIC load.
+            if installed != _LEGACY_DPYD_ALLELE_FINGERPRINT:
+                conn.rollback()
+                return False
+
+            from backend.annotation.cpic import (
+                CPIC_DATA_DIR,
+                parse_cpic_alleles_csv,
+                parse_cpic_diplotypes_csv,
+            )
+
+            bundled_alleles, _ = parse_cpic_alleles_csv(CPIC_DATA_DIR / "cpic_alleles.csv")
+            canonical = [
+                row
+                for row in bundled_alleles
+                if row["gene"] == "DPYD" and row["allele_name"] == _DPYD_C557_ALLELE
+            ]
+            # Refuse to install a replacement that repeats the defect: the allele
+            # must be the plus-strand decreased-function row #2120 verified.
+            if len(canonical) != 1:
+                raise RuntimeError("Bundled DPYD c.557A>G allele row is not canonical")
+            allele_row = canonical[0]
+            # Compare the parsed definition, not its serialised text: the stored
+            # JSON's spacing and key order are not part of the contract, while
+            # the rsid and the plus-strand ref/alt roles are.
+            try:
+                defining = json.loads(allele_row["defining_variants"])
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError(
+                    "Bundled DPYD c.557A>G defining variants are not valid JSON"
+                ) from exc
+            if (
+                allele_row["function"] != "Decreased function"
+                or allele_row["activity_score"] != 0.5
+                or [
+                    (variant.get("rsid"), variant.get("ref"), variant.get("alt"))
+                    for variant in defining
+                ]
+                != [("rs115232898", "T", "C")]
+            ):
+                raise RuntimeError("Bundled DPYD c.557A>G allele row is not canonical")
+
+            bundled_diplotypes, _ = parse_cpic_diplotypes_csv(
+                CPIC_DATA_DIR / "cpic_diplotypes.csv"
+            )
+            canonical_diplotypes = [
+                row
+                for row in bundled_diplotypes
+                if row["gene"] == "DPYD" and _DPYD_C557_ALLELE in row["diplotype"]
+            ]
+            if not canonical_diplotypes:
+                raise RuntimeError("Bundled DPYD c.557A>G diplotypes are missing")
+
+            existing_diplotypes = {
+                row.diplotype
+                for row in conn.execute(
+                    sa.select(cpic_diplotypes.c.diplotype).where(cpic_diplotypes.c.gene == "DPYD")
+                ).fetchall()
+            }
+            new_diplotypes = [
+                row for row in canonical_diplotypes if row["diplotype"] not in existing_diplotypes
+            ]
+
+            conn.execute(sa.insert(cpic_alleles), [allele_row])
+            if new_diplotypes:
+                # Bind an explicit column set: a list of dicts binds the first
+                # mapping's keys, so a row missing a later-only column would drop
+                # it silently.
+                conn.execute(
+                    sa.insert(cpic_diplotypes),
+                    [
+                        {
+                            "gene": row["gene"],
+                            "diplotype": row["diplotype"],
+                            "phenotype": row["phenotype"],
+                            "ehr_notation": row["ehr_notation"],
+                            "activity_score": row["activity_score"],
+                        }
+                        for row in new_diplotypes
+                    ],
+                )
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+
+    logger.info(
+        "reference_schema_backfilled",
+        table="cpic_alleles",
+        gene="DPYD",
+        allele=_DPYD_C557_ALLELE,
+        diplotypes_added=len(new_diplotypes),
+    )
+    return True
 
 
 def _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine: sa.Engine) -> bool:
@@ -1036,6 +1243,9 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
             changed = True
 
         if _refresh_legacy_cyp2c19_clopidogrel_guidelines(engine):
+            changed = True
+
+        if _install_missing_dpyd_c557_allele(engine):
             changed = True
 
         if _refresh_legacy_cyp2b6_efavirenz_guidelines(engine):

@@ -1,0 +1,78 @@
+{
+  "accessed": "2026-10-15",
+  "queries": [
+    {
+      "tool": "curl",
+      "url": "https://api.cpicpgx.org/v1/allele?genesymbol=eq.DPYD&select=name,clinicalfunctionalstatus,activityvalue,functionalstatus,findings,citations,strength",
+      "saved": "raw/cpic-api-dpyd-alleles.json"
+    },
+    {
+      "tool": "curl",
+      "url": "https://api.cpicpgx.org/v1/sequence_location?dbsnpid=eq.rs115232898",
+      "saved": "raw/cpic-api-sequence-location-rs115232898.json"
+    },
+    {
+      "tool": "curl",
+      "url": "https://api.cpicpgx.org/v1/allele_definition?genesymbol=eq.DPYD&name=eq.c.557A%3EG&select=id,name,genesymbol,allele_location_value(variantallele,locationid)",
+      "saved": "raw/cpic-api-allele-definition-c557.json"
+    },
+    {
+      "tool": "curl",
+      "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&diplotype=like.*c.557A%3EG*&select=diplotype,generesult,totalactivityscore",
+      "saved": "raw/cpic-api-dpyd-diplotypes-c557.json"
+    },
+    {
+      "tool": "curl",
+      "url": "https://grch37.rest.ensembl.org/variation/human/rs115232898?content-type=application/json",
+      "saved": "raw/ensembl-grch37-rs115232898.json"
+    },
+    {
+      "tool": "curl",
+      "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.557A%3EG/mane_select",
+      "saved": "raw/variantvalidator-grch37-NM_000110.4-c557AG.json"
+    },
+    {
+      "tool": "Consensus MCP search",
+      "query": "DPYD c.557A>G rs115232898 decreased dihydropyrimidine dehydrogenase activity fluoropyrimidine toxicity",
+      "saved": "raw/consensus-search-sanitized.json"
+    },
+    {
+      "tool": "Scite search_literature",
+      "dois": [
+        "10.1158/0008-5472.CAN-13-2482",
+        "10.1002/cpt.911"
+      ],
+      "saved": "raw/scite-editorial-notices-sanitized.json",
+      "note": "First invocation; covered only the two DOIs cited for function and coordinates. The ancestry DOI was checked in the follow-up invocation below, added after review of #2452."
+    },
+    {
+      "tool": "PubMed MCP get_article_metadata",
+      "pmids": [
+        "24648345",
+        "29152729",
+        "31641844"
+      ],
+      "saved": "raw/pubmed-records-sanitized.json"
+    },
+    {
+      "tool": "PubMed MCP search_articles",
+      "query": "DPYD Y186C African American dihydropyrimidine dehydrogenase deficiency",
+      "saved": "raw/pubmed-records-sanitized.json"
+    },
+    {
+      "tool": "Scite search_literature",
+      "dois": [
+        "10.1007/s00280-019-03974-4"
+      ],
+      "saved": "raw/scite-editorial-notices-sanitized.json",
+      "note": "Follow-up invocation. Codex review of #2452 noted the docs ancestry footnote depends on this DOI and it had not been checked for editorial notices. Result: no editorialNotices entry; tally 11 total, 1 supporting, 0 contrasting."
+    },
+    {
+      "tool": "curl (POST, GraphQL)",
+      "url": "https://gnomad.broadinstitute.org/api",
+      "body": "{ variant(rsid: \"rs115232898\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+      "saved": "raw/gnomad-v2-rs115232898-population-frequencies.json",
+      "note": "Added after review of #2452: the ancestry claim needed an independent allele-specific source. Population allele frequencies only; no individual-level or repository data was sent. VariantPopulation exposes ac/an but not af, so the frequencies in derived_allele_frequencies are computed as ac/an."
+    }
+  ]
+}

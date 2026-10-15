@@ -1,0 +1,12 @@
+{
+  "accessed": "2026-10-15",
+  "source": "Consensus MCP search",
+  "query": "DPYD c.557A>G rs115232898 decreased dihydropyrimidine dehydrogenase activity fluoropyrimidine toxicity",
+  "returned": 3,
+  "note": "The free tier caps results at 3. None of the three addressed c.557A>G specifically; they cover DPYD genotyping practice generally (Ockeloen 2021, Bianchino 2025, White 2022). The variant-specific evidence came from PubMed instead, recorded above.",
+  "titles": [
+    "Potential added value of combined DPYD/DPD genotyping and phenotyping to prevent severe toxicity in patients with a DPYD variant and decreased dihydropyrimidine dehydrogenase enzyme activity",
+    "Application of dihydropyrimidine dehydrogenase deficiency testing for the prevention of fluoropyrimidine toxicity: a real-world experience in a Southern Italy cancer center",
+    "Dihydropyrimidine Dehydrogenase Deficiency and Implementation of Upfront DPYD Genotyping"
+  ]
+}

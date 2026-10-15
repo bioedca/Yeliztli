@@ -40,6 +40,10 @@ _DPYD = {
     "rs55886062": ("1", 97981343, "A", "C"),  # *13  No function
     "rs67376798": ("1", 97547947, "T", "A"),  # c.2846A>T  Decreased
     "rs75017182": ("1", 98045449, "G", "C"),  # HapB3  Decreased
+    # c.557A>G Decreased (#2120): GRCh37 1:98165030 T>C on the plus strand
+    # (minus-strand c.557A>G), per Ensembl GRCh37 and VariantValidator
+    # NM_000110.4:c.557A>G -> NC_000001.10:g.98165030T>C.
+    "rs115232898": ("1", 98165030, "T", "C"),
 }
 
 
@@ -120,6 +124,8 @@ def test_reference_is_normal_not_poor(reference_engine: sa.Engine) -> None:
             "Intermediate Metabolizer",
         ),  # AS 1.5 (HapB3 het)
         ({"rs67376798": "AA"}, "c.2846A>T/c.2846A>T", "Intermediate Metabolizer"),  # AS 1.0
+        ({"rs115232898": "TC"}, "*1/c.557A>G", "Intermediate Metabolizer"),  # AS 1.5 (#2120)
+        ({"rs115232898": "CC"}, "c.557A>G/c.557A>G", "Intermediate Metabolizer"),  # AS 1.0
     ],
 )
 def test_dpyd_diplotype_phenotypes(
@@ -149,7 +155,215 @@ def test_compound_het_poor_metabolizer_not_dropped(reference_engine: sa.Engine) 
     assert "unphased" in result.confidence_note
 
 
+# ── c.557A>G, a CPIC decreased-function allele (#2120) ──────────────────────
+
+
+@pytest.mark.parametrize(
+    "genotype,expected_diplotype,expected_activity",
+    [("TC", "*1/c.557A>G", 1.5), ("CC", "c.557A>G/c.557A>G", 1.0)],
+)
+def test_c557_carrier_is_intermediate_with_its_activity_score(
+    reference_engine: sa.Engine,
+    genotype: str,
+    expected_diplotype: str,
+    expected_activity: float,
+) -> None:
+    """CPIC: c.557A>G is decreased function (activity 0.5), so a carrier is not
+    the *1/*1 Normal Metabolizer the panel called before the allele existed."""
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898=genotype))
+    assert result.diplotype == expected_diplotype
+    assert result.phenotype == "Intermediate Metabolizer"
+    assert result.activity_score == expected_activity
+    assert "rs115232898" in result.involved_rsids
+
+
+def test_c557_with_star2a_is_a_poor_metabolizer(reference_engine: sa.Engine) -> None:
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898="TC", rs3918290="CT"))
+    assert result.diplotype == "*2A/c.557A>G"
+    assert result.phenotype == "Poor Metabolizer"
+    assert result.activity_score == 0.5
+
+
+def test_c557_reference_genotype_stays_normal(reference_engine: sa.Engine) -> None:
+    """Negative control: typed reference at c.557A>G (TT) keeps *1/*1 Normal."""
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(rs115232898="TT"))
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "c.557A>G" not in result.confidence_note
+
+
+@pytest.mark.parametrize("drug", ["fluorouracil", "capecitabine"])
+@pytest.mark.parametrize(
+    "overrides,expected_activity,expected_phrase",
+    [
+        # Every activity score c.557A>G can reach needs its own AS-keyed guideline
+        # row (#2119), so each is locked end-to-end through the alert text.
+        ({"rs115232898": "TC"}, 1.5, "Reduce starting dose by 50%"),  # *1/c.557A>G
+        ({"rs115232898": "CC"}, 1.0, "Reduce starting dose by 50%"),  # homozygous
+        ({"rs115232898": "TC", "rs3918290": "CT"}, 0.5, "Avoid"),  # with *2A
+    ],
+)
+def test_every_c557_activity_score_has_dosing_guidance(
+    reference_engine: sa.Engine,
+    drug: str,
+    overrides: dict[str, str],
+    expected_activity: float,
+    expected_phrase: str,
+) -> None:
+    result = _call_dpyd(reference_engine, _dpyd_genotypes(**overrides))
+    assert result.activity_score == expected_activity
+    alerts = [a for a in generate_prescribing_alerts([result], reference_engine) if a.drug == drug]
+    assert len(alerts) == 1
+    assert expected_phrase in alerts[0].recommendation
+    assert "label-recommended" not in alerts[0].recommendation
+
+
+def test_an_array_without_c557_cannot_exclude_it(reference_engine: sa.Engine) -> None:
+    """A sample whose array does not type rs115232898 (e.g. AncestryDNA v2.0) is
+    not told it is a confident Normal Metabolizer: the allele is named as
+    un-excludable instead."""
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+    assert result.diplotype == "*1/*1"
+    assert result.call_confidence != CallConfidence.COMPLETE
+    assert "Cannot exclude" in result.confidence_note
+    assert "c.557A>G" in result.confidence_note
+
+
+@pytest.mark.parametrize("drug", ["fluorouracil", "capecitabine"])
+def test_untyped_c557_does_not_get_label_recommended_dosing(
+    reference_engine: sa.Engine, drug: str
+) -> None:
+    """The fix has to reach the prescribing alert, not just the confidence note.
+
+    An array that cannot type rs115232898 (e.g. AncestryDNA v2.0) must not be
+    handed label-recommended fluoropyrimidine dosing off a reference-filled
+    ``*1/*1`` — that is precisely the harm #2120 reports. DPYD is in
+    ``CONSERVATIVE_UNTYPED_PHENOTYPE_GENES``, so the alert is raised to the
+    lowest plausible diplotype (``*1/c.557A>G``, activity score 1.5).
+    """
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+
+    alerts = [a for a in generate_prescribing_alerts([result], reference_engine) if a.drug == drug]
+    assert len(alerts) == 1
+    alert = alerts[0]
+    assert "label-recommended" not in alert.recommendation
+    assert "Reduce starting dose by 50%" in alert.recommendation
+    assert alert.phenotype == "Intermediate Metabolizer"
+    # The direct call is still reported rather than overwritten, so the user can
+    # see what was actually typed beside the conservative basis.
+    assert result.diplotype == "*1/*1"
+    assert result.phenotype == "Normal Metabolizer"
+
+
+def test_untyped_c557_conservative_note_names_the_allele_readably(
+    reference_engine: sa.Engine,
+) -> None:
+    """The conservative note spells an HGVS allele as ``DPYD c.557A>G``.
+
+    Star alleles are written against the symbol (``UGT1A1*28``); HGVS names are
+    not, so the gene and allele must not be concatenated into ``DPYDc.557A>G``.
+    """
+    genotypes = _dpyd_genotypes()
+    del genotypes["rs115232898"]
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert "DPYD c.557A>G" in result.confidence_note
+    assert "DPYDc.557A>G" not in result.confidence_note
+    assert "Conservative prescribing alert uses Intermediate Metabolizer" in result.confidence_note
+
+
+def test_a_fully_typed_dpyd_array_keeps_label_recommended_dosing(
+    reference_engine: sa.Engine,
+) -> None:
+    """Negative control for the conservative policy.
+
+    When every defining position is assayed, a true ``*1/*1`` keeps CPIC's
+    label-recommended dosing — the conservative substitution must not fire on a
+    complete call, or every Normal Metabolizer would be under-dosed.
+    """
+    result = _call_dpyd(reference_engine, _dpyd_genotypes())
+    assert result.call_confidence == CallConfidence.COMPLETE
+    assert "Conservative" not in result.confidence_note
+
+    alerts = generate_prescribing_alerts([result], reference_engine)
+    assert alerts
+    for alert in alerts:
+        assert alert.phenotype == "Normal Metabolizer"
+        assert "label-recommended" in alert.recommendation
+
+
 # ── Absent-allele / fatal-toxicity caveat ────────────────────────────────────
+
+
+def test_a_sparse_array_keeps_guidance_for_a_typed_carrier(reference_engine: sa.Engine) -> None:
+    """Adding a fifth marker must not silence a confirmed carrier (#2120).
+
+    Call confidence is the fraction of defining positions that are unusable, so
+    adding a rarely-probed allele raises it for everyone. This sample carries a
+    directly typed ``*2A`` and went from 2/4 to 3/5 unusable when c.557A>G was
+    added, crossing the ``>50%`` bar into ``INSUFFICIENT`` — at which point
+    ``generate_prescribing_alerts`` drops the gene entirely, leaving a confirmed
+    no-function carrier with no fluoropyrimidine warning at all.
+    """
+    genotypes = {"rs3918290": "CT", "rs67376798": "TT"}
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert result.diplotype == "*1/*2A"
+    assert result.call_confidence == CallConfidence.PARTIAL
+    assert "3/5 defining positions" in result.confidence_note
+    drugs = {a.drug for a in generate_prescribing_alerts([result], reference_engine)}
+    assert {"fluorouracil", "capecitabine"} <= drugs
+
+
+def test_a_sparse_array_still_withholds_when_nothing_was_observed(
+    reference_engine: sa.Engine,
+) -> None:
+    """Discriminating partner: the coverage downgrade still applies.
+
+    Same gene and the same thin coverage, but with every typed position
+    homozygous reference the diplotype is a reference *fill* rather than a
+    reading, so ``INSUFFICIENT`` remains the honest answer.
+    """
+    genotypes = {"rs3918290": "CC", "rs67376798": "TT"}
+    result = _call_dpyd(reference_engine, genotypes)
+
+    assert result.call_confidence == CallConfidence.INSUFFICIENT
+    assert "unreliable" in result.confidence_note
+    assert generate_prescribing_alerts([result], reference_engine) == []
+
+
+def test_caveat_variant_list_matches_the_panel(reference_engine: sa.Engine) -> None:
+    """The patient-visible caveat must describe the panel it actually ships.
+
+    ``DPYD_FLUOROPYRIMIDINE_CAVEAT`` states a count and enumerates the typed
+    variants, so adding an allele without updating it leaves every DPYD alert
+    contradicting the call beside it (#2120). Derived from the shipped CPIC
+    table rather than hardcoded, so the next allele added trips this too.
+    """
+    from backend.analysis.pharmacogenomics import _fetch_alleles_for_gene
+    from backend.disclaimers import DPYD_FLUOROPYRIMIDINE_CAVEAT
+
+    typed = [
+        allele["allele_name"]
+        for allele in _fetch_alleles_for_gene("DPYD", reference_engine)
+        if allele["allele_name"] != "*1"
+    ]
+    assert typed, "expected non-reference DPYD alleles in the shipped table"
+    assert f"types only {len(typed)} DPYD variants" in DPYD_FLUOROPYRIMIDINE_CAVEAT
+
+    # The caveat may name an allele by its common label instead of its HGVS
+    # name; anything without an alias must appear verbatim.
+    aliases = {"c.1129-5923C>G": "HapB3"}
+    for allele_name in typed:
+        shown = aliases.get(allele_name, allele_name)
+        assert shown in DPYD_FLUOROPYRIMIDINE_CAVEAT, (
+            f"{allele_name} is typed by the panel but absent from the caveat"
+        )
 
 
 def test_dpyd_alert_carries_fluoropyrimidine_caveat(reference_engine: sa.Engine) -> None:

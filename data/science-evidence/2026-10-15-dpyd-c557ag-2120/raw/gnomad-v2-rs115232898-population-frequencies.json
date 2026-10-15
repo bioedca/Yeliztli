@@ -1,0 +1,479 @@
+{
+ "source": "gnomAD browser GraphQL API (https://gnomad.broadinstitute.org/api)",
+ "dataset": "gnomad_r2_1 (gnomAD v2.1.1, GRCh37/b37)",
+ "query": "{ variant(rsid: \"rs115232898\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+ "accessed": "2026-10-15",
+ "license": "gnomAD data are released under CC0 / public domain (https://gnomad.broadinstitute.org/policies)",
+ "note": "Population allele frequencies only. No individual-level or repository genotype data was sent or stored.",
+ "response": {
+  "data": {
+   "variant": {
+    "variant_id": "1-98165030-T-C",
+    "rsids": [
+     "rs115232898"
+    ],
+    "chrom": "1",
+    "pos": 98165030,
+    "ref": "T",
+    "alt": "C",
+    "genome": {
+     "ac": 167,
+     "an": 31384,
+     "populations": [
+      {
+       "id": "afr",
+       "ac": 163,
+       "an": 8712
+      },
+      {
+       "id": "afr_XX",
+       "ac": 72,
+       "an": 3680
+      },
+      {
+       "id": "afr_XY",
+       "ac": 91,
+       "an": 5032
+      },
+      {
+       "id": "amr",
+       "ac": 0,
+       "an": 846
+      },
+      {
+       "id": "amr_XX",
+       "ac": 0,
+       "an": 412
+      },
+      {
+       "id": "amr_XY",
+       "ac": 0,
+       "an": 434
+      },
+      {
+       "id": "asj",
+       "ac": 0,
+       "an": 290
+      },
+      {
+       "id": "asj_XX",
+       "ac": 0,
+       "an": 80
+      },
+      {
+       "id": "asj_XY",
+       "ac": 0,
+       "an": 210
+      },
+      {
+       "id": "eas",
+       "ac": 0,
+       "an": 1556
+      },
+      {
+       "id": "eas_XX",
+       "ac": 0,
+       "an": 538
+      },
+      {
+       "id": "eas_XY",
+       "ac": 0,
+       "an": 1018
+      },
+      {
+       "id": "fin",
+       "ac": 0,
+       "an": 3476
+      },
+      {
+       "id": "fin_XX",
+       "ac": 0,
+       "an": 1846
+      },
+      {
+       "id": "fin_XY",
+       "ac": 0,
+       "an": 1630
+      },
+      {
+       "id": "nfe",
+       "ac": 0,
+       "an": 15416
+      },
+      {
+       "id": "nfe_est",
+       "ac": 0,
+       "an": 4588
+      },
+      {
+       "id": "nfe_nwe",
+       "ac": 0,
+       "an": 8588
+      },
+      {
+       "id": "nfe_onf",
+       "ac": 0,
+       "an": 2134
+      },
+      {
+       "id": "nfe_seu",
+       "ac": 0,
+       "an": 106
+      },
+      {
+       "id": "nfe_XX",
+       "ac": 0,
+       "an": 6800
+      },
+      {
+       "id": "nfe_XY",
+       "ac": 0,
+       "an": 8616
+      },
+      {
+       "id": "oth",
+       "ac": 4,
+       "an": 1088
+      },
+      {
+       "id": "oth_XX",
+       "ac": 1,
+       "an": 562
+      },
+      {
+       "id": "oth_XY",
+       "ac": 3,
+       "an": 526
+      },
+      {
+       "id": "sas",
+       "ac": 0,
+       "an": 0
+      },
+      {
+       "id": "sas_XX",
+       "ac": 0,
+       "an": 0
+      },
+      {
+       "id": "sas_XY",
+       "ac": 0,
+       "an": 0
+      },
+      {
+       "id": "XX",
+       "ac": 73,
+       "an": 13918
+      },
+      {
+       "id": "XY",
+       "ac": 94,
+       "an": 17466
+      }
+     ]
+    },
+    "exome": {
+     "ac": 417,
+     "an": 251028,
+     "populations": [
+      {
+       "id": "afr",
+       "ac": 374,
+       "an": 16250
+      },
+      {
+       "id": "afr_XX",
+       "ac": 226,
+       "an": 10068
+      },
+      {
+       "id": "afr_XY",
+       "ac": 148,
+       "an": 6182
+      },
+      {
+       "id": "amr",
+       "ac": 27,
+       "an": 34544
+      },
+      {
+       "id": "amr_XX",
+       "ac": 23,
+       "an": 20244
+      },
+      {
+       "id": "amr_XY",
+       "ac": 4,
+       "an": 14300
+      },
+      {
+       "id": "asj",
+       "ac": 0,
+       "an": 10050
+      },
+      {
+       "id": "asj_XX",
+       "ac": 0,
+       "an": 4888
+      },
+      {
+       "id": "asj_XY",
+       "ac": 0,
+       "an": 5162
+      },
+      {
+       "id": "eas",
+       "ac": 1,
+       "an": 18392
+      },
+      {
+       "id": "eas_jpn",
+       "ac": 0,
+       "an": 152
+      },
+      {
+       "id": "eas_kor",
+       "ac": 0,
+       "an": 3816
+      },
+      {
+       "id": "eas_oea",
+       "ac": 1,
+       "an": 14424
+      },
+      {
+       "id": "eas_XX",
+       "ac": 0,
+       "an": 9326
+      },
+      {
+       "id": "eas_XY",
+       "ac": 1,
+       "an": 9066
+      },
+      {
+       "id": "fin",
+       "ac": 0,
+       "an": 21600
+      },
+      {
+       "id": "fin_XX",
+       "ac": 0,
+       "an": 10340
+      },
+      {
+       "id": "fin_XY",
+       "ac": 0,
+       "an": 11260
+      },
+      {
+       "id": "nfe",
+       "ac": 6,
+       "an": 113484
+      },
+      {
+       "id": "nfe_bgr",
+       "ac": 0,
+       "an": 2668
+      },
+      {
+       "id": "nfe_est",
+       "ac": 0,
+       "an": 242
+      },
+      {
+       "id": "nfe_nwe",
+       "ac": 0,
+       "an": 42090
+      },
+      {
+       "id": "nfe_onf",
+       "ac": 1,
+       "an": 30880
+      },
+      {
+       "id": "nfe_seu",
+       "ac": 4,
+       "an": 11472
+      },
+      {
+       "id": "nfe_swe",
+       "ac": 1,
+       "an": 26132
+      },
+      {
+       "id": "nfe_XX",
+       "ac": 3,
+       "an": 50032
+      },
+      {
+       "id": "nfe_XY",
+       "ac": 3,
+       "an": 63452
+      },
+      {
+       "id": "oth",
+       "ac": 8,
+       "an": 6116
+      },
+      {
+       "id": "oth_XX",
+       "ac": 3,
+       "an": 2922
+      },
+      {
+       "id": "oth_XY",
+       "ac": 5,
+       "an": 3194
+      },
+      {
+       "id": "sas",
+       "ac": 1,
+       "an": 30592
+      },
+      {
+       "id": "sas_XX",
+       "ac": 0,
+       "an": 7542
+      },
+      {
+       "id": "sas_XY",
+       "ac": 1,
+       "an": 23050
+      },
+      {
+       "id": "XX",
+       "ac": 255,
+       "an": 115362
+      },
+      {
+       "id": "XY",
+       "ac": 162,
+       "an": 135666
+      }
+     ]
+    }
+   }
+  }
+ },
+ "derived_allele_frequencies": {
+  "exome": {
+   "overall": {
+    "ac": 417,
+    "an": 251028,
+    "af": 0.0016611692719537263
+   },
+   "populations": {
+    "afr": {
+     "ac": 374,
+     "an": 16250,
+     "af": 0.023015384615384615
+    },
+    "amr": {
+     "ac": 27,
+     "an": 34544,
+     "af": 0.0007816118573413617
+    },
+    "asj": {
+     "ac": 0,
+     "an": 10050,
+     "af": 0.0
+    },
+    "eas": {
+     "ac": 1,
+     "an": 18392,
+     "af": 5.437146585471944e-05
+    },
+    "fin": {
+     "ac": 0,
+     "an": 21600,
+     "af": 0.0
+    },
+    "nfe": {
+     "ac": 6,
+     "an": 113484,
+     "af": 5.287088928835783e-05
+    },
+    "oth": {
+     "ac": 8,
+     "an": 6116,
+     "af": 0.0013080444735120995
+    },
+    "sas": {
+     "ac": 1,
+     "an": 30592,
+     "af": 3.268828451882845e-05
+    },
+    "XX": {
+     "ac": 255,
+     "an": 115362,
+     "af": 0.0022104332449160036
+    },
+    "XY": {
+     "ac": 162,
+     "an": 135666,
+     "af": 0.0011941090619609924
+    }
+   }
+  },
+  "genome": {
+   "overall": {
+    "ac": 167,
+    "an": 31384,
+    "af": 0.005321182768289574
+   },
+   "populations": {
+    "afr": {
+     "ac": 163,
+     "an": 8712,
+     "af": 0.018709825528007346
+    },
+    "amr": {
+     "ac": 0,
+     "an": 846,
+     "af": 0.0
+    },
+    "asj": {
+     "ac": 0,
+     "an": 290,
+     "af": 0.0
+    },
+    "eas": {
+     "ac": 0,
+     "an": 1556,
+     "af": 0.0
+    },
+    "fin": {
+     "ac": 0,
+     "an": 3476,
+     "af": 0.0
+    },
+    "nfe": {
+     "ac": 0,
+     "an": 15416,
+     "af": 0.0
+    },
+    "oth": {
+     "ac": 4,
+     "an": 1088,
+     "af": 0.003676470588235294
+    },
+    "sas": {
+     "ac": 0,
+     "an": 0,
+     "af": null
+    },
+    "XX": {
+     "ac": 73,
+     "an": 13918,
+     "af": 0.005245006466446329
+    },
+    "XY": {
+     "ac": 94,
+     "an": 17466,
+     "af": 0.0053818848047635405
+    }
+   }
+  }
+ }
+}

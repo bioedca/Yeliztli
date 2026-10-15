@@ -117,9 +117,10 @@ class TestParseAllelesCSV:
     def test_parse_seed_file(self):
         rows, stats = parse_cpic_alleles_csv(SEED_DIR / "cpic_alleles_seed.csv")
 
-        # E1 (47) + NAT2 (*4,*5,*6,*7,*14) + CYP2B6 (*1,*4,*6,*9,*18); *4 added #1985
-        assert len(rows) == 57
-        assert stats.alleles_loaded == 57
+        # E1 (47) + NAT2 (*4,*5,*6,*7,*14) + CYP2B6 (*1,*4,*6,*9,*18); *4 added #1985;
+        # DPYD c.557A>G added #2120
+        assert len(rows) == 58
+        assert stats.alleles_loaded == 58
         assert stats.alleles_skipped == 0
         assert "CYP2D6" in stats.genes_found
         assert "CYP2C19" in stats.genes_found
@@ -185,8 +186,9 @@ class TestParseDiplotypesCSV:
         rows, stats = parse_cpic_diplotypes_csv(SEED_DIR / "cpic_diplotypes_seed.csv")
 
         # 113 + 5 CYP2B6 *4-containing diplotypes (*1/*4,*4/*4,*4/*6,*4/*9,*4/*18) #1985
-        assert len(rows) == 118
-        assert stats.diplotypes_loaded == 118
+        # + 6 DPYD c.557A>G-containing diplotypes #2120
+        assert len(rows) == 124
+        assert stats.diplotypes_loaded == 124
         assert stats.diplotypes_skipped == 0
 
     def test_first_row_structure(self):

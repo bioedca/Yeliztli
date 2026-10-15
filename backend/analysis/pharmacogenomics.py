@@ -111,7 +111,19 @@ STRUCTURAL_UNCALLABLE_ALLELES: dict[str, tuple[str, ...]] = {
 # phenotype. Keep this policy scoped to reproduced genes so existing
 # gene-specific caveats (e.g. NUDT15 non-SNV alleles) do not change alert
 # semantics without separate review.
-CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP2C9", "UGT1A1"})
+#
+# DPYD joins the policy with #2120. Its decreased-function alleles are unevenly
+# covered by consumer arrays — c.557A>G and HapB3 are absent from AncestryDNA
+# v2.0 — so a reference-filled *1/*1 there was reported as a Normal Metabolizer
+# and given label-recommended fluoropyrimidine dosing, which is the exact harm
+# #2120 describes and the one a "cannot exclude" note alone does not prevent.
+# The plausible diplotypes differ in *degree* (dose level), not direction, so
+# conservative substitution is the sound answer here rather than withholding
+# (contrast CYP3A5 in WITHHOLD_CROSS_DIRECTION_GENES below), and the shipped
+# recommendation itself titrates from the reduced starting dose.
+CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset(
+    {"CYP2B6", "CYP2C9", "DPYD", "UGT1A1"}
+)
 
 # Issue #2169: genes whose drug recommendation must be *withheld* — not swapped for
 # a milder one — when an untyped defining marker leaves the plausible diplotypes
@@ -136,6 +148,16 @@ CONSERVATIVE_UNTYPED_PHENOTYPE_GENES: frozenset[str] = frozenset({"CYP2B6", "CYP
 # The alert is withheld and the gene result still records the Partial call and the
 # indeterminate allele.
 WITHHOLD_CROSS_DIRECTION_GENES: frozenset[str] = frozenset({"CYP3A5"})
+
+# Genes where an untyped reduced/no-function allele has a defined answer: either
+# conservative substitution (alert on the lowest plausible diplotype) or outright
+# withholding. Only for these may a directly observed variant keep its guidance
+# despite thin coverage — see _assess_call_confidence (#2120). Adding a gene to
+# either set above opts it in here, which is the intended coupling: the floor and
+# the "something worse" answer have to travel together.
+_UNTYPED_ALTERNATIVES_HANDLED_GENES: frozenset[str] = (
+    CONSERVATIVE_UNTYPED_PHENOTYPE_GENES | WITHHOLD_CROSS_DIRECTION_GENES
+)
 
 # CPIC's CYP2D6/tamoxifen rows remain in the bundled reference database as a
 # source-faithful, audit-only record (#2019). They must not become Yeliztli
@@ -1612,10 +1634,18 @@ def _conservative_alert_note(
     called_score = (
         f" (activity score {result.activity_score})" if result.activity_score is not None else ""
     )
+    # Star-allele names are written against the gene symbol ("UGT1A1*28"), but
+    # HGVS-named alleles are not ("DPYD c.557A>G", never "DPYDc.557A>G"), so the
+    # separator depends on the naming scheme (#2120).
+    allele_name = (
+        f"{result.gene}{conservative.allele}"
+        if conservative.allele.startswith("*")
+        else f"{result.gene} {conservative.allele}"
+    )
     return (
         "Conservative prescribing alert uses "
         f"{conservative.phenotype}{conservative_score} because "
-        f"untyped {result.gene}{conservative.allele} could make "
+        f"untyped {allele_name} could make "
         f"{conservative.diplotype}; the directly called "
         f"{result.diplotype} maps to {result.phenotype}{called_score}."
     )
@@ -1809,6 +1839,8 @@ def _assess_call_confidence(
     all_defining_rsids: set[str],
     missing_rsids: set[str],
     uncalled_rsids: set[str],
+    *,
+    observed_non_reference: bool = False,
 ) -> tuple[CallConfidence, str]:
     """Determine three-state calling confidence for a gene (P3-03).
 
@@ -1817,6 +1849,9 @@ def _assess_call_confidence(
         all_defining_rsids: All rsids that define non-reference alleles.
         missing_rsids: Rsids not present in the sample at all.
         uncalled_rsids: Rsids present but with invalid/no-call genotypes.
+        observed_non_reference: A non-reference allele was *directly observed*
+            from typed genotypes, so the call rests on positive evidence rather
+            than a reference fill.
 
     Returns:
         Tuple of (CallConfidence, human-readable note).
@@ -1837,8 +1872,29 @@ def _assess_call_confidence(
 
     unusable_fraction = len(unusable) / total
 
-    # Insufficient: >50% of defining rsids missing/uncalled
-    if unusable_fraction > 0.5:
+    # Insufficient: >50% of defining rsids missing/uncalled.
+    #
+    # A *directly observed* non-reference allele is excluded from this downgrade
+    # (#2120), but **only for a gene whose untyped alternatives are handled**.
+    # The fraction measures panel coverage, so it rises for everyone whenever an
+    # allele is added that few arrays type — and `INSUFFICIENT` makes
+    # generate_prescribing_alerts drop the gene's guidance entirely. Together
+    # those meant adding a rarely-typed allele silently suppressed the alert of
+    # someone whose risk allele *was* typed: adding DPYD c.557A>G moved a sparse
+    # array carrying a typed *2A from 2/4 to 3/5 unusable, turning an emitted
+    # Intermediate Metabolizer alert into no alert at all.
+    #
+    # The gene gate is the load-bearing part. Keeping an observed variant's
+    # guidance is sound only when "an untyped allele could make this worse" is
+    # *answered* — by conservative substitution or by withholding. For a gene in
+    # neither set the honest answer to thin coverage is still to withhold: a
+    # sparse CYP2D6 sample typing only *4 would otherwise emit the directly
+    # filled *1/*4 Intermediate result and label-recommended codeine dosing,
+    # while an untyped *3 makes *3/*4 a Poor Metabolizer that CPIC says to avoid
+    # codeine for — trading a suppressed alert for an actively misleading one.
+    if unusable_fraction > 0.5 and not (
+        observed_non_reference and gene in _UNTYPED_ALTERNATIVES_HANDLED_GENES
+    ):
         missing_list = ", ".join(sorted(unusable)[:5])
         suffix = f" (and {len(unusable) - 5} more)" if len(unusable) > 5 else ""
         return (
@@ -2064,9 +2120,16 @@ def call_star_alleles_for_gene(
     # Look up diplotype → phenotype
     diplo_data = _fetch_diplotype_phenotype(gene, diplotype, reference_engine)
 
-    # Assess three-state call confidence (P3-03)
+    # Assess three-state call confidence (P3-03). A non-reference allele only
+    # enters `called_alleles` by consuming observed alt copies above, so a slot
+    # differing from the reference fill is positive evidence of a typed variant
+    # and must not be discarded as "insufficient coverage" (#2120).
     call_confidence, confidence_note = _assess_call_confidence(
-        gene, all_defining_rsids, missing_rsids, uncalled_rsids
+        gene,
+        all_defining_rsids,
+        missing_rsids,
+        uncalled_rsids,
+        observed_non_reference=allele1 != ref_allele_name or allele2 != ref_allele_name,
     )
 
     # Explicit indeterminate flag (SW-E1): a non-reference allele whose defining

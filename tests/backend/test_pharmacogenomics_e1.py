@@ -756,7 +756,12 @@ def test_cyp2c9_conservative_policy_is_unchanged_by_cyp3a5_withholding(
 
     assert WITHHOLD_CROSS_DIRECTION_GENES == frozenset({"CYP3A5"})
     assert "CYP3A5" not in CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
-    assert {"CYP2B6", "CYP2C9", "UGT1A1"} <= CONSERVATIVE_UNTYPED_PHENOTYPE_GENES
+    # Exact, not a subset: which genes substitute conservatively is a reviewed
+    # per-gene decision, so adding one has to be a deliberate edit here. DPYD
+    # joined with #2120.
+    assert CONSERVATIVE_UNTYPED_PHENOTYPE_GENES == frozenset(
+        {"CYP2B6", "CYP2C9", "DPYD", "UGT1A1"}
+    )
 
 
 # ── PharmVar versioning ───────────────────────────────────────────────────────

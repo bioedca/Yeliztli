@@ -81,6 +81,7 @@ EXPECTED_PLUS_STRAND: dict[str, tuple[str, str]] = {
     "rs55886062": ("A", "C"),  # *13 c.1679T>G
     "rs67376798": ("T", "A"),  # c.2846A>T
     "rs75017182": ("G", "C"),  # HapB3 c.1129-5923C>G (strand-ambiguous G/C — orientation pinned)
+    "rs115232898": ("T", "C"),  # c.557A>G (minus-strand A>G -> plus T>C)
     # TPMT (minus strand)
     "rs1800462": ("C", "G"),  # *2  c.238G>C
     "rs1800460": ("C", "T"),  # *3B/*3A c.460G>A
