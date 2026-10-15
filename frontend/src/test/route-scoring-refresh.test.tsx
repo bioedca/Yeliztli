@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom"
@@ -277,11 +277,15 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     // Another client scores it, then its inputs change again.
     runOutcome.delete("1")
     states.set("1", "current")
-    await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
-    // Let the page render the current state before it changes again.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
+      // Let the page render the current state before it changes again.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    })
     states.set("1", "stale")
-    await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ["ebmd", 1] })
+    })
 
     await waitFor(() => expect(runCalls).toEqual(["1", "1"]), { timeout: 5000 })
   })
