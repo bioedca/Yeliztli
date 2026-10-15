@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import userEvent from "@testing-library/user-event"
-import { render, screen, waitFor, within } from "./test-utils"
+import { act, render, screen, waitFor, within } from "./test-utils"
 
 import RowWatchToggle from "@/components/variant-table/RowWatchToggle"
 import VariantTable from "@/components/variant-table/VariantTable"
@@ -343,7 +343,9 @@ describe("VariantTable row watch toggle (#2123)", () => {
       ),
     ).toBe(false)
 
-    releaseWatches()
+    await act(async () => {
+      releaseWatches()
+    })
     await waitFor(() => expect(button).toBeEnabled())
   })
 
@@ -400,7 +402,9 @@ describe("VariantTable row watch toggle (#2123)", () => {
     expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Watch rs2" })).toBeDisabled()
 
-    releasePosts()
+    await act(async () => {
+      releasePosts()
+    })
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
       expect(screen.getByRole("button", { name: "Watch rs2" })).toBeEnabled()
@@ -450,7 +454,9 @@ describe("VariantTable row watch toggle (#2123)", () => {
     })
     expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
 
-    releaseGet()
+    await act(async () => {
+      releaseGet()
+    })
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
         "aria-pressed",
@@ -493,7 +499,17 @@ describe("VariantTable row watch toggle (#2123)", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
     })
-    releasePost()
+
+    await act(async () => {
+      releasePost()
+    })
+
+    // Back to sample 1: its row settled rather than being stuck pending, which
+    // also exercises A -> B -> A on a table that is never remounted.
+    rerender(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
   })
 
   it("tells the user when a row watch fails", async () => {
