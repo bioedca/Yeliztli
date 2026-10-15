@@ -17,12 +17,20 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.ebmd_prs import EBMD_CONTEXT, EBMD_PGS_ID
+from backend.analysis.ebmd_prs import EBMD_CONTEXT, EBMD_PGS_ID, MODULE_NAME
 from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRS_HIGHER_IS_PROTECTIVE
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.services.route_scoring_state import (
+    ScoringState,
+    compute_scoring_fingerprint,
+    confirm_scoring,
+    read_scoring,
+    record_scoring_fingerprint,
+    serialized_scoring_run,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +70,8 @@ class EbmdResponse(BaseModel):
     prs: EbmdPrsResponse | None = None
     context: dict[str, str] = {}
     research_use_only: bool = True
+    # "never" or "stale" tells the page to re-score; see route_scoring_state (#2118).
+    scoring_state: ScoringState
 
 
 class EbmdRunResponse(BaseModel):
@@ -100,6 +110,10 @@ def get_ebmd_prs(
 ) -> EbmdResponse:
     """Return the eBMD PRS (if the BYO score is installed) + framing context."""
     sample_engine = _get_sample_engine(sample_id)
+    # Read before the finding: a run committing in between then leaves a newer
+    # finding labelled with an older state (re-scored once more), never an older
+    # finding labelled current (#2118).
+    first_read = read_scoring(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         row = conn.execute(
             sa.select(findings).where(findings.c.module == "ebmd", findings.c.category == "prs")
@@ -129,7 +143,15 @@ def get_ebmd_prs(
             evidence_level=row.evidence_level or 1,
         )
 
-    return EbmdResponse(available=prs is not None, prs=prs, context=EBMD_CONTEXT)
+    scoring_state = confirm_scoring(
+        first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
+    ).state
+    return EbmdResponse(
+        available=prs is not None,
+        prs=prs,
+        context=EBMD_CONTEXT,
+        scoring_state=scoring_state,
+    )
 
 
 @router.post("/run")
@@ -142,20 +164,27 @@ def run_ebmd_analysis(
     from backend.analysis.pgs_bridge import get_pgs_scores_engine
 
     sample_engine = _get_sample_engine(sample_id)
-    pgs_engine = get_pgs_scores_engine()
-    try:
-        inferred = get_inferred_ancestry(sample_engine)
-        top_fraction = get_top_ancestry_fraction(sample_engine)
-        prs = score_ebmd_prs(
-            sample_engine,
-            pgs_engine,
-            inferred,
-            top_fraction,
-            reference_engine=get_registry().reference_engine,
-        )
-        count = store_ebmd_findings(prs, sample_engine)
-    finally:
-        if pgs_engine is not None:
-            pgs_engine.dispose()
+    reference_engine = get_registry().reference_engine
+    # One run per sample at a time: overlapping runs could pair one run's
+    # findings with the other's fingerprint.
+    with serialized_scoring_run(MODULE_NAME, sample_engine):
+        # Taken before scoring, so an input that changes mid-run leaves it stale.
+        fingerprint = compute_scoring_fingerprint(MODULE_NAME, sample_engine, reference_engine)
+        pgs_engine = get_pgs_scores_engine()
+        try:
+            inferred = get_inferred_ancestry(sample_engine)
+            top_fraction = get_top_ancestry_fraction(sample_engine)
+            prs = score_ebmd_prs(
+                sample_engine,
+                pgs_engine,
+                inferred,
+                top_fraction,
+                reference_engine=reference_engine,
+            )
+            count = store_ebmd_findings(prs, sample_engine)
+        finally:
+            if pgs_engine is not None:
+                pgs_engine.dispose()
+        record_scoring_fingerprint(MODULE_NAME, sample_engine, fingerprint)
 
     return EbmdRunResponse(findings_count=count, prs_computed=prs is not None)

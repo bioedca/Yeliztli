@@ -3,10 +3,10 @@
  * A heel estimated-bone-mineral-density polygenic score (gSOS / PGS000657),
  * framed strictly as NOT a substitute for DXA or FRAX. The score is
  * non-commercially licensed → not bundled; when it is not installed the view
- * shows BYO guidance. Route-only: triggers POST /run on mount.
+ * shows BYO guidance. Route-only: scored by POST /run, which the page triggers
+ * only when the stored score is missing or stale (#2118).
  */
 
-import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Bone, Info } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -15,18 +15,29 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useEbmd, useRunEbmd } from "@/api/ebmd"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
 export default function EBMDView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <EBMDPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function EBMDPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunEbmd(sampleId)
   const query = useEbmd(sampleId)
   const runMutate = run.mutate
-  useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+  useAutoScore({
+    sampleId,
+    // A failed re-check leaves the cached state unconfirmed, so it does not run.
+    settled: query.data !== undefined && !query.isFetching && !query.isError,
+    scoringState: query.data?.scoring_state,
+    run: runMutate,
+  })
 
   if (sampleId == null) {
     return (
@@ -42,7 +53,9 @@ export default function EBMDView() {
   // results behind a multi-minute spinner on every visit, and a failed background
   // refresh must not blank the loaded results (#1992).
   const isLoading = query.isLoading
-  const hasError = query.isError
+  // Only an error with nothing to show blocks the page; a failed re-fetch keeps
+  // the cached results on screen with a warning (#2118).
+  const hasError = query.isError && query.data === undefined
   const data = query.data
 
   return (
@@ -58,6 +71,16 @@ export default function EBMDView() {
           </p>
         </div>
       </div>
+
+      {data && (
+        <ScoringStatus
+          scoringState={data.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          refreshFailed={query.isError}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Scoring eBMD polygenic risk..." />}
       {hasError && !isLoading && (

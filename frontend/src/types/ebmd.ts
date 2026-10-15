@@ -1,5 +1,7 @@
 /** Osteoporosis / eBMD module API types (SW-B7, bring-your-own). */
 
+import type { ScoringState } from "@/types/route-scoring"
+
 interface EbmdPrs {
   name: string
   calibrated: boolean
@@ -27,4 +29,5 @@ export interface EbmdResponse {
   prs: EbmdPrs | null
   context: Record<string, string>
   research_use_only: boolean
+  scoring_state: ScoringState
 }

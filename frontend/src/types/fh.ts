@@ -1,5 +1,7 @@
 /** Familial hypercholesterolemia (FH) view API types (SW-B6). */
 
+import type { ScoringState } from "@/types/route-scoring"
+
 interface FhMonogenic {
   gene: string
   rsid: string | null
@@ -50,4 +52,5 @@ export interface FhAssessment {
   ldl_prs: FhLdlPrs | null
   criteria_context: Record<string, string>
   research_use_only: boolean
+  scoring_state: ScoringState
 }

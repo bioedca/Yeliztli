@@ -2,11 +2,12 @@
  *
  * Genome-wide PGS Catalog scores (T2D PGS000713; multi-ancestry BMI PGS005198)
  * with honest coverage reporting (percentile withheld on un-imputed array data),
- * plus established anchor SNPs (TCF7L2, FTO, MC4R). Route-only module: the view
- * triggers POST /run on mount, then renders the stored results.
+ * plus established anchor SNPs (TCF7L2, FTO, MC4R). Route-only module: scored by
+ * POST /run, which the view triggers only when the stored results are missing or
+ * stale (#2118), then renders the stored results.
  */
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Activity, FlaskConical, Loader2 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -17,6 +18,8 @@ import SectionError from "@/components/ui/SectionError"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
 import { useMetabolicAnchors, useMetabolicPRS, useRunMetabolic } from "@/api/metabolic"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 import type { MetabolicAnchor } from "@/types/metabolic"
 
@@ -53,16 +56,44 @@ export function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
 export default function MetabolicView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <MetabolicPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function MetabolicPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunMetabolic(sampleId)
   const prsQuery = useMetabolicPRS(sampleId)
   const anchorsQuery = useMetabolicAnchors(sampleId)
 
-  // Route-only module → compute once on mount for the selected sample.
+  // Route-only module → score only when the stored results are missing or stale.
   const runMutate = run.mutate
+  useAutoScore({
+    sampleId,
+    // A failed re-check leaves the cached state unconfirmed, so it does not run.
+    settled: prsQuery.data !== undefined && !prsQuery.isFetching && !prsQuery.isError,
+    scoringState: prsQuery.data?.scoring_state,
+    run: runMutate,
+  })
+
+  // The PRS and anchors arrive in separate requests. If a re-score elsewhere
+  // landed between them they come from different runs, so fetch both again;
+  // once per mismatched pair, so a persistent mismatch cannot loop (#2118).
+  const prsGeneration = prsQuery.data?.scoring_generation
+  const anchorsGeneration = anchorsQuery.data?.scoring_generation
+  const fetching = prsQuery.isFetching || anchorsQuery.isFetching
+  const refetchPrs = prsQuery.refetch
+  const refetchAnchors = anchorsQuery.refetch
+  const resyncedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+    if (fetching || prsGeneration === undefined || anchorsGeneration === undefined) return
+    if (prsGeneration === anchorsGeneration) return
+    const pair = `${prsGeneration}|${anchorsGeneration}`
+    if (resyncedFor.current === pair) return
+    resyncedFor.current = pair
+    void refetchPrs()
+    void refetchAnchors()
+  }, [fetching, prsGeneration, anchorsGeneration, refetchPrs, refetchAnchors])
 
   if (sampleId == null) {
     return (
@@ -81,7 +112,10 @@ export default function MetabolicView() {
   // must not blank the successfully-loaded results after they render. This is
   // the same narrowing #642 applied to the anchor-SNP query.
   const isLoading = prsQuery.isLoading
-  const hasError = prsQuery.isError
+  // Only an error with nothing to show blocks the page; a failed re-fetch keeps
+  // the cached results on screen with a warning (#2118).
+  const hasError = prsQuery.isError && prsQuery.data === undefined
+  const anchorsError = anchorsQuery.isError && anchorsQuery.data === undefined
 
   return (
     <div className="p-6">
@@ -96,6 +130,16 @@ export default function MetabolicView() {
           </p>
         </div>
       </div>
+
+      {prsQuery.data && (
+        <ScoringStatus
+          scoringState={prsQuery.data.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          refreshFailed={prsQuery.isError || (anchorsQuery.isError && !anchorsError)}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Scoring metabolic polygenic risk..." />}
 
@@ -142,7 +186,7 @@ export default function MetabolicView() {
               error/spinner so an anchors failure or slow load never hides the
               PRS results above (#642). Hidden entirely only when it resolved
               with no items. */}
-          {(anchorsQuery.isError ||
+          {(anchorsError ||
             anchorsQuery.isLoading ||
             (anchorsQuery.data && anchorsQuery.data.items.length > 0)) && (
             <section aria-label="Established anchor SNPs" className="mt-8">
@@ -150,7 +194,7 @@ export default function MetabolicView() {
               <p className="text-sm text-muted-foreground mb-4">
                 Directly-typed, large-effect common variants — interpretable on their own.
               </p>
-              {anchorsQuery.isError ? (
+              {anchorsError ? (
                 <SectionError
                   label="established anchor SNPs"
                   message={

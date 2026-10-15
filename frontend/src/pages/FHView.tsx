@@ -3,10 +3,10 @@
  * Composes monogenic FH (LDLR/APOB/PCSK9), the APOB R3527Q / rs5742904 (FDB)
  * variant, and an LDL-C polygenic score — framed against the Dutch Lipid Clinic
  * Network / Simon Broome criteria, explicitly NOT a clinical FH diagnosis.
- * Route-only: triggers POST /run on mount, then renders the assessment.
+ * Route-only: scored by POST /run, which the page triggers only when the stored
+ * assessment is missing or stale (#2118), then renders the assessment.
  */
 
-import { useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { HeartPulse, AlertTriangle } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -15,18 +15,29 @@ import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useFhAssessment, useRunFh } from "@/api/fh"
+import ScoringStatus from "@/components/ui/ScoringStatus"
+import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
 export default function FHView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <FHPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function FHPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunFh(sampleId)
   const query = useFhAssessment(sampleId)
   const runMutate = run.mutate
-  useEffect(() => {
-    if (sampleId != null) runMutate()
-  }, [sampleId, runMutate])
+  useAutoScore({
+    sampleId,
+    // A failed re-check leaves the cached state unconfirmed, so it does not run.
+    settled: query.data !== undefined && !query.isFetching && !query.isError,
+    scoringState: query.data?.scoring_state,
+    run: runMutate,
+  })
 
   if (sampleId == null) {
     return (
@@ -42,7 +53,9 @@ export default function FHView() {
   // already-stored assessment behind a multi-minute spinner on every visit, and
   // a failed background refresh must not blank the loaded assessment (#1992).
   const isLoading = query.isLoading
-  const hasError = query.isError
+  // Only an error with nothing to show blocks the page; a failed re-fetch keeps
+  // the cached results on screen with a warning (#2118).
+  const hasError = query.isError && query.data === undefined
   const a = query.data
 
   return (
@@ -58,6 +71,16 @@ export default function FHView() {
           </p>
         </div>
       </div>
+
+      {a && (
+        <ScoringStatus
+          scoringState={a.scoring_state}
+          isScoring={run.isPending}
+          error={run.error}
+          refreshFailed={query.isError}
+          onRescore={() => runMutate()}
+        />
+      )}
 
       {isLoading && <PageLoading message="Assessing FH genetics..." />}
       {hasError && !isLoading && (

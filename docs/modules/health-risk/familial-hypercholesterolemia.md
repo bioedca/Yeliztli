@@ -67,3 +67,8 @@ caveat refers to that development population.
   splice annotation alone does not show that.
 - High LDL cholesterol has many causes; genetics is only one. Discuss any concern, and your
   actual lipid panel, with a clinician.
+- The score is computed the first time you open this page for a sample and reused after that.
+  It is computed again automatically when something it depends on changes (re-annotation or
+  imputation of the sample, its inferred ancestry, the cardiovascular findings it summarises,
+  the installed score database, reference data, or an app update), and **Re-score** computes
+  it again on request. Computing it can take a few minutes.

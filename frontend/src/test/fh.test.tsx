@@ -52,6 +52,7 @@ function assessment(over: Partial<FhAssessment> = {}): FhAssessment {
     ldl_prs: null,
     criteria_context: CRITERIA,
     research_use_only: true,
+    scoring_state: "current",
     ...over,
   }
 }
@@ -103,9 +104,21 @@ describe("FHView — empty state (no sample)", () => {
 // ── With a sample ─────────────────────────────────────────────────────
 
 describe("FHView — with a sample", () => {
-  it("triggers the FH run on mount", () => {
+  it("runs FH scoring on mount when the sample was never scored (#2118)", () => {
+    setAssessment(assessment({ scoring_state: "never" }))
     render(<FHView />)
-    expect(mockRunMutate).toHaveBeenCalled()
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("re-scores a stale assessment (#2118)", () => {
+    setAssessment(assessment({ scoring_state: "stale" }))
+    render(<FHView />)
+    expect(mockRunMutate).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not re-score a current assessment on every visit (#2118)", () => {
+    render(<FHView />)
+    expect(mockRunMutate).not.toHaveBeenCalled()
   })
 
   it("shows a loading state while the assessment query is loading", () => {
@@ -143,7 +156,10 @@ describe("FHView — with a sample", () => {
     setRun({ isError: true, error: new Error("FH run failed: 500") })
     render(<FHView />)
     expect(screen.getByTestId("fh-criteria")).toBeInTheDocument()
-    expect(screen.queryByText(/FH run failed: 500/)).not.toBeInTheDocument()
+    // Reported beside the assessment, not in place of it (#2118).
+    expect(within(screen.getByTestId("scoring-status")).getByRole("alert")).toHaveTextContent(
+      "FH run failed: 500",
+    )
   })
 
   it("renders the Dutch-Lipid / Simon-Broome criteria framing disclaimer", () => {

@@ -1,6 +1,7 @@
 /** Metabolic module API types (SW-B5): T2D & obesity PRS + anchor SNPs. */
 
 import type { CancerPRS, PRSCoverageTier } from "@/types/cancer"
+import type { ScoringState } from "@/types/route-scoring"
 
 /** A metabolic PRS result (uncalibrated; coverage reported, percentile withheld). */
 export interface MetabolicPRS {
@@ -34,6 +35,9 @@ export interface MetabolicPRSListResponse {
   items: MetabolicPRS[]
   total: number
   coverage_context: string
+  scoring_state: ScoringState
+  /** The run these results came from; the anchors response carries the same one. */
+  scoring_generation: string | null
 }
 
 /** A single established anchor-SNP result (TCF7L2 / FTO / MC4R). */
@@ -58,6 +62,8 @@ export interface MetabolicAnchor {
 export interface MetabolicAnchorListResponse {
   items: MetabolicAnchor[]
   total: number
+  /** The run these results came from; compare with the PRS response's (#2118). */
+  scoring_generation: string | null
 }
 
 /**

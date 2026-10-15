@@ -27,6 +27,11 @@ export function useMetabolicPRS(sampleId: number | null) {
       ),
     enabled: sampleId != null,
     staleTime: Infinity,
+    // The response carries scoring_state, which changes when the score's inputs
+    // do (a database update, re-annotation) without this cache knowing (#2118).
+    refetchOnMount: "always",
+    // Re-checked on returning to the window too, as another tab may re-score.
+    refetchOnWindowFocus: "always",
   })
 }
 
@@ -40,6 +45,10 @@ export function useMetabolicAnchors(sampleId: number | null) {
       ),
     enabled: sampleId != null,
     staleTime: Infinity,
+    // Re-scored with the PRS, possibly by another client; re-checked with it (#2118).
+    refetchOnMount: "always",
+    // Re-checked on returning to the window too, as another tab may re-score.
+    refetchOnWindowFocus: "always",
   })
 }
 

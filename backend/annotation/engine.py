@@ -48,6 +48,7 @@ from backend.annotation.gnomad import (
     lookup_gnomad_by_positions,
     lookup_gnomad_by_rsids,
 )
+from backend.db.sample_generations import ANNOTATED_VARIANTS_GENERATION_KEY, bump_generation
 from backend.db.tables import (
     annotated_variants,
     raw_variants,
@@ -1140,6 +1141,9 @@ def _swap_staging_into_place(sample_engine: sa.Engine) -> None:
         conn.execute(
             sa.text(f"INSERT INTO annotated_variants ({cols}) SELECT {cols} FROM {_STAGING_NAME}")
         )
+        # Same transaction as the swap, so scores read from these rows can
+        # tell they changed even if the run fails afterwards (#2118).
+        bump_generation(conn, ANNOTATED_VARIANTS_GENERATION_KEY)
     with sample_engine.begin() as conn:
         annotated_variants_staging.drop(conn, checkfirst=True)
 

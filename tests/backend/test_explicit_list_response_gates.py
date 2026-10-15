@@ -26,6 +26,7 @@ from backend.api.routes import (
     rare_variants,
     risk_common,
 )
+from backend.services.route_scoring_state import ScoringRead
 
 
 class _Rows:
@@ -213,6 +214,9 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     prs_engine = _Engine(prs_rows)
     monkeypatch.setattr(cancer, "_get_sample_engine", lambda _sample_id: prs_engine)
     monkeypatch.setattr(metabolic, "_get_sample_engine", lambda _sample_id: prs_engine)
+    # Freshness is out of scope here and needs a real sample DB (#2118).
+    monkeypatch.setattr(metabolic, "read_scoring", lambda *_args: ScoringRead("current", "f"))
+    monkeypatch.setattr(metabolic, "confirm_scoring", lambda first, *_args: first)
 
     cancer_response = cancer.list_cancer_prs(sample_id=1)
     metabolic_response = metabolic.list_metabolic_prs(sample_id=1)
@@ -220,7 +224,9 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     assert cancer_response == cancer.CancerPRSListResponse(
         items=[], total=0, sufficient_count=0, insufficient_traits=[]
     )
-    assert metabolic_response == metabolic.MetabolicPRSListResponse(items=[], total=0)
+    assert metabolic_response == metabolic.MetabolicPRSListResponse(
+        items=[], total=0, scoring_state="current", scoring_generation="f"
+    )
 
     anchor_rows = [
         _finding_row(
@@ -239,7 +245,9 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
 
     anchors_response = metabolic.list_metabolic_anchors(sample_id=1)
 
-    assert anchors_response == metabolic.MetabolicAnchorListResponse(items=[], total=0)
+    assert anchors_response == metabolic.MetabolicAnchorListResponse(
+        items=[], total=0, scoring_generation="f"
+    )
 
 
 def test_finding_list_aggregates_withhold_cross_row_pair(

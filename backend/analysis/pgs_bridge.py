@@ -53,6 +53,15 @@ _REGISTRY_PATH = (
 PGS_SCORES_DB_FILENAME = "pgs_scores.db"
 
 
+def pgs_scores_db_path(data_dir: Path | None = None) -> Path:
+    """Where ``pgs_scores.db`` lives: the configured data dir unless given."""
+    if data_dir is None:
+        from backend.config import get_settings
+
+        data_dir = get_settings().data_dir
+    return Path(data_dir) / PGS_SCORES_DB_FILENAME
+
+
 def get_pgs_scores_engine(data_dir: Path | None = None) -> sa.Engine | None:
     """Return a read engine for ``pgs_scores.db``, or None when it is absent.
 
@@ -60,11 +69,7 @@ def get_pgs_scores_engine(data_dir: Path | None = None) -> sa.Engine | None:
     installs that have not fetched it) the consuming module degrades gracefully
     and emits nothing rather than erroring.
     """
-    if data_dir is None:
-        from backend.config import get_settings
-
-        data_dir = get_settings().data_dir
-    db_path = Path(data_dir) / PGS_SCORES_DB_FILENAME
+    db_path = pgs_scores_db_path(data_dir)
     if not db_path.exists():
         logger.info("pgs_scores_db_absent", path=str(db_path))
         return None
