@@ -27,3 +27,8 @@ and reports a few well-established anchor variants.
   lifestyle and environment, not these variants.
 - An ancestry-mismatch warning is shown when your inferred ancestry differs from the score's
   source population.
+- The score is computed the first time you open this page for a sample and reused after that.
+  It is computed again automatically when something it depends on changes (re-annotation or
+  imputation of the sample, its inferred ancestry, the installed score database, reference
+  data, or an app update), and **Re-score** computes it again on request. Computing it can
+  take a few minutes.

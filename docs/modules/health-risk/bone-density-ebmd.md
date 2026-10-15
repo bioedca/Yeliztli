@@ -30,3 +30,8 @@ genetically predicted bone density and is protective.
 - This is a **research-grade risk-stratification** signal only — it is **not** a substitute for
   a DXA bone-density scan (the diagnostic standard) or a validated tool like FRAX.
 - Its evidence is intentionally capped low.
+- The score is computed the first time you open this page for a sample and reused after that.
+  It is computed again automatically when something it depends on changes (re-annotation or
+  imputation of the sample, its inferred ancestry, the installed score database, reference
+  data, or an app update), and **Re-score** computes it again on request. Computing it can
+  take a few minutes.
