@@ -160,12 +160,11 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
             # it here rather than by rewriting every expected count — which
             # would also have perturbed test_pagination's deliberate
             # offset + page_size == total boundary probe.
-            cleanup_engine = sa.create_engine(f"sqlite:///{ref_path}")
-            with cleanup_engine.begin() as conn:
+            with post_engine.begin() as conn:
                 conn.execute(
                     sa.delete(log_entries).where(log_entries.c.id > seeded_log_high_water)
                 )
-            cleanup_engine.dispose()
+            post_engine.dispose()
             yield tc
         reset_registry()
 
