@@ -26,7 +26,7 @@ from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
-    read_scoring_state,
+    read_scoring,
     recheck_scoring_state,
     record_scoring_fingerprint,
     serialized_scoring_run,
@@ -113,7 +113,7 @@ def get_ebmd_prs(
     # Read before the finding: a run committing in between then leaves a newer
     # finding labelled with an older state (re-scored once more), never an older
     # finding labelled current (#2118).
-    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
+    first_read = read_scoring(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         row = conn.execute(
             sa.select(findings).where(findings.c.module == "ebmd", findings.c.category == "prs")
@@ -144,7 +144,7 @@ def get_ebmd_prs(
         )
 
     scoring_state = recheck_scoring_state(
-        scoring_state, MODULE_NAME, sample_engine, get_registry().reference_engine
+        first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
     )
     return EbmdResponse(
         available=prs is not None,

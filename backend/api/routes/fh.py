@@ -34,7 +34,7 @@ from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
-    read_scoring_state,
+    read_scoring,
     recheck_scoring_state,
     record_scoring_fingerprint,
     serialized_scoring_run,
@@ -153,7 +153,7 @@ def get_fh_assessment(
     sample_engine = _get_sample_engine(sample_id)
     # Read before the findings: a run committing in between then leaves newer
     # findings labelled with an older state, never older findings labelled current.
-    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
+    first_read = read_scoring(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         fdb_rows = conn.execute(
             sa.select(findings)
@@ -231,7 +231,7 @@ def get_fh_assessment(
         )
 
     scoring_state = recheck_scoring_state(
-        scoring_state, MODULE_NAME, sample_engine, get_registry().reference_engine
+        first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
     )
     response = FhAssessmentResponse(
         has_monogenic=len(monogenic) > 0,

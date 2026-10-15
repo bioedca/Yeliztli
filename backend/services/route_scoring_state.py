@@ -39,7 +39,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 import sqlalchemy as sa
 
@@ -180,37 +180,49 @@ def record_scoring_fingerprint(module: str, sample_engine: sa.Engine, fingerprin
         upsert_state(conn, _FINGERPRINT_KEY_PREFIX + module, value)
 
 
-def recheck_scoring_state(
-    first: ScoringState,
+class ScoringRead(NamedTuple):
+    """A scoring state and the recorded fingerprint it was judged against."""
+
+    state: ScoringState
+    recorded: str | None
+
+
+def read_scoring(
     module: str,
     sample_engine: sa.Engine,
     reference_engine: sa.Engine,
-) -> ScoringState:
-    """Confirm a ``current`` state once the response's findings have been read.
-
-    Call with the state read before the findings. An input that changed while
-    they were read (a re-annotation swap, an imputation write) then turns the
-    response ``stale`` instead of serving the old findings as current; a state
-    that was not ``current`` already makes the page re-score.
-    """
-    if first != "current":
-        return first
-    return read_scoring_state(module, sample_engine, reference_engine)
-
-
-def read_scoring_state(
-    module: str,
-    sample_engine: sa.Engine,
-    reference_engine: sa.Engine,
-) -> ScoringState:
+) -> ScoringRead:
     """``never`` with no recorded run, ``stale`` when an input has changed since."""
     with sample_engine.connect() as conn:
         raw = _state_value(conn, _FINGERPRINT_KEY_PREFIX + module)
     if raw is None:
-        return "never"
+        return ScoringRead("never", None)
     try:
         recorded = json.loads(raw)["fingerprint"]
     except (ValueError, KeyError, TypeError):
-        return "stale"
+        return ScoringRead("stale", None)
     current = compute_scoring_fingerprint(module, sample_engine, reference_engine)
-    return "current" if recorded == current else "stale"
+    return ScoringRead("current" if recorded == current else "stale", recorded)
+
+
+def recheck_scoring_state(
+    first: ScoringRead,
+    module: str,
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+) -> ScoringState:
+    """Confirm a ``current`` read once the response's findings have been read.
+
+    Call with the read taken before the findings. It stays ``current`` only if
+    a second read is ``current`` against the same recorded fingerprint, so
+    neither an input written meanwhile (a re-annotation swap, an imputation
+    write) nor another run recording a new fingerprint can let the findings
+    already read be served as current. A first read that was not ``current``
+    already makes the page re-score.
+    """
+    if first.state != "current":
+        return first.state
+    second = read_scoring(module, sample_engine, reference_engine)
+    if second.state == "current" and second.recorded == first.recorded:
+        return "current"
+    return "stale"

@@ -22,7 +22,12 @@ import { toGaugePrs } from "@/types/metabolic"
 export default function EBMDView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <EBMDPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function EBMDPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunEbmd(sampleId)
   const query = useEbmd(sampleId)
   const runMutate = run.mutate
@@ -32,7 +37,6 @@ export default function EBMDView() {
     settled: query.data !== undefined && !query.isFetching && !query.isError,
     scoringState: query.data?.scoring_state,
     run: runMutate,
-    reset: run.reset,
   })
 
   if (sampleId == null) {

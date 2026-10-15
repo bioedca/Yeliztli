@@ -16,8 +16,6 @@ interface AutoScoreOptions {
   scoringState: ScoringState | undefined
   /** Starts a run; the run mutation's ``mutate``. */
   run: (variables: undefined, callbacks: RunCallbacks) => void
-  /** Clears the run's pending/error state. */
-  reset: () => void
 }
 
 /**
@@ -35,36 +33,18 @@ interface AutoScoreOptions {
  *   never settles cannot loop minutes-long runs.
  * - A response without a state (an older backend) is scored once per visit, as
  *   every visit was before.
- * - Switching sample on the same page resets the run and these guards, so one
- *   sample's progress or failure is not shown on another's and a sample shown
- *   again decides afresh.
+ * - The pages remount per sample, so these guards and the run's state are
+ *   per sample and a sample shown again decides afresh.
  *
  * Completion is tracked through ``mutate``'s per-call callbacks rather than the
  * mutation status, which can pass through ``pending`` without a render.
  */
-export function useAutoScore({
-  sampleId,
-  settled,
-  scoringState,
-  run,
-  reset,
-}: AutoScoreOptions): void {
-  const shownSample = useRef(sampleId)
+export function useAutoScore({ sampleId, settled, scoringState, run }: AutoScoreOptions): void {
   const inFlight = useRef(false)
   // A state not to run again automatically until it changes: its run failed,
   // or the response reports no state, so a success cannot be told apart.
   const blockedFor = useRef<string | null>(null)
   const autoRuns = useRef(0)
-
-  useEffect(() => {
-    if (shownSample.current === sampleId) return
-    shownSample.current = sampleId
-    // reset() drops the pending run's callbacks, so clear what they would have.
-    inFlight.current = false
-    blockedFor.current = null
-    autoRuns.current = 0
-    reset()
-  }, [sampleId, reset])
 
   // No dependency list: the decision reads refs the run's callbacks update, so
   // it is re-evaluated after every render; it starts a run only when allowed.

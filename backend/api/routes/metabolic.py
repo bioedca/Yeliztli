@@ -31,7 +31,7 @@ from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
-    read_scoring_state,
+    read_scoring,
     recheck_scoring_state,
     record_scoring_fingerprint,
     serialized_scoring_run,
@@ -159,7 +159,7 @@ def list_metabolic_prs(
     sample_engine = _get_sample_engine(sample_id)
     # Read before the findings: a run committing in between then leaves newer
     # findings labelled with an older state, never older findings labelled current.
-    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
+    first_read = read_scoring(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(findings)
@@ -201,7 +201,7 @@ def list_metabolic_prs(
             )
         )
     scoring_state = recheck_scoring_state(
-        scoring_state, MODULE_NAME, sample_engine, get_registry().reference_engine
+        first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
     )
     response = MetabolicPRSListResponse(items=items, total=len(items), scoring_state=scoring_state)
     # Coverage context is fixed reference text; only patient-derived DTOs form

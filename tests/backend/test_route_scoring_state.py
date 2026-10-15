@@ -362,7 +362,7 @@ def test_the_ebmd_get_never_pairs_an_older_finding_with_current(env: _Env) -> No
     from backend.api.routes import ebmd as ebmd_route
     from tests.backend.test_ebmd_prs import _pgs_engine, _seed
 
-    real_read_state = ebmd_route.read_scoring_state
+    real_read_state = ebmd_route.read_scoring
 
     def another_run_finishes_first(module, sample_engine, reference_engine):
         fingerprint = route_scoring_state.compute_scoring_fingerprint(
@@ -375,7 +375,7 @@ def test_the_ebmd_get_never_pairs_an_older_finding_with_current(env: _Env) -> No
         route_scoring_state.record_scoring_fingerprint(module, sample_engine, fingerprint)
         return real_read_state(module, sample_engine, reference_engine)
 
-    with patch.object(ebmd_route, "read_scoring_state", another_run_finishes_first):
+    with patch.object(ebmd_route, "read_scoring", another_run_finishes_first):
         body = env.client.get(f"{MODULES['ebmd']}?sample_id=1").json()
 
     assert body["scoring_state"] == "current"
@@ -392,14 +392,14 @@ def test_an_input_written_while_the_get_reads_findings_makes_it_stale(
 
     route = importlib.import_module(f"backend.api.routes.{module}")
     assert env.run(module) == 200
-    real_read_state = route.read_scoring_state
+    real_read_state = route.read_scoring
 
     def swap_lands_after_the_check(*args):
         state = real_read_state(*args)
         _replace_annotated_variants(env)
         return state
 
-    with patch.object(route, "read_scoring_state", swap_lands_after_the_check):
+    with patch.object(route, "read_scoring", swap_lands_after_the_check):
         body = env.client.get(f"{MODULES[module]}?sample_id=1").json()
 
     assert body["scoring_state"] == "stale"
@@ -489,3 +489,35 @@ def test_overlapping_runs_for_one_sample_do_not_interleave(env: _Env, module: st
     assert not overlapped, "the second run started scoring while the first was still running"
     assert len(entered) == 2
     assert env.state(module) == "current"
+
+
+@pytest.mark.parametrize("module", sorted(MODULES))
+def test_a_run_recording_new_inputs_while_the_get_reads_findings_makes_it_stale(
+    env: _Env, module: str
+) -> None:
+    """Current before and after the findings read, but against different recorded
+    fingerprints, means another run replaced them meanwhile: not current."""
+    import importlib
+
+    route = importlib.import_module(f"backend.api.routes.{module}")
+    assert env.run(module) == 200
+    real_read = route.read_scoring
+
+    def a_changed_input_run_lands_after_the_check(*args):
+        first = real_read(*args)
+        # Inputs change and another run records their fingerprint, so the
+        # second read is current too, but for different inputs.
+        _replace_annotated_variants(env)
+        route_scoring_state.record_scoring_fingerprint(
+            module,
+            env.sample_engine,
+            route_scoring_state.compute_scoring_fingerprint(
+                module, env.sample_engine, env.reference_engine
+            ),
+        )
+        return first
+
+    with patch.object(route, "read_scoring", a_changed_input_run_lands_after_the_check):
+        body = env.client.get(f"{MODULES[module]}?sample_id=1").json()
+
+    assert body["scoring_state"] == "stale"

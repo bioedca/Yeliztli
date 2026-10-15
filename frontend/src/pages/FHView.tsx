@@ -22,7 +22,12 @@ import { toGaugePrs } from "@/types/metabolic"
 export default function FHView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <FHPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function FHPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunFh(sampleId)
   const query = useFhAssessment(sampleId)
   const runMutate = run.mutate
@@ -32,7 +37,6 @@ export default function FHView() {
     settled: query.data !== undefined && !query.isFetching && !query.isError,
     scoringState: query.data?.scoring_state,
     run: runMutate,
-    reset: run.reset,
   })
 
   if (sampleId == null) {

@@ -320,4 +320,20 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect(runCalls).toEqual(["1"])
   })
+
+  it("re-checks a cached current sample when it is shown again on the same page", async () => {
+    states.set("1", "current")
+    states.set("2", "current")
+    render(page(client(), "/ebmd?sample_id=1"))
+    await screen.findByTestId("scoring-status")
+
+    await userEvent.click(screen.getByRole("link", { name: "Sample 2" }))
+    await screen.findByTestId("scoring-status")
+    // Sample 1's inputs change while sample 2 is shown.
+    states.set("1", "stale")
+    await userEvent.click(screen.getByRole("link", { name: "Sample 1" }))
+
+    await waitFor(() => expect(runCalls).toEqual(["1"]), { timeout: 5000 })
+  })
 })
+

@@ -55,7 +55,12 @@ export function AnchorCard({ anchor }: { anchor: MetabolicAnchor }) {
 export default function MetabolicView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
+  // Keyed by sample: switching sample on this page remounts it, so its queries
+  // re-check their scoring state on mount and no run state carries over (#2118).
+  return <MetabolicPage key={sampleId ?? "none"} sampleId={sampleId} />
+}
 
+function MetabolicPage({ sampleId }: { sampleId: number | null }) {
   const run = useRunMetabolic(sampleId)
   const prsQuery = useMetabolicPRS(sampleId)
   const anchorsQuery = useMetabolicAnchors(sampleId)
@@ -68,7 +73,6 @@ export default function MetabolicView() {
     settled: prsQuery.data !== undefined && !prsQuery.isFetching && !prsQuery.isError,
     scoringState: prsQuery.data?.scoring_state,
     run: runMutate,
-    reset: run.reset,
   })
 
   if (sampleId == null) {
