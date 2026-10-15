@@ -25,10 +25,11 @@ import { useColumnPresets } from "@/api/columnPresets"
 import { useBatchLiftover } from "@/api/liftover"
 import { SamplesApiError, useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
+import { useUnwatchVariant, useWatchVariant, useWatchedVariants } from "@/api/watches"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { cn } from "@/lib/utils"
 import type { ConcordanceTag, SourceTag, VariantRow } from "@/types/variants"
-import { allColumns } from "./columns"
+import { allColumns, type VariantTableWatchMeta } from "./columns"
 import VariantToolbar from "./VariantToolbar"
 import ChromosomeNav from "./ChromosomeNav"
 import { ALWAYS_VISIBLE, COLUMN_TOOLTIPS } from "./ColumnPresets"
@@ -204,6 +205,41 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     () => new Map(tags?.map((tag) => [tag.name, tag.color]) ?? []),
     [tags],
   )
+
+  // Per-row watch toggle (#2123). The query and both mutations live here, once,
+  // and reach every row through table meta: a row-level hook would issue one
+  // request per visible row on a paginated table. `querySampleId` rather than
+  // `sampleId`, so a sample whose merge provenance still blocks reads does not
+  // get a control that would write against an unreadable sample.
+  const { data: watchedVariants } = useWatchedVariants(querySampleId)
+  const watchMutation = useWatchVariant(querySampleId)
+  const unwatchMutation = useUnwatchVariant(querySampleId)
+  const watchedRsids = useMemo(
+    () => new Set((watchedVariants ?? []).map((watched) => watched.rsid)),
+    [watchedVariants],
+  )
+  const pendingWatchRsid = watchMutation.isPending
+    ? (watchMutation.variables ?? null)
+    : unwatchMutation.isPending
+      ? (unwatchMutation.variables ?? null)
+      : null
+  const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
+    if (querySampleId == null) return undefined
+    return {
+      isWatched: (rsid: string) => watchedRsids.has(rsid),
+      toggle: (rsid: string) => {
+        if (watchedRsids.has(rsid)) {
+          unwatchMutation.mutate(rsid)
+        } else {
+          watchMutation.mutate(rsid)
+        }
+      },
+      pendingRsid: pendingWatchRsid,
+    }
+    // The mutation objects are recreated each render, so depending on them
+    // would defeat the memo; `mutate` is stable for a given sample.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [querySampleId, watchedRsids, pendingWatchRsid])
   // TanStack Table accessor columns store their ID in `accessorKey` rather than `id`.
   // The union type doesn't expose accessorKey directly, so we cast through `any`.
   const allColumnIds = useMemo(
@@ -422,9 +458,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    meta: { tagColors },
+    meta: { tagColors, watch: watchMeta },
     initialState: {
-      columnPinning: { left: ["evidence_conflict"] },
+      columnPinning: { left: ["evidence_conflict", "watch"] },
     },
   })
 

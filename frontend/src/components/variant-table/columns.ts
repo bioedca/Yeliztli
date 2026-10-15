@@ -17,11 +17,28 @@ import {
   type PredictionDisplay,
 } from "@/lib/insilico"
 import { coverageTooltip, decodeCoverageSources } from "./annotation-coverage"
+import RowWatchToggle from "./RowWatchToggle"
 
 const col = createColumnHelper<VariantRow>()
 
+/** Per-row watch wiring supplied by the table (#2123).
+ *
+ * Membership and handlers are passed in rather than queried per cell: the table
+ * holds one `useWatchedVariants` subscription for every row, so a paginated
+ * table costs one request instead of one per row. Absent when there is no
+ * readable sample, in which case the column renders nothing rather than an
+ * affordance that cannot work.
+ */
+export interface VariantTableWatchMeta {
+  isWatched: (rsid: string) => boolean
+  toggle: (rsid: string) => void
+  /** rsID whose watch/unwatch request is currently in flight, if any. */
+  pendingRsid: string | null
+}
+
 interface VariantTableMeta {
   tagColors?: ReadonlyMap<string, string>
+  watch?: VariantTableWatchMeta
 }
 
 const GRCH37_COORDINATE_TOOLTIP =
@@ -42,6 +59,17 @@ function coordinateHeader(label: string, title: string) {
     )
 }
 
+/** Visually blank column header that still has an accessible name.
+ *
+ * A 36px indicator column renders no visible header text, but an empty `<th>`
+ * is an axe `empty-table-header` violation and leaves screen-reader users with
+ * an unnamed column. Surfaced by the axe scan added for #2123, which flagged
+ * both this gap on the pre-existing conflict column and the new watch column.
+ */
+function screenReaderOnlyHeader(label: string) {
+  return () => createElement("span", { className: "sr-only" }, label)
+}
+
 function predictionCell(
   value: string | null | undefined,
   toDisplay: (prediction: string) => PredictionDisplay,
@@ -55,7 +83,7 @@ function predictionCell(
  *  Amber indicator when ClinVar vs in-silico disagreement fires. */
 const conflictColumn = col.accessor("evidence_conflict", {
   id: "evidence_conflict",
-  header: "",
+  header: screenReaderOnlyHeader("Evidence conflict"),
   size: 36,
   minSize: 36,
   maxSize: 36,
@@ -78,11 +106,42 @@ const conflictColumn = col.accessor("evidence_conflict", {
   },
 })
 
+/** Pinned per-row watch toggle (#2123).
+ *
+ * Non-hideable, like the conflict flag beside it. It is a 36px control column
+ * rather than a data column, and the point of #2123 is that watching be
+ * discoverable where users browse variants — a persisted column-visibility
+ * preference that hid it would quietly restore the gap this closes.
+ *
+ * Uses `display` rather than `accessor`: there is no watch field on
+ * `VariantRow`, the state lives in the shared watch query.
+ */
+const watchColumn = col.display({
+  id: "watch",
+  header: screenReaderOnlyHeader("Watch"),
+  size: 36,
+  minSize: 36,
+  maxSize: 36,
+  enableHiding: false,
+  cell: (info) => {
+    const watch = (info.table.options.meta as VariantTableMeta | undefined)?.watch
+    const { rsid } = info.row.original
+    if (!watch || !rsid) return ""
+    return createElement(RowWatchToggle, {
+      rsid,
+      isWatched: watch.isWatched(rsid),
+      isPending: watch.pendingRsid === rsid,
+      onToggle: watch.toggle,
+    })
+  },
+})
+
 /** Tag color map for consistent pill rendering. Falls back to gray. */
 const TAG_DEFAULT_COLOR = "#6b7280"
 
 export const allColumns = [
   conflictColumn,
+  watchColumn,
   col.accessor("rsid", {
     header: "rsID",
     size: 120,

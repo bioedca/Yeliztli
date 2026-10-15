@@ -8,7 +8,11 @@ import { cn } from "@/lib/utils"
 import type { ColumnPreset } from "@/types/variants"
 
 /** Columns always visible regardless of preset. */
-const ALWAYS_VISIBLE = new Set(["evidence_conflict", "rsid", "chrom", "pos"])
+// "watch" is the per-row watch toggle (#2123): a 36px control column, pinned
+// beside the conflict flag and never hidden by a preset, so selecting a
+// narrow preset cannot quietly remove the affordance that made watching
+// discoverable in the table.
+const ALWAYS_VISIBLE = new Set(["evidence_conflict", "watch", "rsid", "chrom", "pos"])
 
 /** All toggleable column IDs in display order. */
 // GRCh38 columns (chrom_grch38, pos_grch38) are excluded — controlled by the

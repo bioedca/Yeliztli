@@ -1,0 +1,312 @@
+/** Per-row watch toggle in the variant table (#2123).
+ *
+ * Discoverability follow-up to #1995: watching used to be reachable only by
+ * opening a variant's detail panel. These tests cover the control itself and,
+ * more importantly, the three things the issue flags as traps — that the click
+ * must not also open the row's detail panel, that per-row state must come from
+ * the single already-loaded watch list rather than one request per row, and
+ * that the control is reachable and distinguishable by assistive technology.
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import userEvent from "@testing-library/user-event"
+import { render, screen, waitFor, within } from "./test-utils"
+
+import RowWatchToggle from "@/components/variant-table/RowWatchToggle"
+import VariantTable from "@/components/variant-table/VariantTable"
+import type { VariantPage } from "@/types/variants"
+
+const mockFetch = vi.fn()
+
+function makePage(rsids: string[]): VariantPage {
+  return {
+    items: rsids.map((rsid, i) => ({
+      rsid,
+      chrom: "1",
+      pos: 1000 + i * 100,
+      ref: "A",
+      alt: "G",
+      genotype: "AG",
+      zygosity: "het",
+      gene_symbol: "GENE1",
+      consequence: "missense_variant",
+      clinvar_significance: null,
+      clinvar_review_stars: null,
+      gnomad_af_global: 0.01,
+      rare_flag: false,
+      cadd_phred: 10,
+      sift_score: null,
+      sift_pred: null,
+      polyphen2_hsvar_score: null,
+      polyphen2_hsvar_pred: null,
+      revel: null,
+      annotation_coverage: 0b111111,
+      evidence_conflict: false,
+      ensemble_pathogenic: false,
+      chrom_grch38: null,
+      pos_grch38: null,
+    })) as VariantPage["items"],
+    next_cursor_chrom: null,
+    next_cursor_pos: null,
+    has_more: false,
+    limit: 100,
+  }
+}
+
+/** Watched rsIDs the stubbed API reports, mutated by watch/unwatch calls. */
+let watched: string[] = []
+
+function setupFetchMock(rsids: string[]) {
+  mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.includes("/api/watches")) {
+      const method = init?.method ?? "GET"
+      if (method === "POST") {
+        const body = JSON.parse(String(init?.body ?? "{}"))
+        if (!watched.includes(body.rsid)) watched.push(body.rsid)
+        return { ok: true, json: async () => ({ rsid: body.rsid }) }
+      }
+      if (method === "DELETE") {
+        const rsid = decodeURIComponent(url.split("/api/watches/")[1].split("?")[0])
+        watched = watched.filter((w) => w !== rsid)
+        return { ok: true, json: async () => ({}) }
+      }
+      return { ok: true, json: async () => watched.map((rsid) => ({ rsid })) }
+    }
+    if (url.includes("/api/column-presets")) {
+      return { ok: true, json: async () => ({ presets: [] }) }
+    }
+    if (url.includes("/api/tags")) {
+      return { ok: true, json: async () => [] }
+    }
+    if (url.includes("/api/samples/") && url.includes("/merge-provenance")) {
+      return { ok: true, status: 200, json: async () => null }
+    }
+    if (url.includes("/api/variants/chromosomes")) {
+      return { ok: true, json: async () => [{ chrom: "1", count: rsids.length }] }
+    }
+    if (url.includes("/api/variants/count")) {
+      return { ok: true, json: async () => ({ total: rsids.length, filtered: false }) }
+    }
+    if (url.includes("/api/variants")) {
+      return { ok: true, json: async () => makePage(rsids) }
+    }
+    return { ok: false, status: 404 }
+  })
+}
+
+beforeEach(() => {
+  watched = []
+  vi.stubGlobal("fetch", mockFetch)
+  mockFetch.mockReset()
+  window.history.replaceState({}, "", window.location.pathname)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe("RowWatchToggle (#2123)", () => {
+  it("names itself with the rsID so rows are distinguishable", async () => {
+    render(<RowWatchToggle rsid="rs42" isWatched={false} onToggle={() => {}} />)
+
+    // Every row renders this control, so a bare "Watch this variant" would give
+    // a screen-reader user many identically named buttons.
+    const button = screen.getByRole("button", { name: "Watch rs42" })
+    expect(button).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("carries state in aria-pressed and keeps a stable name", () => {
+    render(<RowWatchToggle rsid="rs42" isWatched onToggle={() => {}} />)
+
+    // The ARIA toggle-button pattern: the name does not change with state. It
+    // also must not become "Unwatch rs42", which is exactly the name the
+    // WatchingSidebar's own unwatch control already uses.
+    const button = screen.getByRole("button", { name: "Watch rs42" })
+    expect(button).toHaveAttribute("aria-pressed", "true")
+    expect(button).toHaveAttribute("title", "Unwatch rs42")
+    expect(screen.queryByRole("button", { name: "Unwatch rs42" })).toBeNull()
+  })
+
+  it("does not open the row while toggling", async () => {
+    const onToggle = vi.fn()
+    const onRowClick = vi.fn()
+    const user = userEvent.setup()
+
+    // Mirrors production exactly: VariantTable renders
+    // <tr onClick={() => setSelectedRsid(row.original.rsid)}> around the cells.
+    render(
+      <table>
+        <tbody>
+          <tr onClick={onRowClick}>
+            <td>
+              <RowWatchToggle rsid="rs42" isWatched={false} onToggle={onToggle} />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Watch rs42" }))
+
+    expect(onToggle).toHaveBeenCalledWith("rs42")
+    // The discriminating assertion: without stopPropagation the row handler
+    // fires too and the user gets a detail panel they did not ask for.
+    expect(onRowClick).not.toHaveBeenCalled()
+  })
+
+  it("is operable from the keyboard without opening the row", async () => {
+    const onToggle = vi.fn()
+    const onRowClick = vi.fn()
+    const user = userEvent.setup()
+
+    render(
+      <table>
+        <tbody>
+          <tr onClick={onRowClick}>
+            <td>
+              <RowWatchToggle rsid="rs42" isWatched={false} onToggle={onToggle} />
+            </td>
+          </tr>
+        </tbody>
+      </table>,
+    )
+
+    await user.tab()
+    expect(screen.getByRole("button", { name: "Watch rs42" })).toHaveFocus()
+    await user.keyboard("{Enter}")
+
+    expect(onToggle).toHaveBeenCalledWith("rs42")
+    expect(onRowClick).not.toHaveBeenCalled()
+  })
+
+  it("ignores clicks while its own request is in flight", async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    render(<RowWatchToggle rsid="rs42" isWatched={false} isPending onToggle={onToggle} />)
+
+    const button = screen.getByRole("button", { name: "Watch rs42" })
+    expect(button).toBeDisabled()
+    await user.click(button)
+
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+})
+
+describe("VariantTable row watch toggle (#2123)", () => {
+  it("renders a toggle on every row, reflecting the loaded watch list", async () => {
+    watched = ["rs2"]
+    setupFetchMock(["rs1", "rs2", "rs3"])
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeInTheDocument()
+    })
+    // rs2 is already watched, so its control reads as pressed.
+    expect(screen.getByRole("button", { name: "Watch rs2" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+    expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    )
+    expect(screen.getByRole("button", { name: "Watch rs3" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    )
+  })
+
+  it("costs one watch request for the whole table, not one per row", async () => {
+    setupFetchMock(["rs1", "rs2", "rs3", "rs4", "rs5"])
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs5" })).toBeInTheDocument()
+    })
+
+    // The issue names this trap explicitly: deriving each row's state from its
+    // own query would issue one GET per visible row. Five rows, one GET.
+    const watchGets = mockFetch.mock.calls.filter(
+      ([url, init]) =>
+        String(url).includes("/api/watches") && (init?.method ?? "GET") === "GET",
+    )
+    expect(watchGets).toHaveLength(1)
+  })
+
+  it("watches a variant from the row without opening its detail panel", async () => {
+    setupFetchMock(["rs1", "rs2"])
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+
+    // The control flips to the watched state once the list refetches.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      )
+    })
+    expect(
+      mockFetch.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes("/api/watches") && init?.method === "POST",
+      ),
+    ).toBe(true)
+    // Rows open the detail panel on click; the toggle must not.
+    expect(screen.queryByRole("dialog", { name: /Variant detail for rs1/ })).toBeNull()
+  })
+
+  it("unwatches an already-watched variant from the row", async () => {
+    watched = ["rs1"]
+    setupFetchMock(["rs1", "rs2"])
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      )
+    })
+
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      )
+    })
+    expect(
+      mockFetch.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes("/api/watches/") && init?.method === "DELETE",
+      ),
+    ).toBe(true)
+  })
+
+  it("keeps the toggle out of the column-visibility menu", async () => {
+    setupFetchMock(["rs1"])
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeInTheDocument()
+    })
+
+    // The affordance is the point of #2123, so a preset or a persisted
+    // visibility preference must not be able to remove it. It is pinned and
+    // non-hideable, like the conflict flag beside it.
+    const columnsButton = screen.queryByRole("button", { name: /columns/i })
+    if (columnsButton) {
+      const user = userEvent.setup()
+      await user.click(columnsButton)
+      const menu = screen.queryByRole("menu") ?? document.body
+      expect(within(menu).queryByLabelText(/^watch$/i)).toBeNull()
+    }
+  })
+})
