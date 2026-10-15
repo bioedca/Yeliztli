@@ -118,7 +118,20 @@ Two independent, **allele-specific** sources sharing no cohort, dataset or upstr
   reports that Y186C "is found almost exclusively in African populations and is related to low
   DPD function", measures 2.6% heterozygous prevalence across 115 African Brazilians, and
   concludes it "should be taken in account in targeted genotyping for fluoropyrimidine risk
-  variants". Its 2.6% agrees with gnomAD's 2.30% African AF.
+  variants".
+
+**The two are not numerically comparable as published, and this packet does not claim they are.**
+Cunha-Junior report 3 heterozygotes among 115 people — a **2.61% carrier prevalence**, i.e. 3
+variant copies among 230 chromosomes, or **1.30% allele frequency**. gnomAD's 2.30% is an **allele
+frequency**, which implies roughly **4.50% carrier prevalence** under Hardy-Weinberg. On a common
+denominator gnomAD's African allele frequency is about **1.76x** Cunha-Junior's — expected, given
+different populations (gnomAD African/African-American against admixed African Brazilians) and very
+different sample sizes (16,250 against 230 chromosomes). What the two establish independently is
+the **African-predominant distribution**, which is the whole of claim (c).
+
+*Correction:* an earlier revision of this packet said Cunha-Junior's "2.6% agrees with gnomAD's
+2.30% African AF". That compared a carrier prevalence against an allele frequency, so the apparent
+agreement was an artefact of mixing measures. Caught in review of PR #2452.
 
 **Offer 2014 is not counted toward this claim.** It says the deficient variants it newly
 classified are rare in Europeans and occur "at appreciable frequencies in other populations" — a
