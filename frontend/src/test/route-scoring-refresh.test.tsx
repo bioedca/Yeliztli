@@ -1,0 +1,146 @@
+/**
+ * Route-only scoring with the real query and mutation hooks (#2118).
+ *
+ * The view tests mock the hooks; these exercise the cache: a revisit must
+ * re-check a cached "current" state, and switching sample on the same page must
+ * not carry one sample's failed run onto another.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { render, screen, waitFor, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom"
+import EBMDView from "@/pages/EBMDView"
+import type { ScoringState } from "@/types/route-scoring"
+
+const states = new Map<string, ScoringState>()
+const runOutcome = new Map<string, number>()
+const runCalls: string[] = []
+
+function ebmdBody(scoring_state: ScoringState) {
+  return {
+    available: false,
+    recommended_pgs_id: "PGS000657",
+    prs: null,
+    context: {
+      not_a_substitute: "Not a DXA or FRAX substitute.",
+      direction: "Higher score tracks higher heel eBMD.",
+      utility: "Research-grade stratification only.",
+      byo: "Bring your own licensed score bundle.",
+    },
+    research_use_only: true,
+    scoring_state,
+  }
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  })
+}
+
+beforeEach(() => {
+  states.clear()
+  runOutcome.clear()
+  runCalls.length = 0
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://localhost")
+      const sample = url.searchParams.get("sample_id") ?? ""
+      if (url.pathname === "/api/analysis/ebmd/prs") return json(ebmdBody(states.get(sample)!))
+      if (url.pathname === "/api/analysis/ebmd/run" && init?.method === "POST") {
+        runCalls.push(sample)
+        const status = runOutcome.get(sample) ?? 200
+        return status === 200
+          ? json({ findings_count: 0, prs_computed: false })
+          : json({ detail: "scoring failed" }, status)
+      }
+      return json({})
+    }),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+function client() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+}
+
+function page(queryClient: QueryClient, path: string) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="/ebmd"
+            element={
+              <>
+                <EBMDView />
+                <Link to="/ebmd?sample_id=2">Sample 2</Link>
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("route-only scoring with the real hooks (#2118)", () => {
+  it("re-checks a cached current score on the next visit", async () => {
+    const queryClient = client()
+    states.set("1", "current")
+    const first = render(page(queryClient, "/ebmd?sample_id=1"))
+    await screen.findByTestId("scoring-status")
+    first.unmount()
+    expect(runCalls).toEqual([])
+
+    // A database update made the score stale while the page was closed.
+    states.set("1", "stale")
+    render(page(queryClient, "/ebmd?sample_id=1"))
+
+    await waitFor(() => expect(runCalls).toEqual(["1"]))
+  })
+
+  it("decides on the re-checked state, not the cached one", async () => {
+    const queryClient = client()
+    states.set("1", "never")
+    runOutcome.set("1", 500)
+    const first = render(page(queryClient, "/ebmd?sample_id=1"))
+    await within(await screen.findByTestId("scoring-status")).findByRole("alert")
+    first.unmount()
+    expect(runCalls).toEqual(["1"])
+
+    // Scored elsewhere while the page was closed; the cache still says "never".
+    states.set("1", "current")
+    render(page(queryClient, "/ebmd?sample_id=1"))
+    await screen.findByTestId("scoring-status")
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0))
+
+    expect(runCalls).toEqual(["1"])
+  })
+
+  it("does not show one sample's failed run on another", async () => {
+    states.set("1", "never")
+    states.set("2", "current")
+    runOutcome.set("1", 500)
+    render(page(client(), "/ebmd?sample_id=1"))
+    const status = await screen.findByTestId("scoring-status")
+    await within(status).findByRole("alert")
+
+    await userEvent.click(screen.getByRole("link", { name: "Sample 2" }))
+
+    await waitFor(() =>
+      expect(within(screen.getByTestId("scoring-status")).queryByRole("alert")).toBeNull(),
+    )
+    expect(screen.getByRole("button", { name: "Re-score" })).toBeEnabled()
+    expect(runCalls).toEqual(["1"])
+  })
+})

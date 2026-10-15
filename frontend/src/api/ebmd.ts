@@ -17,6 +17,9 @@ export function useEbmd(sampleId: number | null) {
     },
     enabled: sampleId != null,
     staleTime: Infinity,
+    // The response carries scoring_state, which changes when the score's inputs
+    // do (a database update, re-annotation) without this cache knowing (#2118).
+    refetchOnMount: "always",
   })
 }
 

@@ -108,6 +108,10 @@ def get_ebmd_prs(
 ) -> EbmdResponse:
     """Return the eBMD PRS (if the BYO score is installed) + framing context."""
     sample_engine = _get_sample_engine(sample_id)
+    # Read before the finding: a run committing in between then leaves a newer
+    # finding labelled with an older state (re-scored once more), never an older
+    # finding labelled current (#2118).
+    scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         row = conn.execute(
             sa.select(findings).where(findings.c.module == "ebmd", findings.c.category == "prs")
@@ -141,9 +145,7 @@ def get_ebmd_prs(
         available=prs is not None,
         prs=prs,
         context=EBMD_CONTEXT,
-        scoring_state=read_scoring_state(
-            MODULE_NAME, sample_engine, get_registry().reference_engine
-        ),
+        scoring_state=scoring_state,
     )
 
 

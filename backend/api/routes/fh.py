@@ -149,6 +149,8 @@ def get_fh_assessment(
 ) -> FhAssessmentResponse:
     """Composed FH view: monogenic + APOB FDB + LDL-C PRS + criteria framing."""
     sample_engine = _get_sample_engine(sample_id)
+    # Read before the findings: a run committing in between then leaves newer
+    # findings labelled with an older state, never older findings labelled current.
     scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         fdb_rows = conn.execute(

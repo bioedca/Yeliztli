@@ -26,7 +26,13 @@ export default function FHView() {
   const run = useRunFh(sampleId)
   const query = useFhAssessment(sampleId)
   const runMutate = run.mutate
-  useAutoScore(sampleId, query.data !== undefined, query.data?.scoring_state, runMutate)
+  useAutoScore({
+    sampleId,
+    settled: query.data !== undefined && !query.isFetching,
+    scoringState: query.data?.scoring_state,
+    run: runMutate,
+    reset: run.reset,
+  })
 
   if (sampleId == null) {
     return (

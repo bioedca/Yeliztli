@@ -62,7 +62,13 @@ export default function MetabolicView() {
 
   // Route-only module → score only when the stored results are missing or stale.
   const runMutate = run.mutate
-  useAutoScore(sampleId, prsQuery.data !== undefined, prsQuery.data?.scoring_state, runMutate)
+  useAutoScore({
+    sampleId,
+    settled: prsQuery.data !== undefined && !prsQuery.isFetching,
+    scoringState: prsQuery.data?.scoring_state,
+    run: runMutate,
+    reset: run.reset,
+  })
 
   if (sampleId == null) {
     return (

@@ -353,3 +353,30 @@ def test_persisting_imputed_variants_writes_a_new_generation(env: _Env) -> None:
 
     assert first is not None
     assert _generation(env.sample_engine, key) not in (None, first)
+
+
+def test_the_ebmd_get_never_pairs_an_older_finding_with_current(env: _Env) -> None:
+    """A run finishing while the GET is in flight cannot make it serve a superseded
+    finding labelled current, which the page would then keep."""
+    from backend.analysis.ebmd_prs import score_ebmd_prs, store_ebmd_findings
+    from backend.api.routes import ebmd as ebmd_route
+    from tests.backend.test_ebmd_prs import _pgs_engine, _seed
+
+    real_read_state = ebmd_route.read_scoring_state
+
+    def another_run_finishes_first(module, sample_engine, reference_engine):
+        fingerprint = route_scoring_state.compute_scoring_fingerprint(
+            module, sample_engine, reference_engine
+        )
+        _seed(sample_engine)
+        prs = score_ebmd_prs(sample_engine, _pgs_engine(with_gsos=True), "EUR")
+        assert prs is not None
+        store_ebmd_findings(prs, sample_engine)
+        route_scoring_state.record_scoring_fingerprint(module, sample_engine, fingerprint)
+        return real_read_state(module, sample_engine, reference_engine)
+
+    with patch.object(ebmd_route, "read_scoring_state", another_run_finishes_first):
+        body = env.client.get(f"{MODULES['ebmd']}?sample_id=1").json()
+
+    assert body["scoring_state"] == "current"
+    assert body["available"] is True, "a current state must come with the run's finding"

@@ -155,6 +155,8 @@ def list_metabolic_prs(
 ) -> MetabolicPRSListResponse:
     """List T2D & BMI PRS results (coverage reported, percentile withheld)."""
     sample_engine = _get_sample_engine(sample_id)
+    # Read before the findings: a run committing in between then leaves newer
+    # findings labelled with an older state, never older findings labelled current.
     scoring_state = read_scoring_state(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         rows = conn.execute(
