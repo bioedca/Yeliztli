@@ -543,3 +543,31 @@ def test_the_metabolic_prs_and_anchors_report_the_same_scoring_generation(env: _
     second_prs, second_anchors = generations()
     assert second_prs == second_anchors
     assert second_prs != first_prs
+
+
+def test_anchors_read_across_two_runs_report_no_generation(env: _Env) -> None:
+    """Anchors read while another run records new inputs could be from either
+    run, so they must not claim the new run's generation."""
+    from backend.api.routes import metabolic as metabolic_route
+
+    assert env.run("metabolic") == 200
+    real_read = metabolic_route.read_scoring
+
+    def a_changed_input_run_lands_after_the_check(*args):
+        first = real_read(*args)
+        _replace_annotated_variants(env)
+        route_scoring_state.record_scoring_fingerprint(
+            "metabolic",
+            env.sample_engine,
+            route_scoring_state.compute_scoring_fingerprint(
+                "metabolic", env.sample_engine, env.reference_engine
+            ),
+        )
+        return first
+
+    with patch.object(metabolic_route, "read_scoring", a_changed_input_run_lands_after_the_check):
+        anchors = env.client.get("/api/analysis/metabolic/anchors?sample_id=1").json()
+    prs = env.client.get("/api/analysis/metabolic/prs?sample_id=1").json()
+
+    assert prs["scoring_state"] == "current"
+    assert anchors["scoring_generation"] != prs["scoring_generation"]

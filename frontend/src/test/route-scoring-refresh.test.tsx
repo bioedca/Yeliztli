@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query"
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom"
 import EBMDView from "@/pages/EBMDView"
 import MetabolicView from "@/pages/MetabolicView"
@@ -365,6 +365,23 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     expect(await screen.findByText("TT", undefined, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.queryByText("CT")).toBeNull()
     expect(runCalls).toEqual([])
+  })
+
+  it("re-checks a current score when the window regains focus", async () => {
+    states.set("1", "current")
+    render(page(client(), "/ebmd?sample_id=1"))
+    await screen.findByTestId("scoring-status")
+    expect(runCalls).toEqual([])
+
+    // Another tab changed the sample's inputs while this page stayed open.
+    states.set("1", "stale")
+    await act(async () => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+    })
+
+    await waitFor(() => expect(runCalls).toEqual(["1"]), { timeout: 5000 })
+    act(() => focusManager.setFocused(undefined))
   })
 })
 

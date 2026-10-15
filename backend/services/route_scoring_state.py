@@ -222,11 +222,14 @@ def confirm_scoring(
 
     The returned ``recorded`` fingerprint identifies the scoring generation the
     response belongs to, so a page that reads one module through two requests
-    can tell whether both came from the same run.
+    can tell whether both came from the same run; it is ``None`` when the reads
+    disagree, since the findings could then belong to either run.
     """
     if first.state != "current":
         return first
     second = read_scoring(module, sample_engine, reference_engine)
     if second.state == "current" and second.recorded == first.recorded:
         return second
-    return ScoringRead("stale", second.recorded)
+    # The findings were read between two different recordings, so which run they
+    # came from is unknown: no generation, which never matches a real one.
+    return ScoringRead("stale", None)
