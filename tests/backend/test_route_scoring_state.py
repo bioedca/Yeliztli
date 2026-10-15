@@ -521,3 +521,25 @@ def test_a_run_recording_new_inputs_while_the_get_reads_findings_makes_it_stale(
         body = env.client.get(f"{MODULES[module]}?sample_id=1").json()
 
     assert body["scoring_state"] == "stale"
+
+
+def test_the_metabolic_prs_and_anchors_report_the_same_scoring_generation(env: _Env) -> None:
+    """The page reads Metabolic through two requests; a shared generation lets it
+    tell whether both came from the same run."""
+
+    def generations() -> tuple[str | None, str | None]:
+        prs = env.client.get("/api/analysis/metabolic/prs?sample_id=1").json()
+        anchors = env.client.get("/api/analysis/metabolic/anchors?sample_id=1").json()
+        return prs["scoring_generation"], anchors["scoring_generation"]
+
+    assert generations() == (None, None)
+    assert env.run("metabolic") == 200
+    first_prs, first_anchors = generations()
+    assert first_prs is not None and first_prs == first_anchors
+
+    _rerun_ancestry(env)
+    assert env.run("metabolic") == 200
+
+    second_prs, second_anchors = generations()
+    assert second_prs == second_anchors
+    assert second_prs != first_prs

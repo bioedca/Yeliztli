@@ -34,8 +34,8 @@ from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
+    confirm_scoring,
     read_scoring,
-    recheck_scoring_state,
     record_scoring_fingerprint,
     serialized_scoring_run,
 )
@@ -230,9 +230,9 @@ def get_fh_assessment(
             evidence_level=prs_row.evidence_level or 1,
         )
 
-    scoring_state = recheck_scoring_state(
+    scoring_state = confirm_scoring(
         first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
-    )
+    ).state
     response = FhAssessmentResponse(
         has_monogenic=len(monogenic) > 0,
         monogenic=monogenic,

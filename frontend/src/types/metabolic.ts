@@ -36,6 +36,8 @@ export interface MetabolicPRSListResponse {
   total: number
   coverage_context: string
   scoring_state: ScoringState
+  /** The run these results came from; the anchors response carries the same one. */
+  scoring_generation: string | null
 }
 
 /** A single established anchor-SNP result (TCF7L2 / FTO / MC4R). */
@@ -60,6 +62,8 @@ export interface MetabolicAnchor {
 export interface MetabolicAnchorListResponse {
   items: MetabolicAnchor[]
   total: number
+  /** The run these results came from; compare with the PRS response's (#2118). */
+  scoring_generation: string | null
 }
 
 /**

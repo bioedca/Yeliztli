@@ -7,6 +7,7 @@
  * stale (#2118), then renders the stored results.
  */
 
+import { useEffect, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Activity, FlaskConical, Loader2 } from "lucide-react"
 import { parseSampleId } from "@/lib/format"
@@ -74,6 +75,25 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
     scoringState: prsQuery.data?.scoring_state,
     run: runMutate,
   })
+
+  // The PRS and anchors arrive in separate requests. If a re-score elsewhere
+  // landed between them they come from different runs, so fetch both again;
+  // once per mismatched pair, so a persistent mismatch cannot loop (#2118).
+  const prsGeneration = prsQuery.data?.scoring_generation
+  const anchorsGeneration = anchorsQuery.data?.scoring_generation
+  const fetching = prsQuery.isFetching || anchorsQuery.isFetching
+  const refetchPrs = prsQuery.refetch
+  const refetchAnchors = anchorsQuery.refetch
+  const resyncedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (fetching || prsGeneration === undefined || anchorsGeneration === undefined) return
+    if (prsGeneration === anchorsGeneration) return
+    const pair = `${prsGeneration}|${anchorsGeneration}`
+    if (resyncedFor.current === pair) return
+    resyncedFor.current = pair
+    void refetchPrs()
+    void refetchAnchors()
+  }, [fetching, prsGeneration, anchorsGeneration, refetchPrs, refetchAnchors])
 
   if (sampleId == null) {
     return (

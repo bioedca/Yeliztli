@@ -205,12 +205,12 @@ def read_scoring(
     return ScoringRead("current" if recorded == current else "stale", recorded)
 
 
-def recheck_scoring_state(
+def confirm_scoring(
     first: ScoringRead,
     module: str,
     sample_engine: sa.Engine,
     reference_engine: sa.Engine,
-) -> ScoringState:
+) -> ScoringRead:
     """Confirm a ``current`` read once the response's findings have been read.
 
     Call with the read taken before the findings. It stays ``current`` only if
@@ -219,10 +219,14 @@ def recheck_scoring_state(
     write) nor another run recording a new fingerprint can let the findings
     already read be served as current. A first read that was not ``current``
     already makes the page re-score.
+
+    The returned ``recorded`` fingerprint identifies the scoring generation the
+    response belongs to, so a page that reads one module through two requests
+    can tell whether both came from the same run.
     """
     if first.state != "current":
-        return first.state
+        return first
     second = read_scoring(module, sample_engine, reference_engine)
     if second.state == "current" and second.recorded == first.recorded:
-        return "current"
-    return "stale"
+        return second
+    return ScoringRead("stale", second.recorded)

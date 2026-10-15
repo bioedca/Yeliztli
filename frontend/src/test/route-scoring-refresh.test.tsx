@@ -18,6 +18,9 @@ import type { ScoringState } from "@/types/route-scoring"
 const states = new Map<string, ScoringState>()
 const getOutcome = new Map<string, number>()
 let anchorGenotype = "CT"
+// The scoring generation each Metabolic response reports, per request.
+let prsGeneration = (): string | null => "g1"
+let anchorsGeneration = (): string | null => "g1"
 const runOutcome = new Map<string, number>()
 const runCalls: string[] = []
 // Called after each run; by default a successful run leaves its score current.
@@ -69,6 +72,8 @@ beforeEach(() => {
   states.clear()
   getOutcome.clear()
   anchorGenotype = "CT"
+  prsGeneration = () => "g1"
+  anchorsGeneration = () => "g1"
   runOutcome.clear()
   runCalls.length = 0
   afterRun = markCurrentOnSuccess
@@ -82,10 +87,17 @@ beforeEach(() => {
         return status === 200 ? json(ebmdBody(states.get(sample))) : json({ detail: "down" }, status)
       }
       if (url.pathname === "/api/analysis/metabolic/prs") {
-        return json({ items: [], total: 0, coverage_context: "", scoring_state: states.get(sample) })
+        return json({
+          items: [],
+          total: 0,
+          coverage_context: "",
+          scoring_state: states.get(sample),
+          scoring_generation: prsGeneration(),
+        })
       }
       if (url.pathname === "/api/analysis/metabolic/anchors") {
-        return json({ items: [anchor(anchorGenotype)], total: 1 })
+        const generation = anchorsGeneration() // may move the anchors to a newer run
+        return json({ items: [anchor(anchorGenotype)], total: 1, scoring_generation: generation })
       }
       if (url.pathname === "/api/analysis/ebmd/run" && init?.method === "POST") {
         runCalls.push(sample)
@@ -334,6 +346,25 @@ describe("route-only scoring with the real hooks (#2118)", () => {
     await userEvent.click(screen.getByRole("link", { name: "Sample 1" }))
 
     await waitFor(() => expect(runCalls).toEqual(["1"]), { timeout: 5000 })
+  })
+
+  it("re-fetches anchors from a different run than the PRS", async () => {
+    states.set("1", "current")
+    // Another client's re-score lands between the two requests: the anchors
+    // come from the previous run, the PRS from the new one.
+    let anchorCalls = 0
+    prsGeneration = () => "g2"
+    anchorsGeneration = () => {
+      anchorCalls += 1
+      if (anchorCalls === 1) return "g1"
+      anchorGenotype = "TT"
+      return "g2"
+    }
+    render(metabolicPage(client()))
+
+    expect(await screen.findByText("TT", undefined, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByText("CT")).toBeNull()
+    expect(runCalls).toEqual([])
   })
 })
 

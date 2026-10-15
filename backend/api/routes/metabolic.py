@@ -31,8 +31,8 @@ from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
+    confirm_scoring,
     read_scoring,
-    recheck_scoring_state,
     record_scoring_fingerprint,
     serialized_scoring_run,
 )
@@ -86,6 +86,8 @@ class MetabolicPRSListResponse(BaseModel):
     coverage_context: str = COVERAGE_CONTEXT
     # "never" or "stale" tells the page to re-score; see route_scoring_state (#2118).
     scoring_state: ScoringState
+    # The run these results came from; the anchors response carries the same one.
+    scoring_generation: str | None
 
 
 class MetabolicAnchorResponse(BaseModel):
@@ -109,6 +111,8 @@ class MetabolicAnchorListResponse(BaseModel):
 
     items: list[MetabolicAnchorResponse]
     total: int
+    # The run these results came from; compare with the PRS response's (#2118).
+    scoring_generation: str | None
 
 
 class MetabolicRunResponse(BaseModel):
@@ -200,16 +204,28 @@ def list_metabolic_prs(
                 source_url=d.get("source_url"),
             )
         )
-    scoring_state = recheck_scoring_state(
+    confirmed = confirm_scoring(
         first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
     )
-    response = MetabolicPRSListResponse(items=items, total=len(items), scoring_state=scoring_state)
+    response = MetabolicPRSListResponse(
+        items=items,
+        total=len(items),
+        scoring_state=confirmed.state,
+        scoring_generation=confirmed.recorded,
+    )
     # Coverage context is fixed reference text; only patient-derived DTOs form
     # the aggregate that can expose a cross-record prescribing pair.
     if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude={"coverage_context", "scoring_state"})
+        response.model_dump(
+            mode="json", exclude={"coverage_context", "scoring_state", "scoring_generation"}
+        )
     ):
-        return MetabolicPRSListResponse(items=[], total=0, scoring_state=scoring_state)
+        return MetabolicPRSListResponse(
+            items=[],
+            total=0,
+            scoring_state=confirmed.state,
+            scoring_generation=confirmed.recorded,
+        )
     return response
 
 
@@ -219,6 +235,7 @@ def list_metabolic_anchors(
 ) -> MetabolicAnchorListResponse:
     """List established anchor-SNP results (TCF7L2, FTO, MC4R)."""
     sample_engine = _get_sample_engine(sample_id)
+    first_read = read_scoring(MODULE_NAME, sample_engine, get_registry().reference_engine)
     with sample_engine.connect() as conn:
         rows = conn.execute(
             sa.select(findings)
@@ -252,9 +269,16 @@ def list_metabolic_anchors(
                 pmids=pmids,
             )
         )
-    response = MetabolicAnchorListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return MetabolicAnchorListResponse(items=[], total=0)
+    generation = confirm_scoring(
+        first_read, MODULE_NAME, sample_engine, get_registry().reference_engine
+    ).recorded
+    response = MetabolicAnchorListResponse(
+        items=items, total=len(items), scoring_generation=generation
+    )
+    if not is_patient_presentable_response_payload(
+        response.model_dump(mode="json", exclude={"scoring_generation"})
+    ):
+        return MetabolicAnchorListResponse(items=[], total=0, scoring_generation=generation)
     return response
 
 
