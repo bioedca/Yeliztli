@@ -100,6 +100,7 @@ type QueryBody = {
   include_all_positions?: boolean
   cursor_chrom?: string
   cursor_pos?: number
+  cursor_rsid?: string
 }
 
 type QueryReply = {
@@ -124,6 +125,7 @@ function queryPage(
     hasMore?: boolean
     nextCursorChrom?: string | null
     nextCursorPos?: number | null
+    nextCursorRsid?: string | null
   } = {},
 ) {
   return {
@@ -131,6 +133,7 @@ function queryPage(
     total_matching: options.total === undefined ? items.length : options.total,
     next_cursor_chrom: options.nextCursorChrom ?? null,
     next_cursor_pos: options.nextCursorPos ?? null,
+    next_cursor_rsid: options.nextCursorRsid ?? null,
     has_more: options.hasMore ?? false,
     limit: 50,
   }
@@ -519,6 +522,7 @@ test('rerun supersedes a pending load-more page and resets its loading state (#1
           hasMore: true,
           nextCursorChrom: '17',
           nextCursorPos: 100,
+          nextCursorRsid: 'rs_carried',
         }),
       }
     }
@@ -532,6 +536,7 @@ test('rerun supersedes a pending load-more page and resets its loading state (#1
         hasMore: true,
         nextCursorChrom: '17',
         nextCursorPos: 500,
+        nextCursorRsid: 'rs_current_rerun',
       }),
     }
   })
@@ -545,6 +550,7 @@ test('rerun supersedes a pending load-more page and resets its loading state (#1
   await page.getByRole('button', { name: 'Load More' }).click()
   await expect.poll(() => requests.queryBodies.length).toBe(2)
   expect(requests.queryBodies[1].cursor_pos).toBe(100)
+  expect(requests.queryBodies[1].cursor_rsid).toBe('rs_carried')
 
   await page.getByTestId('run-query-btn').click()
   await expect.poll(() => requests.queryBodies.length).toBe(3)

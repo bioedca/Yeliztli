@@ -89,6 +89,7 @@ const MOCK_RESULT: QueryResultPage = {
   total_matching: 1,
   next_cursor_chrom: null,
   next_cursor_pos: null,
+  next_cursor_rsid: null,
   has_more: false,
   limit: 50,
 }
@@ -133,6 +134,47 @@ describe("QueryBuilderView", () => {
     })
     expect(screen.getByTestId("run-query-btn")).toBeInTheDocument()
     expect(screen.getByTestId("clear-query-btn")).toBeInTheDocument()
+  })
+
+  it("sends the whole cursor, rsid included, when loading more (#2115)", async () => {
+    const firstPage: QueryResultPage = {
+      ...MOCK_RESULT,
+      total_matching: 2,
+      has_more: true,
+      next_cursor_chrom: "19",
+      next_cursor_pos: 44908684,
+      next_cursor_rsid: "rs429358",
+    }
+    const queryBodies: Record<string, unknown>[] = []
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes("/api/query/fields")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(MOCK_FIELDS), text: () => Promise.resolve("") })
+      }
+      if (url.includes("/api/saved-queries")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ queries: [] }), text: () => Promise.resolve("") })
+      }
+      if (url === "/api/query") {
+        queryBodies.push(JSON.parse(init!.body as string))
+        const page = queryBodies.length === 1 ? firstPage : { ...MOCK_RESULT, total_matching: null }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(page), text: () => Promise.resolve("") })
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    })
+    const user = userEvent.setup()
+    renderWithRoute(<QueryBuilderView />, "/query-builder?sample_id=1")
+    await waitFor(() => expect(screen.getByTestId("query-builder-panel")).toBeInTheDocument())
+
+    await user.click(screen.getByRole("button", { name: "+ Rule" }))
+    await user.click(screen.getByTestId("run-query-btn"))
+    await user.click(await screen.findByTestId("load-more-btn"))
+
+    await waitFor(() => expect(queryBodies).toHaveLength(2))
+    expect(queryBodies[0]).not.toHaveProperty("cursor_rsid")
+    expect(queryBodies[1]).toMatchObject({
+      cursor_chrom: "19",
+      cursor_pos: 44908684,
+      cursor_rsid: "rs429358",
+    })
   })
 
   it("disables Run button when no rules", async () => {
@@ -277,6 +319,7 @@ describe("QueryResultsTable", () => {
       total_matching: 0,
       next_cursor_chrom: null,
       next_cursor_pos: null,
+      next_cursor_rsid: null,
       has_more: false,
       limit: 50,
     }
@@ -298,6 +341,7 @@ describe("QueryResultsTable", () => {
       has_more: true,
       next_cursor_chrom: "19",
       next_cursor_pos: 44908684,
+      next_cursor_rsid: "rs429358",
     }
     render(
       <QueryResultsTable

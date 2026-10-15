@@ -34,7 +34,11 @@ or `concordance` fields.
 ## Result limits
 
 - The visual builder defaults to **50 rows per page** and accepts at most **500 rows per
-  page**. Its results are paginated: request the next cursor while `has_more` is `true`.
+  page**. Its results are paginated: while `has_more` is `true`, send the response's
+  `next_cursor_chrom`, `next_cursor_pos` and `next_cursor_rsid` back as `cursor_chrom`,
+  `cursor_pos` and `cursor_rsid`. Rows are ordered by chromosome, position, then rsID, so
+  a page boundary never skips or repeats variants that share a position. The three cursor
+  fields must be sent together.
 - The SQL console defaults to **500 rows** and accepts at most **1,000 rows**. A response
   sets `truncated` to `true` when more matching rows exist.
 - SQL execution has a **30-second timeout**. A query that exceeds it returns HTTP 408.
