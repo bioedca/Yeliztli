@@ -170,6 +170,45 @@ test.describe('Per-row watch toggle in the variant table (#2123)', () => {
     ).toHaveCount(0)
   })
 
+  test('a click on a disabled toggle does not open the row', async ({ page }) => {
+    // A disabled button never runs the component's stopPropagation handler, so
+    // a pointer click landing on its nested icon could bubble to the row and
+    // open the detail panel exactly while the control is unavailable. The icons
+    // are pointer-events-none so the hit target stays the disabled button.
+    //
+    // Honest about what this proves: removing `pointer-events-none` does NOT
+    // make this test fail in chromium or firefox, both of which already
+    // suppress the bubble from a disabled control's children. It is kept as a
+    // guard for the behaviour we want, and because WebKit — which CI runs and
+    // which is not installed in the dev sandbox — was the browser the finding
+    // named. Treat it as a regression guard, not as a demonstration of the
+    // vulnerability.
+    let releaseWatches: () => void = () => {}
+    await page.unroute(/:\d+\/api\/watches/)
+    await page.route(/:\d+\/api\/watches/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await new Promise<void>((resolve) => {
+          releaseWatches = resolve
+        })
+      }
+      return route.fulfill(jsonRoute([]))
+    })
+
+    await page.goto('/variants?sample_id=1')
+    await waitForReactHydration(page)
+
+    const toggle = page.getByRole('button', { name: 'Watch rs1000', exact: true })
+    await expect(toggle).toBeVisible()
+    await expect(toggle).toBeDisabled()
+
+    // force: true because Playwright refuses to click a disabled control; the
+    // point is precisely what a real pointer event does here.
+    await toggle.click({ force: true })
+
+    await expect(page.getByRole('dialog', { name: /Variant detail for rs1000/ })).toHaveCount(0)
+    releaseWatches()
+  })
+
   test('the toggle column passes an axe scan in both states', async ({ page }) => {
     await page.goto('/variants?sample_id=1')
     await waitForReactHydration(page)

@@ -48,6 +48,11 @@ export default function RowWatchToggle({
   // toggle must stop the event or watching a variant would also navigate.
   // Keyboard activation of a <button> fires a click event too, so this covers
   // Enter/Space as well as the pointer.
+  //
+  // A *disabled* button never runs this handler, so the icons below are
+  // `pointer-events-none`: that keeps the hit target the button itself rather
+  // than a nested SVG whose click could bubble to the row and open the detail
+  // panel precisely while the control is unavailable.
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     if (isDisabled) return
@@ -95,11 +100,11 @@ export default function RowWatchToggle({
       )}
     >
       {isPending ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className="h-3.5 w-3.5 animate-spin pointer-events-none" />
       ) : isWatched ? (
-        <EyeOff className="h-3.5 w-3.5" />
+        <EyeOff className="h-3.5 w-3.5 pointer-events-none" />
       ) : (
-        <Eye className="h-3.5 w-3.5" />
+        <Eye className="h-3.5 w-3.5 pointer-events-none" />
       )}
     </button>
   )
