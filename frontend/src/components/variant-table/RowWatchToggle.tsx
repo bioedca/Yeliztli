@@ -27,6 +27,8 @@ interface RowWatchToggleProps {
    * the tooltip so a disabled control always says why it is disabled.
    */
   unavailableReason?: string | null
+  /** The last attempt for this row failed; the control stays actionable to retry. */
+  hasFailed?: boolean
   onToggle: (rsid: string) => void
   className?: string
 }
@@ -36,6 +38,7 @@ export default function RowWatchToggle({
   isWatched,
   isPending = false,
   unavailableReason = null,
+  hasFailed = false,
   onToggle,
   className,
 }: RowWatchToggleProps) {
@@ -65,7 +68,12 @@ export default function RowWatchToggle({
   // A disabled control states its reason rather than offering a bare action
   // the user cannot take.
   const action =
-    unavailableReason ?? (isWatched ? `Unwatch ${rsid}` : `Watch ${rsid}`)
+    unavailableReason ??
+    (hasFailed
+      ? `Last attempt failed — retry ${isWatched ? "unwatching" : "watching"} ${rsid}`
+      : isWatched
+        ? `Unwatch ${rsid}`
+        : `Watch ${rsid}`)
 
   return (
     <button
@@ -82,6 +90,7 @@ export default function RowWatchToggle({
           ? "text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50"
           : "text-muted-foreground hover:bg-accent hover:text-foreground",
         isDisabled && "cursor-not-allowed opacity-60",
+        hasFailed && "ring-1 ring-destructive/60",
         className,
       )}
     >

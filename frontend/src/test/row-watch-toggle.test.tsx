@@ -412,6 +412,118 @@ describe("VariantTable row watch toggle (#2123)", () => {
     expect(posts).toHaveLength(2)
   })
 
+  it("stays pending until the refreshed watch list arrives", async () => {
+    // Codex review round 2: the hooks invalidate in a block-bodied onSuccess
+    // without returning the promise, so mutateAsync settles before the refetch.
+    // Settling the row then re-enabled it while membership was still the
+    // pre-mutation value, and another click repeated the same POST (409).
+    let releaseGet: () => void = () => {}
+    let holdGet = false
+    setupFetchMock(["rs1"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && (init?.method ?? "GET") === "GET" && holdGet) {
+        await new Promise<void>((resolve) => {
+          releaseGet = resolve
+        })
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    holdGet = true
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+
+    // POST has resolved, but membership is not refreshed yet, so the row must
+    // not be actionable again.
+    await waitFor(() => {
+      expect(
+        mockFetch.mock.calls.some(
+          ([url, init]) => String(url).includes("/api/watches") && init?.method === "POST",
+        ),
+      ).toBe(true)
+    })
+    expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
+
+    releaseGet()
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      )
+    })
+    const posts = mockFetch.mock.calls.filter(
+      ([url, init]) => String(url).includes("/api/watches") && init?.method === "POST",
+    )
+    expect(posts).toHaveLength(1)
+  })
+
+  it("does not carry a row's pending state across a sample switch", async () => {
+    // VariantExplorer renders VariantTable without a key, so this state
+    // survives a sample_id change. A hung request for sample A must not leave
+    // sample B's identically named variant disabled.
+    let releasePost: () => void = () => {}
+    setupFetchMock(["rs1"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && init?.method === "POST") {
+        await new Promise<void>((resolve) => {
+          releasePost = resolve
+        })
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+    expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
+
+    rerender(<VariantTable sampleId={2} />)
+
+    // Sample 2's rs1 is a different entity and must be actionable.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+    releasePost()
+  })
+
+  it("tells the user when a row watch fails", async () => {
+    // The round-1 fix swallowed the rejection to avoid an unhandled rejection,
+    // which left a failed write indistinguishable from one that was ignored.
+    setupFetchMock(["rs1"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && init?.method === "POST") {
+        return { ok: false, status: 500, json: async () => ({ detail: "boom" }) }
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+
+    const alert = await waitFor(() => screen.getByRole("alert"))
+    expect(alert).toHaveTextContent(/rs1/)
+    // The control stays actionable so the user can retry, and says so.
+    const button = screen.getByRole("button", { name: "Watch rs1" })
+    expect(button).toBeEnabled()
+    expect(button.getAttribute("title")).toMatch(/retry/i)
+  })
+
   it("keeps the toggle out of the column-visibility menu", async () => {
     setupFetchMock(["rs1"])
     render(<VariantTable sampleId={1} />)

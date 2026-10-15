@@ -12,6 +12,7 @@ import {
   flexRender,
   type VisibilityState,
 } from "@tanstack/react-table"
+import { useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 
 import {
@@ -211,6 +212,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // request per visible row on a paginated table. `querySampleId` rather than
   // `sampleId`, so a sample whose merge provenance still blocks reads does not
   // get a control that would write against an unreadable sample.
+  const queryClient = useQueryClient()
   const watchQuery = useWatchedVariants(querySampleId)
   const watchMutation = useWatchVariant(querySampleId)
   const unwatchMutation = useUnwatchVariant(querySampleId)
@@ -219,20 +221,31 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     [watchQuery.data],
   )
 
-  // Every in-flight row, not just the most recent. A mutation hook's
-  // `variables` describes only the call it currently observes, so toggling a
-  // second row while the first is still running would re-enable the first and
-  // let a duplicate request through — POST /api/watches answers 409 on a
-  // duplicate and DELETE answers 404 when the variant is not watched, so the
-  // user would see an error for an action the UI had presented as available.
-  const [pendingWatchRsids, setPendingWatchRsids] = useState<ReadonlySet<string>>(
+  // Every in-flight row, not just the most recent, and keyed by sample as well
+  // as rsID. A mutation hook's `variables` describes only the call it currently
+  // observes, so toggling a second row while the first is still running would
+  // re-enable the first and let a duplicate request through — POST
+  // /api/watches answers 409 on a duplicate and DELETE answers 404 when the
+  // variant is not watched, so the user would see an error for an action the UI
+  // had presented as available.
+  //
+  // The sample is part of the key because VariantExplorer renders this table
+  // without a `key`, so the state survives a `sample_id` change: an unresolved
+  // request for rs123 in sample A would otherwise leave sample B's rs123 shown
+  // as pending, indefinitely if A's request hangs.
+  const [pendingWatchKeys, setPendingWatchKeys] = useState<ReadonlySet<string>>(
     () => new Set(),
   )
-  const settleWatch = useCallback((rsid: string) => {
-    setPendingWatchRsids((current) => {
-      if (!current.has(rsid)) return current
+  const [watchError, setWatchError] = useState<{
+    sampleId: number
+    rsid: string
+    message: string
+  } | null>(null)
+  const settleWatch = useCallback((key: string) => {
+    setPendingWatchKeys((current) => {
+      if (!current.has(key)) return current
       const next = new Set(current)
-      next.delete(rsid)
+      next.delete(key)
       return next
     })
   }, [])
@@ -250,26 +263,52 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
 
   const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
     if (querySampleId == null) return undefined
+    const sampleId = querySampleId
+    const keyFor = (rsid: string) => `${sampleId}:${rsid}`
     return {
       isWatched: (rsid: string) => watchedRsids.has(rsid),
-      isPending: (rsid: string) => pendingWatchRsids.has(rsid),
+      isPending: (rsid: string) => pendingWatchKeys.has(keyFor(rsid)),
       unavailableReason: watchUnavailableReason,
+      failedRsid: watchError?.sampleId === sampleId ? watchError.rsid : null,
       toggle: (rsid: string) => {
-        if (watchUnavailableReason != null || pendingWatchRsids.has(rsid)) return
-        setPendingWatchRsids((current) => new Set(current).add(rsid))
-        const mutation = watchedRsids.has(rsid) ? unwatchMutation : watchMutation
+        const key = keyFor(rsid)
+        if (watchUnavailableReason != null || pendingWatchKeys.has(key)) return
+        setPendingWatchKeys((current) => new Set(current).add(key))
+        setWatchError((current) =>
+          current?.sampleId === sampleId && current.rsid === rsid ? null : current,
+        )
+        const wasWatched = watchedRsids.has(rsid)
+        const mutation = wasWatched ? unwatchMutation : watchMutation
         // `mutateAsync` rather than `mutate` with an onSettled callback: a
         // single useMutation hook observes only its most recent call, so the
         // per-call callback of an earlier concurrent toggle is not guaranteed to
         // run and that row would stay disabled forever. The returned promise is
-        // per-call, so settling is reliable for every row. The rejection is
-        // swallowed here because the mutation hook still records the error;
-        // without the catch a failed toggle would surface as an unhandled
-        // rejection.
+        // per-call, so settling is reliable for every row.
         void mutation
           .mutateAsync(rsid)
-          .catch(() => undefined)
-          .finally(() => settleWatch(rsid))
+          // The hooks invalidate the watch list in a block-bodied `onSuccess`
+          // without returning the promise, so `mutateAsync` settles before the
+          // refetch lands. Settling the row then would re-enable it while
+          // `watchedRsids` still held the pre-mutation value, and a further
+          // click would repeat the same request. Wait for fresh membership.
+          .then(() =>
+            queryClient.refetchQueries({
+              queryKey: ["watched-variants", sampleId],
+            }),
+          )
+          .catch((error: unknown) =>
+            setWatchError({
+              sampleId,
+              rsid,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : wasWatched
+                    ? "Could not unwatch this variant."
+                    : "Could not watch this variant.",
+            }),
+          )
+          .finally(() => settleWatch(key))
       },
     }
     // The mutation objects are recreated each render, so depending on them
@@ -278,9 +317,11 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   }, [
     querySampleId,
     watchedRsids,
-    pendingWatchRsids,
+    pendingWatchKeys,
     watchUnavailableReason,
+    watchError,
     settleWatch,
+    queryClient,
   ])
   // TanStack Table accessor columns store their ID in `accessorKey` rather than `id`.
   // The union type doesn't expose accessorKey directly, so we cast through `any`.
@@ -648,6 +689,14 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
           tabIndex={0}
         >
+          {watchError != null && watchError.sampleId === querySampleId && (
+            <div
+              role="alert"
+              className="mx-3 mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              {`${watchError.rsid}: ${watchError.message}`}
+            </div>
+          )}
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               {table.getHeaderGroups().map((headerGroup) => (
