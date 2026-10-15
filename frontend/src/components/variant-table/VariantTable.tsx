@@ -211,35 +211,77 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // request per visible row on a paginated table. `querySampleId` rather than
   // `sampleId`, so a sample whose merge provenance still blocks reads does not
   // get a control that would write against an unreadable sample.
-  const { data: watchedVariants } = useWatchedVariants(querySampleId)
+  const watchQuery = useWatchedVariants(querySampleId)
   const watchMutation = useWatchVariant(querySampleId)
   const unwatchMutation = useUnwatchVariant(querySampleId)
   const watchedRsids = useMemo(
-    () => new Set((watchedVariants ?? []).map((watched) => watched.rsid)),
-    [watchedVariants],
+    () => new Set((watchQuery.data ?? []).map((watched) => watched.rsid)),
+    [watchQuery.data],
   )
-  const pendingWatchRsid = watchMutation.isPending
-    ? (watchMutation.variables ?? null)
-    : unwatchMutation.isPending
-      ? (unwatchMutation.variables ?? null)
-      : null
+
+  // Every in-flight row, not just the most recent. A mutation hook's
+  // `variables` describes only the call it currently observes, so toggling a
+  // second row while the first is still running would re-enable the first and
+  // let a duplicate request through — POST /api/watches answers 409 on a
+  // duplicate and DELETE answers 404 when the variant is not watched, so the
+  // user would see an error for an action the UI had presented as available.
+  const [pendingWatchRsids, setPendingWatchRsids] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  const settleWatch = useCallback((rsid: string) => {
+    setPendingWatchRsids((current) => {
+      if (!current.has(rsid)) return current
+      const next = new Set(current)
+      next.delete(rsid)
+      return next
+    })
+  }, [])
+
+  // Until the watch list has actually loaded, membership is *unknown* rather
+  // than empty. Rendering an unpressed, clickable toggle in that state would
+  // show an already-watched variant as unwatched and turn a click into a
+  // rejected duplicate POST, so the control is disabled with the reason until
+  // the query succeeds.
+  const watchUnavailableReason = watchQuery.isSuccess
+    ? null
+    : watchQuery.isError
+      ? "Watch status unavailable — could not load your watched variants"
+      : "Loading your watched variants…"
+
   const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
     if (querySampleId == null) return undefined
     return {
       isWatched: (rsid: string) => watchedRsids.has(rsid),
+      isPending: (rsid: string) => pendingWatchRsids.has(rsid),
+      unavailableReason: watchUnavailableReason,
       toggle: (rsid: string) => {
-        if (watchedRsids.has(rsid)) {
-          unwatchMutation.mutate(rsid)
-        } else {
-          watchMutation.mutate(rsid)
-        }
+        if (watchUnavailableReason != null || pendingWatchRsids.has(rsid)) return
+        setPendingWatchRsids((current) => new Set(current).add(rsid))
+        const mutation = watchedRsids.has(rsid) ? unwatchMutation : watchMutation
+        // `mutateAsync` rather than `mutate` with an onSettled callback: a
+        // single useMutation hook observes only its most recent call, so the
+        // per-call callback of an earlier concurrent toggle is not guaranteed to
+        // run and that row would stay disabled forever. The returned promise is
+        // per-call, so settling is reliable for every row. The rejection is
+        // swallowed here because the mutation hook still records the error;
+        // without the catch a failed toggle would surface as an unhandled
+        // rejection.
+        void mutation
+          .mutateAsync(rsid)
+          .catch(() => undefined)
+          .finally(() => settleWatch(rsid))
       },
-      pendingRsid: pendingWatchRsid,
     }
     // The mutation objects are recreated each render, so depending on them
     // would defeat the memo; `mutate` is stable for a given sample.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [querySampleId, watchedRsids, pendingWatchRsid])
+  }, [
+    querySampleId,
+    watchedRsids,
+    pendingWatchRsids,
+    watchUnavailableReason,
+    settleWatch,
+  ])
   // TanStack Table accessor columns store their ID in `accessorKey` rather than `id`.
   // The union type doesn't expose accessorKey directly, so we cast through `any`.
   const allColumnIds = useMemo(

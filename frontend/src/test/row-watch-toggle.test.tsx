@@ -179,6 +179,27 @@ describe("RowWatchToggle (#2123)", () => {
     expect(onRowClick).not.toHaveBeenCalled()
   })
 
+  it("is disabled and says why when watch state is unknown", async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <RowWatchToggle
+        rsid="rs42"
+        isWatched={false}
+        unavailableReason="Loading your watched variants…"
+        onToggle={onToggle}
+      />,
+    )
+
+    const button = screen.getByRole("button", { name: "Watch rs42" })
+    expect(button).toBeDisabled()
+    // A disabled control must say why, rather than offering an action the user
+    // cannot take.
+    expect(button).toHaveAttribute("title", "Loading your watched variants…")
+    await user.click(button)
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
   it("ignores clicks while its own request is in flight", async () => {
     const onToggle = vi.fn()
     const user = userEvent.setup()
@@ -288,6 +309,107 @@ describe("VariantTable row watch toggle (#2123)", () => {
           String(url).includes("/api/watches/") && init?.method === "DELETE",
       ),
     ).toBe(true)
+  })
+
+  it("does not present an actionable toggle before the watch list loads", async () => {
+    // Codex review of #2456: `watchedVariants ?? []` treated an unknown watch
+    // list as empty, so an already-watched variant rendered as unpressed and a
+    // click became a duplicate POST that the backend answers with 409.
+    let releaseWatches: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      releaseWatches = resolve
+    })
+    setupFetchMock(["rs1"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && (init?.method ?? "GET") === "GET") {
+        await held
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeInTheDocument()
+    })
+    const button = screen.getByRole("button", { name: "Watch rs1" })
+    expect(button).toBeDisabled()
+    await user.click(button)
+    expect(
+      mockFetch.mock.calls.some(
+        ([url, init]) => String(url).includes("/api/watches") && init?.method === "POST",
+      ),
+    ).toBe(false)
+
+    releaseWatches()
+    await waitFor(() => expect(button).toBeEnabled())
+  })
+
+  it("disables the toggle when the watch list fails to load", async () => {
+    setupFetchMock(["rs1"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && (init?.method ?? "GET") === "GET") {
+        return { ok: false, status: 500 }
+      }
+      return inner(url, init)
+    })
+
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
+    })
+    expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+      "title",
+      expect.stringContaining("unavailable") as unknown as string,
+    )
+  })
+
+  it("keeps every in-flight row disabled, not just the latest", async () => {
+    // Codex review of #2456: a mutation hook's `variables` describes only the
+    // call it currently observes, so toggling a second row re-enabled the first
+    // while its request was still running and a second click could submit a
+    // duplicate write.
+    let releasePosts: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      releasePosts = resolve
+    })
+    setupFetchMock(["rs1", "rs2"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/watches") && init?.method === "POST") {
+        await held
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+
+    // Both requests are still in flight, so both rows stay disabled.
+    expect(screen.getByRole("button", { name: "Watch rs1" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Watch rs2" })).toBeDisabled()
+
+    releasePosts()
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Watch rs2" })).toBeEnabled()
+    })
+    // Exactly one POST per row — no duplicates.
+    const posts = mockFetch.mock.calls.filter(
+      ([url, init]) => String(url).includes("/api/watches") && init?.method === "POST",
+    )
+    expect(posts).toHaveLength(2)
   })
 
   it("keeps the toggle out of the column-visibility menu", async () => {

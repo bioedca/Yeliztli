@@ -32,8 +32,16 @@ const col = createColumnHelper<VariantRow>()
 export interface VariantTableWatchMeta {
   isWatched: (rsid: string) => boolean
   toggle: (rsid: string) => void
-  /** rsID whose watch/unwatch request is currently in flight, if any. */
-  pendingRsid: string | null
+  /** Whether this row's own watch/unwatch request is in flight. */
+  isPending: (rsid: string) => boolean
+  /**
+   * Why the control cannot be acted on, or null when it can.
+   *
+   * Membership is *unknown* until the watch list loads, which is not the same
+   * as empty: an actionable unpressed toggle in that state would misreport an
+   * already-watched variant and turn a click into a rejected duplicate write.
+   */
+  unavailableReason: string | null
 }
 
 interface VariantTableMeta {
@@ -130,7 +138,8 @@ const watchColumn = col.display({
     return createElement(RowWatchToggle, {
       rsid,
       isWatched: watch.isWatched(rsid),
-      isPending: watch.pendingRsid === rsid,
+      isPending: watch.isPending(rsid),
+      unavailableReason: watch.unavailableReason,
       onToggle: watch.toggle,
     })
   },

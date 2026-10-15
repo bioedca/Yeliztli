@@ -22,6 +22,11 @@ interface RowWatchToggleProps {
   isWatched: boolean
   /** A watch/unwatch request for *this* row is in flight. */
   isPending?: boolean
+  /**
+   * Why the control cannot be acted on, or null/undefined when it can. Shown as
+   * the tooltip so a disabled control always says why it is disabled.
+   */
+  unavailableReason?: string | null
   onToggle: (rsid: string) => void
   className?: string
 }
@@ -30,9 +35,11 @@ export default function RowWatchToggle({
   rsid,
   isWatched,
   isPending = false,
+  unavailableReason = null,
   onToggle,
   className,
 }: RowWatchToggleProps) {
+  const isDisabled = isPending || unavailableReason != null
   // The row itself is clickable and opens the detail panel
   // (VariantTable: onClick={() => setSelectedRsid(row.original.rsid)}), so the
   // toggle must stop the event or watching a variant would also navigate.
@@ -40,7 +47,7 @@ export default function RowWatchToggle({
   // Enter/Space as well as the pointer.
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    if (isPending) return
+    if (isDisabled) return
     onToggle(rsid)
   }
 
@@ -55,13 +62,16 @@ export default function RowWatchToggle({
   // Two differently-located buttons with one name is the ambiguity this
   // avoids. `title` still reads as the action for a sighted hover.
   const name = `Watch ${rsid}`
-  const action = isWatched ? `Unwatch ${rsid}` : `Watch ${rsid}`
+  // A disabled control states its reason rather than offering a bare action
+  // the user cannot take.
+  const action =
+    unavailableReason ?? (isWatched ? `Unwatch ${rsid}` : `Watch ${rsid}`)
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={isPending}
+      disabled={isDisabled}
       aria-label={name}
       aria-pressed={isWatched}
       title={action}
@@ -71,7 +81,7 @@ export default function RowWatchToggle({
         isWatched
           ? "text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/50"
           : "text-muted-foreground hover:bg-accent hover:text-foreground",
-        isPending && "cursor-not-allowed opacity-60",
+        isDisabled && "cursor-not-allowed opacity-60",
         className,
       )}
     >
