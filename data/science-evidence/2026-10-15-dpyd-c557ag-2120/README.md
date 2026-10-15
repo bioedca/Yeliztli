@@ -158,6 +158,14 @@ sample databases. No genotype, allele or call is recorded in this packet.
   decreased function 0.5 (visible in `raw/cpic-api-dpyd-alleles.json`). Each needs its own
   strand verification and array-coverage check, so they are deliberately left out of this change,
   as the issue proposes.
-- **No claim that the panel is now complete.** The shipped caveat — a normal DPYD call does not
-  rule out DPD deficiency — remains correct and unchanged, since CPIC defines many more alleles
-  than any array types.
+- **No claim that the panel is now complete.** The shipped caveat's *safety conclusion* — a normal
+  DPYD call does not rule out DPD deficiency — remains correct, since CPIC defines many more
+  alleles than any array types.
+
+  Its **text did change**, and this section previously said "unchanged", which misrepresented the
+  change scope in the one artifact meant to make that scope auditable. `DPYD_FLUOROPYRIMIDINE_CAVEAT`
+  (`backend/disclaimers.py`) is patient-visible on every DPYD alert and enumerated the typed
+  variants, so it had to be revised: **4 variants to 5**, `c.557A>G` added to the list, and a new
+  clause noting that not every array carries a probe for each. The conclusion is unchanged; the
+  enumeration is not. `test_caveat_variant_list_matches_the_panel` derives the expected count and
+  list from the shipped CPIC table so the two cannot drift again. Flagged in review of PR #2452.

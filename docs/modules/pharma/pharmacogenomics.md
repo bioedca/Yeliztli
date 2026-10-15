@@ -55,12 +55,18 @@ surfaces the relevant CPIC prescribing guidance.
   normal call does **not** rule out DPD deficiency, which matters for certain chemotherapy
   drugs. The typed set includes `c.557A>G`, a decreased-function allele carried mainly by people
   of African ancestry,[^dpyd-c557-ancestry] but not every array includes that probe. When yours
-  does not, the *DPYD* card still shows the diplotype that was directly called — which will read
-  `*1/*1` **Normal Metabolizer** if nothing else was found — but marks the call *Partial* and
-  names the allele as one it could not exclude. The fluoropyrimidine guidance beside it is then
-  **Conservative**: it is based on the lowest-activity diplotype the untyped allele could still
-  make, so you are not given label-recommended dosing on the strength of a position that was
-  never assayed.
+  does not — but the rest of the *DPYD* markers are covered — the card still shows the diplotype
+  that was directly called, which will read `*1/*1` **Normal Metabolizer** if nothing else was
+  found, and marks the call *Partial* while naming the allele as one it could not exclude. The
+  fluoropyrimidine guidance beside it is then **Conservative**: it is based on the lowest-activity
+  diplotype the untyped allele could still make, so you are not given label-recommended dosing on
+  the strength of a position that was never assayed.
+- **A very sparse array gets no *DPYD* drug guidance at all.** If most of the gene's defining
+  positions are missing and none of the typed ones shows a variant, the call is reported as
+  *Insufficient* and no fluoropyrimidine recommendation is shown — withholding is more honest than
+  either a reassuring call or a conservative one built on almost no coverage. If one of those
+  positions *does* show a variant, that is a real finding and its guidance is kept rather than
+  being withheld along with the rest.
   For *UGT1A1*, a normal `*1/*1` call does **not** rule out reduced *UGT1A1* activity from
   untyped `*28`, which matters for irinotecan and atazanavir prescribing
   context.[^ugt1a1-irinotecan][^ugt1a1-atazanavir]

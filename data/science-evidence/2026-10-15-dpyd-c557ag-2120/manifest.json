@@ -35,7 +35,7 @@
     "sequence_location",
     "diplotype"
    ],
-   "version": "allele record version 107",
+   "version": "sequence_location record version 107 (rs115232898). The allele, allele_definition and diplotype payloads carry no version field, so no API-wide or allele-record version is claimed.",
    "accessed": "2026-10-15",
    "license": "CPIC/PharmGKB data, CC-BY-SA-4.0"
   },
