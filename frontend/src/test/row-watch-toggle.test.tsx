@@ -599,6 +599,57 @@ describe("VariantTable row watch toggle (#2123)", () => {
     }
   })
 
+  it("drops a row's failure once the variant is watched elsewhere", async () => {
+    // Codex review round 5: a failed row POST left its failure in place even
+    // after another control (detail panel, sidebar) successfully watched the
+    // same variant. The row then read "retry unwatching rs1" — following which
+    // would have undone that success.
+    let rs1WatchedExternally = false
+    setupFetchMock(["rs1", "rs2"])
+    const inner = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET"
+      if (url.includes("/api/watches") && method === "POST") {
+        const rsid = JSON.parse(String(init?.body ?? "{}")).rsid as string
+        if (rsid === "rs1") {
+          return { ok: false, status: 500, json: async () => ({ detail: "boom" }) }
+        }
+      }
+      if (url.includes("/api/watches") && method === "GET" && rs1WatchedExternally) {
+        return { ok: true, json: async () => [{ rsid: "rs1" }] }
+      }
+      return inner(url, init)
+    })
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toBeEnabled()
+    })
+
+    // rs1's own attempt fails, so the row reports it.
+    await user.click(screen.getByRole("button", { name: "Watch rs1" }))
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/rs1/))
+
+    // Something else watches rs1 successfully; clicking rs2 refreshes the
+    // shared list, which is how this row learns about it without being clicked.
+    rs1WatchedExternally = true
+    await user.click(screen.getByRole("button", { name: "Watch rs2" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Watch rs1" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      )
+    })
+    // The stale failure is gone: no alert for rs1, and the tooltip offers the
+    // real action rather than instructing the user to undo the success.
+    expect(screen.queryByRole("alert")).toBeNull()
+    const rs1 = screen.getByRole("button", { name: "Watch rs1" })
+    expect(rs1.getAttribute("title")).toBe("Unwatch rs1")
+    expect(rs1.getAttribute("title")).not.toMatch(/retry/i)
+  })
+
   it("keeps the toggle out of the column-visibility menu", async () => {
     setupFetchMock(["rs1"])
     render(<VariantTable sampleId={1} />)

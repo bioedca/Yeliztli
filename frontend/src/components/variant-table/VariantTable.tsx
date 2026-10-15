@@ -240,9 +240,15 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
   // concurrently, and a single slot meant whichever rejected last erased the
   // other row's failure ring, retry tooltip and alert — making one failed
   // action indistinguishable from an ignored click.
-  const [watchErrors, setWatchErrors] = useState<ReadonlyMap<string, string>>(
-    () => new Map(),
-  )
+  // Each entry records the membership observed when the attempt failed, so the
+  // failure can be recognised as stale. Another control (the detail panel's
+  // WatchButton, the Watching sidebar) can succeed for the same variant
+  // afterwards; the shared query then updates membership while this row's
+  // failure would otherwise persist, showing a failure ring and a tooltip
+  // reading "retry unwatching" — following which would undo that success.
+  const [watchErrors, setWatchErrors] = useState<
+    ReadonlyMap<string, { message: string; watchedWhenFailed: boolean }>
+  >(() => new Map())
   const settleWatch = useCallback((key: string) => {
     setPendingWatchKeys((current) => {
       if (!current.has(key)) return current
@@ -263,15 +269,18 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       ? "Watch status unavailable — could not load your watched variants"
       : "Loading your watched variants…"
 
-  const currentSampleWatchFailures = useMemo(
-    () =>
-      querySampleId == null
-        ? []
-        : [...watchErrors.entries()]
-            .filter(([key]) => key.startsWith(`${querySampleId}:`))
-            .map(([key, message]) => [key.slice(String(querySampleId).length + 1), message]),
-    [watchErrors, querySampleId],
-  ) as [string, string][]
+  // A failure is shown only while membership still matches what it was when the
+  // attempt failed; otherwise something else changed this variant and the
+  // failure no longer describes reality.
+  const currentSampleWatchFailures = useMemo<[string, string][]>(() => {
+    if (querySampleId == null) return []
+    const prefix = `${querySampleId}:`
+    return [...watchErrors.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, entry]) => [key.slice(prefix.length), entry] as const)
+      .filter(([rsid, entry]) => watchedRsids.has(rsid) === entry.watchedWhenFailed)
+      .map(([rsid, entry]) => [rsid, entry.message])
+  }, [watchErrors, querySampleId, watchedRsids])
 
   const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
     if (querySampleId == null) return undefined
@@ -281,7 +290,12 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
       isWatched: (rsid: string) => watchedRsids.has(rsid),
       isPending: (rsid: string) => pendingWatchKeys.has(keyFor(rsid)),
       unavailableReason: watchUnavailableReason,
-      failureFor: (rsid: string) => watchErrors.get(keyFor(rsid)) ?? null,
+      failureFor: (rsid: string) => {
+        const entry = watchErrors.get(keyFor(rsid))
+        if (entry == null) return null
+        // Stale once membership has moved on without this row being retried.
+        return watchedRsids.has(rsid) === entry.watchedWhenFailed ? entry.message : null
+      },
       toggle: (rsid: string) => {
         const key = keyFor(rsid)
         if (watchUnavailableReason != null || pendingWatchKeys.has(key)) return
@@ -313,14 +327,15 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           )
           .catch((error: unknown) =>
             setWatchErrors((current) =>
-              new Map(current).set(
-                key,
-                error instanceof Error
-                  ? error.message
-                  : wasWatched
-                    ? "Could not unwatch this variant."
-                    : "Could not watch this variant.",
-              ),
+              new Map(current).set(key, {
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : wasWatched
+                      ? "Could not unwatch this variant."
+                      : "Could not watch this variant.",
+                watchedWhenFailed: wasWatched,
+              }),
             ),
           )
           .finally(() => settleWatch(key))
