@@ -12,6 +12,7 @@ import {
   flexRender,
   type VisibilityState,
 } from "@tanstack/react-table"
+import { useQueryClient } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 
 import {
@@ -25,10 +26,11 @@ import { useColumnPresets } from "@/api/columnPresets"
 import { useBatchLiftover } from "@/api/liftover"
 import { SamplesApiError, useMergeProvenance } from "@/api/samples"
 import { useTags } from "@/api/tags"
+import { useUnwatchVariant, useWatchVariant, useWatchedVariants } from "@/api/watches"
 import { SCORE_TOOLTIP_AFFORDANCE } from "@/lib/inSilicoScoreInfo"
 import { cn } from "@/lib/utils"
 import type { ConcordanceTag, SourceTag, VariantRow } from "@/types/variants"
-import { allColumns } from "./columns"
+import { allColumns, type VariantTableWatchMeta } from "./columns"
 import VariantToolbar from "./VariantToolbar"
 import ChromosomeNav from "./ChromosomeNav"
 import { ALWAYS_VISIBLE, COLUMN_TOOLTIPS } from "./ColumnPresets"
@@ -204,6 +206,182 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     () => new Map(tags?.map((tag) => [tag.name, tag.color]) ?? []),
     [tags],
   )
+
+  // Per-row watch toggle (#2123). The query and both mutations live here, once,
+  // and reach every row through table meta: a row-level hook would issue one
+  // request per visible row on a paginated table. `querySampleId` rather than
+  // `sampleId`, so a sample whose merge provenance still blocks reads does not
+  // get a control that would write against an unreadable sample.
+  const queryClient = useQueryClient()
+  const watchQuery = useWatchedVariants(querySampleId)
+  const watchMutation = useWatchVariant(querySampleId)
+  const unwatchMutation = useUnwatchVariant(querySampleId)
+  const watchedRsids = useMemo(
+    () => new Set((watchQuery.data ?? []).map((watched) => watched.rsid)),
+    [watchQuery.data],
+  )
+
+  // Every in-flight row, not just the most recent, and keyed by sample as well
+  // as rsID. A mutation hook's `variables` describes only the call it currently
+  // observes, so toggling a second row while the first is still running would
+  // re-enable the first and let a duplicate request through — POST
+  // /api/watches answers 409 on a duplicate and DELETE answers 404 when the
+  // variant is not watched, so the user would see an error for an action the UI
+  // had presented as available.
+  //
+  // The sample is part of the key because VariantExplorer renders this table
+  // without a `key`, so the state survives a `sample_id` change: an unresolved
+  // request for rs123 in sample A would otherwise leave sample B's rs123 shown
+  // as pending, indefinitely if A's request hangs.
+  const [pendingWatchKeys, setPendingWatchKeys] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  // Keyed by `${sampleId}:${rsid}`, not a single entry: two rows can fail
+  // concurrently, and a single slot meant whichever rejected last erased the
+  // other row's failure ring, retry tooltip and alert — making one failed
+  // action indistinguishable from an ignored click.
+  // Each entry records the membership observed when the attempt failed, so the
+  // failure can be recognised as stale. Another control (the detail panel's
+  // WatchButton, the Watching sidebar) can succeed for the same variant
+  // afterwards; the shared query then updates membership while this row's
+  // failure would otherwise persist, showing a failure ring and a tooltip
+  // reading "retry unwatching" — following which would undo that success.
+  const [watchErrors, setWatchErrors] = useState<
+    ReadonlyMap<string, { message: string; watchedWhenFailed: boolean }>
+  >(() => new Map())
+  const settleWatch = useCallback((key: string) => {
+    setPendingWatchKeys((current) => {
+      if (!current.has(key)) return current
+      const next = new Set(current)
+      next.delete(key)
+      return next
+    })
+  }, [])
+
+  // Until the watch list has actually loaded, membership is *unknown* rather
+  // than empty. Rendering an unpressed, clickable toggle in that state would
+  // show an already-watched variant as unwatched and turn a click into a
+  // rejected duplicate POST, so the control is disabled with the reason until
+  // the query succeeds.
+  const watchUnavailableReason = watchQuery.isSuccess
+    ? null
+    : watchQuery.isError
+      ? "Watch status unavailable — could not load your watched variants"
+      : "Loading your watched variants…"
+
+  // Once membership moves away from what it was when an attempt failed, that
+  // failure is dropped for good rather than merely hidden. Filtering at render
+  // alone left the entry in state, so a later change *back* to the original
+  // membership re-matched it and resurrected the alert, ring and retry tooltip
+  // for a failure that was long gone (false -> true -> false).
+  useEffect(() => {
+    if (querySampleId == null) return
+    const prefix = `${querySampleId}:`
+    setWatchErrors((current) => {
+      let next: Map<string, { message: string; watchedWhenFailed: boolean }> | null = null
+      for (const [key, entry] of current) {
+        if (!key.startsWith(prefix)) continue
+        if (watchedRsids.has(key.slice(prefix.length)) !== entry.watchedWhenFailed) {
+          next ??= new Map(current)
+          next.delete(key)
+        }
+      }
+      return next ?? current
+    })
+    // `watchErrors` is a dependency so an entry inserted *after* the last
+    // membership change is pruned too: another control can change this rsID
+    // while the row request is still in flight, and the later rejection then
+    // records a membership that already mismatches. Re-running on insert is
+    // loop-safe because the updater returns `current` unchanged when there is
+    // nothing to prune, so no state update and no re-render follow.
+  }, [watchedRsids, querySampleId, watchErrors])
+
+  // The render-time filter stays as well, so the frame between a membership
+  // change and the pruning effect never shows a failure that has gone stale.
+  // A failure is shown only while membership still matches what it was when the
+  // attempt failed; otherwise something else changed this variant and the
+  // failure no longer describes reality.
+  const currentSampleWatchFailures = useMemo<[string, string][]>(() => {
+    if (querySampleId == null) return []
+    const prefix = `${querySampleId}:`
+    return [...watchErrors.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, entry]) => [key.slice(prefix.length), entry] as const)
+      .filter(([rsid, entry]) => watchedRsids.has(rsid) === entry.watchedWhenFailed)
+      .map(([rsid, entry]) => [rsid, entry.message])
+  }, [watchErrors, querySampleId, watchedRsids])
+
+  const watchMeta = useMemo<VariantTableWatchMeta | undefined>(() => {
+    if (querySampleId == null) return undefined
+    const sampleId = querySampleId
+    const keyFor = (rsid: string) => `${sampleId}:${rsid}`
+    return {
+      isWatched: (rsid: string) => watchedRsids.has(rsid),
+      isPending: (rsid: string) => pendingWatchKeys.has(keyFor(rsid)),
+      unavailableReason: watchUnavailableReason,
+      failureFor: (rsid: string) => {
+        const entry = watchErrors.get(keyFor(rsid))
+        if (entry == null) return null
+        // Stale once membership has moved on without this row being retried.
+        return watchedRsids.has(rsid) === entry.watchedWhenFailed ? entry.message : null
+      },
+      toggle: (rsid: string) => {
+        const key = keyFor(rsid)
+        if (watchUnavailableReason != null || pendingWatchKeys.has(key)) return
+        setPendingWatchKeys((current) => new Set(current).add(key))
+        setWatchErrors((current) => {
+          if (!current.has(key)) return current
+          const next = new Map(current)
+          next.delete(key)
+          return next
+        })
+        const wasWatched = watchedRsids.has(rsid)
+        const mutation = wasWatched ? unwatchMutation : watchMutation
+        // `mutateAsync` rather than `mutate` with an onSettled callback: a
+        // single useMutation hook observes only its most recent call, so the
+        // per-call callback of an earlier concurrent toggle is not guaranteed to
+        // run and that row would stay disabled forever. The returned promise is
+        // per-call, so settling is reliable for every row.
+        void mutation
+          .mutateAsync(rsid)
+          // The hooks invalidate the watch list in a block-bodied `onSuccess`
+          // without returning the promise, so `mutateAsync` settles before the
+          // refetch lands. Settling the row then would re-enable it while
+          // `watchedRsids` still held the pre-mutation value, and a further
+          // click would repeat the same request. Wait for fresh membership.
+          .then(() =>
+            queryClient.refetchQueries({
+              queryKey: ["watched-variants", sampleId],
+            }),
+          )
+          .catch((error: unknown) =>
+            setWatchErrors((current) =>
+              new Map(current).set(key, {
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : wasWatched
+                      ? "Could not unwatch this variant."
+                      : "Could not watch this variant.",
+                watchedWhenFailed: wasWatched,
+              }),
+            ),
+          )
+          .finally(() => settleWatch(key))
+      },
+    }
+    // The mutation objects are recreated each render, so depending on them
+    // would defeat the memo; `mutate` is stable for a given sample.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    querySampleId,
+    watchedRsids,
+    pendingWatchKeys,
+    watchUnavailableReason,
+    watchErrors,
+    settleWatch,
+    queryClient,
+  ])
   // TanStack Table accessor columns store their ID in `accessorKey` rather than `id`.
   // The union type doesn't expose accessorKey directly, so we cast through `any`.
   const allColumnIds = useMemo(
@@ -422,9 +600,9 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
     state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    meta: { tagColors },
+    meta: { tagColors, watch: watchMeta },
     initialState: {
-      columnPinning: { left: ["evidence_conflict"] },
+      columnPinning: { left: ["evidence_conflict", "watch"] },
     },
   })
 
@@ -570,6 +748,16 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be keyboard-accessible (axe: scrollable-region-focusable)
           tabIndex={0}
         >
+          {currentSampleWatchFailures.length > 0 && (
+            <div
+              role="alert"
+              className="mx-3 mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              {currentSampleWatchFailures.map(([rsid, message]) => (
+                <div key={rsid}>{`${rsid}: ${message}`}</div>
+              ))}
+            </div>
+          )}
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               {table.getHeaderGroups().map((headerGroup) => (

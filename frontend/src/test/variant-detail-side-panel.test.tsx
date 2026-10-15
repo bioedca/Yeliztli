@@ -182,6 +182,11 @@ const defaultChromCounts: ChromosomeSummary[] = [
 
 function setupFetchMock(page: VariantPage, detail: VariantDetail = mockVariantDetail) {
   mockFetch.mockImplementation(async (url: string) => {
+    // VariantTable holds a watch-list query (#2123); stub it so the request
+    // resolves deterministically instead of 404-ing after the test ends.
+    if (url.includes("/api/watches")) {
+      return { ok: true, json: async () => [] }
+    }
     if (url.includes("/api/column-presets")) {
       return { ok: true, json: async () => ({ presets: defaultPresets }) }
     }
