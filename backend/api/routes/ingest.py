@@ -267,7 +267,15 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     # string ``version`` field (Plan \u00a78.7).
     text = file_bytes.decode("utf-8", errors="replace")
     if "\ufffd" in text:
-        logger.warning("File %s contains invalid UTF-8 sequences that were replaced", filename)
+        # Identified by content hash, not by name. This record is durable since
+        # #2126, and the uploaded name is user-supplied free text on a file of
+        # genetic data — routinely a person's name — so logging it would leave
+        # that name in reference.db and the Log Explorer indefinitely. The hash
+        # prefix still lets an operator tie the warning to a specific upload.
+        logger.warning(
+            "Uploaded file (sha256 %s) contains invalid UTF-8 sequences that were replaced",
+            file_hash[:12],
+        )
     result = parse(io.StringIO(text))
 
     # Genome-build handling (issues #480 / #547 / #562), keyed off the *parsed*

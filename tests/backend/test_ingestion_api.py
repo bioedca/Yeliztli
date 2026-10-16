@@ -856,3 +856,36 @@ class TestIngestAncestryDNA:
             )
         body = response.json()
         assert body["variant_count"] == ANCESTRY_VARIANT_COUNT
+
+
+class TestUploadFilenamePrivacy:
+    """The uploaded filename must not reach a durable log (#2126)."""
+
+    def test_invalid_utf8_warning_does_not_log_the_filename(self, client, caplog) -> None:
+        """An upload with bad bytes is reported by content hash, not by name.
+
+        Since #2126 stdlib records are persisted to ``log_entries`` and surfaced
+        in the Log Explorer. The uploaded name is user-supplied free text on a
+        file of genetic data — routinely a person's name — so naming it here
+        would leave that name in reference.db indefinitely, outliving the sample
+        itself. The sha256 prefix still ties the warning to one upload.
+        """
+        import logging as stdlib_logging
+
+        payload = b"# rsid\tchromosome\tposition\tgenotype\nrs1\t1\t100\tAA\n\xff\xfe invalid\n"
+        identifying_name = "Alice Smith genome.txt"
+        expected_hash = hashlib.sha256(payload).hexdigest()[:12]
+
+        with caplog.at_level(stdlib_logging.WARNING, logger="backend.api.routes.ingest"):
+            client.post(
+                "/api/ingest",
+                files={"file": (identifying_name, io.BytesIO(payload), "text/plain")},
+            )
+
+        messages = [record.getMessage() for record in caplog.records]
+        utf8_warnings = [m for m in messages if "invalid UTF-8" in m]
+        assert utf8_warnings, f"the invalid-UTF-8 branch did not fire: {messages}"
+        joined = " ".join(utf8_warnings)
+        assert "Alice Smith" not in joined, f"the uploaded filename was logged: {joined}"
+        assert identifying_name not in joined
+        assert expected_hash in joined, "the warning should identify the upload by content hash"

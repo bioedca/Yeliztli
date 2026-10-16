@@ -91,7 +91,11 @@ from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
 from backend.config import Settings, ensure_private_directory, get_settings
 from backend.data.hla_proxy_loader import load_hla_proxy_data
-from backend.db.connection import get_registry, reset_registry
+from backend.db.connection import (
+    get_registry,
+    registry_is_initialized,
+    reset_registry,
+)
 from backend.db.database_registry import (
     PIPELINE_GENOME_BUILD,
     check_genome_build_consistency,
@@ -168,7 +172,15 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
     # lifespans and blocking temporary-database cleanup where file locking is
     # strict. The message describes the disposal that is about to happen, and a
     # failure in either step is still reported by the handler below.
-    logger.info("DBRegistry disposing - closing all engines")
+    # Gated on an *existing* registry. This record is DB-backed since #2126, and
+    # the engine getter Huey installs at module import bootstraps reference.db's
+    # schema, so emitting it unconditionally made a startup that failed before
+    # ``get_registry()`` create the very database it was unwinding — after which
+    # ``reset_registry()`` disposed a registry the log line itself had brought
+    # into being. Nothing needs disposing in that case, and the cleanup handler
+    # below still reports any failure.
+    if registry_is_initialized():
+        logger.info("DBRegistry disposing - closing all engines")
 
     for resource_name, cleanup in (
         ("download executor", shutdown_executor),

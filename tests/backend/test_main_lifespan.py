@@ -6,9 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import structlog
 from fastapi import FastAPI
 
 from backend.config import Settings
+from backend.logging_config import configure_logging
 from backend.main import lifespan
 
 
@@ -315,3 +317,73 @@ async def test_shutdown_log_precedes_registry_disposal(
     disposing = [i for i, step in enumerate(order) if step.startswith("log:DBRegistry disposing")]
     assert disposing, order
     assert disposing[0] < order.index("reset_registry"), order
+
+
+@pytest.mark.asyncio
+async def test_failed_startup_does_not_create_the_reference_database(
+    tmp_path: Path,
+) -> None:
+    """A startup that fails early must not materialise reference.db on the way out.
+
+    The shutdown record is DB-backed since #2126, and the engine getter Huey
+    installs at *module import* calls ``get_registry()`` and bootstraps the
+    schema. An unconditional record in the ``finally`` block therefore made a
+    startup that failed before ``get_registry()`` create the very database it
+    was unwinding, after which ``reset_registry()`` disposed a registry the log
+    line itself had brought into being.
+
+    The failure mode is Codex's own example: ``data_dir/samples`` already exists
+    as a file, so the ``mkdir`` just before ``get_registry()`` raises.
+
+    The DB-backed handler is installed explicitly rather than relying on
+    ``huey_tasks`` having been imported — otherwise, run alone, the ``backend``
+    logger would carry no DB handler and this test would pass without
+    exercising anything.
+    """
+    from backend.db import connection
+    from backend.tasks.huey_tasks import _get_reference_engine_for_logging
+
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    (tmp_path / "samples").write_text("not a directory")
+    reference_db = tmp_path / "reference.db"
+
+    connection.reset_registry()
+    try:
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.config.get_settings", return_value=settings),
+            patch("backend.main.shutdown_executor"),
+        ):
+            # The *actual* Huey getter, not a stand-in. A plain
+            # ``lambda: get_registry().reference_engine`` builds an engine
+            # without connecting, and the deleted-database guard in the DB
+            # processor then skips the write — so the database is never created
+            # and this test would pass with the gate removed. What creates it is
+            # this getter's ``bootstrap_reference_schema_tables`` call.
+            configure_logging(engine_getter=_get_reference_engine_for_logging)
+            assert not reference_db.exists(), "setup created the database before the test ran"
+
+            with pytest.raises(OSError):
+                async with lifespan(FastAPI()):
+                    pass
+
+        assert not reference_db.exists(), (
+            "a failed startup created reference.db while unwinding; the teardown "
+            "log record must be gated on an already-initialised registry"
+        )
+    finally:
+        connection.reset_registry()
+        structlog.reset_defaults()
+
+
+def test_registry_is_initialized_does_not_construct_a_registry() -> None:
+    """The predicate must answer without creating what it is asked about."""
+    from backend.db import connection
+
+    connection.reset_registry()
+    try:
+        assert connection.registry_is_initialized() is False
+        assert connection._registry is None, "the check constructed a registry"
+    finally:
+        connection.reset_registry()

@@ -557,6 +557,18 @@ def get_registry() -> DBRegistry:
     return _registry
 
 
+def registry_is_initialized() -> bool:
+    """True when a registry already exists, without constructing one.
+
+    ``get_registry()`` builds a :class:`DBRegistry` on demand, and the logging
+    engine getter that Huey installs at import goes further and bootstraps
+    reference.db's schema. So asking "is there a registry?" by calling either
+    one creates the thing being tested — which is how a *failed* startup could
+    end up materialising reference.db on its way out (#2126).
+    """
+    return _registry is not None
+
+
 def reset_registry() -> None:
     """Reset the registry singleton. Useful for testing."""
     global _registry  # noqa: PLW0603
