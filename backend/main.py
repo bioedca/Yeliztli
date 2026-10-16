@@ -213,6 +213,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # than fatal: the setup wizard is where the user picks another path,
         # and it can only say so if the app comes up.
         settings = get_settings()
+        # Console-only until there is a registry to persist to. The handler that
+        # backend/tasks/huey_tasks.py installs at *import* is DB-backed, and
+        # its engine getter calls get_registry() and bootstraps the schema —
+        # so the privacy warning below, emitted before startup reaches its own
+        # get_registry(), would create reference.db purely as a side effect
+        # of logging, and a startup that then failed would leave that database
+        # behind. Nothing could persist these records anyway: the database they
+        # would be written to does not exist yet. The DB-backed configuration is
+        # installed a few lines down, the moment there is an engine (#2126).
+        configure_logging()
         for private_dir in (settings.data_dir, settings.downloads_dir):
             directory_problem = ensure_private_directory(private_dir, parents=True)
             if directory_problem is not None:

@@ -288,11 +288,28 @@ async def test_logging_is_configured_before_the_steps_it_persists(
 
     order = lifespan_dependencies.call_order
     assert "configure_logging" in order, order
-    assert order.index("configure_logging") < order.index("bootstrap_schema"), order
-    assert order.index("configure_logging") < order.index("ensure_schema"), order
+
+    # Configuration is two-phase. The first call is console-only, before there
+    # is any registry: the DB-backed handler Huey installs at import would
+    # otherwise create reference.db just to record a pre-registry warning. The
+    # second activates DB persistence once there is an engine. Distinguished by
+    # their arguments rather than their positions, so this cannot be satisfied
+    # by a reordering that drops one of them.
+    calls = lifespan_dependencies.configure_logging.call_args_list
+    assert len(calls) == 2, calls
+    assert not calls[0].args and not calls[0].kwargs, (
+        f"first call must be console-only: {calls[0]}"
+    )
+    assert "engine_getter" in calls[1].kwargs, f"second call must enable DB logging: {calls[1]}"
+
+    # DB-backed activation precedes the startup work whose diagnostics it exists
+    # to persist...
+    activation = len(order) - 1 - order[::-1].index("configure_logging")
+    assert activation < order.index("bootstrap_schema"), order
+    assert activation < order.index("ensure_schema"), order
     # ...and the narrow log-schema repair precedes activation, or a legacy
     # database would swallow every insert the reordering exists to capture.
-    assert order.index("ensure_log_schema") < order.index("configure_logging"), order
+    assert order.index("ensure_log_schema") < activation, order
 
 
 @pytest.mark.asyncio
@@ -387,3 +404,55 @@ def test_registry_is_initialized_does_not_construct_a_registry() -> None:
         assert connection._registry is None, "the check constructed a registry"
     finally:
         connection.reset_registry()
+
+
+@pytest.mark.asyncio
+async def test_a_pre_registry_warning_does_not_create_the_reference_database(
+    tmp_path: Path,
+) -> None:
+    """A warning emitted before ``get_registry()`` must not materialise reference.db.
+
+    Distinct from the teardown case above, which only covers an early failure
+    with *no* preceding warning. The privacy warning fires before startup's own
+    ``get_registry()``, while the DB-backed handler Huey installs at import is
+    still in place, so handling that warning called ``get_registry()`` and
+    bootstrapped the schema — creating the database as a pure side effect of
+    logging, before anything had decided to open one. A startup that then failed
+    left it behind.
+
+    Startup now runs console-only until there is an engine to persist to.
+    """
+    from backend.db import connection
+    from backend.tasks.huey_tasks import _get_reference_engine_for_logging
+
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    (tmp_path / "samples").write_text("not a directory")
+    reference_db = tmp_path / "reference.db"
+
+    connection.reset_registry()
+    try:
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.config.get_settings", return_value=settings),
+            # Makes the pre-registry privacy warning fire.
+            patch(
+                "backend.main.ensure_private_directory",
+                return_value="Directory is group- or world-writable",
+            ),
+            patch("backend.main.shutdown_executor"),
+        ):
+            configure_logging(engine_getter=_get_reference_engine_for_logging)
+            assert not reference_db.exists(), "setup created the database before the test ran"
+
+            with pytest.raises(OSError):
+                async with lifespan(FastAPI()):
+                    pass
+
+        assert not reference_db.exists(), (
+            "a pre-registry warning created reference.db; startup must log "
+            "console-only until there is an engine to persist to"
+        )
+    finally:
+        connection.reset_registry()
+        structlog.reset_defaults()
