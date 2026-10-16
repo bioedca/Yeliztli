@@ -326,7 +326,17 @@ async def test_shutdown_log_precedes_registry_disposal(
     order: list[str] = []
     lifespan_dependencies.reset_registry.side_effect = lambda: order.append("reset_registry")
 
-    with patch("backend.main.logger") as shutdown_logger:
+    # The predicate is forced true because this fixture mocks
+    # ``backend.main.get_registry``, so the real connection singleton is never
+    # initialised and the gate would skip the record — making the assertion
+    # below vacuous. Run alone this test failed outright; in file order it
+    # passed only because an earlier test leaked a real singleton through the
+    # import-time Huey handler while ``reset_registry`` was mocked. Pinning the
+    # predicate makes it discriminating and order-independent.
+    with (
+        patch("backend.main.registry_is_initialized", return_value=True),
+        patch("backend.main.logger") as shutdown_logger,
+    ):
         shutdown_logger.info.side_effect = lambda *a, **k: order.append(f"log:{a[0]}")
         async with lifespan(FastAPI()):
             pass

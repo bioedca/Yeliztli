@@ -10,7 +10,7 @@ import contextvars
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import structlog
 
@@ -113,6 +113,32 @@ def _redact_sensitive_value(value: object) -> object:
 # structlog events choose their own fields and are covered by the curated
 # genotype policy above, so widening that curated list here would be a separate
 # decision with its own blast radius.
+# Path-bearing extras keep their basename and lose every directory component.
+# The directory is what identifies: a user picks their own data directory, so an
+# absolute path routinely embeds the account name (/home/Alice/...) or a
+# self-chosen folder, and that would sit in reference.db indefinitely.
+#
+# The basename is kept because it *is* the diagnostic — which database was
+# missing — and because every path-bearing extra here is id-derived or a fixed
+# filename: db_path values are generated as ``samples/sample_<id>.db`` and
+# ``samples/<prefix><publication_id>.db``, sample_merge passes a candidate under
+# those, and preferences passes config.toml. None carries user-supplied text.
+#
+# The limit that follows: a user-supplied *name* must be sanitised where it is
+# logged, not here. That is why the uploaded filename is reported by content
+# hash at its call site rather than routed through this scrubber.
+_PATH_EXTRA_KEYS = frozenset(
+    {
+        "path",
+        "db_path",
+        "file_path",
+        "sample_db_path",
+        "config_path",
+        "data_dir",
+        "directory",
+    }
+)
+
 _IDENTIFYING_EXTRA_KEYS = frozenset(
     {
         "name",
@@ -142,23 +168,23 @@ def _drop_identifying_extras(
     identify nothing on their own.
     """
 
+    def sanitize(key: str, value: object) -> object:
+        lowered = key.lower()
+        if lowered in _IDENTIFYING_EXTRA_KEYS:
+            return _REDACTED_LOG_VALUE
+        if lowered in _PATH_EXTRA_KEYS and isinstance(value, str):
+            return PurePath(value).name or _REDACTED_LOG_VALUE
+        return scrub(value)
+
     def scrub(value: object) -> object:
         if isinstance(value, dict):
-            return {
-                key: (
-                    _REDACTED_LOG_VALUE if key.lower() in _IDENTIFYING_EXTRA_KEYS else scrub(sub)
-                )
-                for key, sub in value.items()
-            }
+            return {key: sanitize(key, sub) for key, sub in value.items()}
         if isinstance(value, (list, tuple)):
             return [scrub(item) for item in value]
         return value
 
     for key in list(event_dict):
-        if key.lower() in _IDENTIFYING_EXTRA_KEYS:
-            event_dict[key] = _REDACTED_LOG_VALUE
-        else:
-            event_dict[key] = scrub(event_dict[key])
+        event_dict[key] = sanitize(key, event_dict[key])
     return event_dict
 
 

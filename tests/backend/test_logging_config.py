@@ -969,3 +969,47 @@ def test_configuring_logging_without_a_reset_is_cleaned_up_b() -> None:
         "structlog still carries the previous test's DB processor, bound to an "
         "engine whose database is gone"
     )
+
+
+def test_path_extras_keep_only_the_basename(tmp_path) -> None:
+    """A durable log must not record the directory a user chose (#2126).
+
+    ``merged_sample_db_missing`` passes an absolute ``db_path`` through stdlib
+    ``extra={...}``. The data directory is user-selected, so that path routinely
+    embeds the account name or a self-chosen folder, and ``ExtraAdder`` would
+    persist it to ``log_entries`` indefinitely.
+
+    The basename survives on purpose: it is the diagnostic — which database was
+    missing — and every path-bearing extra here is id-derived or a fixed
+    filename, so it carries no user-supplied text.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.services.sample_delete").warning(
+            "merged_sample_db_missing",
+            extra={
+                "merged_sample_id": 4,
+                "db_path": "/home/Alice/My Genomes/samples/sample_4.db",
+            },
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "merged_sample_db_missing"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice" not in stored, f"the account name was persisted: {stored}"
+        assert "My Genomes" not in stored, "the user's chosen directory was persisted"
+        payload = json.loads(stored)
+        assert payload["db_path"] == "sample_4.db"
+        assert payload["merged_sample_id"] == 4
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
