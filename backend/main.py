@@ -93,6 +93,7 @@ from backend.auth import AuthMiddleware
 from backend.config import Settings, ensure_private_directory, get_settings
 from backend.data.hla_proxy_loader import load_hla_proxy_data
 from backend.db.connection import (
+    current_registry,
     get_registry,
     registry_is_initialized,
     reset_registry,
@@ -190,6 +191,16 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
         try:
             cleanup()
         except Exception as exc:
+            # Back to console-only before reporting this. ``reset_registry()``
+            # disposes the reference engine and only then clears the singleton,
+            # so a failure in between leaves the singleton pointing at a
+            # disposed engine — and SQLAlchemy lets a disposed engine open a
+            # fresh pool, so the ``logger.exception`` below would reconnect and
+            # leave a live SQLite handle behind during shutdown, which is the
+            # very thing the pre-disposal ordering above exists to avoid. The
+            # record still reaches stderr, which is where a shutdown failure is
+            # read anyway (#2126).
+            configure_logging()
             cleanup_errors.append(exc)
             logger.exception("FastAPI lifespan cleanup failed for %s", resource_name)
 
@@ -214,9 +225,10 @@ def _reference_engine_for_logging() -> sa.Engine | None:
     effect of logging is what the teardown and pre-registry guards exist to
     prevent, and ``registry_is_initialized()`` answers without doing so.
     """
-    if not registry_is_initialized():
+    registry = current_registry()
+    if registry is None:
         return None
-    return get_registry().reference_engine
+    return registry.reference_engine
 
 
 @asynccontextmanager

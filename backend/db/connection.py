@@ -557,6 +557,19 @@ def get_registry() -> DBRegistry:
     return _registry
 
 
+def current_registry() -> DBRegistry | None:
+    """Return the existing registry, or ``None``. Never constructs one.
+
+    A single read of the module singleton, which is what makes it safe for the
+    logging engine getter. Asking ``registry_is_initialized()`` and then calling
+    ``get_registry()`` is two lookups with a window between them: a concurrent
+    ``reset_registry()`` landing in that window made the second call *construct*
+    a replacement, which is exactly the side effect the getter promises not to
+    have — and after a nuclear wipe it would leave a live registry behind.
+    """
+    return _registry
+
+
 def registry_is_initialized() -> bool:
     """True when a registry already exists, without constructing one.
 
@@ -566,7 +579,7 @@ def registry_is_initialized() -> bool:
     one creates the thing being tested — which is how a *failed* startup could
     end up materialising reference.db on its way out (#2126).
     """
-    return _registry is not None
+    return current_registry() is not None
 
 
 def reset_registry() -> None:

@@ -65,6 +65,14 @@ def _detach_backend_log_handler():
     previous_handlers = logger.handlers[:]
     previous_level = logger.level
     previous_propagate = logger.propagate
+    # Snapshot rather than reset. Test modules import ``huey_tasks``, which
+    # installs the production DB/redaction chain at module scope before any
+    # fixture runs, so resetting to structlog's library defaults after the first
+    # test left every later test's *native* structlog call running under a
+    # different configuration — silently no longer exercising production logging
+    # behaviour. Restoring what was there keeps both properties: no test leaks
+    # its own chain, and none of them quietly stops testing the real one.
+    previous_structlog_config = structlog.get_config().copy()
     yield
     # A full restore, not just a removal. ``configure_logging`` *replaces* the
     # handlers on this logger, and one is already installed at import time by
@@ -85,7 +93,7 @@ def _detach_backend_log_handler():
     # *native* structlog event would reconnect through the disposed engine and
     # write to a temporary database that no longer belongs to anyone — or
     # swallow the failure once it was gone, making behaviour order-dependent.
-    structlog.reset_defaults()
+    structlog.configure(**previous_structlog_config)
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -934,12 +934,13 @@ def test_default_configuration_installs_no_root_handler(tmp_path) -> None:
         engine.dispose()
 
 
-def _db_processor_in_structlog_chain() -> bool:
-    """True when structlog's global chain still carries a DB-writing processor."""
-    return any(
-        getattr(processor, "__name__", "") == "db_processor"
-        for processor in structlog.get_config().get("processors", [])
-    )
+# Identity of the processor chain a test installed, handed to its companion
+# below. Checking *identity* rather than "is a db_processor present" is what
+# keeps this honest: the autouse fixture restores the configuration that was
+# in place before the test, and that production chain legitimately contains a
+# db_processor of its own. What must not survive is *this test's* chain, with
+# its own disposed engine bound into it.
+_INSTALLED_CHAIN: dict[str, object] = {}
 
 
 def test_configuring_logging_without_a_reset_is_cleaned_up_a(tmp_path) -> None:
@@ -952,10 +953,17 @@ def test_configuring_logging_without_a_reset_is_cleaned_up_a(tmp_path) -> None:
     ``conftest.py`` is what contains it, and its companion below is what proves
     that (#2126).
     """
+    # Captured before configuring: this is what the autouse fixture must put
+    # back. Restoring it is not the same as resetting to structlog's defaults —
+    # test modules import ``huey_tasks``, which installs the production
+    # DB/redaction chain at module scope, so a reset leaves every later test's
+    # native structlog call running under a chain production never uses.
+    _INSTALLED_CHAIN["prior"] = structlog.get_config()["processors"]
+
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
     configure_logging(engine_getter=lambda: engine)
-    assert _db_processor_in_structlog_chain()
+    _INSTALLED_CHAIN["processors"] = structlog.get_config()["processors"]
     engine.dispose()
 
 
@@ -965,9 +973,17 @@ def test_configuring_logging_without_a_reset_is_cleaned_up_b() -> None:
     Without the fixture's ``structlog.reset_defaults()`` this fails, because the
     chain from the test above survives with its disposed engine still bound.
     """
-    assert not _db_processor_in_structlog_chain(), (
-        "structlog still carries the previous test's DB processor, bound to an "
-        "engine whose database is gone"
+    assert "processors" in _INSTALLED_CHAIN, "its companion test did not run first"
+    current = structlog.get_config()["processors"]
+    assert current is not _INSTALLED_CHAIN["processors"], (
+        "structlog still carries the previous test's processor chain, with that "
+        "test's disposed engine bound into it"
+    )
+    # ...and what came back is the configuration that was in force before that
+    # test, not structlog's defaults. A reset satisfies the check above while
+    # leaving every later test running under a chain production never uses.
+    assert current is _INSTALLED_CHAIN["prior"], (
+        "the fixture reset structlog instead of restoring the prior configuration"
     )
 
 

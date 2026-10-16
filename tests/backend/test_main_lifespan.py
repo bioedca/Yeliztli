@@ -503,3 +503,61 @@ def test_logging_engine_follows_a_replaced_registry() -> None:
         )
     finally:
         connection.reset_registry()
+
+
+def test_resolving_the_logging_engine_cannot_construct_a_registry() -> None:
+    """A reset landing mid-lookup must not make the getter build a registry.
+
+    ``registry_is_initialized()`` followed by ``get_registry()`` is two lookups
+    with a window between them. A ``reset_registry()`` from ``/api/data/nuclear``
+    landing in that window made the second call *construct* a replacement —
+    precisely the side effect this getter promises not to have, leaving a live
+    registry behind after a wipe (#2126).
+
+    Simulated deterministically rather than with threads: the predicate is made
+    to report a registry that is no longer there, which is the state the race
+    produces.
+    """
+    from backend.db import connection
+    from backend.main import _reference_engine_for_logging
+
+    connection.reset_registry()
+    try:
+        # Patched on ``backend.main``, not on the connection module: main
+        # imports the name directly, so patching the definition site leaves its
+        # reference untouched and the check silently proves nothing.
+        with patch("backend.main.registry_is_initialized", return_value=True):
+            assert _reference_engine_for_logging() is None
+        assert not connection.registry_is_initialized(), (
+            "the getter constructed a registry when the singleton vanished mid-lookup"
+        )
+    finally:
+        connection.reset_registry()
+
+
+@pytest.mark.asyncio
+async def test_failed_registry_disposal_does_not_log_through_the_disposed_engine(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """A disposal failure must be reported without the DB sink still attached.
+
+    ``reset_registry()`` disposes the reference engine and only then clears the
+    singleton, so a failure in between leaves the singleton pointing at a
+    disposed engine. SQLAlchemy lets a disposed engine open a fresh pool, so
+    reporting that failure through the DB-backed handler would reconnect and
+    leave a live SQLite handle behind during shutdown — the thing the
+    pre-disposal ordering exists to avoid (#2126).
+    """
+    lifespan_dependencies.reset_registry.side_effect = RuntimeError("dispose failed")
+
+    with pytest.raises(RuntimeError, match="dispose failed"):
+        async with lifespan(FastAPI()):
+            pass
+
+    calls = lifespan_dependencies.configure_logging.call_args_list
+    # Startup's console-only call, startup's DB-backed call, then the
+    # quarantining call made before the failure is reported.
+    assert len(calls) == 3, calls
+    assert not calls[-1].args and not calls[-1].kwargs, (
+        f"the sink must be back to console-only before reporting: {calls[-1]}"
+    )
