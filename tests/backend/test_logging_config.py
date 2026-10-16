@@ -9,6 +9,7 @@ import warnings
 import pytest
 import sqlalchemy as sa
 import structlog
+from _logging_state import restore_logging_state, snapshot_logging_state
 
 from backend.config import get_settings
 from backend.db.connection import get_registry, reset_registry
@@ -934,57 +935,69 @@ def test_default_configuration_installs_no_root_handler(tmp_path) -> None:
         engine.dispose()
 
 
-# Identity of the processor chain a test installed, handed to its companion
-# below. Checking *identity* rather than "is a db_processor present" is what
-# keeps this honest: the autouse fixture restores the configuration that was
-# in place before the test, and that production chain legitimately contains a
-# db_processor of its own. What must not survive is *this test's* chain, with
-# its own disposed engine bound into it.
-_INSTALLED_CHAIN: dict[str, object] = {}
+def test_restoring_logging_state_puts_back_the_prior_structlog_chain(tmp_path) -> None:
+    """The autouse fixture's restore must reinstate the previous configuration.
 
+    ``configure_logging`` replaces structlog's global processor chain with one
+    that has an engine getter bound into it, so a test that configures logging
+    and only disposes its engine leaves that chain live — and a later test's
+    *native* structlog event then reconnects through a disposed engine, writing
+    to a temporary database that belongs to nobody.
 
-def test_configuring_logging_without_a_reset_is_cleaned_up_a(tmp_path) -> None:
-    """Configure logging and leave structlog configured, as a careless test would.
+    Restoring is not the same as resetting. Test modules import ``huey_tasks``,
+    which installs the production DB/redaction chain at module scope, so
+    ``structlog.reset_defaults()`` would leave every later test running under a
+    chain production never uses — passing while no longer exercising the real
+    behaviour.
 
-    Deliberately omits ``structlog.reset_defaults()`` in cleanup — the shape
-    Codex flagged on this PR: the global processor chain keeps the engine getter
-    bound, so a later test's *native* event reconnects through an engine whose
-    database has been disposed and deleted. The autouse fixture in
-    ``conftest.py`` is what contains it, and its companion below is what proves
-    that (#2126).
+    Exercises the helper the fixture delegates to, in one test: an earlier
+    version of this check was split across a pair and read state the companion
+    had left behind, so selecting it alone failed even when cleanup worked.
     """
-    # Captured before configuring: this is what the autouse fixture must put
-    # back. Restoring it is not the same as resetting to structlog's defaults —
-    # test modules import ``huey_tasks``, which installs the production
-    # DB/redaction chain at module scope, so a reset leaves every later test's
-    # native structlog call running under a chain production never uses.
-    _INSTALLED_CHAIN["prior"] = structlog.get_config()["processors"]
-
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
-    configure_logging(engine_getter=lambda: engine)
-    _INSTALLED_CHAIN["processors"] = structlog.get_config()["processors"]
-    engine.dispose()
+    outer = snapshot_logging_state()
 
+    try:
+        # A handler installed *before* the snapshot, standing in for the one
+        # ``huey_tasks`` installs at import. Without it this module's ``backend``
+        # logger starts with an empty handler list, so every later assertion
+        # about reinstating handlers compares [] to [] and holds whether or not
+        # the restore works.
+        backend_logger = logging.getLogger("backend")
+        sentinel = logging.NullHandler()
+        backend_logger.addHandler(sentinel)
 
-def test_configuring_logging_without_a_reset_is_cleaned_up_b() -> None:
-    """The previous test's processor chain must not still be installed.
+        prior = snapshot_logging_state()
+        assert sentinel in prior.handlers
+        configure_logging(engine_getter=lambda: engine)
+        installed = structlog.get_config()["processors"]
+        assert installed is not prior.structlog_config["processors"], (
+            "configure_logging did not install its own chain, so this proves nothing"
+        )
 
-    Without the fixture's ``structlog.reset_defaults()`` this fails, because the
-    chain from the test above survives with its disposed engine still bound.
-    """
-    assert "processors" in _INSTALLED_CHAIN, "its companion test did not run first"
-    current = structlog.get_config()["processors"]
-    assert current is not _INSTALLED_CHAIN["processors"], (
-        "structlog still carries the previous test's processor chain, with that "
-        "test's disposed engine bound into it"
-    )
-    # ...and what came back is the configuration that was in force before that
-    # test, not structlog's defaults. A reset satisfies the check above while
-    # leaving every later test running under a chain production never uses.
-    assert current is _INSTALLED_CHAIN["prior"], (
-        "the fixture reset structlog instead of restoring the prior configuration"
-    )
+        restore_logging_state(prior)
+
+        restored = structlog.get_config()["processors"]
+        assert restored is prior.structlog_config["processors"], (
+            "the prior structlog chain was not reinstated"
+        )
+        assert restored is not installed, "the test's own chain survived the restore"
+
+        # The handler list is reinstated, not merely pruned of what the test
+        # added. ``huey_tasks`` installs a handler on this logger at import, so
+        # a test that clears the list must not leave later tests with none —
+        # which is the failure the removal loop alone cannot undo.
+        backend_logger.handlers.clear()
+        restore_logging_state(prior)
+        assert sentinel in backend_logger.handlers, (
+            "a cleared handler list was not reinstated, so a test that clears "
+            "handlers leaves every later test with none"
+        )
+        assert backend_logger.handlers == prior.handlers
+    finally:
+        restore_logging_state(outer)
+        engine.dispose()
 
 
 def test_path_extras_keep_only_the_basename(tmp_path) -> None:

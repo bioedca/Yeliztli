@@ -8,13 +8,11 @@ sample database pre-loaded with raw variants.
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
-import structlog
 from _isolated_data_home import (
     finish_session,
     isolate_data_home,
@@ -22,6 +20,10 @@ from _isolated_data_home import (
     restore_real_data_home,
     start_session,
     uses_real_data_home,
+)
+from _logging_state import (
+    restore_logging_state,
+    snapshot_logging_state,
 )
 from fastapi.testclient import TestClient
 
@@ -61,39 +63,9 @@ def _detach_backend_log_handler():
     propagate, so a leaked level can silence ``caplog`` assertions in unrelated
     tests.
     """
-    logger = logging.getLogger("backend")
-    previous_handlers = logger.handlers[:]
-    previous_level = logger.level
-    previous_propagate = logger.propagate
-    # Snapshot rather than reset. Test modules import ``huey_tasks``, which
-    # installs the production DB/redaction chain at module scope before any
-    # fixture runs, so resetting to structlog's library defaults after the first
-    # test left every later test's *native* structlog call running under a
-    # different configuration — silently no longer exercising production logging
-    # behaviour. Restoring what was there keeps both properties: no test leaks
-    # its own chain, and none of them quietly stops testing the real one.
-    previous_structlog_config = structlog.get_config().copy()
+    previous = snapshot_logging_state()
     yield
-    # A full restore, not just a removal. ``configure_logging`` *replaces* the
-    # handlers on this logger, and one is already installed at import time by
-    # ``backend/tasks/huey_tasks.py`` (``_configure_worker_logging()`` runs at
-    # module scope). Removing only what the test added therefore left the logger
-    # with no handler at all, so every later test silently lost logging —
-    # trading one kind of cross-test pollution for another.
-    for handler in logger.handlers[:]:
-        if handler not in previous_handlers:
-            logger.removeHandler(handler)
-            handler.close()
-    logger.handlers[:] = previous_handlers
-    logger.setLevel(previous_level)
-    logger.propagate = previous_propagate
-    # structlog's configuration is global too, and ``configure_logging`` binds
-    # the engine getter into its processor chain. A test that configured logging
-    # and only disposed its engine left that chain live, so a later test's
-    # *native* structlog event would reconnect through the disposed engine and
-    # write to a temporary database that no longer belongs to anyone — or
-    # swallow the failure once it was gone, making behaviour order-dependent.
-    structlog.configure(**previous_structlog_config)
+    restore_logging_state(previous)
 
 
 # ═══════════════════════════════════════════════════════════════════════
