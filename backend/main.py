@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from ipaddress import ip_address
 from pathlib import Path
 
+import sqlalchemy as sa
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -91,7 +92,12 @@ from backend.api.routes.watches import router as watches_router
 from backend.auth import AuthMiddleware
 from backend.config import Settings, ensure_private_directory, get_settings
 from backend.data.hla_proxy_loader import load_hla_proxy_data
-from backend.db.connection import get_registry, reset_registry
+from backend.db.connection import (
+    current_registry,
+    get_registry,
+    registry_is_initialized,
+    reset_registry,
+)
 from backend.db.database_registry import (
     PIPELINE_GENOME_BUILD,
     check_genome_build_consistency,
@@ -99,6 +105,7 @@ from backend.db.database_registry import (
 from backend.db.db_health import recover_orphaned_downloads
 from backend.db.reference_schema import (
     bootstrap_reference_schema_tables,
+    ensure_log_entry_presentation_policy,
     ensure_reference_schema_current,
 )
 from backend.logging_config import configure_logging
@@ -158,6 +165,25 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
     visible to the lifespan caller after all cleanup steps have been attempted.
     """
     cleanup_errors: list[Exception] = []
+
+    # Logged *before* the registry is disposed, deliberately. Since #2126 this
+    # stdlib record reaches the structlog DB processor, which calls
+    # ``engine.begin()``; SQLAlchemy lets a disposed engine open a fresh pool, so
+    # emitting it afterwards reopened reference.db and left a pooled SQLite
+    # handle behind on the way out — retaining descriptors across repeated
+    # lifespans and blocking temporary-database cleanup where file locking is
+    # strict. The message describes the disposal that is about to happen, and a
+    # failure in either step is still reported by the handler below.
+    # Gated on an *existing* registry. This record is DB-backed since #2126, and
+    # the engine getter Huey installs at module import bootstraps reference.db's
+    # schema, so emitting it unconditionally made a startup that failed before
+    # ``get_registry()`` create the very database it was unwinding — after which
+    # ``reset_registry()`` disposed a registry the log line itself had brought
+    # into being. Nothing needs disposing in that case, and the cleanup handler
+    # below still reports any failure.
+    if registry_is_initialized():
+        logger.info("DBRegistry disposing - closing all engines")
+
     for resource_name, cleanup in (
         ("download executor", shutdown_executor),
         ("database registry", reset_registry),
@@ -165,6 +191,16 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
         try:
             cleanup()
         except Exception as exc:
+            # Back to console-only before reporting this. ``reset_registry()``
+            # disposes the reference engine and only then clears the singleton,
+            # so a failure in between leaves the singleton pointing at a
+            # disposed engine — and SQLAlchemy lets a disposed engine open a
+            # fresh pool, so the ``logger.exception`` below would reconnect and
+            # leave a live SQLite handle behind during shutdown, which is the
+            # very thing the pre-disposal ordering above exists to avoid. The
+            # record still reaches stderr, which is where a shutdown failure is
+            # read anyway (#2126).
+            configure_logging()
             cleanup_errors.append(exc)
             logger.exception("FastAPI lifespan cleanup failed for %s", resource_name)
 
@@ -173,8 +209,26 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
             raise cleanup_errors[0]
         raise ExceptionGroup("FastAPI lifespan cleanup failed", cleanup_errors)
 
-    if not cleanup_errors:
-        logger.info("DBRegistry disposed - all engines closed")
+
+def _reference_engine_for_logging() -> sa.Engine | None:
+    """Resolve the reference engine from the *current* registry (#2126).
+
+    Deliberately not a closure over the registry captured at startup. The
+    nuclear-delete route calls ``reset_registry()``, and a later request builds
+    a replacement — after which a captured engine is disposed and belongs to a
+    registry nobody else holds. Logging through it reopens the new reference.db
+    on a stale pool, and the shutdown disposal then releases only the
+    replacement's engine, leaving that pool and its SQLite handle alive.
+
+    Returns ``None`` when no registry exists, which the DB processor treats as
+    "console only". It must not *construct* one: creating a registry as a side
+    effect of logging is what the teardown and pre-registry guards exist to
+    prevent, and ``registry_is_initialized()`` answers without doing so.
+    """
+    registry = current_registry()
+    if registry is None:
+        return None
+    return registry.reference_engine
 
 
 @asynccontextmanager
@@ -192,6 +246,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # than fatal: the setup wizard is where the user picks another path,
         # and it can only say so if the app comes up.
         settings = get_settings()
+        # Console-only until there is a registry to persist to. The handler that
+        # backend/tasks/huey_tasks.py installs at *import* is DB-backed, and
+        # its engine getter calls get_registry() and bootstraps the schema —
+        # so the privacy warning below, emitted before startup reaches its own
+        # get_registry(), would create reference.db purely as a side effect
+        # of logging, and a startup that then failed would leave that database
+        # behind. Nothing could persist these records anyway: the database they
+        # would be written to does not exist yet. The DB-backed configuration is
+        # installed a few lines down, the moment there is an engine (#2126).
+        configure_logging()
         for private_dir in (settings.data_dir, settings.downloads_dir):
             directory_problem = ensure_private_directory(private_dir, parents=True)
             if directory_problem is not None:
@@ -203,6 +267,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
+        # Repair the log_entries schema before enabling DB-backed logging. On a
+        # database that predates ``presentation_policy_version`` the insert
+        # below names a column that does not exist yet, and the DB processor
+        # swallows the SQL error — so without this the diagnostics that moving
+        # configure_logging earlier is meant to preserve would still be lost, on
+        # exactly the legacy upgrade where they matter most. The Huey worker
+        # bootstrap already orders these two the same way. Idempotent, and
+        # ensure_reference_schema_current re-checks it later.
+        ensure_log_entry_presentation_policy(registry.reference_engine)
+        # Configure structured logging with DB persistence as soon as there is an
+        # engine to persist to (#2126). It used to run after the schema backfill,
+        # the HLA-proxy load and the genome-build check, so those steps' own
+        # diagnostics — exactly what someone triaging a boot failure in the Log
+        # Explorer wants — were emitted before the DB processor existed and were
+        # never stored. Only the pre-registry privacy warning above remains
+        # console-only, which is irreducible without buffering: there is no
+        # engine to write to before this line.
+        configure_logging(engine_getter=_reference_engine_for_logging)
         # Ensure reference tables exist under SQLite's cross-process DDL lock.
         bootstrap_reference_schema_tables(registry.reference_engine)
         # create_all only creates missing *tables*, never adds *columns* to
@@ -230,13 +312,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # legitimate GRCh38 coordinates are expected and not flagged.
         build_skew = check_genome_build_consistency(registry.reference_engine)
         if build_skew:
+            # Formatted into the message for the same reason as the privacy
+            # warning above: ``logger`` here is a stdlib logger, and passing it
+            # arbitrary keywords raises TypeError out of ``Logger._log``. This
+            # site did pass ``sources=``/``pipeline_build=``, so the moment a
+            # skew was actually detected the warning aborted startup instead of
+            # reporting it — the one condition it exists to survive (#2126).
             logger.warning(
-                "genome_build_skew_detected",
-                sources=build_skew,
-                pipeline_build=PIPELINE_GENOME_BUILD,
+                "genome_build_skew_detected: sources=%s pipeline_build=%s",
+                build_skew,
+                PIPELINE_GENOME_BUILD,
             )
-        # Configure structured logging with DB persistence
-        configure_logging(engine_getter=lambda: registry.reference_engine)
         warn_if_insecure_network_bind(settings)
         # Mark any leftover in-progress download sessions as interrupted/stale
         cleanup_interrupted_sessions(registry.reference_engine)

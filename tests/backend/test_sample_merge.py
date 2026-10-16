@@ -52,6 +52,7 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.logging_config import _in_db_processor
 from backend.services import sample_merge as sample_merge_module
 from backend.services.sample_delete import delete_sample_with_cascade
 from backend.services.sample_merge import (
@@ -2747,7 +2748,13 @@ class TestCrashSafePublication:
 
         def begin_once():
             inner = real_begin()
-            if fired:
+            # Skip transactions the log processor opens. It writes to this same
+            # reference engine, and since #2126 it is driven by stdlib logging
+            # too, so a log line emitted before the publishing transaction would
+            # consume this one-shot latch and attach the interrupt to a logging
+            # write instead — leaving the publication path unexercised while the
+            # test still appeared to run.
+            if fired or _in_db_processor.get():
                 return inner
             fired.append(True)
             return _CommitThenInterrupt(inner)

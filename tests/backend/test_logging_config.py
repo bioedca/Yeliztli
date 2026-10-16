@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import warnings
 
 import pytest
 import sqlalchemy as sa
 import structlog
+from _logging_state import restore_logging_state, snapshot_logging_state
 
 from backend.config import get_settings
 from backend.db.connection import get_registry, reset_registry
@@ -470,6 +472,609 @@ def test_nameless_logger_persists_null_component_not_empty_string(tmp_path) -> N
             ).scalar_one()
 
         assert logger_name is None
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+# ── Stdlib logging reaches the Log Explorer (#2126) ──────────────────────────
+
+
+def test_stdlib_logger_persists_to_log_entries(tmp_path) -> None:
+    """A ``logging.getLogger`` call reaches the DB, so the Log Explorer shows it.
+
+    ``configure_logging`` used to end with ``logging.basicConfig(...)`` under a
+    comment claiming it routed stdlib logging through structlog. It did not:
+    ``basicConfig`` installs a plain ``StreamHandler`` that formats the record
+    itself and never touches a processor, so all 65 ``logging.getLogger``
+    call sites in ``backend/`` wrote to stderr and nothing else. Verified against
+    a real database before the fix — ``DBRegistry initialised``, logged every
+    boot, had zero rows in ``log_entries``.
+
+    This asserts the message, the level and the component, because a route that
+    stored the text under an empty logger would still leave the Component filter
+    blind to every stdlib site.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.main").info(
+            "DBRegistry initialised (reference.db engine ready)"
+        )
+
+        with engine.connect() as conn:
+            row = conn.execute(
+                sa.select(log_entries.c.logger, log_entries.c.level).where(
+                    log_entries.c.message == "DBRegistry initialised (reference.db engine ready)"
+                )
+            ).one()
+
+        assert row.logger == "backend.main"
+        assert row.level == "INFO"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_stdlib_percent_formatting_persists_interpolated(tmp_path) -> None:
+    """``%s`` arguments are interpolated before storage, not stored as a template.
+
+    The lifespan's surviving stdlib sites use ``%``-style arguments precisely
+    because a stdlib logger rejects keywords, so storing ``"...: %s"`` with the
+    value dropped would make those rows useless.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.main").warning(
+            "data_directory_not_private: %s", "world-readable"
+        )
+
+        with engine.connect() as conn:
+            message = conn.execute(
+                sa.select(log_entries.c.message).where(log_entries.c.level == "WARNING")
+            ).scalar_one()
+
+        assert message == "data_directory_not_private: world-readable"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_stdlib_routing_does_not_duplicate_native_events(tmp_path) -> None:
+    """Native structlog events are still stored exactly once.
+
+    The routing handler lives on the stdlib root logger. This app's
+    ``logger_factory`` is a ``PrintLoggerFactory``, so native events never pass
+    through stdlib and cannot be written twice — but a future switch to
+    ``structlog.stdlib.LoggerFactory`` would double every row, which is the
+    failure this pins.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.get_logger("backend.analysis.metabolic").info("native_only_event")
+
+        with engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(log_entries)
+                .where(log_entries.c.message == "native_only_event")
+            ).scalar_one()
+
+        assert count == 1
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_stdlib_records_are_redacted_before_storage(tmp_path) -> None:
+    """A stdlib record is redacted on the same terms as a native event.
+
+    The vector is a **bound contextvar**, not a keyword: a stdlib logger cannot
+    take structured keywords at all, and ``extra=`` is not merged into the event
+    dict by ``ProcessorFormatter``. What *does* reach a foreign record is
+    anything bound with ``bind_contextvars`` — request middleware or an analysis
+    routine binds a diplotype, and any stdlib line logged inside that scope
+    would carry it. Routing stdlib logs into the database must not turn that
+    into a privacy bypass, so the redactor runs in the foreign pre-chain.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        structlog.contextvars.bind_contextvars(diplotype="*1/*2", sample_rsid_genotype="AG")
+        try:
+            logging.getLogger("backend.analysis.pharmacogenomics").info("stdlib_in_bound_scope")
+        finally:
+            structlog.contextvars.clear_contextvars()
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "stdlib_in_bound_scope"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        # The keys survive (they are useful structure); the values must not.
+        assert "*1/*2" not in stored
+        assert '"AG"' not in stored
+        assert _REDACTED_LOG_VALUE in stored
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_repeated_configuration_does_not_stack_root_handlers(tmp_path) -> None:
+    """``configure_logging`` is idempotent on the root logger.
+
+    The API lifespan configures once, and tests and the Huey worker bootstrap
+    configure again in the same process. Appending a handler each time would
+    duplicate every stdlib line on the console and every row in the DB.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        configure_logging(engine_getter=lambda: engine)
+        configure_logging(engine_getter=lambda: engine)
+
+        assert len(logging.getLogger("backend").handlers) == 1
+
+        logging.getLogger("backend.main").info("configured_thrice")
+        with engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(log_entries)
+                .where(log_entries.c.message == "configured_thrice")
+            ).scalar_one()
+        assert count == 1
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_logging_after_deletion_does_not_recreate_the_database(tmp_path) -> None:
+    """A log line emitted after the database is deleted must not recreate it.
+
+    SQLite creates the file on connect, so the DB processor would resurrect
+    ``reference.db`` moments after the nuclear-delete endpoint removed it,
+    leaving a "delete all my data" feature with its own artefact on disk. The
+    window became reachable when stdlib logging started flowing through this
+    processor (#2126) — the lifespan and shutdown paths log through stdlib, and
+    the nuclear-delete tests caught the resurrection.
+    """
+    structlog.reset_defaults()
+    database = tmp_path / "reference.db"
+    engine = sa.create_engine(f"sqlite:///{database}")
+    reference_metadata.create_all(engine)
+    assert database.exists()
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        engine.dispose()
+        database.unlink()
+
+        # Both paths into the processor: a native event and a stdlib record.
+        structlog.get_logger("backend.analysis.metabolic").info("after_nuclear_delete")
+        logging.getLogger("backend.main").info("after_nuclear_delete_stdlib")
+
+        assert not database.exists(), "the log processor recreated a deleted database"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_withheld_pair_on_a_stdlib_record_is_held_not_crashed(tmp_path) -> None:
+    """A withheld prescribing pair logged through stdlib is held, not published.
+
+    The fail-closed path calls ``event_dict.clear()``, which also drops
+    ProcessorFormatter's ``_record``/``_from_structlog`` keys;
+    ``remove_processors_meta`` then deletes them unconditionally and raised
+    ``KeyError``. The formatter aborted, so the neutral replacement was neither
+    stored nor rendered, and stdlib's ``handleError`` printed the original
+    record's ``Message:`` — publishing the pair that was supposed to be
+    withheld. Running the redactor after the meta keys are removed makes the
+    clear safe (#2126).
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    previously_raising = logging.raiseExceptions
+
+    try:
+        logging.raiseExceptions = True
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.analysis.pharmacogenomics").warning(
+            "withheld guidance for CYP2D6 tamoxifen"
+        )
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(log_entries.c.message, log_entries.c.event_data)
+            ).fetchall()
+
+        # The neutral marker is persisted — not nothing, and not the pair.
+        assert len(rows) == 1
+        message, event_data = rows[0]
+        assert "tamoxifen" not in message.lower()
+        assert "cyp2d6" not in message.lower()
+        assert "tamoxifen" not in (event_data or "").lower()
+    finally:
+        logging.raiseExceptions = previously_raising
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_stdlib_extra_fields_reach_the_payload(tmp_path) -> None:
+    """``extra={...}`` survives into the stored payload.
+
+    ProcessorFormatter builds a foreign event dict from the rendered message and
+    metadata only, so without ``ExtraAdder`` these fields are dropped and events
+    like ``sample_delete_cascade`` would reach the Log Explorer as a bare name
+    with their ids and counts discarded (#2126).
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.db.connection").info(
+            "sample_delete_cascade", extra={"sample_id": 7, "deleted_rows": 42}
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "sample_delete_cascade"
+                )
+            ).scalar_one()
+
+        assert event_data is not None
+        assert json.loads(event_data) == {"sample_id": 7, "deleted_rows": 42}
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_stdlib_extra_fields_are_redacted(tmp_path) -> None:
+    """Imported ``extra`` fields are sanitised on the same terms as the rest.
+
+    ``ExtraAdder`` runs before the redactor precisely so a sensitive field
+    cannot enter the payload by the stdlib route and skip redaction.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.analysis.pharmacogenomics").info(
+            "call_recorded", extra={"diplotype": "*1/*2", "gene": "CYP2C19"}
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == "call_recorded")
+            ).scalar_one()
+
+        stored = json.loads(event_data)
+        assert stored["diplotype"] == _REDACTED_LOG_VALUE
+        # A non-sensitive neighbour is kept, so the redaction is targeted.
+        assert stored["gene"] == "CYP2C19"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_logging_against_a_legacy_log_schema_still_persists(tmp_path) -> None:
+    """A database predating ``presentation_policy_version`` still records logs.
+
+    The insert names that column, and the DB processor swallows the SQL error,
+    so on a legacy upgrade every entry was silently dropped — including the
+    startup diagnostics that configuring logging early is meant to preserve.
+    The lifespan therefore repairs the log schema before enabling the processor;
+    this asserts the repair is what makes the write land (#2126).
+    """
+    from backend.db.reference_schema import ensure_log_entry_presentation_policy
+
+    structlog.reset_defaults()
+    database = tmp_path / "reference.db"
+    engine = sa.create_engine(f"sqlite:///{database}")
+    reference_metadata.create_all(engine)
+    # Reduce the table to its pre-policy shape.
+    with engine.begin() as conn:
+        conn.exec_driver_sql("DROP TABLE log_entries")
+        conn.exec_driver_sql(
+            "CREATE TABLE log_entries ("
+            "id INTEGER PRIMARY KEY, timestamp DATETIME, level VARCHAR, "
+            "logger VARCHAR, message TEXT, event_data TEXT)"
+        )
+
+    try:
+        ensure_log_entry_presentation_policy(engine)
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.main").info("legacy_schema_startup_diagnostic")
+
+        with engine.connect() as conn:
+            count = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(log_entries)
+                .where(log_entries.c.message == "legacy_schema_startup_diagnostic")
+            ).scalar_one()
+
+        assert count == 1
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_configure_logging_replaces_rather_than_accumulates(tmp_path) -> None:
+    """Configuring logging replaces the ``backend`` handler, never stacks one.
+
+    The handler carries the **database** processor, so an accumulated one is a
+    second live writer, and a leaked one is a writer bound to a finished test's
+    engine. ``logging.basicConfig`` was harmless to leak because it only reached
+    stderr; this is not, which is why ``conftest.py`` restores the logger around
+    every test (#2126).
+
+    Note the process already has a handler here: ``backend/tasks/huey_tasks.py``
+    installs one at import time, so the invariant is "exactly one", not "one
+    more than before".
+    """
+    backend_logger = logging.getLogger("backend")
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        assert len(backend_logger.handlers) == 1
+        first = backend_logger.handlers[0]
+
+        configure_logging(engine_getter=lambda: engine)
+        assert len(backend_logger.handlers) == 1
+        # Replaced, not reused-in-place and not appended.
+        assert backend_logger.handlers[0] is not first
+        assert backend_logger.level == logging.INFO
+    finally:
+        engine.dispose()
+
+
+def test_identifying_extras_are_not_persisted(tmp_path) -> None:
+    """A deleted sample's name must not survive in the Log Explorer (#2126).
+
+    ``sample_delete_cascade`` passes ``deleted_sample_name`` and a list of child
+    ``{"id", "name"}`` objects through stdlib ``extra={...}``. Those only ever
+    reached stderr before; once ``ExtraAdder`` imports extras they would be
+    written to ``log_entries`` durably — so deleting a sample would remove its
+    row and its database while leaving its name visible indefinitely, which
+    inverts the point of the deletion.
+
+    Ids and counts are deliberately kept: they make the entry useful for triage
+    and identify nothing on their own.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.services.sample_delete").info(
+            "sample_delete_cascade",
+            extra={
+                "deleted_sample_id": 7,
+                "deleted_sample_name": "Alice DNA",
+                "deleted_merged_children": [{"id": 8, "name": "Alice v5"}],
+            },
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "sample_delete_cascade"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice DNA" not in stored
+        assert "Alice v5" not in stored, "a nested child name survived"
+        # The useful, non-identifying structure is retained.
+        payload = json.loads(stored)
+        assert payload["deleted_sample_id"] == 7
+        assert payload["deleted_sample_name"] == _REDACTED_LOG_VALUE
+        assert payload["deleted_merged_children"][0]["id"] == 8
+        assert payload["deleted_merged_children"][0]["name"] == _REDACTED_LOG_VALUE
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_default_configuration_installs_no_root_handler(tmp_path) -> None:
+    """The replacement for ``basicConfig`` leaves the root logger alone.
+
+    This is the exposure that actually got smaller: ``basicConfig`` installed a
+    root handler that printed every stdlib record **raw**, unconditionally. The
+    routing handler lives on the ``backend`` logger instead, so with no root
+    handler installed a propagated record reaches nothing and the only rendered
+    copy is the redacted one.
+
+    What this does *not* claim: propagation is still on, so a host or test
+    harness that installs its own root handler does receive the unredacted
+    original. Closing that needs record-level sanitisation in a logger-level
+    filter — turning propagation off instead silences ``caplog`` process-wide,
+    because this module is configured at import by the Huey bootstrap. Tracked
+    separately (#2126 review).
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    root = logging.getLogger()
+    before = root.handlers[:]
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        assert root.handlers == before, "configure_logging must not touch the root logger"
+        assert len(logging.getLogger("backend").handlers) == 1
+        # Propagation stays on, so caplog and host integrations keep working.
+        assert logging.getLogger("backend").propagate is True
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_restoring_logging_state_puts_back_the_prior_structlog_chain(tmp_path) -> None:
+    """The autouse fixture's restore must reinstate the previous configuration.
+
+    ``configure_logging`` replaces structlog's global processor chain with one
+    that has an engine getter bound into it, so a test that configures logging
+    and only disposes its engine leaves that chain live — and a later test's
+    *native* structlog event then reconnects through a disposed engine, writing
+    to a temporary database that belongs to nobody.
+
+    Restoring is not the same as resetting. Test modules import ``huey_tasks``,
+    which installs the production DB/redaction chain at module scope, so
+    ``structlog.reset_defaults()`` would leave every later test running under a
+    chain production never uses — passing while no longer exercising the real
+    behaviour.
+
+    Exercises the helper the fixture delegates to, in one test: an earlier
+    version of this check was split across a pair and read state the companion
+    had left behind, so selecting it alone failed even when cleanup worked.
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    outer = snapshot_logging_state()
+
+    try:
+        # A handler installed *before* the snapshot, standing in for the one
+        # ``huey_tasks`` installs at import. Without it this module's ``backend``
+        # logger starts with an empty handler list, so every later assertion
+        # about reinstating handlers compares [] to [] and holds whether or not
+        # the restore works.
+        backend_logger = logging.getLogger("backend")
+        sentinel = logging.NullHandler()
+        backend_logger.addHandler(sentinel)
+
+        prior = snapshot_logging_state()
+        assert sentinel in prior.handlers
+        configure_logging(engine_getter=lambda: engine)
+        installed = structlog.get_config()["processors"]
+        assert installed is not prior.structlog_config["processors"], (
+            "configure_logging did not install its own chain, so this proves nothing"
+        )
+
+        restore_logging_state(prior)
+
+        restored = structlog.get_config()["processors"]
+        assert restored is prior.structlog_config["processors"], (
+            "the prior structlog chain was not reinstated"
+        )
+        assert restored is not installed, "the test's own chain survived the restore"
+
+        # The handler list is reinstated, not merely pruned of what the test
+        # added. ``huey_tasks`` installs a handler on this logger at import, so
+        # a test that clears the list must not leave later tests with none —
+        # which is the failure the removal loop alone cannot undo.
+        backend_logger.handlers.clear()
+        restore_logging_state(prior)
+        assert sentinel in backend_logger.handlers, (
+            "a cleared handler list was not reinstated, so a test that clears "
+            "handlers leaves every later test with none"
+        )
+        assert backend_logger.handlers == prior.handlers
+    finally:
+        restore_logging_state(outer)
+        engine.dispose()
+
+
+def test_path_extras_keep_only_the_basename(tmp_path) -> None:
+    """A durable log must not record the directory a user chose (#2126).
+
+    ``merged_sample_db_missing`` passes an absolute ``db_path`` through stdlib
+    ``extra={...}``. The data directory is user-selected, so that path routinely
+    embeds the account name or a self-chosen folder, and ``ExtraAdder`` would
+    persist it to ``log_entries`` indefinitely.
+
+    The basename survives on purpose: it is the diagnostic — which database was
+    missing — and every path-bearing extra here is id-derived or a fixed
+    filename, so it carries no user-supplied text.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.services.sample_delete").warning(
+            "merged_sample_db_missing",
+            extra={
+                "merged_sample_id": 4,
+                "db_path": "/home/Alice/My Genomes/samples/sample_4.db",
+            },
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "merged_sample_db_missing"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice" not in stored, f"the account name was persisted: {stored}"
+        assert "My Genomes" not in stored, "the user's chosen directory was persisted"
+        payload = json.loads(stored)
+        assert payload["db_path"] == "sample_4.db"
+        assert payload["merged_sample_id"] == 4
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_path_policy_matches_by_suffix_not_an_enumerated_list(tmp_path) -> None:
+    """``expected_path`` must be reduced even though no list names it (#2126).
+
+    The vendored-liftover warnings in ``backend/ingestion/liftover.py`` report
+    their install location under ``expected_path``. An exact-name key set missed
+    it, and would miss the next ``*_path`` field somebody adds — a denylist of
+    names fails open every time the vocabulary grows, which on a privacy
+    boundary is the wrong direction to fail.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.ingestion.liftover").warning(
+            "liftover_chain_missing_fallback_to_web",
+            extra={"expected_path": "/home/Alice/My Genomes/chains/hg19ToHg38.over.chain.gz"},
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "liftover_chain_missing_fallback_to_web"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice" not in stored, f"the account name was persisted: {stored}"
+        assert "My Genomes" not in stored
+        assert json.loads(stored)["expected_path"] == "hg19ToHg38.over.chain.gz"
     finally:
         structlog.reset_defaults()
         engine.dispose()

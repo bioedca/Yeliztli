@@ -557,6 +557,31 @@ def get_registry() -> DBRegistry:
     return _registry
 
 
+def current_registry() -> DBRegistry | None:
+    """Return the existing registry, or ``None``. Never constructs one.
+
+    A single read of the module singleton, which is what makes it safe for the
+    logging engine getter. Asking ``registry_is_initialized()`` and then calling
+    ``get_registry()`` is two lookups with a window between them: a concurrent
+    ``reset_registry()`` landing in that window made the second call *construct*
+    a replacement, which is exactly the side effect the getter promises not to
+    have — and after a nuclear wipe it would leave a live registry behind.
+    """
+    return _registry
+
+
+def registry_is_initialized() -> bool:
+    """True when a registry already exists, without constructing one.
+
+    ``get_registry()`` builds a :class:`DBRegistry` on demand, and the logging
+    engine getter that Huey installs at import goes further and bootstraps
+    reference.db's schema. So asking "is there a registry?" by calling either
+    one creates the thing being tested — which is how a *failed* startup could
+    end up materialising reference.db on its way out (#2126).
+    """
+    return current_registry() is not None
+
+
 def reset_registry() -> None:
     """Reset the registry singleton. Useful for testing."""
     global _registry  # noqa: PLW0603

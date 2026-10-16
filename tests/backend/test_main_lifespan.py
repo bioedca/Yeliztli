@@ -6,9 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+import structlog
 from fastapi import FastAPI
 
 from backend.config import Settings
+from backend.logging_config import configure_logging
 from backend.main import lifespan
 
 
@@ -27,9 +29,12 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.get_registry", return_value=registry) as get_registry,
         patch("backend.main.bootstrap_reference_schema_tables") as bootstrap_schema,
         patch("backend.main.ensure_reference_schema_current") as ensure_schema,
+        # Repairs the log_entries schema before DB-backed logging is enabled
+        # (#2126); the fake registry's engine is a sentinel, not a real engine.
+        patch("backend.main.ensure_log_entry_presentation_policy") as ensure_log_schema,
         patch("backend.main.load_hla_proxy_data", return_value=0),
-        patch("backend.main.check_genome_build_consistency", return_value={}),
-        patch("backend.main.configure_logging"),
+        patch("backend.main.check_genome_build_consistency", return_value={}) as build_check,
+        patch("backend.main.configure_logging") as configure_logging_mock,
         patch("backend.main.warn_if_insecure_network_bind"),
         patch("backend.main.cleanup_interrupted_sessions"),
         patch("backend.main.recover_orphaned_jobs"),
@@ -38,12 +43,24 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.shutdown_executor") as shutdown_executor,
         patch("backend.main.reset_registry") as reset_registry,
     ):
+        # Startup order is part of the contract for #2126: logging must be
+        # configured before the steps whose diagnostics it is meant to persist.
+        call_order: list[str] = []
+        configure_logging_mock.side_effect = lambda *a, **k: call_order.append("configure_logging")
+        bootstrap_schema.side_effect = lambda *a, **k: call_order.append("bootstrap_schema")
+        ensure_log_schema.side_effect = lambda *a, **k: call_order.append("ensure_log_schema")
+        ensure_schema.side_effect = lambda *a, **k: call_order.append("ensure_schema")
+
         yield SimpleNamespace(
             bootstrap_schema=bootstrap_schema,
             ensure_schema=ensure_schema,
             get_registry=get_registry,
             reset_registry=reset_registry,
             shutdown_executor=shutdown_executor,
+            configure_logging=configure_logging_mock,
+            ensure_log_schema=ensure_log_schema,
+            build_check=build_check,
+            call_order=call_order,
         )
 
 
@@ -221,3 +238,326 @@ async def test_startup_survives_a_directory_it_cannot_make_private(
     warnings = [record.getMessage() for record in caplog.records]
     assert any("data_directory_not_private" in message for message in warnings), warnings
     assert any(problem in message for message in warnings), warnings
+
+
+@pytest.mark.asyncio
+async def test_startup_survives_a_detected_genome_build_skew(
+    lifespan_dependencies: SimpleNamespace,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A detected build skew is reported, never fatal (#2126).
+
+    Same class as the privacy warning above (#2163), missed because no test
+    exercised the branch: the shared fixture returns a falsy skew, so the
+    warning never ran. It passed ``sources=`` and ``pipeline_build=`` to the
+    lifespan's **stdlib** logger, which raises ``TypeError`` out of
+    ``Logger._log`` before any handler — so the first time a real skew was
+    detected, the warning aborted startup instead of reporting it.
+
+    Routing stdlib logging through structlog does not help here: the TypeError
+    is raised inside ``Logger._log``, upstream of every handler.
+    """
+    skew = {"gnomad": "GRCh38"}
+    lifespan_dependencies.build_check.return_value = skew
+
+    with caplog.at_level(logging.WARNING, logger="backend.main"):
+        async with lifespan(FastAPI()):
+            pass
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("genome_build_skew_detected" in message for message in messages), messages
+    # The detail has to survive into the message, since a stdlib logger cannot
+    # carry it as structure.
+    assert any("gnomad" in message for message in messages), messages
+
+
+@pytest.mark.asyncio
+async def test_logging_is_configured_before_the_steps_it_persists(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """``configure_logging`` runs before the startup work it is meant to record.
+
+    It used to run after the schema bootstrap, the additive-column backfill, the
+    HLA-proxy load and the genome-build check, so each of those steps logged
+    before the DB processor existed and none of it reached the Log Explorer —
+    precisely the diagnostics someone triaging a boot failure would look for
+    (#2126).
+    """
+    async with lifespan(FastAPI()):
+        pass
+
+    order = lifespan_dependencies.call_order
+    assert "configure_logging" in order, order
+
+    # Configuration is two-phase. The first call is console-only, before there
+    # is any registry: the DB-backed handler Huey installs at import would
+    # otherwise create reference.db just to record a pre-registry warning. The
+    # second activates DB persistence once there is an engine. Distinguished by
+    # their arguments rather than their positions, so this cannot be satisfied
+    # by a reordering that drops one of them.
+    calls = lifespan_dependencies.configure_logging.call_args_list
+    assert len(calls) == 2, calls
+    assert not calls[0].args and not calls[0].kwargs, (
+        f"first call must be console-only: {calls[0]}"
+    )
+    assert "engine_getter" in calls[1].kwargs, f"second call must enable DB logging: {calls[1]}"
+
+    # DB-backed activation precedes the startup work whose diagnostics it exists
+    # to persist...
+    activation = len(order) - 1 - order[::-1].index("configure_logging")
+    assert activation < order.index("bootstrap_schema"), order
+    assert activation < order.index("ensure_schema"), order
+    # ...and the narrow log-schema repair precedes activation, or a legacy
+    # database would swallow every insert the reordering exists to capture.
+    assert order.index("ensure_log_schema") < activation, order
+
+
+@pytest.mark.asyncio
+async def test_shutdown_log_precedes_registry_disposal(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """The final shutdown record is emitted before the registry is disposed.
+
+    Since #2126 that stdlib record reaches the structlog DB processor, which
+    calls ``engine.begin()``. SQLAlchemy lets a disposed engine open a fresh
+    pool, so logging it after disposal reopened reference.db and left a pooled
+    SQLite handle behind on the way out.
+    """
+    order: list[str] = []
+    lifespan_dependencies.reset_registry.side_effect = lambda: order.append("reset_registry")
+
+    # The predicate is forced true because this fixture mocks
+    # ``backend.main.get_registry``, so the real connection singleton is never
+    # initialised and the gate would skip the record — making the assertion
+    # below vacuous. Run alone this test failed outright; in file order it
+    # passed only because an earlier test leaked a real singleton through the
+    # import-time Huey handler while ``reset_registry`` was mocked. Pinning the
+    # predicate makes it discriminating and order-independent.
+    with (
+        patch("backend.main.registry_is_initialized", return_value=True),
+        patch("backend.main.logger") as shutdown_logger,
+    ):
+        shutdown_logger.info.side_effect = lambda *a, **k: order.append(f"log:{a[0]}")
+        async with lifespan(FastAPI()):
+            pass
+
+    disposing = [i for i, step in enumerate(order) if step.startswith("log:DBRegistry disposing")]
+    assert disposing, order
+    assert disposing[0] < order.index("reset_registry"), order
+
+
+@pytest.mark.asyncio
+async def test_failed_startup_does_not_create_the_reference_database(
+    tmp_path: Path,
+) -> None:
+    """A startup that fails early must not materialise reference.db on the way out.
+
+    The shutdown record is DB-backed since #2126, and the engine getter Huey
+    installs at *module import* calls ``get_registry()`` and bootstraps the
+    schema. An unconditional record in the ``finally`` block therefore made a
+    startup that failed before ``get_registry()`` create the very database it
+    was unwinding, after which ``reset_registry()`` disposed a registry the log
+    line itself had brought into being.
+
+    The failure mode is Codex's own example: ``data_dir/samples`` already exists
+    as a file, so the ``mkdir`` just before ``get_registry()`` raises.
+
+    The DB-backed handler is installed explicitly rather than relying on
+    ``huey_tasks`` having been imported — otherwise, run alone, the ``backend``
+    logger would carry no DB handler and this test would pass without
+    exercising anything.
+    """
+    from backend.db import connection
+    from backend.tasks.huey_tasks import _get_reference_engine_for_logging
+
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    (tmp_path / "samples").write_text("not a directory")
+    reference_db = tmp_path / "reference.db"
+
+    connection.reset_registry()
+    try:
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.config.get_settings", return_value=settings),
+            patch("backend.main.shutdown_executor"),
+        ):
+            # The *actual* Huey getter, not a stand-in. A plain
+            # ``lambda: get_registry().reference_engine`` builds an engine
+            # without connecting, and the deleted-database guard in the DB
+            # processor then skips the write — so the database is never created
+            # and this test would pass with the gate removed. What creates it is
+            # this getter's ``bootstrap_reference_schema_tables`` call.
+            configure_logging(engine_getter=_get_reference_engine_for_logging)
+            assert not reference_db.exists(), "setup created the database before the test ran"
+
+            with pytest.raises(OSError):
+                async with lifespan(FastAPI()):
+                    pass
+
+        assert not reference_db.exists(), (
+            "a failed startup created reference.db while unwinding; the teardown "
+            "log record must be gated on an already-initialised registry"
+        )
+    finally:
+        connection.reset_registry()
+        structlog.reset_defaults()
+
+
+def test_registry_is_initialized_does_not_construct_a_registry() -> None:
+    """The predicate must answer without creating what it is asked about."""
+    from backend.db import connection
+
+    connection.reset_registry()
+    try:
+        assert connection.registry_is_initialized() is False
+        assert connection._registry is None, "the check constructed a registry"
+    finally:
+        connection.reset_registry()
+
+
+@pytest.mark.asyncio
+async def test_a_pre_registry_warning_does_not_create_the_reference_database(
+    tmp_path: Path,
+) -> None:
+    """A warning emitted before ``get_registry()`` must not materialise reference.db.
+
+    Distinct from the teardown case above, which only covers an early failure
+    with *no* preceding warning. The privacy warning fires before startup's own
+    ``get_registry()``, while the DB-backed handler Huey installs at import is
+    still in place, so handling that warning called ``get_registry()`` and
+    bootstrapped the schema — creating the database as a pure side effect of
+    logging, before anything had decided to open one. A startup that then failed
+    left it behind.
+
+    Startup now runs console-only until there is an engine to persist to.
+    """
+    from backend.db import connection
+    from backend.tasks.huey_tasks import _get_reference_engine_for_logging
+
+    settings = Settings(data_dir=tmp_path, wal_mode=False)
+    (tmp_path / "samples").write_text("not a directory")
+    reference_db = tmp_path / "reference.db"
+
+    connection.reset_registry()
+    try:
+        with (
+            patch("backend.main.get_settings", return_value=settings),
+            patch("backend.db.connection.get_settings", return_value=settings),
+            patch("backend.config.get_settings", return_value=settings),
+            # Makes the pre-registry privacy warning fire.
+            patch(
+                "backend.main.ensure_private_directory",
+                return_value="Directory is group- or world-writable",
+            ),
+            patch("backend.main.shutdown_executor"),
+        ):
+            configure_logging(engine_getter=_get_reference_engine_for_logging)
+            assert not reference_db.exists(), "setup created the database before the test ran"
+
+            with pytest.raises(OSError):
+                async with lifespan(FastAPI()):
+                    pass
+
+        assert not reference_db.exists(), (
+            "a pre-registry warning created reference.db; startup must log "
+            "console-only until there is an engine to persist to"
+        )
+    finally:
+        connection.reset_registry()
+        structlog.reset_defaults()
+
+
+def test_logging_engine_follows_a_replaced_registry() -> None:
+    """The engine getter must resolve the live registry, not one captured at startup.
+
+    ``/api/data/nuclear`` calls ``reset_registry()``, and a later request builds
+    a replacement. A closure over the startup registry then hands out a disposed
+    engine belonging to a registry nobody else holds: logging through it reopens
+    the new reference.db on a stale pool, and the shutdown disposal releases only
+    the replacement's engine, leaving that pool and its SQLite handle alive
+    (#2126).
+    """
+    from backend.db import connection
+    from backend.main import _reference_engine_for_logging
+
+    connection.reset_registry()
+    try:
+        # No registry: console-only, and asking must not create one.
+        assert _reference_engine_for_logging() is None
+        assert not connection.registry_is_initialized(), "the getter constructed a registry"
+
+        first = connection.get_registry()
+        assert _reference_engine_for_logging() is first.reference_engine
+
+        # The nuclear-delete path, then a later request rebuilding the registry.
+        connection.reset_registry()
+        assert _reference_engine_for_logging() is None
+
+        second = connection.get_registry()
+        assert second is not first, "the fixture failed to produce a new registry"
+        resolved = _reference_engine_for_logging()
+        assert resolved is second.reference_engine
+        assert resolved is not first.reference_engine, (
+            "logging still resolves the disposed engine from the replaced registry"
+        )
+    finally:
+        connection.reset_registry()
+
+
+def test_resolving_the_logging_engine_cannot_construct_a_registry() -> None:
+    """A reset landing mid-lookup must not make the getter build a registry.
+
+    ``registry_is_initialized()`` followed by ``get_registry()`` is two lookups
+    with a window between them. A ``reset_registry()`` from ``/api/data/nuclear``
+    landing in that window made the second call *construct* a replacement —
+    precisely the side effect this getter promises not to have, leaving a live
+    registry behind after a wipe (#2126).
+
+    Simulated deterministically rather than with threads: the predicate is made
+    to report a registry that is no longer there, which is the state the race
+    produces.
+    """
+    from backend.db import connection
+    from backend.main import _reference_engine_for_logging
+
+    connection.reset_registry()
+    try:
+        # Patched on ``backend.main``, not on the connection module: main
+        # imports the name directly, so patching the definition site leaves its
+        # reference untouched and the check silently proves nothing.
+        with patch("backend.main.registry_is_initialized", return_value=True):
+            assert _reference_engine_for_logging() is None
+        assert not connection.registry_is_initialized(), (
+            "the getter constructed a registry when the singleton vanished mid-lookup"
+        )
+    finally:
+        connection.reset_registry()
+
+
+@pytest.mark.asyncio
+async def test_failed_registry_disposal_does_not_log_through_the_disposed_engine(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """A disposal failure must be reported without the DB sink still attached.
+
+    ``reset_registry()`` disposes the reference engine and only then clears the
+    singleton, so a failure in between leaves the singleton pointing at a
+    disposed engine. SQLAlchemy lets a disposed engine open a fresh pool, so
+    reporting that failure through the DB-backed handler would reconnect and
+    leave a live SQLite handle behind during shutdown — the thing the
+    pre-disposal ordering exists to avoid (#2126).
+    """
+    lifespan_dependencies.reset_registry.side_effect = RuntimeError("dispose failed")
+
+    with pytest.raises(RuntimeError, match="dispose failed"):
+        async with lifespan(FastAPI()):
+            pass
+
+    calls = lifespan_dependencies.configure_logging.call_args_list
+    # Startup's console-only call, startup's DB-backed call, then the
+    # quarantining call made before the failure is reported.
+    assert len(calls) == 3, calls
+    assert not calls[-1].args and not calls[-1].kwargs, (
+        f"the sink must be back to console-only before reporting: {calls[-1]}"
+    )

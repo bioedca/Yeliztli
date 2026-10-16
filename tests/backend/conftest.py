@@ -21,6 +21,10 @@ from _isolated_data_home import (
     start_session,
     uses_real_data_home,
 )
+from _logging_state import (
+    restore_logging_state,
+    snapshot_logging_state,
+)
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
@@ -39,6 +43,30 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+
+
+@pytest.fixture(autouse=True)
+def _detach_backend_log_handler():
+    """Remove the stdlib log handler ``configure_logging`` installs (#2126).
+
+    Routing stdlib logging into structlog attaches a handler to the ``backend``
+    logger whose formatter carries the **database** processor. A test that calls
+    ``configure_logging`` therefore leaves a live writer bound to its own
+    temporary engine behind, and every later test in the same process that logs
+    through ``logging.getLogger("backend.…")`` drives it — writing to, or
+    failing against, a database that belongs to a finished test. The previous
+    ``logging.basicConfig`` was harmless to leak because it only wrote to
+    stderr, so nothing used to need this.
+
+    Levels are restored too: ``configure_logging`` sets the ``backend`` logger
+    to INFO, and an intermediate logger's level filters records before they
+    propagate, so a leaked level can silence ``caplog`` assertions in unrelated
+    tests.
+    """
+    previous = snapshot_logging_state()
+    yield
+    restore_logging_state(previous)
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # Throwaway data home (#2079)
