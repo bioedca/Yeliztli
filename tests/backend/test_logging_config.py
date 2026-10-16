@@ -851,3 +851,121 @@ def test_configure_logging_replaces_rather_than_accumulates(tmp_path) -> None:
         assert backend_logger.level == logging.INFO
     finally:
         engine.dispose()
+
+
+def test_identifying_extras_are_not_persisted(tmp_path) -> None:
+    """A deleted sample's name must not survive in the Log Explorer (#2126).
+
+    ``sample_delete_cascade`` passes ``deleted_sample_name`` and a list of child
+    ``{"id", "name"}`` objects through stdlib ``extra={...}``. Those only ever
+    reached stderr before; once ``ExtraAdder`` imports extras they would be
+    written to ``log_entries`` durably — so deleting a sample would remove its
+    row and its database while leaving its name visible indefinitely, which
+    inverts the point of the deletion.
+
+    Ids and counts are deliberately kept: they make the entry useful for triage
+    and identify nothing on their own.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.services.sample_delete").info(
+            "sample_delete_cascade",
+            extra={
+                "deleted_sample_id": 7,
+                "deleted_sample_name": "Alice DNA",
+                "deleted_merged_children": [{"id": 8, "name": "Alice v5"}],
+            },
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "sample_delete_cascade"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice DNA" not in stored
+        assert "Alice v5" not in stored, "a nested child name survived"
+        # The useful, non-identifying structure is retained.
+        payload = json.loads(stored)
+        assert payload["deleted_sample_id"] == 7
+        assert payload["deleted_sample_name"] == _REDACTED_LOG_VALUE
+        assert payload["deleted_merged_children"][0]["id"] == 8
+        assert payload["deleted_merged_children"][0]["name"] == _REDACTED_LOG_VALUE
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def test_default_configuration_installs_no_root_handler(tmp_path) -> None:
+    """The replacement for ``basicConfig`` leaves the root logger alone.
+
+    This is the exposure that actually got smaller: ``basicConfig`` installed a
+    root handler that printed every stdlib record **raw**, unconditionally. The
+    routing handler lives on the ``backend`` logger instead, so with no root
+    handler installed a propagated record reaches nothing and the only rendered
+    copy is the redacted one.
+
+    What this does *not* claim: propagation is still on, so a host or test
+    harness that installs its own root handler does receive the unredacted
+    original. Closing that needs record-level sanitisation in a logger-level
+    filter — turning propagation off instead silences ``caplog`` process-wide,
+    because this module is configured at import by the Huey bootstrap. Tracked
+    separately (#2126 review).
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    root = logging.getLogger()
+    before = root.handlers[:]
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        assert root.handlers == before, "configure_logging must not touch the root logger"
+        assert len(logging.getLogger("backend").handlers) == 1
+        # Propagation stays on, so caplog and host integrations keep working.
+        assert logging.getLogger("backend").propagate is True
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()
+
+
+def _db_processor_in_structlog_chain() -> bool:
+    """True when structlog's global chain still carries a DB-writing processor."""
+    return any(
+        getattr(processor, "__name__", "") == "db_processor"
+        for processor in structlog.get_config().get("processors", [])
+    )
+
+
+def test_configuring_logging_without_a_reset_is_cleaned_up_a(tmp_path) -> None:
+    """Configure logging and leave structlog configured, as a careless test would.
+
+    Deliberately omits ``structlog.reset_defaults()`` in cleanup — the shape
+    Codex flagged on this PR: the global processor chain keeps the engine getter
+    bound, so a later test's *native* event reconnects through an engine whose
+    database has been disposed and deleted. The autouse fixture in
+    ``conftest.py`` is what contains it, and its companion below is what proves
+    that (#2126).
+    """
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    configure_logging(engine_getter=lambda: engine)
+    assert _db_processor_in_structlog_chain()
+    engine.dispose()
+
+
+def test_configuring_logging_without_a_reset_is_cleaned_up_b() -> None:
+    """The previous test's processor chain must not still be installed.
+
+    Without the fixture's ``structlog.reset_defaults()`` this fails, because the
+    chain from the test above survives with its disposed engine still bound.
+    """
+    assert not _db_processor_in_structlog_chain(), (
+        "structlog still carries the previous test's DB processor, bound to an "
+        "engine whose database is gone"
+    )

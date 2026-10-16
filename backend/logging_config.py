@@ -104,6 +104,64 @@ def _redact_sensitive_value(value: object) -> object:
     return value
 
 
+# Identifying free text that must not enter a durable log through stdlib
+# ``extra={...}``. These are user-supplied strings — a sample name can be a
+# person's name — and the Log Explorer is a durable, admin-visible surface, so
+# deleting a sample must not leave its name behind in reference.db forever.
+#
+# Scoped deliberately to the foreign-record import path (#2126): native
+# structlog events choose their own fields and are covered by the curated
+# genotype policy above, so widening that curated list here would be a separate
+# decision with its own blast radius.
+_IDENTIFYING_EXTRA_KEYS = frozenset(
+    {
+        "name",
+        "sample_name",
+        "deleted_sample_name",
+        "individual_name",
+        "display_name",
+        "filename",
+        "file_name",
+    }
+)
+
+
+def _drop_identifying_extras(
+    _logger: structlog.types.WrappedLogger,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Redact identifying names imported from a stdlib record's ``extra``.
+
+    ``ExtraAdder`` copies every field verbatim, and ``sample_delete_cascade``
+    passes ``deleted_sample_name`` plus a list of child ``{"id", "name"}``
+    objects — so without this, deleting a sample removed its row and its
+    database while persisting its name to the Log Explorer indefinitely.
+
+    Ids and counts are kept: they are what makes the entry useful for triage and
+    identify nothing on their own.
+    """
+
+    def scrub(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                key: (
+                    _REDACTED_LOG_VALUE if key.lower() in _IDENTIFYING_EXTRA_KEYS else scrub(sub)
+                )
+                for key, sub in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [scrub(item) for item in value]
+        return value
+
+    for key in list(event_dict):
+        if key.lower() in _IDENTIFYING_EXTRA_KEYS:
+            event_dict[key] = _REDACTED_LOG_VALUE
+        else:
+            event_dict[key] = scrub(event_dict[key])
+    return event_dict
+
+
 def _redact_sensitive_log_fields(
     logger: structlog.types.WrappedLogger,
     method_name: str,
@@ -332,6 +390,9 @@ def _route_stdlib_logging_through_structlog(engine_getter: callable | None) -> N
         # reads ``_record`` — and before the redactor below, so imported fields
         # are sanitised on the same terms as everything else.
         structlog.stdlib.ExtraAdder(),
+        # Immediately after the import, so an identifying name never reaches the
+        # renderer or the durable writer.
+        _drop_identifying_extras,
     ]
 
     formatter_processors: list[structlog.types.Processor] = [
@@ -371,8 +432,25 @@ def _route_stdlib_logging_through_structlog(engine_getter: callable | None) -> N
     #
     # Handlers are replaced rather than appended, so repeated configuration (the
     # API lifespan, the Huey worker bootstrap, tests in one process) cannot stack
-    # duplicates. ``propagate`` stays on so anything the host application has
-    # configured above ``backend`` still sees these records.
+    # duplicates.
+    #
+    # ``propagate`` is deliberately left **on**, and the limit is worth stating.
+    # Redaction happens in this handler's formatter and does not mutate the
+    # ``LogRecord``, so an ancestor handler — one a host or a test harness
+    # installs on the root logger — receives the unredacted original. Turning
+    # propagation off does close that, but it is the wrong lever here: this
+    # module is configured at *import* by ``backend/tasks/huey_tasks.py``, so
+    # disabling propagation applies process-wide and silences ``caplog`` for
+    # every ``backend.*`` logger, which took out 15 tests across four files.
+    #
+    # Closing it properly means sanitising the ``LogRecord`` itself in a
+    # logger-level filter, so propagation carries redacted data rather than
+    # being switched off. That duplicates the redaction semantics for
+    # ``msg``/``args``/``exc_info`` and is its own change — tracked separately.
+    # Note the default configuration is still strictly better than the
+    # ``basicConfig`` it replaces, which printed every stdlib record raw to
+    # stderr unconditionally; with no root handler installed, propagation now
+    # reaches nothing.
     backend_logger = logging.getLogger("backend")
     for existing in backend_logger.handlers[:]:
         backend_logger.removeHandler(existing)

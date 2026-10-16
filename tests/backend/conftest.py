@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+import structlog
 from _isolated_data_home import (
     finish_session,
     isolate_data_home,
@@ -63,6 +64,7 @@ def _detach_backend_log_handler():
     logger = logging.getLogger("backend")
     previous_handlers = logger.handlers[:]
     previous_level = logger.level
+    previous_propagate = logger.propagate
     yield
     # A full restore, not just a removal. ``configure_logging`` *replaces* the
     # handlers on this logger, and one is already installed at import time by
@@ -76,6 +78,14 @@ def _detach_backend_log_handler():
             handler.close()
     logger.handlers[:] = previous_handlers
     logger.setLevel(previous_level)
+    logger.propagate = previous_propagate
+    # structlog's configuration is global too, and ``configure_logging`` binds
+    # the engine getter into its processor chain. A test that configured logging
+    # and only disposed its engine left that chain live, so a later test's
+    # *native* structlog event would reconnect through the disposed engine and
+    # write to a temporary database that no longer belongs to anyone — or
+    # swallow the failure once it was gone, making behaviour order-dependent.
+    structlog.reset_defaults()
 
 
 # ═══════════════════════════════════════════════════════════════════════
