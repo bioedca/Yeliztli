@@ -466,3 +466,40 @@ async def test_a_pre_registry_warning_does_not_create_the_reference_database(
     finally:
         connection.reset_registry()
         structlog.reset_defaults()
+
+
+def test_logging_engine_follows_a_replaced_registry() -> None:
+    """The engine getter must resolve the live registry, not one captured at startup.
+
+    ``/api/data/nuclear`` calls ``reset_registry()``, and a later request builds
+    a replacement. A closure over the startup registry then hands out a disposed
+    engine belonging to a registry nobody else holds: logging through it reopens
+    the new reference.db on a stale pool, and the shutdown disposal releases only
+    the replacement's engine, leaving that pool and its SQLite handle alive
+    (#2126).
+    """
+    from backend.db import connection
+    from backend.main import _reference_engine_for_logging
+
+    connection.reset_registry()
+    try:
+        # No registry: console-only, and asking must not create one.
+        assert _reference_engine_for_logging() is None
+        assert not connection.registry_is_initialized(), "the getter constructed a registry"
+
+        first = connection.get_registry()
+        assert _reference_engine_for_logging() is first.reference_engine
+
+        # The nuclear-delete path, then a later request rebuilding the registry.
+        connection.reset_registry()
+        assert _reference_engine_for_logging() is None
+
+        second = connection.get_registry()
+        assert second is not first, "the fixture failed to produce a new registry"
+        resolved = _reference_engine_for_logging()
+        assert resolved is second.reference_engine
+        assert resolved is not first.reference_engine, (
+            "logging still resolves the disposed engine from the replaced registry"
+        )
+    finally:
+        connection.reset_registry()

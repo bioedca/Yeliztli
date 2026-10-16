@@ -889,3 +889,46 @@ class TestUploadFilenamePrivacy:
         assert "Alice Smith" not in joined, f"the uploaded filename was logged: {joined}"
         assert identifying_name not in joined
         assert expected_hash in joined, "the warning should identify the upload by content hash"
+
+
+class TestPathErrorExtras:
+    """A failed path operation must not persist the path through its exception."""
+
+    def test_unreadable_config_logs_error_type_not_the_exception_text(self, tmp_path) -> None:
+        """``str(OSError)`` embeds the filename, which the sibling path reduction misses.
+
+        An ``OSError`` renders as ``[Errno 13] Permission denied:
+        '/home/Alice/...'``. Reducing the ``path`` extra to a basename does
+        nothing about that, so these now-durable records kept the account name
+        and the chosen directory anyway (#2126). The call sites report the
+        exception type and errno instead, which is what a reader acts on.
+        """
+        import backend.api.routes.preferences as preferences
+
+        secret_path = tmp_path / "Alice Private" / "config.toml"
+        secret_path.parent.mkdir(parents=True)
+        secret_path.write_text("[ui]\n")
+        captured: dict[str, object] = {}
+
+        class _Recorder:
+            def warning(self, _event, *, extra=None, **_kw):
+                captured.update(extra or {})
+
+        boom = PermissionError(13, "Permission denied", str(secret_path))
+        with (
+            patch.object(preferences, "logger", _Recorder()),
+            patch("pathlib.Path.read_text", side_effect=boom),
+        ):
+            preferences._read_config_toml(secret_path)
+
+        # ``path`` itself is reduced to a basename by the logging chain, which
+        # ``test_path_policy_matches_by_suffix_not_an_enumerated_list`` covers.
+        # What is checked here is the part that reduction cannot reach: the
+        # exception value, which embedded the same absolute path.
+        beyond_path = " ".join(f"{k}={v}" for k, v in captured.items() if k != "path")
+        assert "Alice Private" not in beyond_path, (
+            f"the chosen directory survived outside the path extra: {beyond_path}"
+        )
+        assert "error" not in captured, "str(exc) must not be recorded"
+        assert captured.get("error_type") == "PermissionError"
+        assert captured.get("errno") == 13

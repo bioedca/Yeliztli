@@ -791,7 +791,14 @@ def _discard_unpublished_merge(sample_db_path: Path) -> None:
         except OSError as exc:
             logger.warning(
                 "merge_discard_unlink_failed",
-                extra={"path": str(candidate), "error": str(exc)},
+                # Type and errno rather than ``str(exc)``, which for OSError
+                # embeds the absolute filename and would outlive the sample
+                # in log_entries (#2126).
+                extra={
+                    "path": str(candidate),
+                    "error_type": type(exc).__name__,
+                    "errno": getattr(exc, "errno", None),
+                },
             )
 
 

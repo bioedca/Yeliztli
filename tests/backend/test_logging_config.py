@@ -1013,3 +1013,39 @@ def test_path_extras_keep_only_the_basename(tmp_path) -> None:
     finally:
         structlog.reset_defaults()
         engine.dispose()
+
+
+def test_path_policy_matches_by_suffix_not_an_enumerated_list(tmp_path) -> None:
+    """``expected_path`` must be reduced even though no list names it (#2126).
+
+    The vendored-liftover warnings in ``backend/ingestion/liftover.py`` report
+    their install location under ``expected_path``. An exact-name key set missed
+    it, and would miss the next ``*_path`` field somebody adds — a denylist of
+    names fails open every time the vocabulary grows, which on a privacy
+    boundary is the wrong direction to fail.
+    """
+    structlog.reset_defaults()
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+
+    try:
+        configure_logging(engine_getter=lambda: engine)
+        logging.getLogger("backend.ingestion.liftover").warning(
+            "liftover_chain_missing_fallback_to_web",
+            extra={"expected_path": "/home/Alice/My Genomes/chains/hg19ToHg38.over.chain.gz"},
+        )
+
+        with engine.connect() as conn:
+            event_data = conn.execute(
+                sa.select(log_entries.c.event_data).where(
+                    log_entries.c.message == "liftover_chain_missing_fallback_to_web"
+                )
+            ).scalar_one()
+
+        stored = event_data or ""
+        assert "Alice" not in stored, f"the account name was persisted: {stored}"
+        assert "My Genomes" not in stored
+        assert json.loads(stored)["expected_path"] == "hg19ToHg38.over.chain.gz"
+    finally:
+        structlog.reset_defaults()
+        engine.dispose()

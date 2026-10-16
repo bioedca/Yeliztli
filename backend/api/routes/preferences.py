@@ -40,7 +40,15 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
     except (tomllib.TOMLDecodeError, OSError) as exc:
         logger.warning(
             "config_toml_parse_failed",
-            extra={"path": str(config_path), "error": str(exc)},
+            # Exception *type* and errno, never ``str(exc)``: OSError renders
+            # as "[Errno 13] Permission denied: '/home/Alice/...'", so the
+            # account name and chosen directory would survive in this now
+            # durable record even though the sibling path is reduced (#2126).
+            extra={
+                "path": str(config_path),
+                "error_type": type(exc).__name__,
+                "errno": getattr(exc, "errno", None),
+            },
         )
         return {}
 

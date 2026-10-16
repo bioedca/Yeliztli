@@ -127,17 +127,21 @@ def _redact_sensitive_value(value: object) -> object:
 # The limit that follows: a user-supplied *name* must be sanitised where it is
 # logged, not here. That is why the uploaded filename is reported by content
 # hash at its call site rather than routed through this scrubber.
-_PATH_EXTRA_KEYS = frozenset(
-    {
-        "path",
-        "db_path",
-        "file_path",
-        "sample_db_path",
-        "config_path",
-        "data_dir",
-        "directory",
-    }
-)
+_PATH_EXTRA_KEYS = frozenset({"path", "data_dir", "directory"})
+
+
+def _is_path_extra_key(key: str) -> bool:
+    """True for a key whose value is a filesystem path.
+
+    Matched by **suffix**, not by an enumerated list. An exact-name set missed
+    ``expected_path`` on the two vendored-liftover warnings, and would miss the
+    next ``*_path`` field somebody adds — a denylist of names fails open every
+    time the vocabulary grows, which on a privacy boundary is the wrong
+    direction to fail.
+    """
+    lowered = key.lower()
+    return lowered in _PATH_EXTRA_KEYS or lowered.endswith("_path")
+
 
 _IDENTIFYING_EXTRA_KEYS = frozenset(
     {
@@ -172,7 +176,7 @@ def _drop_identifying_extras(
         lowered = key.lower()
         if lowered in _IDENTIFYING_EXTRA_KEYS:
             return _REDACTED_LOG_VALUE
-        if lowered in _PATH_EXTRA_KEYS and isinstance(value, str):
+        if _is_path_extra_key(lowered) and isinstance(value, str):
             return PurePath(value).name or _REDACTED_LOG_VALUE
         return scrub(value)
 

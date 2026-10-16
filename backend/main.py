@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from ipaddress import ip_address
 from pathlib import Path
 
+import sqlalchemy as sa
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -198,6 +199,26 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
         raise ExceptionGroup("FastAPI lifespan cleanup failed", cleanup_errors)
 
 
+def _reference_engine_for_logging() -> sa.Engine | None:
+    """Resolve the reference engine from the *current* registry (#2126).
+
+    Deliberately not a closure over the registry captured at startup. The
+    nuclear-delete route calls ``reset_registry()``, and a later request builds
+    a replacement — after which a captured engine is disposed and belongs to a
+    registry nobody else holds. Logging through it reopens the new reference.db
+    on a stale pool, and the shutdown disposal then releases only the
+    replacement's engine, leaving that pool and its SQLite handle alive.
+
+    Returns ``None`` when no registry exists, which the DB processor treats as
+    "console only". It must not *construct* one: creating a registry as a side
+    effect of logging is what the teardown and pre-registry guards exist to
+    prevent, and ``registry_is_initialized()`` answers without doing so.
+    """
+    if not registry_is_initialized():
+        return None
+    return get_registry().reference_engine
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup / shutdown lifecycle for the FastAPI app."""
@@ -251,7 +272,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # never stored. Only the pre-registry privacy warning above remains
         # console-only, which is irreducible without buffering: there is no
         # engine to write to before this line.
-        configure_logging(engine_getter=lambda: registry.reference_engine)
+        configure_logging(engine_getter=_reference_engine_for_logging)
         # Ensure reference tables exist under SQLite's cross-process DDL lock.
         bootstrap_reference_schema_tables(registry.reference_engine)
         # create_all only creates missing *tables*, never adds *columns* to
