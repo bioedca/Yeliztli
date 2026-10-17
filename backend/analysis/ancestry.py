@@ -2384,9 +2384,12 @@ def assign_haplogroups(
         mt_pos_to_genotype: dict[int, str] = {}
         for pos, genotypes in mt_pos_to_genotypes.items():
             allele_sets = {frozenset(genotype.strip().upper()) for genotype in genotypes}
-            if len(allele_sets) == 1:
+            if len(allele_sets) == 1 and len(next(iter(allele_sets))) == 1:
                 mt_pos_to_genotype[pos] = genotypes[0]
             else:
+                # Disagreeing probes, or one call carrying two alleles. The exported
+                # allele pair records no allele fraction, so a mixed call is neither
+                # full derived nor full ancestral evidence (#2167).
                 ambiguous_mt_positions.add(pos)
         # The sentinel hid these behind ``is_no_call`` above, so restore them
         # after the projection: an agreed derived call must be scoreable, and an
