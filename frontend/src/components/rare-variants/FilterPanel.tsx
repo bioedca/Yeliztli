@@ -124,10 +124,14 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
           )
           return
         }
+        // A new upload replaces the other panel type: both are sent and combined
+        // with AND, so a stale gene list would hide matches inside the new regions.
+        setGeneText("")
         setBedRegions(regions)
         setBedSource(file.name)
         setBedNotice(skipped > 0 ? `${skipped} line(s) skipped as unusable.` : null)
       } else {
+        clearBedRegions()
         // Parse gene symbols: one per line or comma-separated
         const genes = text
           .split(/[\n,]+/)
@@ -149,9 +153,18 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
     if (!panel) return
     setBedNotice(null)
     if (panel.bed_regions && panel.bed_regions.length > 0) {
-      setBedRegions(panel.bed_regions)
+      // Saved panels predate this filter and can hold names the search rejects
+      // (e.g. chr23), which would fail the whole request.
+      const usable = panel.bed_regions.filter((r) => isSampleChromosome(r.chrom))
+      const skipped = panel.bed_regions.length - usable.length
+      if (usable.length === 0) {
+        setBedNotice(`${panel.name} has no regions on chromosomes a sample can carry; not loaded.`)
+        return
+      }
+      setBedRegions(usable)
       setBedSource(panel.name)
       setGeneText("")
+      if (skipped > 0) setBedNotice(`${skipped} region(s) skipped as unusable.`)
     } else {
       setBedRegions(null)
       setBedSource(null)
@@ -385,6 +398,11 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
                 {uploadMutation.isPending ? "Saving..." : "Save Panel"}
               </button>
             </div>
+            {bedRegions && hasGeneText && (
+              <p className="text-xs text-muted-foreground" data-testid="save-panel-bed-note">
+                Only the BED regions are saved; the gene list is not part of a BED panel.
+              </p>
+            )}
             {uploadMutation.isError && (
               <p className="text-xs text-destructive">
                 {uploadMutation.error instanceof Error
@@ -403,6 +421,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
             <span>
               Searching only {bedRegions.length} BED region{bedRegions.length === 1 ? "" : "s"}
               {bedSource ? ` from ${bedSource}` : ""}; variants outside them are excluded.
+              {hasGeneText ? " The gene list above also applies." : ""}
             </span>
             <button
               type="button"
