@@ -16,8 +16,12 @@ files are appended:
     python scripts/ingest_spliceai_scores.py snv.hg19.vcf.gz indel.hg19.vcf.gz
 
 Use the **hg19 (GRCh37)** files — they match the app's coordinate system; the
-hg38 files would need a liftover this path does not perform. The version is
-recorded in reference.db so Database Stats / the Update Manager surface a row.
+hg38 files would need a liftover this path does not perform. Every file's header
+is checked before anything is loaded: a file that declares another build, or
+contradicts itself, is refused and the existing database is left untouched. A file
+whose header declares no build at all needs ``--genome-build GRCh37``, your
+confirmation that it is the hg19 release. The version is recorded in reference.db
+so Database Stats / the Update Manager surface a row.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from backend.annotation.spliceai import (
     DEFAULT_MIN_DS,
     SPLICEAI_VERSION,
     ingest_spliceai_vcf,
+    read_spliceai_assembly,
     record_spliceai_version,
 )
 from backend.db.connection import get_registry
@@ -69,6 +74,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--genome-build",
+        choices=("GRCh37",),
+        default=None,
+        help=(
+            "Confirm the build of files whose VCF header declares none. A header that "
+            "names another build is refused regardless."
+        ),
+    )
+    parser.add_argument(
         "--version",
         default=SPLICEAI_VERSION,
         help=f"Version label recorded in database_versions (default {SPLICEAI_VERSION}).",
@@ -78,6 +92,13 @@ def main(argv: list[str] | None = None) -> int:
     for p in args.vcf:
         if not p.exists():
             parser.error(f"file not found: {p}")
+    # Check every header before loading any file: the first ingest clears the DB,
+    # so a later file found to be another build would leave it half-replaced.
+    for p in args.vcf:
+        try:
+            read_spliceai_assembly(p, genome_build=args.genome_build)
+        except ValueError as exc:
+            parser.error(str(exc))
 
     registry = get_registry()
     db_path = registry.settings.spliceai_db_path
@@ -86,7 +107,13 @@ def main(argv: list[str] | None = None) -> int:
     total = 0
     for i, p in enumerate(args.vcf):
         logger.info("spliceai_ingest_start", file=str(p), min_ds=args.min_ds)
-        stats = ingest_spliceai_vcf(p, engine, min_ds=args.min_ds, clear_existing=(i == 0))
+        stats = ingest_spliceai_vcf(
+            p,
+            engine,
+            min_ds=args.min_ds,
+            clear_existing=(i == 0),
+            genome_build=args.genome_build,
+        )
         total += stats.loaded
         logger.info(
             "spliceai_ingest_file_done",
@@ -100,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     last = args.vcf[-1]
     record_spliceai_version(
         registry.reference_engine,
+        genome_build=stats.genome_build,
         version=args.version,
         file_path=str(last),
         file_size_bytes=last.stat().st_size,
