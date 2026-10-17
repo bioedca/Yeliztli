@@ -253,7 +253,9 @@ def _doc_pathway_genes(text: str) -> dict[str, set[str]]:
 
     A bullet continues over its indented lines. Parenthetical asides are dropped
     before reading genes, so an italic word inside "(… see *Notes*)" is not a gene.
-    A bullet naming no gene (HLA proxies, GWAS rows) makes no gene claim.
+    A bullet naming no gene (HLA proxies, GWAS rows) makes no gene claim. A pathway
+    named by two bullets gets the union of their genes, so a correct later bullet
+    cannot hide a wrong earlier one.
     """
     bullets: list[str] = []
     in_bullet = False
@@ -271,7 +273,7 @@ def _doc_pathway_genes(text: str) -> dict[str, set[str]]:
         assert match is not None
         genes = set(_ITALIC_GENE_RE.findall(_PARENTHETICAL_RE.sub("", match["body"])))
         if genes:
-            claims[_pathway_key(match["name"])] = genes
+            claims.setdefault(_pathway_key(match["name"]), set()).update(genes)
     return claims
 
 
@@ -325,6 +327,12 @@ def test_pathway_check_catches_the_2001_misattribution() -> None:
         "'power': doc says ['ACTN3', 'MCT1'], panel says ['ACE', 'MCT1']"
     ]
     assert _pathway_gene_mismatches(after, panel_genes) == []
+
+    # A corrected bullet added below the stale one must not mask it.
+    both = _doc_pathway_genes("- **Power** — *ACTN3*, *MCT1*\n- **Power** — *ACE*, *MCT1*\n")
+    assert _pathway_gene_mismatches(both, panel_genes) == [
+        "'power': doc says ['ACE', 'ACTN3', 'MCT1'], panel says ['ACE', 'MCT1']"
+    ]
 
 
 def test_pathway_bullet_parsing() -> None:
