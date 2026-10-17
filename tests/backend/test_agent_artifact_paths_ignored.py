@@ -69,16 +69,23 @@ MUST_BE_COMMITTABLE = (
 )
 
 # Re-including the packet tree means re-including the root ``data/`` itself, so these pin
-# that everything else in it stays ignored: other runtime data, look-alike names that a
-# prefix rule would let through, a ``data/`` directory at another depth, and a database
-# file dropped into a packet.
+# that everything else in it stays ignored: other runtime data (dot-directories included),
+# look-alike names that a prefix rule would let through, and a ``data/`` directory at another
+# depth. The rest pin that the repository-wide rules for databases, their WAL sidecars,
+# environment files and credentials still apply to files dropped into a packet.
 RUNTIME_DATA_MUST_STAY_IGNORED = (
     "data/probe",
+    "data/.cache/probe",
     "data/samples/probe",
     "data/science-evidence-old/probe",
     "data/nested/science-evidence/probe",
     "frontend/data/probe",
     "data/science-evidence/2026-01-01-slug/sample.db",
+    "data/science-evidence/2026-01-01-slug/sample.db-wal",
+    "data/science-evidence/2026-01-01-slug/sample.db-shm",
+    "data/science-evidence/2026-01-01-slug/.env",
+    "data/science-evidence/2026-01-01-slug/.env.local",
+    "data/science-evidence/2026-01-01-slug/credentials.json",
 )
 
 EVIDENCE_ROOT = "data/science-evidence/"
@@ -240,7 +247,7 @@ def test_tracked_evidence_packets_stay_committable() -> None:
 
 
 def test_runtime_data_stays_gitignored() -> None:
-    """Re-including the packet tree must not expose the rest of the runtime ``data/``."""
+    """Re-including the packet tree must not expose runtime data or never-committed files."""
     problems = _not_ignored_by_gitignore(RUNTIME_DATA_MUST_STAY_IGNORED)
 
     assert not problems, (
