@@ -293,12 +293,12 @@ describe("FindingsExplorer", () => {
     expect(findingsUrl).toContain("limit=200");
   });
 
-  // This test and the next get an explicit 30 s budget (#2228). The page only
-  // offers "Load more" once a full 200-row page is loaded, so both must mount
-  // that many rows, and the next one mounts 400 more after the click. At ~1 ms
-  // per row in happy-dom that is ~0.9 s on an idle host, so Vitest's 5 s default
-  // left ~5x headroom and a loaded host timed the test out. The budget is sized
-  // to that work; no assertion depends on it.
+  // This test and the #1994 tier-total test get an explicit 30 s budget
+  // (#2228). The page only offers "Load more" once a full 200-row page is
+  // loaded, so both must mount that many rows, and the tier-total test mounts
+  // 400 more after the click. At ~1 ms per row in happy-dom that is ~0.9 s on an
+  // idle host, so Vitest's 5 s default left ~5x headroom and a loaded host timed
+  // it out. The budget is sized to that work; no assertion depends on it.
   it("shows 'Load more' on a full page and raises the limit on click (#1303)", async () => {
     // A full page (length === limit) means more findings remain beyond the bound.
     const fullPage: Finding[] = Array.from({ length: 200 }, (_, i) => ({
