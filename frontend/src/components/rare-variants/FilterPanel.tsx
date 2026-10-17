@@ -9,10 +9,55 @@
 import { useState } from "react"
 import { Search, Upload, RotateCcw, Save, Trash2, FolderOpen, FileText } from "lucide-react"
 import type { RareVariantFilterRequest } from "@/types/rare-variants"
+import type { BedRegion } from "@/types/custom-panels"
 import { useCustomPanels, useUploadPanel, useDeletePanel } from "@/api/custom-panels"
 
 /** Default AF threshold (1%) matching backend DEFAULT_AF_THRESHOLD. */
 const DEFAULT_AF_THRESHOLD = 0.01
+
+/** Region limit, matching the backend's MAX_PANEL_GENES. */
+const MAX_BED_REGIONS = 5000
+
+/** True for a chromosome a sample row can carry (1-22, X, Y, MT; optional "chr"). */
+function isSampleChromosome(chrom: string): boolean {
+  const token = chrom.trim().toUpperCase().replace(/^CHR/, "")
+  if (/^\d+$/.test(token)) {
+    const n = Number(token)
+    return n >= 1 && n <= 22
+  }
+  return ["X", "Y", "M", "MT"].includes(token)
+}
+
+/** Parse BED3+ text into intervals, splitting fields the way the backend does. */
+function parseBedRegions(text: string): { regions: BedRegion[]; skipped: number } {
+  const regions: BedRegion[] = []
+  let skipped = 0
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#") || line.startsWith("track") || line.startsWith("browser")) {
+      continue
+    }
+    let fields = line.split("\t")
+    if (fields.length < 3) fields = line.split(/\s+/)
+    // Plain digits only, as the backend's int() accepts: Number("") is 0.
+    const [startText, endText] = [fields[1]?.trim() ?? "", fields[2]?.trim() ?? ""]
+    const start = Number(startText)
+    const end = Number(endText)
+    if (
+      fields.length < 3 ||
+      !isSampleChromosome(fields[0]) ||
+      !/^\d+$/.test(startText) ||
+      !/^\d+$/.test(endText) ||
+      end <= start
+    ) {
+      skipped += 1
+      continue
+    }
+    const name = fields.length > 3 ? fields[3].trim() || null : null
+    regions.push({ chrom: fields[0].trim(), start, end, name })
+  }
+  return { regions, skipped }
+}
 
 const CONSEQUENCE_OPTIONS = [
   "frameshift_variant",
@@ -49,6 +94,11 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
   const [panelName, setPanelName] = useState("")
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
+  // BED intervals scope the search by position; the name column is only a label,
+  // so it is never copied into the gene list (#2166).
+  const [bedRegions, setBedRegions] = useState<BedRegion[] | null>(null)
+  const [bedSource, setBedSource] = useState<string | null>(null)
+  const [bedNotice, setBedNotice] = useState<string | null>(null)
 
   // Custom panels hooks (P4-11)
   const panelsQuery = useCustomPanels()
@@ -62,18 +112,26 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
     const reader = new FileReader()
     reader.onload = () => {
       const text = reader.result as string
-      // For BED files, extract gene names from 4th column
       if (file.name.toLowerCase().endsWith(".bed")) {
-        const genes = text
-          .split("\n")
-          .filter((ln) => ln.trim() && !ln.startsWith("#") && !ln.startsWith("track") && !ln.startsWith("browser"))
-          .map((ln) => {
-            const fields = ln.split("\t")
-            return fields.length > 3 ? fields[3].trim().toUpperCase() : ""
-          })
-          .filter((g) => g && /^[A-Z][A-Z0-9\-.]{0,30}$/.test(g))
-        setGeneText([...new Set(genes)].join("\n"))
+        const { regions, skipped } = parseBedRegions(text)
+        if (regions.length === 0) {
+          setBedNotice(`No usable BED regions in ${file.name}.`)
+          return
+        }
+        if (regions.length > MAX_BED_REGIONS) {
+          setBedNotice(
+            `${file.name} has ${regions.length} regions; the limit is ${MAX_BED_REGIONS}.`,
+          )
+          return
+        }
+        // A new upload replaces the other panel type: both are sent and combined
+        // with AND, so a stale gene list would hide matches inside the new regions.
+        setGeneText("")
+        setBedRegions(regions)
+        setBedSource(file.name)
+        setBedNotice(skipped > 0 ? `${skipped} line(s) skipped as unusable.` : null)
       } else {
+        clearBedRegions()
         // Parse gene symbols: one per line or comma-separated
         const genes = text
           .split(/[\n,]+/)
@@ -92,23 +150,58 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
 
   function handleLoadSavedPanel(panelId: number) {
     const panel = panelsQuery.data?.items.find((p) => p.id === panelId)
-    if (panel) {
+    if (!panel) return
+    setBedNotice(null)
+    if (panel.bed_regions && panel.bed_regions.length > 0) {
+      // Saved panels predate this filter and can hold names the search rejects
+      // (e.g. chr23), which would fail the whole request.
+      const usable = panel.bed_regions.filter((r) => isSampleChromosome(r.chrom))
+      const skipped = panel.bed_regions.length - usable.length
+      if (usable.length === 0) {
+        setBedNotice(`${panel.name} has no regions on chromosomes a sample can carry; not loaded.`)
+        return
+      }
+      setBedRegions(usable)
+      setBedSource(panel.name)
+      setGeneText("")
+      if (skipped > 0) setBedNotice(`${skipped} region(s) skipped as unusable.`)
+    } else {
+      setBedRegions(null)
+      setBedSource(null)
       setGeneText(panel.gene_symbols.join("\n"))
     }
+  }
+
+  function clearBedRegions() {
+    setBedRegions(null)
+    setBedSource(null)
+    setBedNotice(null)
   }
 
   function handleSavePanel() {
     if (!panelName.trim()) return
 
-    // Always use current geneText to ensure edits are captured
-    const genes = geneText
-      .split(/[\n,]+/)
-      .map((g) => g.trim().toUpperCase())
-      .filter(Boolean)
-    if (genes.length === 0) return
-
-    const blob = new Blob([genes.join("\n")], { type: "text/plain" })
-    const file = new File([blob], pendingFile?.name ?? "custom_panel.txt", { type: "text/plain" })
+    let file: File
+    if (bedRegions) {
+      // Save the intervals themselves, so the panel is searched by region.
+      const bed = bedRegions
+        .map((r) => [r.chrom, r.start, r.end, ...(r.name ? [r.name] : [])].join("\t"))
+        .join("\n")
+      file = new File([bed], "custom_panel.bed", { type: "text/plain" })
+    } else {
+      // Always use current geneText to ensure edits are captured
+      const genes = geneText
+        .split(/[\n,]+/)
+        .map((g) => g.trim().toUpperCase())
+        .filter(Boolean)
+      if (genes.length === 0) return
+      // A gene list must not keep a .bed name, or the backend parses it as BED.
+      const listName =
+        pendingFile && !pendingFile.name.toLowerCase().endsWith(".bed")
+          ? pendingFile.name
+          : "custom_panel.txt"
+      file = new File([genes.join("\n")], listName, { type: "text/plain" })
+    }
     uploadMutation.mutate(
       { file, name: panelName.trim() },
       {
@@ -137,6 +230,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
     setIncludeNovel(true)
     setZygosity(null)
     setPendingFile(null)
+    clearBedRegions()
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -148,6 +242,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
 
     onSearch({
       gene_symbols: geneSymbols.length > 0 ? geneSymbols : null,
+      regions: bedRegions ? bedRegions.map(({ chrom, start, end }) => ({ chrom, start, end })) : null,
       af_threshold: afThreshold,
       consequences: selectedConsequences.length > 0 ? selectedConsequences : null,
       clinvar_significance: selectedClinvar.length > 0 ? selectedClinvar : null,
@@ -170,6 +265,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
 
   const savedPanels = panelsQuery.data?.items ?? []
   const hasGeneText = geneText.trim().length > 0
+  const canSavePanel = hasGeneText || bedRegions !== null
 
   return (
     <form
@@ -259,12 +355,12 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
                 data-testid="gene-panel-upload"
               />
             </label>
-            {hasGeneText && (
+            {canSavePanel && (
               <button
                 type="button"
                 onClick={() => setShowSaveDialog(!showSaveDialog)}
                 className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs hover:bg-muted transition-colors"
-                title="Save current gene list as a panel"
+                title={bedRegions ? "Save current BED regions as a panel" : "Save current gene list as a panel"}
                 data-testid="save-panel-toggle"
               >
                 <Save className="h-3.5 w-3.5" />
@@ -302,6 +398,11 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
                 {uploadMutation.isPending ? "Saving..." : "Save Panel"}
               </button>
             </div>
+            {bedRegions && hasGeneText && (
+              <p className="text-xs text-muted-foreground" data-testid="save-panel-bed-note">
+                Only the BED regions are saved; the gene list is not part of a BED panel.
+              </p>
+            )}
             {uploadMutation.isError && (
               <p className="text-xs text-destructive">
                 {uploadMutation.error instanceof Error
@@ -312,8 +413,35 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
           </div>
         )}
 
+        {bedRegions && (
+          <div
+            className="mt-2 flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs"
+            data-testid="bed-region-summary"
+          >
+            <span>
+              Searching only {bedRegions.length} BED region{bedRegions.length === 1 ? "" : "s"}
+              {bedSource ? ` from ${bedSource}` : ""}; variants outside them are excluded.
+              {hasGeneText ? " The gene list above also applies." : ""}
+            </span>
+            <button
+              type="button"
+              onClick={clearBedRegions}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              data-testid="bed-region-clear"
+            >
+              Clear regions
+            </button>
+          </div>
+        )}
+        {bedNotice && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400" role="status" data-testid="bed-region-notice">
+            {bedNotice}
+          </p>
+        )}
+
         <p className="text-xs text-muted-foreground mt-1">
-          Leave empty to search all genes. Supports .txt, .csv, .tsv, and .bed files.
+          Leave empty to search all genes. Supports .txt, .csv, .tsv, and .bed files; a .bed file
+          limits the search to its regions.
         </p>
       </div>
 

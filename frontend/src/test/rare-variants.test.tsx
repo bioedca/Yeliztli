@@ -79,6 +79,7 @@ describe("FilterPanel", () => {
     expect(onSearch).toHaveBeenCalledTimes(1)
     expect(onSearch).toHaveBeenCalledWith({
       gene_symbols: null,
+      regions: null,
       af_threshold: 0.01,
       consequences: null,
       clinvar_significance: null,
@@ -135,6 +136,191 @@ describe("FilterPanel", () => {
     // Reset
     await user.click(screen.getByLabelText("Reset filters"))
     expect(screen.getByTestId("gene-panel-input")).toHaveValue("")
+  })
+})
+
+describe("FilterPanel BED regions (#2166)", () => {
+  const bedPanel = {
+    id: 7,
+    name: "Hotspots",
+    description: "",
+    gene_symbols: ["BRCA1"],
+    bed_regions: [{ chrom: "17", start: 5, end: 9, name: "BRCA1" }],
+    source_type: "bed",
+    gene_count: 1,
+    created_at: null,
+  }
+  // Saved before upload filtering: chr23 parses but the search rejects it.
+  const mixedPanel = {
+    ...bedPanel,
+    id: 8,
+    name: "Mixed",
+    bed_regions: [
+      { chrom: "chr17", start: 5, end: 9, name: null },
+      { chrom: "chr23", start: 1, end: 4, name: null },
+    ],
+  }
+  const unusablePanel = {
+    ...bedPanel,
+    id: 9,
+    name: "Unusable",
+    bed_regions: [{ chrom: "chr23", start: 1, end: 4, name: null }],
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", mockFetch)
+    mockFetch.mockReset()
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith("/api/panels/upload")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ panel: bedPanel, warnings: [] }),
+        })
+      }
+      if (url === "/api/panels") {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({ items: [bedPanel, mixedPanel, unusablePanel], total: 3 }),
+        })
+      }
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function uploadBed(user: ReturnType<typeof userEvent.setup>, text: string) {
+    const file = new File([text], "target.bed", { type: "text/plain" })
+    await user.upload(screen.getByTestId("gene-panel-upload"), file)
+    await waitFor(() => expect(screen.getByTestId("bed-region-summary")).toBeInTheDocument())
+  }
+
+  it("searches an uploaded BED by its regions, not its name column", async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    render(<FilterPanel onSearch={onSearch} isSearching={false} />)
+
+    await uploadBed(
+      user,
+      "#header\nchr17\t100\t200\tBRCA1\nchrUn_gl000220\t0\t5\nchr2\t\t10\n",
+    )
+
+    expect(screen.getByTestId("bed-region-summary")).toHaveTextContent(
+      "Searching only 1 BED region from target.bed",
+    )
+    expect(screen.getByTestId("bed-region-notice")).toHaveTextContent("2 line(s) skipped")
+    // The name column is a label: it must not become a whole-gene search.
+    expect(screen.getByTestId("gene-panel-input")).toHaveValue("")
+
+    await user.click(screen.getByTestId("search-button"))
+    expect(onSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gene_symbols: null,
+        regions: [{ chrom: "chr17", start: 100, end: 200 }],
+      }),
+    )
+  })
+
+  it("an upload replaces the other panel type, and a typed gene list is called out", async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    render(<FilterPanel onSearch={onSearch} isSearching={false} />)
+
+    // A stale gene list must not AND-filter the new BED regions.
+    await user.type(screen.getByTestId("gene-panel-input"), "BRCA1")
+    await uploadBed(user, "chr7\t10\t20\n")
+    expect(screen.getByTestId("gene-panel-input")).toHaveValue("")
+    await user.click(screen.getByTestId("search-button"))
+    expect(onSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ gene_symbols: null, regions: [{ chrom: "chr7", start: 10, end: 20 }] }),
+    )
+
+    // A gene list typed afterwards is a deliberate extra filter, and is said so.
+    await user.type(screen.getByTestId("gene-panel-input"), "CFTR")
+    expect(screen.getByTestId("bed-region-summary")).toHaveTextContent(
+      "The gene list above also applies.",
+    )
+    await user.click(screen.getByTestId("save-panel-toggle"))
+    expect(screen.getByTestId("save-panel-bed-note")).toHaveTextContent(
+      "Only the BED regions are saved",
+    )
+
+    // A gene-list upload replaces the regions.
+    const list = new File(["TP53\n"], "genes.txt", { type: "text/plain" })
+    await user.upload(screen.getByTestId("gene-panel-upload"), list)
+    await waitFor(() => expect(screen.getByTestId("gene-panel-input")).toHaveValue("TP53"))
+    expect(screen.queryByTestId("bed-region-summary")).not.toBeInTheDocument()
+  })
+
+  it("loads only the usable regions of a saved panel, and skips a panel with none", async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    render(<FilterPanel onSearch={onSearch} isSearching={false} />)
+
+    await user.click(await screen.findByTestId("load-panel-8"))
+    expect(screen.getByTestId("bed-region-summary")).toHaveTextContent(
+      "Searching only 1 BED region from Mixed",
+    )
+    expect(screen.getByTestId("bed-region-notice")).toHaveTextContent("1 region(s) skipped")
+    await user.click(screen.getByTestId("search-button"))
+    expect(onSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ regions: [{ chrom: "chr17", start: 5, end: 9 }] }),
+    )
+
+    await user.click(screen.getByTestId("bed-region-clear"))
+    await user.click(screen.getByTestId("load-panel-9"))
+    expect(screen.getByTestId("bed-region-notice")).toHaveTextContent("Unusable has no regions")
+    expect(screen.queryByTestId("bed-region-summary")).not.toBeInTheDocument()
+  })
+
+  it("saves an uploaded BED as BED intervals", async () => {
+    const user = userEvent.setup()
+    render(<FilterPanel onSearch={vi.fn()} isSearching={false} />)
+    await uploadBed(user, "chr17\t100\t200\tBRCA1\nchr2\t5\t9\n")
+
+    await user.click(screen.getByTestId("save-panel-toggle"))
+    await user.type(screen.getByTestId("panel-name-input"), "Targets")
+    await user.click(screen.getByTestId("save-panel-confirm"))
+
+    await waitFor(() =>
+      expect(
+        mockFetch.mock.calls.some(([input]) => String(input).startsWith("/api/panels/upload")),
+      ).toBe(true),
+    )
+    const [, init] = mockFetch.mock.calls.find(([input]) =>
+      String(input).startsWith("/api/panels/upload"),
+    )!
+    const saved = (init.body as FormData).get("file") as File
+    expect(saved.name).toBe("custom_panel.bed")
+    expect(await saved.text()).toBe("chr17\t100\t200\tBRCA1\nchr2\t5\t9")
+  })
+
+  it("loads a saved BED panel as regions, and Clear removes them", async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    render(<FilterPanel onSearch={onSearch} isSearching={false} />)
+
+    await user.click(await screen.findByTestId("load-panel-7"))
+    expect(screen.getByTestId("bed-region-summary")).toHaveTextContent(
+      "Searching only 1 BED region from Hotspots",
+    )
+    expect(screen.getByTestId("gene-panel-input")).toHaveValue("")
+    await user.click(screen.getByTestId("search-button"))
+    expect(onSearch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        gene_symbols: null,
+        regions: [{ chrom: "17", start: 5, end: 9 }],
+      }),
+    )
+
+    await user.click(screen.getByTestId("bed-region-clear"))
+    expect(screen.queryByTestId("bed-region-summary")).not.toBeInTheDocument()
+    await user.click(screen.getByTestId("search-button"))
+    expect(onSearch).toHaveBeenLastCalledWith(expect.objectContaining({ regions: null }))
   })
 })
 
@@ -518,6 +704,7 @@ describe("RareVariantsView", () => {
       genes_with_findings: ["BRCA1"],
       filters_applied: {
         gene_symbols: null,
+        regions: null,
         af_threshold: 0.01,
         consequences: null,
         clinvar_significance: null,

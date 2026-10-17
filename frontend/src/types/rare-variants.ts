@@ -1,8 +1,17 @@
 /** Rare variant finder API types (P3-30). */
 
+/** A BED interval: 0-based start, exclusive end. */
+interface GenomicRegion {
+  chrom: string
+  start: number
+  end: number
+}
+
 /** Filter parameters for rare variant search. */
 export interface RareVariantFilterRequest {
   gene_symbols: string[] | null
+  /** BED intervals; when set, only variants overlapping one of them are returned. */
+  regions: GenomicRegion[] | null
   af_threshold: number
   consequences: string[] | null
   clinvar_significance: string[] | null

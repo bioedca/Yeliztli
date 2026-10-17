@@ -20,9 +20,10 @@ set before reviewing or exporting.
 
 ## What it looks at
 
-You can set the filters: a gene panel, a gnomAD allele-frequency threshold, whether to
-include variants with no gnomAD AF, ClinVar significance, predicted consequence type, and
-zygosity. CADD and REVEL scores are shown in the result details when available.
+You can set the filters: a gene panel or a BED file of genomic regions, a gnomAD
+allele-frequency threshold, whether to include variants with no gnomAD AF, ClinVar
+significance, predicted consequence type, and zygosity. CADD and REVEL scores are shown in
+the result details when available.
 
 ## What you'll see
 
@@ -51,6 +52,12 @@ details, CADD/REVEL scores, zygosity, and inheritance. You can export results to
 - Only variants you **carry** are shown — arrays report a call at every probe regardless of
   biology, so unscoreable and reference calls are filtered out.
 - Y-chromosome findings are dropped for XX samples.
+- A BED file limits the search to its regions: only variants that share at least one base
+  with an uploaded interval are shown, including intergenic ones. The optional fourth (name)
+  column is a label, not a gene filter, so other variants in the same gene stay out. BED
+  coordinates are 0-based with an exclusive end, as in the
+  [UCSC BED format](https://genome.ucsc.edu/FAQ/FAQformat.html#format1), and must be GRCh37.
+  Lines on chromosomes a sample cannot carry (such as unplaced contigs) are skipped.
 - "Novel" requires absence from gnomAD **and** dbSNP/ClinVar — a gnomAD gap alone isn't enough.
 - A frequency belongs to one specific allele, not to an rsID. Where an rsID covers several
   alternate alleles and no single frequency can be attributed to your call — because the call

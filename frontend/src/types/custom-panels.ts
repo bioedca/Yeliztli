@@ -13,7 +13,7 @@ interface CustomPanel {
 }
 
 /** A BED region from a panel. */
-interface BedRegion {
+export interface BedRegion {
   chrom: string
   start: number
   end: number
