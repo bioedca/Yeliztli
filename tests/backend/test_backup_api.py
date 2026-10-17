@@ -15,6 +15,7 @@ import io
 import json
 import sqlite3
 import tarfile
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -534,45 +535,108 @@ class TestBackupDownload:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _legacy_phenytoin_archive(
+    tmp_path: Path,
+    *,
+    alert_ids: tuple[int, ...] = (7,),
+    plain_ids: tuple[int, ...] = (),
+    journal_mode: str = "wal",
+) -> bytes:
+    """A registry-less archive of v20 samples, members in ``plain_ids + alert_ids`` order.
+
+    Restoring an ``alert_ids`` sample upgrades it to v21, which quarantines its
+    legacy phenytoin alert and records the CYP2C9/phenytoin reanalysis marker
+    with ``prompted=false``; a ``plain_ids`` sample gets no marker.
+    ``create_sample_tables`` leaves a database in WAL mode, as the app's own
+    are; ``journal_mode="delete"`` stands in for an archive whose databases use
+    a rollback journal.
+    """
+    archive_buffer = io.BytesIO()
+    with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
+        for sample_id in (*plain_ids, *alert_ids):
+            legacy_db = tmp_path / f"sample_{sample_id}.db"
+            legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
+            create_sample_tables(legacy_engine)
+            with legacy_engine.begin() as conn:
+                conn.execute(
+                    sample_metadata_table.insert(),
+                    {
+                        "id": 1,
+                        "name": "Legacy local sample",
+                        "file_format": "23andme_v5",
+                        "file_hash": f"legacy-local-hash-{sample_id}",
+                        "created_at": datetime(2025, 4, 3, 2, 1, tzinfo=UTC),
+                    },
+                )
+                if sample_id in alert_ids:
+                    conn.execute(
+                        findings.insert(),
+                        {
+                            "module": "pharmacogenomics",
+                            "category": "prescribing_alert",
+                            "evidence_level": 4,
+                            "gene_symbol": "CYP2C9",
+                            "drug": "phenytoin",
+                            "finding_text": "Legacy phenotype-only recommendation",
+                        },
+                    )
+                conn.execute(sa.text("PRAGMA user_version = 20"))
+            legacy_engine.dispose()
+            if journal_mode != "wal":
+                with closing(sqlite3.connect(legacy_db)) as raw:
+                    raw.execute(f"PRAGMA journal_mode={journal_mode}")
+            tf.add(legacy_db, arcname=f"samples/sample_{sample_id}.db")
+    return archive_buffer.getvalue()
+
+
+def _read_restored_phenytoin_state(sample_db: Path) -> tuple[dict, int]:
+    """Read the reanalysis marker and legacy-alert count without the registry.
+
+    ``DBRegistry.get_sample_engine`` publishes a pending marker as a central
+    prompt when it opens a sample, so reading through it would create the very
+    prompt a restore test means to observe (#2128). A raw engine has no such
+    side effect.
+    """
+    engine = sa.create_engine(f"sqlite:///{sample_db}")
+    try:
+        with engine.connect() as conn:
+            marker = json.loads(
+                conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                    )
+                ).scalar_one()
+            )
+            legacy_alerts = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.gene_symbol == "CYP2C9", findings.c.drug == "phenytoin")
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    return marker, legacy_alerts
+
+
 class TestBackupRoundTrip:
+    @pytest.mark.parametrize(
+        ("wal_mode", "archive_journal_mode"),
+        [
+            pytest.param(False, "wal", id="rollback-config"),
+            # The production default meeting an archive whose databases use a
+            # rollback journal: the first WAL connection rewrites the file, so
+            # publication must not fingerprint it before that has happened.
+            pytest.param(True, "delete", id="wal-config-rollback-archive"),
+        ],
+    )
     def test_legacy_archive_without_registry_uses_local_identity_for_reanalysis_prompt(
         self,
         tmp_data_dir: Path,
         tmp_path: Path,
+        wal_mode: bool,
+        archive_journal_mode: str,
     ) -> None:
-        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
-        created_at = datetime(2025, 4, 3, 2, 1, tzinfo=UTC)
-        legacy_db = tmp_path / "sample_7.db"
-        legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
-        create_sample_tables(legacy_engine)
-        with legacy_engine.begin() as conn:
-            conn.execute(
-                sample_metadata_table.insert(),
-                {
-                    "id": 1,
-                    "name": "Legacy local sample",
-                    "file_format": "23andme_v5",
-                    "file_hash": "legacy-local-hash",
-                    "created_at": created_at,
-                },
-            )
-            conn.execute(
-                findings.insert(),
-                {
-                    "module": "pharmacogenomics",
-                    "category": "prescribing_alert",
-                    "evidence_level": 4,
-                    "gene_symbol": "CYP2C9",
-                    "drug": "phenytoin",
-                    "finding_text": "Legacy phenotype-only recommendation",
-                },
-            )
-            conn.execute(sa.text("PRAGMA user_version = 20"))
-        legacy_engine.dispose()
-
-        archive_buffer = io.BytesIO()
-        with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
-            tf.add(legacy_db, arcname="samples/sample_7.db")
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=wal_mode)
+        archive = _legacy_phenytoin_archive(tmp_path, journal_mode=archive_journal_mode)
 
         with _make_client(settings):
             reset_registry()
@@ -601,20 +665,16 @@ class TestBackupRoundTrip:
                 import_backup(
                     _UploadBytes(
                         filename="legacy-no-registry.tar.gz",
-                        content=archive_buffer.getvalue(),
+                        content=archive,
                     )
                 )
             )
-            restored_path = settings.data_dir / "samples" / "sample_7.db"
-            restored_engine = registry.get_sample_engine(restored_path)
-            with restored_engine.connect() as conn:
-                marker = json.loads(
-                    conn.execute(
-                        sa.select(annotation_state.c.value).where(
-                            annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
-                        )
-                    ).scalar_one()
-                )
+            # Observe the state import_backup left behind, before anything
+            # opens the restored sample through the registry (#2128).
+            cached_sample_engines = dict(registry._sample_engines)
+            marker, legacy_alerts = _read_restored_phenytoin_state(
+                settings.data_dir / "samples" / "sample_7.db"
+            )
             with registry.reference_engine.connect() as conn:
                 registry_row = (
                     conn.execute(sa.select(samples).where(samples.c.id == 7)).mappings().one()
@@ -625,8 +685,14 @@ class TestBackupRoundTrip:
         assert result.samples_restored == 1
         assert registry_row["name"] == "Legacy local sample"
         assert registry_row["file_format"] == "23andme_v5"
-        assert registry_row["file_hash"] == "legacy-local-hash"
+        assert registry_row["file_hash"] == "legacy-local-hash-7"
+        assert legacy_alerts == 0
         assert marker["prompted"] is True
+        # Publication used a disposable engine: a restore of many samples must
+        # not leave one cached, pooled engine per sample behind.
+        assert cached_sample_engines == {}
+        # Exactly one: the dismissed prompt left by ID 7's prior occupant is
+        # gone, so publication ran after the registry cleanup, not before it.
         assert len(prompts) == 1
         prompt = prompts[0]
         assert prompt["db_name"] == "reference_data"
@@ -634,6 +700,119 @@ class TestBackupRoundTrip:
         assert json.loads(prompt["stale_databases"])[0]["recorded_version"] == (
             CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
         )
+
+    def test_transient_prompt_publication_failure_leaves_restored_marker_retryable(
+        self,
+        tmp_data_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A failed publication neither fails the restore nor loses the correction.
+
+        The restore has already committed its files and registry rows when it
+        synchronizes the prompt, so a locked reference DB must not turn it into
+        an error. The marker has to stay ``prompted=false`` so the next open of
+        the sample retries, and the quarantined legacy alert must stay gone in
+        the meantime.
+        """
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        archive = _legacy_phenytoin_archive(tmp_path)
+        restored_path = settings.data_dir / "samples" / "sample_7.db"
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            locked = sa.exc.OperationalError(
+                "INSERT INTO reannotation_prompts", {}, sqlite3.OperationalError("locked")
+            )
+            with patch(
+                "backend.db.update_manager.publish_cyp2c9_phenytoin_reanalysis_prompt",
+                side_effect=locked,
+            ) as publish:
+                result = asyncio.run(
+                    import_backup(_UploadBytes(filename="legacy.tar.gz", content=archive))
+                )
+            cached_after_failure = dict(registry._sample_engines)
+            marker_after_failure, legacy_alerts = _read_restored_phenytoin_state(restored_path)
+            with registry.reference_engine.connect() as conn:
+                prompts_after_failure = conn.execute(sa.select(reannotation_prompts)).all()
+
+            # The retry the marker exists for: the next open publishes it.
+            registry.get_sample_engine(restored_path)
+            marker_after_retry, _ = _read_restored_phenytoin_state(restored_path)
+            with registry.reference_engine.connect() as conn:
+                prompts_after_retry = (
+                    conn.execute(sa.select(reannotation_prompts)).mappings().all()
+                )
+            reset_registry()
+
+        assert result.success is True
+        assert result.samples_restored == 1
+        # import_backup itself attempted the publication; nothing else opened
+        # the sample before this point.
+        assert publish.call_count == 1
+        assert cached_after_failure == {}
+        assert marker_after_failure["prompted"] is False
+        assert prompts_after_failure == []
+        assert legacy_alerts == 0
+        assert marker_after_retry["prompted"] is True
+        assert [(p["sample_id"], p["prompt_type"]) for p in prompts_after_retry] == [
+            (7, "version_staleness")
+        ]
+
+    def test_locked_reference_db_defers_once_and_skips_marker_free_samples(
+        self,
+        tmp_data_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A held reference.db lock costs the restore one busy timeout, not one per sample.
+
+        Every attempt that reaches reference.db waits out its busy timeout while
+        another writer holds it. Sample 3 has no marker, and its prompts were
+        deleted with the registry insert, so it must not reach reference.db at
+        all. Once sample 7 defers, sample 8 is left for its next open rather
+        than waiting again.
+        """
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        archive = _legacy_phenytoin_archive(tmp_path, alert_ids=(7, 8), plain_ids=(3,))
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            locked = sa.exc.OperationalError(
+                "INSERT INTO reannotation_prompts", {}, sqlite3.OperationalError("locked")
+            )
+            with (
+                patch(
+                    "backend.db.update_manager.publish_cyp2c9_phenytoin_reanalysis_prompt",
+                    side_effect=locked,
+                ) as publish,
+                patch(
+                    "backend.db.update_manager.retract_cyp2c9_phenytoin_reanalysis_prompt"
+                ) as retract,
+            ):
+                result = asyncio.run(
+                    import_backup(_UploadBytes(filename="legacy.tar.gz", content=archive))
+                )
+            prompted = {
+                sample_id: _read_restored_phenytoin_state(
+                    settings.data_dir / "samples" / f"sample_{sample_id}.db"
+                )[0]["prompted"]
+                for sample_id in (7, 8)
+            }
+            reset_registry()
+
+        assert result.samples_restored == 3
+        assert [c.kwargs["sample_id"] for c in publish.call_args_list] == [7]
+        retract.assert_not_called()
+        assert prompted == {7: False, 8: False}
 
     def test_export_then_import_restores_sample_registry(
         self, tmp_data_dir: Path, tmp_path: Path
