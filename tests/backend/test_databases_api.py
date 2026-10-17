@@ -1178,16 +1178,25 @@ class TestDownloadIntegration:
             ref_path = tmp_data_dir / "reference.db"
             engine = sa.create_engine(f"sqlite:///{ref_path}")
 
-            for _ in range(40):  # max 4 seconds
+            # A fixed 4 s poll that fell through silently failed on a slow macOS
+            # runner with a bare "assert (False or False)" (#2184). Wait on a
+            # deadline instead, and require the job to have completed, so a slow
+            # or failed download is reported as such rather than as a missing file.
+            deadline = time.monotonic() + 30
+            row = None
+            while time.monotonic() < deadline:
                 with engine.connect() as conn:
                     row = conn.execute(
-                        sa.select(jobs.c.status).where(jobs.c.job_id == job_id)
+                        sa.select(jobs.c.status, jobs.c.message).where(jobs.c.job_id == job_id)
                     ).fetchone()
                 if row and row.status in ("complete", "failed"):
                     break
                 time.sleep(0.1)
 
             engine.dispose()
+            assert row is not None and row.status == "complete", (
+                f"download job did not complete: {row and (row.status, row.message)}"
+            )
 
             # Verify the file was downloaded to either downloads_dir or data_dir
             downloads_path = tmp_data_dir / "downloads" / "clinvar.db"
