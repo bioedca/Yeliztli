@@ -51,7 +51,7 @@ def test_v30_creates_the_indexes_on_an_existing_db(sample_engine: sa.Engine) -> 
 
     with sample_engine.connect() as conn:
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
-    assert version == SAMPLE_SCHEMA_VERSION == 30
+    assert version == SAMPLE_SCHEMA_VERSION == 31
     for name, (table, _column) in EXPECTED.items():
         assert name in _index_names(sample_engine, table), name
         assert "COLLATE NOCASE" in _index_sql(sample_engine, name)
