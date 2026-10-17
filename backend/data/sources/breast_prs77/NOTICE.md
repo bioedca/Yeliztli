@@ -19,7 +19,13 @@ the odds ratio is for the second listed allele.
   coordinates come from its harmonized snapshot dated 2022-09-23.
 - The checked-in Ensembl Variation snapshot records the primary-chromosome
   GRCh38 allele sets consulted on 2026-07-16; alternate scaffold mappings were
-  excluded.
+  excluded. That snapshot records no Ensembl release, and none is inferred
+  from its date.
+- The same 77-rsID lookup was re-run on 2026-10-17 against Ensembl data
+  release 116 (variation imported from dbSNP 156). Its primary mappings are
+  identical to the 2026-07-16 records, and the generator requires them to stay
+  identical (`ensembl_release_check_2026-10-17.json`; evidence in
+  `data/science-evidence/2026-10-17-breast-prs77-ensembl-release-2246/`).
 
 ## Reproducibility
 
@@ -35,6 +41,7 @@ Checked source artifacts and their SHA-256 digests:
 - Checked-in supplement transcription: `f08dac2d21dbbf14d2fe09f88de8d0b699e70b1a2eb5a9e02d0723c672ed80f8`
 - Checked-in GRCh37 harmonization snapshot: `7faab8eac749b1748c243105de6241bfc3c4bc5dc95bce54d1893d2e6cdd0221`
 - Checked-in primary GRCh38 allele snapshot: `7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5`
+- Checked-in Ensembl release 116 re-check: `159ba7dbc65b30dc78f1adc7c74ff48620ebf4c6b255ad5a3174d304efb3abc4`
 - Mavaddat supplementary DOCX: `83086cd11c67dc01bd606539d4d894f2c16f6a1e6182ee54aa916031ab4c8c3e`
 - Mavaddat supplementary archive: `617952a5528414959dd07e1d5687ab606b1d62d7e88883df2d81995e6c486792`
 - PGS000001 source gzip: `ccccbb2af5579cc284bfea95a9e5845bf39426f8c71f701ddc2f4197016c6277`
@@ -42,6 +49,7 @@ Checked source artifacts and their SHA-256 digests:
 - PGS000001 GRCh37 harmonized gzip: `5a3069e1a1844df02f3d24e889f97dfad03ee0c40888fc5ecf5f44dc5c36ffc3`
 - PGS000001 GRCh37 harmonized text: `1adafcf2ba083cde9616f416281fed7fbaf0e3a833b91c154abdfe96c96a5ea0`
 - Ensembl raw 77-record response set: `36597c0ab5d02c7ce373f671f87cd6630ae9df865b99c2e056770dd2eb78cbac`
+- Ensembl release 116 raw 77-record response set: `e336a82c6269d221bc31772b3d70fa0bce0d006609be73f9e8115c87c2ef8e8e`
 
 The generator also pins compact ordered projections of the source and
 harmonized rows (`db7811c2…`, `d365caed…`, `6e014bab…`, and `9ee7f543…`),

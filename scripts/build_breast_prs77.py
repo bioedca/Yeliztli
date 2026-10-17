@@ -34,6 +34,10 @@ _SOURCE_DIR = _REPO / "backend" / "data" / "sources" / "breast_prs77"
 _SUPPLEMENT = _SOURCE_DIR / "mavaddat_2015_supplementary_table_4.tsv"
 _HARMONIZED = _SOURCE_DIR / "pgs000001_harmonized_grch37.tsv"
 _ENSEMBL = _SOURCE_DIR / "ensembl_primary_grch38_2026-07-16.json"
+# The 2026-07-16 snapshot names no Ensembl release, and its release is never
+# back-filled from its date. This later re-run of the same lookup names the
+# release it was answered from and must reproduce the snapshot's records (#2246).
+_ENSEMBL_RELEASE_CHECK = _SOURCE_DIR / "ensembl_release_check_2026-10-17.json"
 
 _EXPECTED_VARIANTS = 77
 _EXPECTED_MULTIALLELIC = 39
@@ -48,6 +52,9 @@ _EXPECTED_FILE_SHA256 = {
     _SUPPLEMENT.name: "f08dac2d21dbbf14d2fe09f88de8d0b699e70b1a2eb5a9e02d0723c672ed80f8",
     _HARMONIZED.name: "7faab8eac749b1748c243105de6241bfc3c4bc5dc95bce54d1893d2e6cdd0221",
     _ENSEMBL.name: "7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5",
+    _ENSEMBL_RELEASE_CHECK.name: (
+        "159ba7dbc65b30dc78f1adc7c74ff48620ebf4c6b255ad5a3174d304efb3abc4"
+    ),
 }
 _EXPECTED_SOURCE_PROJECTION_SHA256 = (
     "db7811c2e526e58a54524f5096c2af4bc92c4afa4cd114a45112c9208075059d"
@@ -62,6 +69,10 @@ _EXPECTED_FULL_HARMONIZED_PROJECTION_SHA256 = (
     "9ee7f5435fbcc5a9312c56b08d0160869a3ad9189066785278c2731bd67b31bb"
 )
 _EXPECTED_ENSEMBL_RAW_SHA256 = "36597c0ab5d02c7ce373f671f87cd6630ae9df865b99c2e056770dd2eb78cbac"
+_EXPECTED_ENSEMBL_RELEASE = 116
+_EXPECTED_ENSEMBL_RELEASE_CHECK_RAW_SHA256 = (
+    "e336a82c6269d221bc31772b3d70fa0bce0d006609be73f9e8115c87c2ef8e8e"
+)
 _EXPECTED_LEGACY_HASHES = {
     "legacy_canonical_sha256": (
         "5c1e91302d638fa30ea325d27e561179e0f66f30ae181c65f3b51a9965e912a0"
@@ -300,6 +311,44 @@ def _validate_ensembl_snapshot(
     return by_rsid
 
 
+def _validate_ensembl_release_check(
+    snapshot: dict[str, Any], check: dict[str, Any]
+) -> dict[str, Any]:
+    """Require the release-named re-run to reproduce the unnamed snapshot exactly.
+
+    Equal records mean the snapshot's 39/2/41 classification holds at the named
+    release. Unequal records mean that classification itself has to be re-derived
+    deliberately, so this fails rather than letting either file stand in for it.
+    """
+    if check.get("checked_on") != "2026-10-17":
+        _fail("Ensembl release check: unexpected access date")
+    for field in ("assembly_name", "coord_system", "mapping_policy"):
+        if check.get(field) != snapshot.get(field):
+            _fail(f"Ensembl release check: {field} differs from the snapshot")
+    release = check.get("ensembl_release")
+    if isinstance(release, bool) or not isinstance(release, int) or release <= 0:
+        _fail("Ensembl release check: ensembl_release must be a positive integer")
+    if release != _EXPECTED_ENSEMBL_RELEASE:
+        _fail(f"Ensembl release check: release {release} is not the pinned release")
+    if check.get("raw_payload_sha256") != _EXPECTED_ENSEMBL_RELEASE_CHECK_RAW_SHA256:
+        _fail("Ensembl release check: raw response-set SHA-256 changed")
+    if check.get("snapshot") != _ENSEMBL.name:
+        _fail("Ensembl release check: does not name the snapshot it re-checks")
+    # Present and null: the snapshot's own release is unrecorded, not unknown-yet.
+    if "snapshot_ensembl_release" not in check or check["snapshot_ensembl_release"] is not None:
+        _fail("Ensembl release check: the snapshot's release must stay explicitly null")
+    sources = check.get("variation_source_versions")
+    dbsnp = sources.get("dbSNP") if isinstance(sources, dict) else None
+    if not isinstance(dbsnp, str) or not dbsnp.strip():
+        _fail("Ensembl release check: missing the dbSNP source version")
+    if check.get("records") != snapshot.get("records"):
+        _fail(
+            f"Ensembl release check: release {release} records differ from the "
+            f"{_ENSEMBL.name} records; re-derive the runtime-block classification"
+        )
+    return check
+
+
 def _is_palindromic(effect: str, other: str) -> bool:
     return {effect, other} == {effect.translate(_COMPLEMENT), other.translate(_COMPLEMENT)}
 
@@ -426,6 +475,7 @@ def _build_breast_model(
     weights: list[dict[str, Any]],
     groups: dict[str, int],
     legacy_audit_record: dict[str, Any],
+    release_check: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "name": "Breast cancer (Mavaddat PRS77; runtime blocked)",
@@ -488,6 +538,14 @@ def _build_breast_model(
                 "assembly": "GRCh38",
                 "checked_on": "2026-07-16",
                 "mapping_policy": "primary chromosome only; alternate scaffolds excluded",
+                "snapshot_ensembl_release": None,
+                "release_verification": {
+                    "ensembl_release": release_check["ensembl_release"],
+                    "checked_on": release_check["checked_on"],
+                    "endpoint": release_check["endpoint"],
+                    "records_identical_to_snapshot": True,
+                    "artifact": _ENSEMBL_RELEASE_CHECK.name,
+                },
                 "mapping_group_counts": groups,
                 "multiallelic_primary_loci": 39,
                 "biallelic_palindromic_loci": 2,
@@ -528,6 +586,9 @@ def _build_breast_model(
                         "1adafcf2ba083cde9616f416281fed7fbaf0e3a833b91c154abdfe96c96a5ea0"
                     ),
                     "ensembl_raw_records": _EXPECTED_ENSEMBL_RAW_SHA256,
+                    "ensembl_release_check_raw_records": (
+                        _EXPECTED_ENSEMBL_RELEASE_CHECK_RAW_SHA256
+                    ),
                 },
             },
         },
@@ -582,6 +643,9 @@ def _expected_panel(panel: dict[str, Any]) -> dict[str, Any]:
     harmonized = _validate_harmonized_rows(source_rows, harmonized_rows)
     ensembl_data = json.loads(_ENSEMBL.read_text(encoding="utf-8"))
     ensembl = _validate_ensembl_snapshot(source_rows, ensembl_data)
+    release_check = _validate_ensembl_release_check(
+        ensembl_data, json.loads(_ENSEMBL_RELEASE_CHECK.read_text(encoding="utf-8"))
+    )
     weights, groups = _build_weights(source_rows, harmonized, ensembl)
 
     result = copy.deepcopy(panel)
@@ -601,7 +665,9 @@ def _expected_panel(panel: dict[str, Any]) -> dict[str, Any]:
     for index, model in enumerate(result["weight_sets"]):
         if index != breast_index:
             result["weight_sets"][index] = _with_active_model_status(model)
-    result["weight_sets"][breast_index] = _build_breast_model(weights, groups, legacy)
+    result["weight_sets"][breast_index] = _build_breast_model(
+        weights, groups, legacy, release_check
+    )
     return result
 
 

@@ -169,6 +169,33 @@ def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:
     )
 
 
+def test_breast_allele_audit_names_the_ensembl_release_it_was_confirmed_against() -> None:
+    """The audit behind the documented counts must name an Ensembl release (#2246).
+
+    Without one, the bundled snapshot can be reused but never re-fetched and
+    confirmed upstream. The snapshot's own release stays explicitly unrecorded:
+    it was never captured, and a release inferred from its date would be
+    presented as recorded provenance.
+    """
+    audit = _breast_allele_audit()
+    assert "snapshot_ensembl_release" in audit and audit["snapshot_ensembl_release"] is None, (
+        "the 2026-07-16 snapshot's release was never recorded; keep it explicitly null "
+        "rather than back-filling it"
+    )
+    verification = audit.get("release_verification")
+    assert isinstance(verification, dict), (
+        "current_allele_audit must name the Ensembl release its records were confirmed against"
+    )
+    release = verification.get("ensembl_release")
+    assert isinstance(release, int) and not isinstance(release, bool) and release > 0, (
+        f"release_verification.ensembl_release must be a positive integer, not {release!r}"
+    )
+    date.fromisoformat(str(verification.get("checked_on")))
+    assert verification.get("records_identical_to_snapshot") is True, (
+        "a named release only stands for the audit's counts when its records equal the snapshot's"
+    )
+
+
 def test_cancer_docs_distinguish_the_runtime_block_from_ancestry_withholding() -> None:
     breast = _breast_weight_set()
     assert breast["model_status"] == "source_verified_runtime_blocked"

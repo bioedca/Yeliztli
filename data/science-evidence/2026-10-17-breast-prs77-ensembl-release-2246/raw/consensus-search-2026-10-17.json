@@ -1,0 +1,34 @@
+{
+  "accessed": "2026-10-17",
+  "kind": "derived",
+  "service": "Consensus (MCP search tool)",
+  "_note": "An MCP tool call has no wire payload; this is a hand-recorded summary of the returned result list, not a capture.",
+  "query": "Ensembl variation resources database variant annotation",
+  "filters": "none",
+  "results_returned": 3,
+  "results": [
+    {
+      "rank": 1,
+      "title": "Ensembl variation resources",
+      "first_author": "S. Hunt",
+      "year": 2018,
+      "journal": "Database: The Journal of Biological Databases and Curation"
+    },
+    {
+      "rank": 2,
+      "title": "Annotating and prioritizing genomic variants using the Ensembl Variant Effect Predictor—A tutorial",
+      "first_author": "S. Hunt",
+      "year": 2021,
+      "journal": "Human mutation"
+    },
+    {
+      "rank": 3,
+      "title": "The Ensembl Variant Effect Predictor",
+      "first_author": "W. McLaren",
+      "year": 2016,
+      "journal": "Genome Biology"
+    }
+  ],
+  "doi_exposed": false,
+  "version_exposed": false
+}
