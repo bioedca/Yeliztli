@@ -19,6 +19,7 @@ import json
 import pytest
 import sqlalchemy as sa
 
+from backend.analysis.ancestry import AncestryResult, store_ancestry_findings
 from backend.analysis.prs import (
     PRS_HIGHER_IS_PROTECTIVE,
     PRS_HIGHER_IS_RISK,
@@ -933,6 +934,52 @@ class TestRunPRS:
         assert result.z_score is None
         assert result.percentile is None
         assert result.bootstrap_iterations == 0
+
+    def test_low_coverage_uncertain_ancestry_withholds_the_percentile(
+        self, sample_engine: sa.Engine
+    ) -> None:
+        """An insufficient ancestry finding must not calibrate a fully typed PRS (#2168).
+
+        PRS-variant coverage and ancestry-marker coverage are independent, so the
+        score itself is sufficient here while the ancestry call is not.
+        """
+        _seed_continuous_calibration_inputs(sample_engine, with_ancestry=False)
+        store_ancestry_findings(
+            AncestryResult(
+                pc_scores=[0.1, 0.2],
+                top_population="EUR",
+                population_distances={"EUR": 1.0, "AFR": 2.0},
+                admixture_fractions={"EUR": 0.62, "AFR": 0.38},
+                snps_used=449,
+                snps_total=1000,
+                coverage_fraction=0.449,
+                projection_time_ms=1.0,
+                is_sufficient=False,
+            ),
+            sample_engine,
+        )
+
+        result = run_prs(
+            _uncalibrated_continuous_weight_set(),
+            sample_engine,
+            inferred_ancestry=None,
+            n_bootstrap=25,
+            rng_seed=42,
+        )
+
+        assert result.is_sufficient is True
+        assert result.calibrated is False
+        assert result.calibration_method is None
+        assert result.z_score is None
+        assert result.percentile is None
+
+        store_prs_findings([result], sample_engine, module="cancer")
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(findings).where(findings.c.category == "prs")).fetchone()
+        assert row.prs_percentile is None
+        detail = json.loads(row.detail_json)
+        assert detail["calibrated"] is False
+        assert detail.get("calibration_method") is None
 
     def test_calibration_excludes_palindromic_homozygote_dropped_from_raw_score(
         self, sample_engine: sa.Engine

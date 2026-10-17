@@ -200,9 +200,11 @@ cognitive traits) summarise many small-effect variants into a **population perce
 a raw score or a PRS-derived absolute risk. Read these carefully:
 
 - **Research use only.** They are not diagnostic and not clinically validated.
-- **Percentiles can be withheld.** When a score isn't calibrated for your inferred ancestry, or
-  your array covers too few of its variants, Yeliztli **withholds** the percentile and shows
-  coverage instead — rather than report a misleading number.
+- **Percentiles can be withheld.** When a score isn't calibrated for your inferred ancestry,
+  when your ancestry could not be assessed confidently (too few ancestry-informative markers,
+  shown as *Uncertain*), or when your array covers too few of the score's variants, Yeliztli
+  **withholds** the percentile and shows coverage instead — rather than report a misleading
+  number.
 - **Ancestry matters — a lot.** Scores are mostly derived in European-ancestry cohorts and
   **transfer poorly** to other ancestries, which can worsen health disparities if misused [^1].
   Accuracy in fact decays continuously with genetic distance from the training data — even

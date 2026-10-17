@@ -14,6 +14,7 @@ import types
 
 import sqlalchemy as sa
 
+from backend.analysis.ancestry import AncestryResult, store_ancestry_findings
 from backend.analysis.prs import PRSSNPWeight, PRSWeightSet, run_prs
 from backend.analysis.prs_calibration import (
     PRS_CALIBRATION_PMIDS,
@@ -229,7 +230,50 @@ def _sample_with_ancestry(fractions: dict[str, float] | None, variants: list[dic
     return engine
 
 
+def _stored_ancestry(*, sufficient: bool, status: str, top: str) -> sa.Engine:
+    """Store a real ancestry result, so the finding has the shape the module writes."""
+    engine = sa.create_engine("sqlite://")
+    create_sample_tables(engine)
+    store_ancestry_findings(
+        AncestryResult(
+            pc_scores=[0.1, 0.2],
+            top_population=top,
+            population_distances={"EUR": 1.0, "AFR": 2.0},
+            admixture_fractions={"EUR": 0.62, "AFR": 0.38},
+            snps_used=449 if not sufficient else 900,
+            snps_total=1000,
+            coverage_fraction=0.449 if not sufficient else 0.9,
+            projection_time_ms=1.0,
+            is_sufficient=sufficient,
+            nnls_fractions={"EUR": 0.62, "AFR": 0.38},
+            classification_status=status,
+        ),
+        engine,
+    )
+    return engine
+
+
 class TestGetAncestryFractions:
+    def test_none_for_a_low_coverage_uncertain_finding(self) -> None:
+        """The stored UNCERTAIN row keeps fractions; they must not reach calibration (#2168)."""
+        engine = _stored_ancestry(sufficient=False, status="confident", top="EUR")
+        with engine.connect() as conn:
+            detail = json.loads(conn.execute(sa.select(findings.c.detail_json)).scalar_one())
+        # The premise: the insufficient finding really does carry the fractions.
+        assert detail["top_population"] == "UNCERTAIN"
+        assert detail["is_sufficient"] is False
+        assert detail["admixture_fractions"] == {"EUR": 0.62, "AFR": 0.38}
+
+        assert get_ancestry_fractions(engine) is None
+
+    def test_admixed_but_sufficient_finding_still_calibrates(self) -> None:
+        """ADMIXED is a confident assessment, unlike low-coverage UNCERTAIN."""
+        engine = _stored_ancestry(sufficient=True, status="admixed", top="ADMIXED")
+        fr = get_ancestry_fractions(engine)
+        assert fr is not None
+        assert math.isclose(fr["EUR"], 0.62)
+        assert math.isclose(fr["AFR"], 0.38)
+
     def test_returns_normalized_fractions(self) -> None:
         engine = _sample_with_ancestry({"EUR": 0.6, "AFR": 0.2}, [])
         fr = get_ancestry_fractions(engine)
