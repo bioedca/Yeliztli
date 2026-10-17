@@ -534,6 +534,74 @@ class TestBackupDownload:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+def _legacy_phenytoin_archive(tmp_path: Path) -> bytes:
+    """A registry-less archive holding one v20 sample with a legacy phenytoin alert.
+
+    Restoring it upgrades the sample to v21, which quarantines the alert and
+    records the CYP2C9/phenytoin reanalysis marker with ``prompted=false``.
+    """
+    legacy_db = tmp_path / "sample_7.db"
+    legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
+    create_sample_tables(legacy_engine)
+    with legacy_engine.begin() as conn:
+        conn.execute(
+            sample_metadata_table.insert(),
+            {
+                "id": 1,
+                "name": "Legacy local sample",
+                "file_format": "23andme_v5",
+                "file_hash": "legacy-local-hash",
+                "created_at": datetime(2025, 4, 3, 2, 1, tzinfo=UTC),
+            },
+        )
+        conn.execute(
+            findings.insert(),
+            {
+                "module": "pharmacogenomics",
+                "category": "prescribing_alert",
+                "evidence_level": 4,
+                "gene_symbol": "CYP2C9",
+                "drug": "phenytoin",
+                "finding_text": "Legacy phenotype-only recommendation",
+            },
+        )
+        conn.execute(sa.text("PRAGMA user_version = 20"))
+    legacy_engine.dispose()
+
+    archive_buffer = io.BytesIO()
+    with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
+        tf.add(legacy_db, arcname="samples/sample_7.db")
+    return archive_buffer.getvalue()
+
+
+def _read_restored_phenytoin_state(sample_db: Path) -> tuple[dict, int]:
+    """Read the reanalysis marker and legacy-alert count without the registry.
+
+    ``DBRegistry.get_sample_engine`` publishes a pending marker as a central
+    prompt when it opens a sample, so reading through it would create the very
+    prompt a restore test means to observe (#2128). A raw engine has no such
+    side effect.
+    """
+    engine = sa.create_engine(f"sqlite:///{sample_db}")
+    try:
+        with engine.connect() as conn:
+            marker = json.loads(
+                conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                    )
+                ).scalar_one()
+            )
+            legacy_alerts = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(findings)
+                .where(findings.c.gene_symbol == "CYP2C9", findings.c.drug == "phenytoin")
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    return marker, legacy_alerts
+
+
 class TestBackupRoundTrip:
     def test_legacy_archive_without_registry_uses_local_identity_for_reanalysis_prompt(
         self,
@@ -541,38 +609,7 @@ class TestBackupRoundTrip:
         tmp_path: Path,
     ) -> None:
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
-        created_at = datetime(2025, 4, 3, 2, 1, tzinfo=UTC)
-        legacy_db = tmp_path / "sample_7.db"
-        legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
-        create_sample_tables(legacy_engine)
-        with legacy_engine.begin() as conn:
-            conn.execute(
-                sample_metadata_table.insert(),
-                {
-                    "id": 1,
-                    "name": "Legacy local sample",
-                    "file_format": "23andme_v5",
-                    "file_hash": "legacy-local-hash",
-                    "created_at": created_at,
-                },
-            )
-            conn.execute(
-                findings.insert(),
-                {
-                    "module": "pharmacogenomics",
-                    "category": "prescribing_alert",
-                    "evidence_level": 4,
-                    "gene_symbol": "CYP2C9",
-                    "drug": "phenytoin",
-                    "finding_text": "Legacy phenotype-only recommendation",
-                },
-            )
-            conn.execute(sa.text("PRAGMA user_version = 20"))
-        legacy_engine.dispose()
-
-        archive_buffer = io.BytesIO()
-        with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
-            tf.add(legacy_db, arcname="samples/sample_7.db")
+        archive = _legacy_phenytoin_archive(tmp_path)
 
         with _make_client(settings):
             reset_registry()
@@ -601,20 +638,15 @@ class TestBackupRoundTrip:
                 import_backup(
                     _UploadBytes(
                         filename="legacy-no-registry.tar.gz",
-                        content=archive_buffer.getvalue(),
+                        content=archive,
                     )
                 )
             )
-            restored_path = settings.data_dir / "samples" / "sample_7.db"
-            restored_engine = registry.get_sample_engine(restored_path)
-            with restored_engine.connect() as conn:
-                marker = json.loads(
-                    conn.execute(
-                        sa.select(annotation_state.c.value).where(
-                            annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
-                        )
-                    ).scalar_one()
-                )
+            # Observe the state import_backup left behind, before anything
+            # opens the restored sample through the registry (#2128).
+            marker, legacy_alerts = _read_restored_phenytoin_state(
+                settings.data_dir / "samples" / "sample_7.db"
+            )
             with registry.reference_engine.connect() as conn:
                 registry_row = (
                     conn.execute(sa.select(samples).where(samples.c.id == 7)).mappings().one()
@@ -626,7 +658,10 @@ class TestBackupRoundTrip:
         assert registry_row["name"] == "Legacy local sample"
         assert registry_row["file_format"] == "23andme_v5"
         assert registry_row["file_hash"] == "legacy-local-hash"
+        assert legacy_alerts == 0
         assert marker["prompted"] is True
+        # Exactly one: the dismissed prompt left by ID 7's prior occupant is
+        # gone, so publication ran after the registry cleanup, not before it.
         assert len(prompts) == 1
         prompt = prompts[0]
         assert prompt["db_name"] == "reference_data"
@@ -634,6 +669,66 @@ class TestBackupRoundTrip:
         assert json.loads(prompt["stale_databases"])[0]["recorded_version"] == (
             CYP2C9_PHENYTOIN_LEGACY_GUIDANCE_VERSION
         )
+
+    def test_transient_prompt_publication_failure_leaves_restored_marker_retryable(
+        self,
+        tmp_data_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A failed publication neither fails the restore nor loses the correction.
+
+        The restore has already committed its files and registry rows when it
+        synchronizes the prompt, so a locked reference DB must not turn it into
+        an error. The marker has to stay ``prompted=false`` so the next open of
+        the sample retries, and the quarantined legacy alert must stay gone in
+        the meantime.
+        """
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        archive = _legacy_phenytoin_archive(tmp_path)
+        restored_path = settings.data_dir / "samples" / "sample_7.db"
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            locked = sa.exc.OperationalError(
+                "INSERT INTO reannotation_prompts", {}, sqlite3.OperationalError("locked")
+            )
+            with patch(
+                "backend.db.update_manager.publish_cyp2c9_phenytoin_reanalysis_prompt",
+                side_effect=locked,
+            ) as publish:
+                result = asyncio.run(
+                    import_backup(_UploadBytes(filename="legacy.tar.gz", content=archive))
+                )
+            marker_after_failure, legacy_alerts = _read_restored_phenytoin_state(restored_path)
+            with registry.reference_engine.connect() as conn:
+                prompts_after_failure = conn.execute(sa.select(reannotation_prompts)).all()
+
+            # The retry the marker exists for: the next open publishes it.
+            registry.get_sample_engine(restored_path)
+            marker_after_retry, _ = _read_restored_phenytoin_state(restored_path)
+            with registry.reference_engine.connect() as conn:
+                prompts_after_retry = (
+                    conn.execute(sa.select(reannotation_prompts)).mappings().all()
+                )
+            reset_registry()
+
+        assert result.success is True
+        assert result.samples_restored == 1
+        # import_backup itself attempted the publication; nothing else opened
+        # the sample before this point.
+        assert publish.call_count == 1
+        assert marker_after_failure["prompted"] is False
+        assert prompts_after_failure == []
+        assert legacy_alerts == 0
+        assert marker_after_retry["prompted"] is True
+        assert [(p["sample_id"], p["prompt_type"]) for p in prompts_after_retry] == [
+            (7, "version_staleness")
+        ]
 
     def test_export_then_import_restores_sample_registry(
         self, tmp_data_dir: Path, tmp_path: Path

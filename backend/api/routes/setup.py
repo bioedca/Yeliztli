@@ -1266,6 +1266,33 @@ def _insert_registry_rows(
             conn.execute(samples.insert().values(insert_values))
 
 
+def _publish_restored_reanalysis_prompts(sample_paths: list[Path]) -> None:
+    """Best-effort publish each restored sample's pending reanalysis prompt.
+
+    A v20 sample upgraded in staging carries the durable CYP2C9/phenytoin
+    marker with ``prompted=false``. ``DBRegistry.get_sample_engine`` publishes
+    that marker as the central prompt when it opens a sample, so without this
+    the restore returned with no prompt until a later request happened to open
+    the sample (#2128).
+
+    Call only after the registry rows commit: ``_insert_registry_rows`` deletes
+    every prompt for the restored IDs, so publishing earlier would be undone. A
+    failure never fails the restore, whose files and rows are already in place;
+    the synchronizer leaves the marker unprompted on a transient error and the
+    next open of the sample retries.
+    """
+    registry = get_registry()
+    for sample_path in sample_paths:
+        try:
+            registry.get_sample_engine(sample_path)
+        except Exception as exc:
+            logger.warning(
+                "restore_reanalysis_prompt_sync_deferred",
+                sample_db=sample_path.name,
+                error=str(exc),
+            )
+
+
 @router.post("/import-backup", response_model=ImportBackupResponse)
 async def import_backup(file: UploadFile) -> ImportBackupResponse:
     """Import data from a .tar.gz backup archive.
@@ -1488,6 +1515,7 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                             status_code=500,
                             detail="Failed to restore sample files and registry metadata.",
                         ) from exc
+                    _publish_restored_reanalysis_prompts(moved_sample_paths)
                     samples_restored = len(staged_samples)
 
                     if staged_registry_manifest is not None or staged_legacy_registry is not None:
