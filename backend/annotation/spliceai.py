@@ -133,17 +133,26 @@ _GRCH37_CONTIG_LENGTHS: dict[str, int] = {
     "X": 155_270_560,
     "Y": 59_373_566,
 }
-_GRCH37_LABELS = ("grch37", "hg19", "b37", "hs37", "g1k_v37")
-_OTHER_BUILD_LABELS = ("grch38", "hg38", "b38", "hs38", "ncbi36", "hg18", "chm13", "t2t")
+# Build names, matched as whole tokens of a label split on non-alphanumerics, so
+# "GRCh370" or a path segment like "lab37" is not mistaken for a build. A name not
+# listed (a future release, say) is unrecognized, which leaves the header silent:
+# the caller must then confirm the build, and contig lengths still apply.
+_GRCH37_LABELS = frozenset({"grch37", "ncbi37", "hg19", "b37", "hs37", "hs37d5"})
+_OTHER_BUILD_LABELS = frozenset(
+    {"grch38", "hg38", "b38", "hs38", "hs38dh", "ncbi36", "hg18", "b36", "t2t", "chm13", "hs1"}
+)
+_LABEL_TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CONTIG_FIELD_RE = re.compile(r"(\w+)=([^,>]*)")
 
 
 def _classify_build_label(label: str) -> str | None:
     """``"GRCh37"``, ``"other"`` (any other build named, alone or alongside), or None."""
     lower = label.lower()
-    if any(token in lower for token in _OTHER_BUILD_LABELS):
+    tokens = set(_LABEL_TOKEN_RE.findall(lower))
+    if tokens & _OTHER_BUILD_LABELS:
         return "other"
-    if any(token in lower for token in _GRCH37_LABELS):
+    # 1000 Genomes' GRCh37 reference is "human_g1k_v37", which splits into "g1k"/"v37".
+    if tokens & _GRCH37_LABELS or "g1k_v37" in lower:
         return "GRCh37"
     return None
 

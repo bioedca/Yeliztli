@@ -404,10 +404,17 @@ class TestAssemblyVerification:
         ("label", "expected"),
         [
             ("GRCh37/hg19", "GRCh37"),
+            ("GRCh37.p13", "GRCh37"),
+            ("NCBI37", "GRCh37"),
             ("file:///refs/hs37d5.fa", "GRCh37"),
             ("human_g1k_v37.fasta", "GRCh37"),
             ("GRCh38", "other"),
+            ("GCA_000001405.15_GRCh38_no_alt", "other"),
+            ("T2T-CHM13v2.0", "other"),
             ("hg19 lifted over to hg38", "other"),
+            # Whole tokens only: a lookalike or a path segment is not a build.
+            ("GRCh370", None),
+            ("/data/lab37/ref.fa", None),
             ("custom_reference", None),
         ],
     )
