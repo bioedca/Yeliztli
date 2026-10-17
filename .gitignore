@@ -47,6 +47,14 @@ Thumbs.db
 
 # Yeliztli runtime data (not curated panels)
 data/
+# ...except the scientific evidence packets CLAUDE.md and AGENTS.md store under
+# data/science-evidence/<date-slug>/ (#2204). Git cannot re-include a path whose parent
+# directory is excluded, so the root data/ itself is re-included, its contents are
+# excluded again, and only that one curated tree is carved back out. data/ directories
+# at any other depth stay ignored, and the *.db rule above still applies in a packet.
+!/data/
+/data/*
+!/data/science-evidence/
 !backend/data/
 !backend/data/**
 # ...but never the build artifacts the broad negation above would otherwise re-include

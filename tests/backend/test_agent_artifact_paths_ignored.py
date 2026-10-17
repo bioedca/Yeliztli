@@ -10,6 +10,12 @@ untracked noise that a ``git add -A`` could sweep into a commit.
 These assert the *behavior* — git's own ignore matcher — rather than the text of
 ``.gitignore``, so they stay true however the rules are later spelled.
 
+The evidence-packet tree is guarded in the opposite direction. The contract stores scientific
+provenance in ``data/science-evidence/<date-slug>/``, but until #2204 the blanket ``data/`` rule
+ignored every new file there: a plain ``git add`` staged nothing and ``git add -A`` skipped it
+silently, so a packet could be described in a PR and never reach the tree (#2351). Those paths
+must be committable, while the rest of the runtime ``data/`` directory stays ignored.
+
 Two subtleties the matcher forces, both pinned by ``test_ignore_report_*`` below:
 
 * Ignore matching also consults ``core.excludesFile`` and ``$GIT_DIR/info/exclude``, so
@@ -50,6 +56,32 @@ MUST_BE_IGNORED = (
 # verbatim as written, so keying on the spelling would make the guard below silently
 # vacuous the moment someone rewrote ``output/`` as ``/output/`` or ``output/**``.
 ARTIFACT_DIRS = ("output", ".playwright-mcp", ".playwright-cli")
+
+# Paths an evidence packet holds. Unlike the probes above these carry the real file kinds
+# (README, raw JSON payloads, a compressed payload), so an extension rule such as ``*.json``
+# that re-ignored packet contents would fail here too; the extensionless entry pins the
+# directory rule itself.
+MUST_BE_COMMITTABLE = (
+    "data/science-evidence/probe",
+    "data/science-evidence/2026-01-01-slug/README.md",
+    "data/science-evidence/2026-01-01-slug/raw/payload.json",
+    "data/science-evidence/2026-01-01-slug/raw/payload.jsonl.gz",
+)
+
+# Re-including the packet tree means re-including the root ``data/`` itself, so these pin
+# that everything else in it stays ignored: other runtime data, look-alike names that a
+# prefix rule would let through, a ``data/`` directory at another depth, and a database
+# file dropped into a packet.
+RUNTIME_DATA_MUST_STAY_IGNORED = (
+    "data/probe",
+    "data/samples/probe",
+    "data/science-evidence-old/probe",
+    "data/nested/science-evidence/probe",
+    "frontend/data/probe",
+    "data/science-evidence/2026-01-01-slug/sample.db",
+)
+
+EVIDENCE_ROOT = "data/science-evidence/"
 
 IGNORE_SOURCE = ".gitignore"
 
@@ -104,12 +136,12 @@ def _tracked_paths(root: Path = REPO_ROOT) -> list[str]:
     return listing.stdout.split("\0")[:-1]
 
 
-def test_agent_artifact_paths_are_gitignored() -> None:
-    """Every directory the contract routes agent artifacts into is ignored by .gitignore."""
-    report = _ignore_report(MUST_BE_IGNORED)
+def _not_ignored_by_gitignore(paths: tuple[str, ...]) -> list[str]:
+    """Describe each path the committed ``.gitignore`` fails to ignore."""
+    report = _ignore_report(paths)
 
     problems: list[str] = []
-    for path in MUST_BE_IGNORED:
+    for path in paths:
         match = report.get(path)
         if match is None:
             problems.append(f"{path}: not ignored")
@@ -120,6 +152,26 @@ def test_agent_artifact_paths_are_gitignored() -> None:
                 f"{path}: ignored by {source} (pattern {pattern!r}), not the committed "
                 f"{IGNORE_SOURCE} — this machine's local excludes are masking a missing rule"
             )
+    return problems
+
+
+def _ignored_by_gitignore(paths: tuple[str, ...] | list[str]) -> list[str]:
+    """Describe each path a committed ``.gitignore`` rule ignores.
+
+    Only ``.gitignore`` matches count. A ``.gitignore`` pattern outranks local excludes, so a
+    committed rule that ignores the path is always the one reported, while a developer's own
+    ``core.excludesFile`` cannot fail a check about what the repository commits.
+    """
+    return [
+        f"{path} (ignored by {pattern!r})"
+        for path, (source, pattern) in _ignore_report(paths).items()
+        if source == IGNORE_SOURCE
+    ]
+
+
+def test_agent_artifact_paths_are_gitignored() -> None:
+    """Every directory the contract routes agent artifacts into is ignored by .gitignore."""
+    problems = _not_ignored_by_gitignore(MUST_BE_IGNORED)
 
     assert not problems, (
         "These agent-artifact paths are NOT gitignored by the committed .gitignore, so "
@@ -154,6 +206,47 @@ def test_artifact_dirs_hold_no_tracked_files() -> None:
     assert not offenders, (
         "Tracked files live under the artifact directories #2279 ignores, so new files "
         "added beside them would be silently skipped by `git add -A`:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_evidence_packet_paths_are_committable() -> None:
+    """A new file in an evidence packet is not ignored, so ``git add`` stages it (#2204)."""
+    offenders = _ignored_by_gitignore(MUST_BE_COMMITTABLE)
+
+    assert not offenders, (
+        "Evidence-packet paths are ignored by the committed .gitignore, so a new packet file "
+        "is silently skipped by `git add -A` and never reaches the tree (see #2204):\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_tracked_evidence_packets_stay_committable() -> None:
+    """No tracked packet file may sit under a committed ignore rule.
+
+    Packets committed before #2204 were force-added. If a rule ever covered them again,
+    edits to those files would still show up, but a new file beside them would be silently
+    skipped, which is the failure #2204 removes. Checking every tracked packet file also
+    covers the file kinds the fixed probes above do not list.
+    """
+    tracked = [path for path in _tracked_paths() if path.startswith(EVIDENCE_ROOT)]
+    assert tracked, f"no tracked file under {EVIDENCE_ROOT} — the guard would pass vacuously"
+
+    offenders = _ignored_by_gitignore(tracked)
+
+    assert not offenders, (
+        "Tracked evidence-packet files are ignored by the committed .gitignore, so new files "
+        "added beside them would be silently skipped by `git add -A`:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_runtime_data_stays_gitignored() -> None:
+    """Re-including the packet tree must not expose the rest of the runtime ``data/``."""
+    problems = _not_ignored_by_gitignore(RUNTIME_DATA_MUST_STAY_IGNORED)
+
+    assert not problems, (
+        "Runtime data paths are NOT gitignored by the committed .gitignore, so the "
+        "evidence-packet re-include (#2204) has exposed them to `git add -A`:\n  "
+        + "\n  ".join(problems)
     )
 
 
