@@ -1,0 +1,18 @@
+{
+  "accessed": "2026-10-17",
+  "kind": "derived",
+  "_note": "Computed locally from the two retained raw responses; no service produced this record.",
+  "derivation": "For each rsID, keep the single mapping with coord_system == 'chromosome' and assembly_name == 'GRCh38' (alternate scaffolds excluded), then record sorted(allele_string.split('/')), location and strand; order records by rsID. This is the mapping_policy both checked-in artifacts state.",
+  "july_raw_sha256": "36597c0ab5d02c7ce373f671f87cd6630ae9df865b99c2e056770dd2eb78cbac",
+  "july_raw_sha256_matches_snapshot_pin": true,
+  "july_raw_reproduces_committed_snapshot_records": true,
+  "october_raw_sha256": "e336a82c6269d221bc31772b3d70fa0bce0d006609be73f9e8115c87c2ef8e8e",
+  "october_raw_sha256_matches_release_check_pin": true,
+  "october_raw_reproduces_release_check_records": true,
+  "records_compared": 77,
+  "records_differing": 0,
+  "multiallelic_primary_loci": {
+    "2026-07-16": 39,
+    "2026-10-17": 39
+  }
+}

@@ -55,6 +55,14 @@
           "assembly": "GRCh38",
           "checked_on": "2026-07-16",
           "mapping_policy": "primary chromosome only; alternate scaffolds excluded",
+          "snapshot_ensembl_release": null,
+          "release_verification": {
+            "ensembl_release": 116,
+            "checked_on": "2026-10-17",
+            "endpoint": "POST https://rest.ensembl.org/variation/homo_sapiens",
+            "records_identical_to_snapshot": true,
+            "artifact": "ensembl_release_check_2026-10-17.json"
+          },
           "mapping_group_counts": {
             "biallelic_forward_non_palindromic": 34,
             "biallelic_forward_palindromic": 2,
@@ -77,7 +85,8 @@
           "checked_in_snapshot_sha256": {
             "mavaddat_2015_supplementary_table_4.tsv": "f08dac2d21dbbf14d2fe09f88de8d0b699e70b1a2eb5a9e02d0723c672ed80f8",
             "pgs000001_harmonized_grch37.tsv": "7faab8eac749b1748c243105de6241bfc3c4bc5dc95bce54d1893d2e6cdd0221",
-            "ensembl_primary_grch38_2026-07-16.json": "7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5"
+            "ensembl_primary_grch38_2026-07-16.json": "7e212e701dfbb7d189155326683396785e6cd3018a4d0a1645650d067fda50b5",
+            "ensembl_release_check_2026-10-17.json": "159ba7dbc65b30dc78f1adc7c74ff48620ebf4c6b255ad5a3174d304efb3abc4"
           },
           "source_ordered_projection_sha256": "db7811c2e526e58a54524f5096c2af4bc92c4afa4cd114a45112c9208075059d",
           "grch37_ordered_projection_sha256": "6e014bab4d8fcb147677492719f7bb8d919cd51efafa85ef66c877369ae55a85",
@@ -90,7 +99,8 @@
             "pgs_source_text": "a5e5adddb922531789b9f18f4b2eb7ba7f68dc1e99d643c7bc829d10aebc7173",
             "pgs_grch37_gzip": "5a3069e1a1844df02f3d24e889f97dfad03ee0c40888fc5ecf5f44dc5c36ffc3",
             "pgs_grch37_text": "1adafcf2ba083cde9616f416281fed7fbaf0e3a833b91c154abdfe96c96a5ea0",
-            "ensembl_raw_records": "36597c0ab5d02c7ce373f671f87cd6630ae9df865b99c2e056770dd2eb78cbac"
+            "ensembl_raw_records": "36597c0ab5d02c7ce373f671f87cd6630ae9df865b99c2e056770dd2eb78cbac",
+            "ensembl_release_check_raw_records": "e336a82c6269d221bc31772b3d70fa0bce0d006609be73f9e8115c87c2ef8e8e"
           }
         }
       },

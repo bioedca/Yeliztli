@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import csv
 import hashlib
+import importlib.util
 import io
 import json
 import math
@@ -11,6 +13,9 @@ import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 _REPO = Path(__file__).resolve().parent.parent.parent
 _PANEL = _REPO / "backend" / "data" / "panels" / "cancer_prs_weights.json"
@@ -18,6 +23,7 @@ _SOURCES = _REPO / "backend" / "data" / "sources" / "breast_prs77"
 _SUPPLEMENT = _SOURCES / "mavaddat_2015_supplementary_table_4.tsv"
 _HARMONIZED = _SOURCES / "pgs000001_harmonized_grch37.tsv"
 _ENSEMBL = _SOURCES / "ensembl_primary_grch38_2026-07-16.json"
+_ENSEMBL_RELEASE_CHECK = _SOURCES / "ensembl_release_check_2026-10-17.json"
 _GENERATOR = _REPO / "scripts" / "build_breast_prs77.py"
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
@@ -288,3 +294,183 @@ def test_generator_rejects_mutated_nested_legacy_record(tmp_path: Path) -> None:
 
     assert result.returncode != 0
     assert "legacy audit record failed pinned" in result.stderr
+
+
+def _load_generator():
+    spec = importlib.util.spec_from_file_location("build_breast_prs77", _GENERATOR)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_allele_audit_names_the_ensembl_release_it_was_confirmed_against() -> None:
+    """The audit is tied to a named Ensembl release without back-filling one (#2246)."""
+    snapshot = json.loads(_ENSEMBL.read_text(encoding="utf-8"))
+    check = json.loads(_ENSEMBL_RELEASE_CHECK.read_text(encoding="utf-8"))
+    panel = json.loads(_PANEL.read_text(encoding="utf-8"))
+    breast = next(model for model in panel["weight_sets"] if model["trait"] == "breast_cancer")
+    audit = breast["model_provenance"]["current_allele_audit"]
+    reproducibility = breast["model_provenance"]["reproducibility"]
+
+    # The 2026-07-16 snapshot still names no release: nothing was back-filled into it.
+    assert not any("release" in key or "version" in key for key in snapshot)
+    assert "snapshot_ensembl_release" in audit and audit["snapshot_ensembl_release"] is None
+    assert "snapshot_ensembl_release" in check and check["snapshot_ensembl_release"] is None
+
+    release = check["ensembl_release"]
+    assert isinstance(release, int) and not isinstance(release, bool) and release > 0
+    assert check["snapshot"] == _ENSEMBL.name
+    assert check["variation_source_versions"]["dbSNP"]
+    # Equal records are what let the release stand for the snapshot's classification.
+    assert check["records"] == snapshot["records"]
+    assert sum(len(record["alleles"]) > 2 for record in check["records"]) == 39
+
+    assert audit["release_verification"] == {
+        "ensembl_release": release,
+        "checked_on": check["checked_on"],
+        "endpoint": check["endpoint"],
+        "records_identical_to_snapshot": True,
+        "artifact": _ENSEMBL_RELEASE_CHECK.name,
+    }
+    assert reproducibility["checked_in_snapshot_sha256"][_ENSEMBL_RELEASE_CHECK.name] == (
+        hashlib.sha256(_ENSEMBL_RELEASE_CHECK.read_bytes()).hexdigest()
+    )
+    assert (
+        reproducibility["source_artifact_sha256"]["ensembl_release_check_raw_records"]
+        == (check["raw_payload_sha256"])
+    )
+
+
+def _drop(key: str):
+    def mutate(check: dict[str, Any]) -> None:
+        del check[key]
+
+    return mutate
+
+
+def _set(key: str, value: object):
+    def mutate(check: dict[str, Any]) -> None:
+        check[key] = value
+
+    return mutate
+
+
+def _change_first_allele(check: dict[str, Any]) -> None:
+    check["records"][0]["alleles"] = ["A", "C", "T"]
+
+
+def _drop_last_record(check: dict[str, Any]) -> None:
+    check["records"].pop()
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (_change_first_allele, "records differ"),
+        (_drop_last_record, "records differ"),
+        (_drop("ensembl_release"), "positive integer"),
+        (_set("ensembl_release", None), "positive integer"),
+        (_set("ensembl_release", "116"), "positive integer"),
+        (_set("ensembl_release", True), "positive integer"),
+        (_set("ensembl_release", 115), "not the pinned release"),
+        (_set("snapshot_ensembl_release", 116), "explicitly null"),
+        (_drop("snapshot_ensembl_release"), "explicitly null"),
+        (_set("snapshot", "some_other_snapshot.json"), "does not name the snapshot"),
+        (_set("mapping_policy", "all mappings"), "mapping_policy differs"),
+        (_set("raw_payload_sha256", "0" * 64), "raw response-set SHA-256"),
+        (_set("variation_source_versions", {}), "dbSNP source version"),
+    ],
+)
+def test_release_check_must_reproduce_the_snapshot_and_name_its_release(
+    mutate, message: str
+) -> None:
+    generator = _load_generator()
+    snapshot = json.loads(_ENSEMBL.read_text(encoding="utf-8"))
+    committed = json.loads(_ENSEMBL_RELEASE_CHECK.read_text(encoding="utf-8"))
+    # Positive control: the committed pair is accepted, so a rejection below is the mutation's.
+    assert generator._validate_ensembl_release_check(snapshot, committed) is committed
+
+    mutated = copy.deepcopy(committed)
+    mutate(mutated)
+    with pytest.raises(ValueError, match=message):
+        generator._validate_ensembl_release_check(snapshot, mutated)
+
+
+def test_generator_rejects_a_mutated_release_verification(tmp_path: Path) -> None:
+    payload = json.loads(_PANEL.read_text(encoding="utf-8"))
+    breast = next(model for model in payload["weight_sets"] if model["trait"] == "breast_cancer")
+    breast["model_provenance"]["current_allele_audit"]["release_verification"][
+        "ensembl_release"
+    ] = 115
+    panel_copy = tmp_path / "mutated-release.json"
+    panel_copy.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(_GENERATOR), "--check", "--panel", str(panel_copy)],
+        cwd=_REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert '"ensembl_release": 116' in result.stderr
+
+
+_RELEASE_EVIDENCE = (
+    _REPO / "data" / "science-evidence" / "2026-10-17-breast-prs77-ensembl-release-2246"
+)
+
+
+def _primary_grch38_records(raw_response: dict[str, Any]) -> list[dict[str, Any]]:
+    """Re-derive snapshot records from a raw ``POST /variation/homo_sapiens`` body."""
+    records = []
+    for rsid, variant in raw_response.items():
+        primary = [
+            mapping
+            for mapping in variant["mappings"]
+            if mapping.get("coord_system") == "chromosome"
+            and mapping.get("assembly_name") == "GRCh38"
+        ]
+        assert len(primary) == 1, f"{rsid}: expected one primary GRCh38 mapping"
+        records.append(
+            {
+                "alleles": sorted(primary[0]["allele_string"].split("/")),
+                "location": primary[0]["location"],
+                "rsid": rsid,
+                "strand": primary[0]["strand"],
+            }
+        )
+    return sorted(records, key=lambda record: record["rsid"])
+
+
+def test_both_ensembl_raw_responses_are_retained_and_reproduce_their_records() -> None:
+    """Each artifact's ``raw_payload_sha256`` resolves to a retained response (#2246).
+
+    Without the payloads the digests are claims nobody can check; with them, the
+    records each artifact carries can be re-derived from what Ensembl returned.
+    """
+    manifest = json.loads((_RELEASE_EVIDENCE / "queries.json").read_text(encoding="utf-8"))
+    entries = manifest["queries"]
+    assert entries, "the release-check packet must list its retained payloads"
+    for entry in entries:
+        payload = _REPO / entry["raw_payload"]
+        assert payload.is_relative_to(_RELEASE_EVIDENCE), entry["raw_payload"]
+        assert hashlib.sha256(payload.read_bytes()).hexdigest() == entry["raw_sha256"], (
+            f"{entry['raw_payload']} no longer matches its recorded digest"
+        )
+    assert len(entries) == len(list((_RELEASE_EVIDENCE / "raw").iterdir()))
+
+    retained = {
+        hashlib.sha256((_REPO / entry["raw_payload"]).read_bytes()).hexdigest(): entry
+        for entry in entries
+    }
+    for artifact in (_ENSEMBL, _ENSEMBL_RELEASE_CHECK):
+        data = json.loads(artifact.read_text(encoding="utf-8"))
+        entry = retained.get(data["raw_payload_sha256"])
+        assert entry is not None, f"{artifact.name}: its raw response is not retained"
+        raw_response = json.loads((_REPO / entry["raw_payload"]).read_text(encoding="utf-8"))
+        assert _primary_grch38_records(raw_response) == data["records"], (
+            f"{artifact.name}: records do not re-derive from its raw response"
+        )

@@ -1,0 +1,78 @@
+## POST /variation/homo_sapiens
+HTTP/2 200 
+vary: Content-Type
+vary: Origin
+content-type: application/json
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:11:29 GMT
+x-ratelimit-limit: 55000
+x-ratelimit-reset: 2911
+x-runtime: 68.609474
+x-ratelimit-period: 3600
+x-ratelimit-remaining: 54996
+content-length: 47181
+
+## GET /info/data
+HTTP/2 200 
+vary: Content-Type, Origin
+content-type: application/json
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:09:40 GMT
+x-ratelimit-limit: 55000
+x-ratelimit-reset: 3020
+x-runtime: 0.058171
+x-ratelimit-period: 3600
+x-ratelimit-remaining: 54999
+content-length: 18
+
+## GET /info/software
+HTTP/2 200 
+vary: Content-Type, Origin
+content-type: application/json
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:09:47 GMT
+x-ratelimit-limit: 55000
+x-ratelimit-reset: 3013
+x-runtime: 0.008334
+x-ratelimit-period: 3600
+x-ratelimit-remaining: 54998
+content-length: 15
+
+## GET /info/rest
+HTTP/2 200 
+vary: Content-Type, Origin
+content-type: application/json
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:09:48 GMT
+x-ratelimit-limit: 55000
+x-ratelimit-reset: 3012
+x-runtime: 0.007790
+x-ratelimit-period: 3600
+x-ratelimit-remaining: 54997
+content-length: 19
+
+## GET /info/variation/homo_sapiens
+HTTP/2 200 
+vary: Content-Type, Origin
+content-type: application/json
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:11:39 GMT
+x-ratelimit-limit: 55000
+x-ratelimit-reset: 2901
+x-runtime: 0.183340
+accept-ranges: bytes
+x-ratelimit-period: 3600
+x-ratelimit-remaining: 54995
+content-length: 8922
+
+## GET useast.ensembl.org/info/about/legal/disclaimer.html
+HTTP/2 200 
+server: Apache
+vary: Accept-Encoding
+content-type: text/html; charset=utf-8
+content-security-policy: frame-ancestors 'self'
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+date: Sat, 17 Oct 2026 21:15:09 GMT
+accept-ranges: bytes
+x-frame-options: SAMEORIGIN
+content-length: 24855

@@ -1,0 +1,15 @@
+{
+  "accessed": "2026-10-17",
+  "kind": "derived",
+  "service": "Scite (MCP search_literature)",
+  "_note": "The call was refused before any search ran; this records the refusal, not a result.",
+  "request": {
+    "dois": [
+      "10.1093/database/bay119"
+    ],
+    "limit": 1
+  },
+  "outcome": "unavailable",
+  "error": "You have reached your monthly MCP usage limit (250 calls). ... wait until usage resets on 2026-11-03 (UTC).",
+  "fallback": "Correction/retraction screening done through PubMed E-utilities instead (raw/pubmed-efetch-30576484-2026-10-17.xml: no CommentsCorrections element)."
+}
