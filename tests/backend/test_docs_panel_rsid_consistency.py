@@ -20,6 +20,10 @@ check carries a documented allowlist):
    of legitimately-cited non-locus rsIDs. Catches a marker dropped from *all*
    panels (the literal #880 case) even on pages without a clean 1:1 panel.
 
+A third check (#2132) covers what an rsID subset cannot: on pages that list pathway
+membership as ``- **Pathway** — *GENE*``, each pathway must name the genes its
+panel pathway scores (the #2001 "right pathway, wrong gene" class).
+
 Audit basis (2026-06-16): of the 23 module pages, only 8 cite any rsID; all
 their cited rsIDs resolve to a panel except the two context-only *BCHE* variants
 on ``specialized.md`` (allowlisted below). No drift exists at introduction —
@@ -212,3 +216,136 @@ def test_allowlisted_rsids_are_not_cpic_scored() -> None:
         f"scored — drop them from _DOC_NON_LOCUS_ALLOWLIST, the CPIC universe "
         f"already admits them: {sorted(scored)}"
     )
+
+
+# ── Check C: gene→pathway attribution (#2132) ──────────────────────────────
+# Checks A and B cannot see "right pathway, wrong gene". #2001 shipped
+# fitness.md with Power as *ACTN3* + *MCT1* while the panel's Power pathway is
+# ACE + MCT1, and stayed green because the page's only rsID (rs4341) was still a
+# live ACE locus. The pages listed here enumerate pathway membership as
+# ``- **Pathway** — *GENE*, *GENE*``; every such bullet that names a gene must
+# name exactly the genes its panel pathway scores.
+_PATHWAY_DOC_PANEL = {
+    "wellness/allergy.md": "allergy_panel.json",
+    "wellness/fitness.md": "fitness_panel.json",
+    "wellness/skin.md": "skin_panel.json",
+    "wellness/sleep.md": "sleep_panel.json",
+    "wellness/traits-personality.md": "traits_panel.json",
+}
+
+# Doc bullet name → panel pathway name, for names that differ by more than case
+# or a parenthetical.
+_PATHWAY_NAME_ALIASES = {"behavioural traits": "behavioral traits"}
+
+_PATHWAY_BULLET_RE = re.compile(r"^- \*\*(?P<name>[^*]+)\*\* — (?P<body>.*)$")
+_PARENTHETICAL_RE = re.compile(r"\([^()]*\)")
+# A single-asterisk italic token; the lookarounds keep **bold** text out.
+_ITALIC_GENE_RE = re.compile(r"(?<!\*)\*([A-Za-z0-9-]+)\*(?!\*)")
+
+
+def _pathway_key(name: str) -> str:
+    key = " ".join(_PARENTHETICAL_RE.sub("", name).split()).casefold()
+    return _PATHWAY_NAME_ALIASES.get(key, key)
+
+
+def _doc_pathway_genes(text: str) -> dict[str, set[str]]:
+    """``{pathway: genes}`` for each pathway bullet that names at least one gene.
+
+    A bullet continues over its indented lines. Parenthetical asides are dropped
+    before reading genes, so an italic word inside "(… see *Notes*)" is not a gene.
+    A bullet naming no gene (HLA proxies, GWAS rows) makes no gene claim. A pathway
+    named by two bullets gets the union of their genes, so a correct later bullet
+    cannot hide a wrong earlier one.
+    """
+    bullets: list[str] = []
+    in_bullet = False
+    for line in text.splitlines():
+        if _PATHWAY_BULLET_RE.match(line):
+            bullets.append(line)
+            in_bullet = True
+        elif in_bullet and line.startswith("  ") and line.strip():
+            bullets[-1] += " " + line.strip()
+        else:
+            in_bullet = False
+    claims: dict[str, set[str]] = {}
+    for bullet in bullets:
+        match = _PATHWAY_BULLET_RE.match(bullet)
+        assert match is not None
+        genes = set(_ITALIC_GENE_RE.findall(_PARENTHETICAL_RE.sub("", match["body"])))
+        if genes:
+            claims.setdefault(_pathway_key(match["name"]), set()).update(genes)
+    return claims
+
+
+def _panel_pathway_genes(panel_filename: str) -> dict[str, set[str]]:
+    panel = json.loads((_PANELS_DIR / panel_filename).read_text(encoding="utf-8"))
+    return {
+        _pathway_key(pathway["name"]): {snp["gene"] for snp in pathway["snps"]}
+        for pathway in panel["pathways"]
+    }
+
+
+def _pathway_gene_mismatches(
+    claims: dict[str, set[str]], panel_genes: dict[str, set[str]]
+) -> list[str]:
+    mismatches: list[str] = []
+    for pathway, genes in sorted(claims.items()):
+        expected = panel_genes.get(pathway)
+        if expected is None:
+            mismatches.append(
+                f"{pathway!r}: doc names {sorted(genes)}, but the panel has no such "
+                f"pathway (it has {sorted(panel_genes)})"
+            )
+        elif genes != expected:
+            mismatches.append(
+                f"{pathway!r}: doc says {sorted(genes)}, panel says {sorted(expected)}"
+            )
+    return mismatches
+
+
+@pytest.mark.parametrize("doc_rel, panel", sorted(_PATHWAY_DOC_PANEL.items()))
+def test_doc_pathway_genes_match_panel(doc_rel: str, panel: str) -> None:
+    """Check C: each gene-naming pathway bullet names exactly its panel pathway's genes."""
+    doc_path = _DOCS_DIR / doc_rel
+    assert doc_path.exists(), f"mapped doc missing: {doc_rel}"
+    claims = _doc_pathway_genes(doc_path.read_text(encoding="utf-8"))
+    assert claims, (
+        f"{doc_rel} is mapped for gene→pathway checking but no "
+        f"'- **Pathway** — *GENE*' bullet was parsed; fix the page or drop it from the map"
+    )
+    mismatches = _pathway_gene_mismatches(claims, _panel_pathway_genes(panel))
+    assert not mismatches, f"docs/modules/{doc_rel} vs {panel}: " + "; ".join(mismatches)
+
+
+def test_pathway_check_catches_the_2001_misattribution() -> None:
+    """The pre-#2001 fitness page must fail Check C, and the corrected one must pass."""
+    panel_genes = _panel_pathway_genes("fitness_panel.json")
+    before = _doc_pathway_genes("- **Power** — *ACTN3* (sprint variant), *MCT1*\n")
+    after = _doc_pathway_genes("- **Power** — *ACE* (an rs4341 I/D proxy), *MCT1*\n")
+
+    assert _pathway_gene_mismatches(before, panel_genes) == [
+        "'power': doc says ['ACTN3', 'MCT1'], panel says ['ACE', 'MCT1']"
+    ]
+    assert _pathway_gene_mismatches(after, panel_genes) == []
+
+    # A corrected bullet added below the stale one must not mask it.
+    both = _doc_pathway_genes("- **Power** — *ACTN3*, *MCT1*\n- **Power** — *ACE*, *MCT1*\n")
+    assert _pathway_gene_mismatches(both, panel_genes) == [
+        "'power': doc says ['ACE', 'ACTN3', 'MCT1'], panel says ['ACE', 'MCT1']"
+    ]
+
+
+def test_pathway_bullet_parsing() -> None:
+    """Parentheticals, bold text, continuation lines and gene-free bullets."""
+    text = (
+        "- **Power** — *ACE* (an rs4341 proxy — see *Notes*), **not** *MCT1*\n"
+        "- **Drug hypersensitivity** — proxies for HLA-B\\*57:01, HLA-A\\*31:01\n"
+        "- **Behavioural traits** — *CADM2* (risk tolerance),\n"
+        "  a *DRD4* proxy\n"
+        "\n"
+        "  *NOTAGENE* indented after a blank line\n"
+    )
+    assert _doc_pathway_genes(text) == {
+        "power": {"ACE", "MCT1"},
+        "behavioral traits": {"CADM2", "DRD4"},
+    }
