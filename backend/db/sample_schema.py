@@ -484,6 +484,87 @@ _SEARCH_INDEXES: tuple[tuple[str, str, str], ...] = (
 )
 
 
+# Traits pathway-summary wording before #2206 (issue #2207). The producer passed no
+# indeterminate count to the shared summary helpers, so a Standard pathway holding a
+# withheld Indeterminate call was persisted as a clean negative.
+_TRAITS_LEGACY_STANDARD_COMPLETE = "Standard (no variants of note)"
+_TRAITS_LEGACY_STANDARD_LIMITED = "No variants of note among tested SNPs"
+_TRAITS_INDETERMINATE_CATEGORY = "Indeterminate"
+
+
+def _repaired_traits_indeterminate_summary(
+    pathway: object, text: object, detail: object
+) -> tuple[str, dict[str, object]] | None:
+    """Return the current wording for a legacy traits pathway summary, if applicable.
+
+    Only the exact pre-#2206 producer output is repaired: a summary whose detail
+    predates the ``indeterminate_snps`` key, whose stored per-SNP detail records at
+    least one ``Indeterminate`` call, and whose text and coverage interpretation are
+    exactly what ``pathway_summary_text`` / ``coverage_detail`` wrote for it without
+    an indeterminate count. The result is what ``store_traits_findings`` now stores
+    for the same scoring state: the qualified text, the ``indeterminate_snps`` key,
+    and the indeterminate-aware coverage interpretation. Everything else returns
+    ``None`` and is left untouched.
+    """
+    if not isinstance(pathway, str) or not pathway or not isinstance(text, str):
+        return None
+    if not isinstance(detail, dict) or "indeterminate_snps" in detail:
+        return None
+    snp_details = detail.get("snp_details")
+    called = detail.get("called_snps")
+    missing = detail.get("missing_snps")
+    if not isinstance(snp_details, list) or not all(isinstance(s, dict) for s in snp_details):
+        return None
+    # ``snp_details`` lists every called SNP, so a count that disagrees with it is not
+    # the producer's own record and cannot be trusted to say what was interpreted.
+    if type(called) is not int or called != len(snp_details) or not isinstance(missing, list):
+        return None
+    indeterminate = [
+        s.get("rsid") for s in snp_details if s.get("category") == _TRAITS_INDETERMINATE_CATEGORY
+    ]
+    if not indeterminate or not all(isinstance(rsid, str) and rsid for rsid in indeterminate):
+        return None
+
+    prefix = f"{pathway} — "
+    repaired: dict[str, object] = dict(detail)
+    if not missing:
+        if text != f"{prefix}{_TRAITS_LEGACY_STANDARD_COMPLETE}":
+            return None
+        not_assessed_tail = ""
+    else:
+        lead = f"{prefix}{_TRAITS_LEGACY_STANDARD_LIMITED}; "
+        trail = " not assessed."
+        if not (text.startswith(lead) and text.endswith(trail)):
+            return None
+        not_assessed = text[len(lead) : -len(trail)]
+        # format_not_assessed() always opens with the missing count.
+        count = len(missing)
+        noun = "tracked SNP" if count == 1 else "tracked SNPs"
+        if not (not_assessed == f"{count} {noun}" or not_assessed.startswith(f"{count} {noun} (")):
+            return None
+        if detail.get("coverage_interpretation") != text[len(prefix) :]:
+            return None
+        not_assessed_tail = f"; {not_assessed} not assessed"
+        repaired["coverage_interpretation"] = (
+            f"Standard result is based on interpreted SNPs only; {not_assessed} not assessed."
+        )
+
+    n = len(indeterminate)
+    noun = "variant" if n == 1 else "variants"
+    if called - n == 0:
+        updated_text = (
+            f"{prefix}not assessed: {n} {noun} observed but not interpreted "
+            f"(indeterminate), no variant scored — see SNP details{not_assessed_tail}"
+        )
+    else:
+        updated_text = (
+            f"{prefix}Standard for scored variants; {n} {noun} observed but not "
+            f"interpreted (indeterminate) — see SNP details{not_assessed_tail}"
+        )
+    repaired["indeterminate_snps"] = indeterminate
+    return updated_text, repaired
+
+
 def _ensure_search_indexes(engine: sa.Engine) -> bool:
     """Create any missing NOCASE search index; return whether one was created.
 
@@ -560,7 +641,9 @@ def _ensure_search_indexes(engine: sa.Engine) -> bool:
 # v30: Add NOCASE prefix indexes on raw_variants.rsid, annotated_variants.rsid and
 #      annotated_variants.gene_symbol for the case-insensitive Variant Explorer
 #      search (issue #2058); created on existing sample DBs via _ensure_search_indexes.
-SAMPLE_SCHEMA_VERSION = 30
+# v31: Repair persisted traits pathway summaries that read as a clean negative while
+#      holding a withheld Indeterminate call, from before issue #2178's fix (#2207).
+SAMPLE_SCHEMA_VERSION = 31
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2160,6 +2243,158 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         if _ensure_search_indexes(engine):
             added = True
             logger.info("search_indexes_created", from_version=from_version)
+
+    if from_version < 31:
+        # Issue #2207: before #2206, a traits pathway summary holding an
+        # Indeterminate call (a strand-unresolved palindromic homozygote withheld
+        # from interpretation) was persisted as "Standard (no variants of note)".
+        # The Findings Explorer, reports and variant card serve that text
+        # verbatim, and report badges read the missing ``indeterminate_snps`` key
+        # as "nothing withheld"; sample freshness compares only the VEP bundle
+        # major, so the corrected producer reaches none of those rows. Rewrite
+        # exactly the rows that carry the legacy fingerprint to what the producer
+        # now stores for the same scoring state. Finding-change banner entries are
+        # updated only where their text is one a repaired row held, and only in
+        # the buckets that describe the current rows, so counts never change.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        state_cols = (
+            {c["name"] for c in inspector.get_columns("annotation_state")}
+            if "annotation_state" in table_names
+            else set()
+        )
+        required_finding_cols = {
+            "id",
+            "module",
+            "category",
+            "pathway",
+            "pathway_level",
+            "finding_text",
+            "detail_json",
+        }
+        repaired_findings = 0
+        repaired_diff_entries = 0
+
+        if required_finding_cols <= findings_cols:
+            # Reserve the SQLite writer lock before reading either persisted
+            # surface so every fingerprint check and update is one transaction.
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    candidates = conn.execute(
+                        sa.select(
+                            findings.c.id,
+                            findings.c.pathway,
+                            findings.c.finding_text,
+                            findings.c.detail_json,
+                        )
+                        .where(
+                            findings.c.module == "traits",
+                            findings.c.category == "pathway_summary",
+                            findings.c.pathway_level == "Standard",
+                        )
+                        .order_by(findings.c.id)
+                    ).fetchall()
+                    # (pathway, legacy text) -> repaired text, for the banner below.
+                    # A key two rows disagree on is ambiguous and left alone.
+                    text_repairs: dict[tuple[str, str], str | None] = {}
+                    for row in candidates:
+                        try:
+                            detail = json.loads(row.detail_json)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+                        repair = _repaired_traits_indeterminate_summary(
+                            row.pathway, row.finding_text, detail
+                        )
+                        if repair is None:
+                            continue
+                        updated_text, updated_detail = repair
+                        result = conn.execute(
+                            findings.update()
+                            .where(
+                                findings.c.id == row.id,
+                                findings.c.module == "traits",
+                                findings.c.category == "pathway_summary",
+                                findings.c.pathway_level == "Standard",
+                                findings.c.pathway == row.pathway,
+                                findings.c.finding_text == row.finding_text,
+                                findings.c.detail_json == row.detail_json,
+                            )
+                            .values(
+                                finding_text=updated_text,
+                                detail_json=json.dumps(updated_detail),
+                            )
+                        )
+                        if (result.rowcount or 0) > 0:
+                            repaired_findings += result.rowcount
+                            key = (row.pathway, row.finding_text)
+                            if text_repairs.get(key, updated_text) != updated_text:
+                                text_repairs[key] = None
+                            else:
+                                text_repairs[key] = updated_text
+
+                    if text_repairs and {"key", "value"} <= state_cols:
+                        state_row = conn.execute(
+                            sa.select(annotation_state.c.value).where(
+                                annotation_state.c.key == _FINDING_DIFF_STATE_KEY
+                            )
+                        ).fetchone()
+                        if state_row is not None:
+                            try:
+                                diff = json.loads(state_row.value)
+                            except (json.JSONDecodeError, TypeError):
+                                diff = None
+
+                            if isinstance(diff, dict):
+                                # "removed" entries describe prior-run rows that no
+                                # longer exist, so no repaired row speaks for them.
+                                for bucket in ("changed", "added"):
+                                    entries = diff.get(bucket)
+                                    if not isinstance(entries, list):
+                                        continue
+                                    for entry in entries:
+                                        if not (
+                                            isinstance(entry, dict)
+                                            and entry.get("module") == "traits"
+                                            and entry.get("category") == "pathway_summary"
+                                            and isinstance(entry.get("pathway"), str)
+                                            and isinstance(entry.get("finding_text"), str)
+                                        ):
+                                            continue
+                                        updated_text = text_repairs.get(
+                                            (entry["pathway"], entry["finding_text"])
+                                        )
+                                        if updated_text is not None:
+                                            entry["finding_text"] = updated_text
+                                            repaired_diff_entries += 1
+
+                                if repaired_diff_entries:
+                                    conn.execute(
+                                        annotation_state.update()
+                                        .where(
+                                            annotation_state.c.key == _FINDING_DIFF_STATE_KEY,
+                                            annotation_state.c.value == state_row.value,
+                                        )
+                                        .values(value=json.dumps(diff))
+                                    )
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+
+        if repaired_findings or repaired_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_traits_indeterminate_summary_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
 
     return added
 
