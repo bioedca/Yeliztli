@@ -20,10 +20,11 @@ from typing import IO, Any
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.background import BackgroundTask
 from starlette.responses import StreamingResponse
 
+from backend.analysis.custom_panels import MAX_PANEL_GENES
 from backend.analysis.pharmacogenomics import (
     ResponsePayloadHeldPairScanner,
     is_patient_presentable_finding_payload,
@@ -32,9 +33,11 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
+    GenomicInterval,
     RareVariantFilter,
     RareVariantResult,
     find_rare_variants,
+    normalize_bed_chrom,
     store_rare_variant_findings,
 )
 from backend.api.dependencies import require_fresh_sample
@@ -58,11 +61,33 @@ router = APIRouter(
 # ── Request / response models ────────────────────────────────────────
 
 
+class GenomicRegionRequest(BaseModel):
+    """One BED interval: 0-based start, exclusive end."""
+
+    chrom: str = Field(..., description="Chromosome, e.g. '17' or 'chr17'")
+    start: int = Field(..., ge=0, description="0-based start, as in a BED file")
+    end: int = Field(..., gt=0, description="Exclusive end, as in a BED file")
+
+    @model_validator(mode="after")
+    def _check_interval(self) -> GenomicRegionRequest:
+        if normalize_bed_chrom(self.chrom) is None:
+            raise ValueError(f"unrecognized chromosome {self.chrom!r}")
+        if self.end <= self.start:
+            raise ValueError("end must be greater than start")
+        return self
+
+
 class RareVariantFilterRequest(BaseModel):
     """Filter parameters accepted by the search endpoint."""
 
     gene_symbols: list[str] | None = Field(
         default=None, description="Gene symbols to filter by (custom gene panel)"
+    )
+    regions: list[GenomicRegionRequest] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_PANEL_GENES,
+        description="BED intervals; only variants overlapping one of them are returned",
     )
     af_threshold: float = Field(
         default=DEFAULT_AF_THRESHOLD,
@@ -359,6 +384,11 @@ def _request_to_filter(
     """
     return RareVariantFilter(
         gene_symbols=req.gene_symbols,
+        regions=(
+            [GenomicInterval(r.chrom, r.start, r.end) for r in req.regions]
+            if req.regions is not None
+            else None
+        ),
         af_threshold=req.af_threshold,
         consequences=req.consequences,
         clinvar_significance=req.clinvar_significance,

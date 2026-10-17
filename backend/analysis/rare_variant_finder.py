@@ -3,6 +3,7 @@
 Identifies rare and ultra-rare variants from annotated data with flexible
 filtering by:
   - Gene panel (custom gene list)
+  - Genomic regions (BED intervals)
   - Allele frequency threshold (gnomAD global AF)
   - Consequence type filter (SO terms)
   - ClinVar significance filter
@@ -37,6 +38,7 @@ Usage::
 from __future__ import annotations
 
 import json
+from bisect import bisect_left
 from dataclasses import dataclass, field
 
 import sqlalchemy as sa
@@ -65,7 +67,77 @@ logger = structlog.get_logger(__name__)
 # Default AF threshold for "rare" variants (gnomAD global)
 DEFAULT_AF_THRESHOLD = 0.01  # 1%
 
+# Chromosome names as stored in ``annotated_variants`` (ingestion normalizes to these).
+_SAMPLE_CHROMS = frozenset([str(n) for n in range(1, 23)] + ["X", "Y", "MT"])
+
 # ── Data classes ──────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class GenomicInterval:
+    """A BED interval: 0-based ``start``, exclusive ``end``, as written in the file."""
+
+    chrom: str
+    start: int
+    end: int
+
+
+def normalize_bed_chrom(chrom: str) -> str | None:
+    """Map a BED chromosome name (``chr17``, ``17``, ``chrM``) to the sample table's form.
+
+    Returns ``None`` for a name no sample row can carry, so its intervals match
+    nothing rather than being dropped from the scope.
+    """
+    token = chrom.strip().upper()
+    if token.startswith("CHR"):
+        token = token[3:]
+    if token == "M":
+        token = "MT"
+    if token.isdigit():
+        token = str(int(token))
+    return token if token in _SAMPLE_CHROMS else None
+
+
+class _IntervalIndex:
+    """Overlap lookup for BED intervals, merged per chromosome."""
+
+    def __init__(self, regions: list[GenomicInterval]) -> None:
+        by_chrom: dict[str, list[tuple[int, int]]] = {}
+        for region in regions:
+            chrom = normalize_bed_chrom(region.chrom)
+            if chrom is not None:
+                by_chrom.setdefault(chrom, []).append((region.start, region.end))
+        self._starts: dict[str, list[int]] = {}
+        self._ends: dict[str, list[int]] = {}
+        for chrom, spans in by_chrom.items():
+            merged: list[list[int]] = []
+            for start, end in sorted(spans):
+                if merged and start <= merged[-1][1]:
+                    merged[-1][1] = max(merged[-1][1], end)
+                else:
+                    merged.append([start, end])
+            self._starts[chrom] = [start for start, _ in merged]
+            self._ends[chrom] = [end for _, end in merged]
+
+    @property
+    def chroms(self) -> list[str]:
+        return sorted(self._starts)
+
+    def overlaps(self, chrom: str, pos: int, ref: str | None) -> bool:
+        """True when the variant shares at least one base with an interval.
+
+        ``pos`` is 1-based and the variant covers ``len(ref)`` bases from it, so
+        in BED's 0-based half-open terms it spans ``[pos - 1, pos - 1 + len(ref))``.
+        """
+        starts = self._starts.get(chrom)
+        if not starts:
+            return False
+        lo = pos - 1
+        hi = lo + max(len(ref or ""), 1)
+        # Intervals are disjoint and sorted, so only the last one starting
+        # before the variant ends can reach it.
+        index = bisect_left(starts, hi) - 1
+        return index >= 0 and self._ends[chrom][index] > lo
 
 
 @dataclass
@@ -77,6 +149,10 @@ class RareVariantFilter:
     """
 
     gene_symbols: list[str] | None = None
+    # BED intervals the variant must overlap. Unlike the other filters, an empty
+    # list (or one whose chromosomes no sample row uses) matches nothing: it is a
+    # scope the caller asked for, and silently widening it would search the genome.
+    regions: list[GenomicInterval] | None = None
     af_threshold: float = DEFAULT_AF_THRESHOLD
     consequences: list[str] | None = None
     clinvar_significance: list[str] | None = None
@@ -335,6 +411,13 @@ def find_rare_variants(
     if filters.carried_only:
         conditions.append(av.c.zygosity.in_(list(CARRIED_ZYGOSITIES)))
 
+    # Region filter: narrow by chromosome in SQL, test overlap per row below.
+    # A per-interval SQL predicate would exceed SQLite's expression depth for a
+    # large BED file.
+    region_index = _IntervalIndex(filters.regions) if filters.regions is not None else None
+    if region_index is not None:
+        conditions.append(av.c.chrom.in_(region_index.chroms))
+
     if conditions:
         stmt = stmt.where(sa.and_(*conditions))
 
@@ -370,6 +453,8 @@ def find_rare_variants(
     hom_alt_plausibility_suppressed = 0
     sex_for_labels = filters.biological_sex or filters.inferred_sex
     for row in rows:
+        if region_index is not None and not region_index.overlaps(row.chrom, row.pos, row.ref):
+            continue
         # A rare, directly typed P/LP homozygous-alt call without population
         # homozygote support is not surfaced as a confident monogenic finding.
         # This extends the same conservative policy used by the cancer,

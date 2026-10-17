@@ -32,6 +32,7 @@ from backend.analysis.custom_panels import (
 )
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
+    GenomicInterval,
     RareVariantFilter,
     find_rare_variants,
 )
@@ -291,10 +292,11 @@ def search_with_panel(
     sample_id: int = Query(..., description="Sample ID"),
     body: PanelSearchRequest | None = None,
 ) -> PanelSearchResponse:
-    """Run an exploratory rare variant search using a saved panel's gene list.
+    """Run an exploratory rare variant search scoped by a saved panel.
 
-    Loads the panel's gene symbols and passes them as the gene filter
-    to the rare variant finder. Additional filters (AF, consequence,
+    A BED panel is searched by its intervals: only variants overlapping an
+    uploaded region are returned, and its optional name column stays a label.
+    A gene-list panel is searched by its gene symbols. Additional filters (AF, consequence,
     ClinVar) can be specified in the request body. It returns the transient
     matched variants and never replaces the sample's canonical stored findings.
 
@@ -305,10 +307,18 @@ def search_with_panel(
     if panel is None:
         raise HTTPException(status_code=404, detail=f"Panel {panel_id} not found.")
 
-    if not panel.gene_symbols:
+    regions = (
+        [
+            GenomicInterval(str(region["chrom"]), int(region["start"]), int(region["end"]))
+            for region in panel.bed_regions
+        ]
+        if panel.bed_regions
+        else None
+    )
+    if regions is None and not panel.gene_symbols:
         raise HTTPException(
             status_code=422,
-            detail="Panel has no gene symbols to search with.",
+            detail="Panel has no gene symbols or regions to search with.",
         )
 
     sample_engine = _get_sample_engine(sample_id)
@@ -319,7 +329,10 @@ def search_with_panel(
     # panel gene must not be counted as found. NULL zygosity is excluded by the
     # carriage gate too.
     filters = RareVariantFilter(
-        gene_symbols=panel.gene_symbols,
+        # Searching a BED panel's name column as a gene list would return every
+        # variant in those genes, including ones outside the uploaded targets.
+        gene_symbols=None if regions is not None else panel.gene_symbols,
+        regions=regions,
         af_threshold=body.af_threshold if body else DEFAULT_AF_THRESHOLD,
         consequences=body.consequences if body else None,
         clinvar_significance=body.clinvar_significance if body else None,

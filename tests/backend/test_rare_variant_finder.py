@@ -24,11 +24,13 @@ from _carriage_fixtures import het_pathogenic_row, hom_ref_pathogenic_row
 from backend.analysis.rare_variant_finder import (
     DEFAULT_AF_THRESHOLD,
     LOWER_PENETRANCE_RISK_ALLELE_CATEGORY,
+    GenomicInterval,
     RareVariantFilter,
     RareVariantFinderResult,
     RareVariantResult,
     _assign_evidence_level,
     find_rare_variants,
+    normalize_bed_chrom,
     store_rare_variant_findings,
 )
 from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
@@ -703,6 +705,113 @@ class TestGeneFilter:
         assert "BRCA1" in genes
         assert "EGFR" in genes
         assert "MTHFR" not in genes  # Common variant excluded
+
+
+# ── Region filter tests (#2166) ─────────────────────────────────────────
+
+
+def _region_row(rsid: str, chrom: str, pos: int, *, ref: str = "G", gene: str | None = "BRCA1"):
+    # Every row sets ``ref``: a multi-row insert binds the first row's keys only.
+    return _v(
+        rsid=rsid,
+        chrom=chrom,
+        pos=pos,
+        ref=ref,
+        genotype="AG",
+        zygosity="het",
+        gene_symbol=gene,
+        gnomad_af_global=1e-5,
+    )
+
+
+@pytest.fixture()
+def region_sample(sample_engine: sa.Engine) -> sa.Engine:
+    """Carried rare variants placed around the BED interval chr17:[100, 200)."""
+    rows = [
+        _region_row("rs_before", "17", 100),  # 0-based 99: just before the start
+        _region_row("rs_first", "17", 101),  # 0-based 100: the first base inside
+        _region_row("rs_last", "17", 200),  # 0-based 199: the last base inside
+        _region_row("rs_after", "17", 201),  # 0-based 200: the exclusive end
+        _region_row("rs_far", "17", 500),  # same gene, well outside the interval
+        _region_row("rs_spanning", "17", 98, ref="GATC"),  # covers 98-101, reaching 101
+        _region_row("rs_intergenic", "2", 1001, gene=None),
+        _region_row("rs_mito", "MT", 7028, gene="MT-CO1"),
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(sa.insert(annotated_variants), rows)
+    return sample_engine
+
+
+def _rsids(regions: list[GenomicInterval] | None, engine: sa.Engine) -> set[str]:
+    result = find_rare_variants(RareVariantFilter(regions=regions), engine)
+    return {variant.rsid for variant in result.variants}
+
+
+class TestRegionFilter:
+    """BED intervals scope the search by position, not by gene (#2166)."""
+
+    def test_returns_only_variants_overlapping_the_interval(self, region_sample) -> None:
+        """BED is 0-based half-open; sample positions are 1-based."""
+        assert _rsids([GenomicInterval("chr17", 100, 200)], region_sample) == {
+            "rs_first",
+            "rs_last",
+            "rs_spanning",
+        }
+
+    def test_same_gene_outside_the_interval_is_excluded(self, region_sample) -> None:
+        """The #2166 reproduction: a gene-symbol search would return both."""
+        by_gene = find_rare_variants(RareVariantFilter(gene_symbols=["BRCA1"]), region_sample)
+        assert {"rs_first", "rs_far"} <= {v.rsid for v in by_gene.variants}
+
+        assert "rs_far" not in _rsids([GenomicInterval("17", 100, 200)], region_sample)
+
+    def test_multibase_ref_overlaps_by_its_span(self, region_sample) -> None:
+        """A 4-base REF at 98 covers 98-101, so it shares base 101 with the interval."""
+        assert "rs_spanning" in _rsids([GenomicInterval("17", 100, 101)], region_sample)
+        assert "rs_spanning" not in _rsids([GenomicInterval("17", 101, 150)], region_sample)
+
+    def test_chromosome_names_are_normalized(self, region_sample) -> None:
+        """``chr`` prefixes and ``chrM`` match the sample table's ``2`` and ``MT``."""
+        regions = [GenomicInterval("2", 1000, 1001), GenomicInterval("chrM", 7027, 7028)]
+        assert _rsids(regions, region_sample) == {"rs_intergenic", "rs_mito"}
+
+    def test_intergenic_target_is_searchable(self, region_sample) -> None:
+        """A region with no gene symbol is still in scope."""
+        assert _rsids([GenomicInterval("chr2", 0, 5000)], region_sample) == {"rs_intergenic"}
+
+    def test_empty_or_unmatchable_regions_return_nothing(self, region_sample) -> None:
+        """A requested scope that matches no chromosome must not widen to the genome."""
+        assert _rsids([], region_sample) == set()
+        assert _rsids([GenomicInterval("chr99", 0, 10_000)], region_sample) == set()
+
+    def test_no_regions_means_no_region_filter(self, region_sample) -> None:
+        assert {"rs_before", "rs_after", "rs_far"} <= _rsids(None, region_sample)
+
+    def test_overlapping_and_nested_intervals_are_merged(self, region_sample) -> None:
+        """A short interval inside a long one must not hide the long one's coverage."""
+        nested = [GenomicInterval("17", 0, 1000), GenomicInterval("17", 150, 160)]
+        assert "rs_far" in _rsids(nested, region_sample)
+        chained = [GenomicInterval("17", 100, 150), GenomicInterval("17", 140, 250)]
+        assert {"rs_last", "rs_after"} <= _rsids(chained, region_sample)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("chr17", "17"),
+        ("17", "17"),
+        ("Chr7", "7"),
+        ("chr01", "1"),
+        ("chrX", "X"),
+        ("y", "Y"),
+        ("chrM", "MT"),
+        ("MT", "MT"),
+        ("chr23", None),
+        ("chrUn", None),
+    ],
+)
+def test_normalize_bed_chrom(raw: str, expected: str | None) -> None:
+    assert normalize_bed_chrom(raw) == expected
 
 
 # ── Consequence filter tests ─────────────────────────────────────────────

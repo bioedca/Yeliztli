@@ -645,6 +645,56 @@ class TestSearchWithPanelEndpoint:
         assert data["findings_stored"] == 0
         assert data["genes_with_findings"] == ["SRY"]
 
+    def test_bed4_panel_searches_its_interval_not_its_gene(
+        self, panel_client: TestClient, sample_db_path: Path
+    ) -> None:
+        """A BED4 name is a label: same-gene variants outside the interval stay out (#2166)."""
+        _insert_annotated_variant(
+            sample_db_path,
+            {**ANNOTATED_VARIANTS_DATA[0], "rsid": "rs_brca1_outside", "pos": 41_276_000},
+        )
+        bed = b"chr17\t41215919\t41215920\tBRCA1\n"
+        upload = panel_client.post(
+            "/api/panels/upload?name=BRCA1+hotspot",
+            files={"file": ("hotspot.bed", io.BytesIO(bed), "text/plain")},
+        )
+        panel_id = upload.json()["panel"]["id"]
+
+        resp = panel_client.post(f"/api/panels/{panel_id}/search?sample_id=1", json={})
+
+        assert resp.status_code == 200, resp.text
+        assert [item["rsid"] for item in resp.json()["items"]] == ["rs28897696"]
+
+    def test_bed3_panel_without_names_is_searchable(self, panel_client: TestClient) -> None:
+        """A valid BED3 panel has no gene symbols but is not unsearchable (#2166)."""
+        bed = b"chr7\t117199643\t117199644\n"
+        upload = panel_client.post(
+            "/api/panels/upload?name=CFTR+target",
+            files={"file": ("target.bed", io.BytesIO(bed), "text/plain")},
+        )
+        panel = upload.json()["panel"]
+        assert panel["gene_symbols"] == []
+
+        resp = panel_client.post(f"/api/panels/{panel['id']}/search?sample_id=1", json={})
+
+        assert resp.status_code == 200, resp.text
+        assert [item["rsid"] for item in resp.json()["items"]] == ["rs121913279"]
+
+    def test_bed_panel_with_no_overlapping_variant_finds_nothing(
+        self, panel_client: TestClient
+    ) -> None:
+        """An interval over no carried variant returns none, not a genome-wide search."""
+        upload = panel_client.post(
+            "/api/panels/upload?name=Empty+target",
+            files={"file": ("empty.bed", io.BytesIO(b"chr1\t0\t10\tBRCA1\n"), "text/plain")},
+        )
+        panel_id = upload.json()["panel"]["id"]
+
+        resp = panel_client.post(f"/api/panels/{panel_id}/search?sample_id=1", json={})
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["variants_found"] == 0
+
     def test_search_panel_not_found(self, panel_client: TestClient) -> None:
         """Search with non-existent panel returns 404."""
         resp = panel_client.post(

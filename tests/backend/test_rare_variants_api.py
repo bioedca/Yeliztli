@@ -407,6 +407,32 @@ class TestSearchEndpoint:
         rsids = [item["rsid"] for item in resp.json()["items"]]
         assert "rs_hom_ref_pathogenic" not in rsids
 
+    def test_search_region_filter(self, rare_client: TestClient) -> None:
+        """BED intervals scope the search by position (#2166)."""
+        resp = rare_client.post(
+            "/api/analysis/rare-variants/search?sample_id=1",
+            json={"regions": [{"chrom": "chr17", "start": 41215919, "end": 41215920}]},
+        )
+        assert resp.status_code == 200, resp.text
+        assert [item["rsid"] for item in resp.json()["items"]] == ["rs28897696"]
+
+    @pytest.mark.parametrize(
+        "regions",
+        [
+            [],
+            [{"chrom": "chrUn", "start": 0, "end": 10}],
+            [{"chrom": "17", "start": 10, "end": 10}],
+            [{"chrom": "17", "start": -1, "end": 10}],
+        ],
+        ids=["empty", "unrecognized-chromosome", "zero-length", "negative-start"],
+    )
+    def test_search_rejects_unusable_regions(self, rare_client: TestClient, regions) -> None:
+        """A scope that could only match nothing is a request error, not an empty result."""
+        resp = rare_client.post(
+            "/api/analysis/rare-variants/search?sample_id=1", json={"regions": regions}
+        )
+        assert resp.status_code == 422
+
     def test_search_gene_filter(self, rare_client: TestClient) -> None:
         """Gene panel filter restricts results to specified genes."""
         resp = rare_client.post(
