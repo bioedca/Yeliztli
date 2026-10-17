@@ -1270,10 +1270,11 @@ def _publish_restored_reanalysis_prompts(sample_paths: list[Path]) -> None:
     """Best-effort publish each restored sample's pending reanalysis prompt.
 
     A v20 sample upgraded in staging carries the durable CYP2C9/phenytoin
-    marker with ``prompted=false``. ``DBRegistry.get_sample_engine`` publishes
-    that marker as the central prompt when it opens a sample, so without this
-    the restore returned with no prompt until a later request happened to open
-    the sample (#2128).
+    marker with ``prompted=false``. Only opening the sample through
+    ``DBRegistry.get_sample_engine`` published it as the central prompt, so the
+    restore returned with no prompt until a later request happened to open the
+    sample (#2128). Each sample is synchronized through a disposable engine, so
+    an archive of many samples does not leave one cached engine per sample.
 
     Call only after the registry rows commit: ``_insert_registry_rows`` deletes
     every prompt for the restored IDs, so publishing earlier would be undone. A
@@ -1284,7 +1285,7 @@ def _publish_restored_reanalysis_prompts(sample_paths: list[Path]) -> None:
     registry = get_registry()
     for sample_path in sample_paths:
         try:
-            registry.get_sample_engine(sample_path)
+            registry.publish_sample_reanalysis_prompt(sample_path)
         except Exception as exc:
             logger.warning(
                 "restore_reanalysis_prompt_sync_deferred",

@@ -503,6 +503,20 @@ class DBRegistry:
         ):
             self._sample_prompt_sync_complete[key] = engine
 
+    def publish_sample_reanalysis_prompt(self, sample_db_path: str | Path) -> bool:
+        """Publish a sample's pending reanalysis prompt without caching its engine.
+
+        For callers that touch many samples once, such as a backup restore:
+        ``get_sample_engine`` would retain a pooled engine per sample for the
+        life of the process. The synchronization itself is the same, so a
+        ``False`` return (deferred) leaves the marker for the next open to retry.
+        """
+        engine = self._create_engine(Path(sample_db_path), wal=self._settings.wal_mode)
+        try:
+            return self._sync_cyp2c9_phenytoin_reanalysis_prompt(engine, sample_db_path)
+        finally:
+            engine.dispose()
+
     def dispose_sample_engine(self, sample_db_path: str | Path) -> None:
         """Dispose and remove a cached sample engine.
 

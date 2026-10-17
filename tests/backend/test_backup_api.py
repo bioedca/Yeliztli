@@ -644,6 +644,7 @@ class TestBackupRoundTrip:
             )
             # Observe the state import_backup left behind, before anything
             # opens the restored sample through the registry (#2128).
+            cached_sample_engines = dict(registry._sample_engines)
             marker, legacy_alerts = _read_restored_phenytoin_state(
                 settings.data_dir / "samples" / "sample_7.db"
             )
@@ -660,6 +661,9 @@ class TestBackupRoundTrip:
         assert registry_row["file_hash"] == "legacy-local-hash"
         assert legacy_alerts == 0
         assert marker["prompted"] is True
+        # Publication used a disposable engine: a restore of many samples must
+        # not leave one cached, pooled engine per sample behind.
+        assert cached_sample_engines == {}
         # Exactly one: the dismissed prompt left by ID 7's prior occupant is
         # gone, so publication ran after the registry cleanup, not before it.
         assert len(prompts) == 1
@@ -704,6 +708,7 @@ class TestBackupRoundTrip:
                 result = asyncio.run(
                     import_backup(_UploadBytes(filename="legacy.tar.gz", content=archive))
                 )
+            cached_after_failure = dict(registry._sample_engines)
             marker_after_failure, legacy_alerts = _read_restored_phenytoin_state(restored_path)
             with registry.reference_engine.connect() as conn:
                 prompts_after_failure = conn.execute(sa.select(reannotation_prompts)).all()
@@ -722,6 +727,7 @@ class TestBackupRoundTrip:
         # import_backup itself attempted the publication; nothing else opened
         # the sample before this point.
         assert publish.call_count == 1
+        assert cached_after_failure == {}
         assert marker_after_failure["prompted"] is False
         assert prompts_after_failure == []
         assert legacy_alerts == 0
