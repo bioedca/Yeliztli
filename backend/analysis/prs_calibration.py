@@ -229,10 +229,20 @@ def get_ancestry_fractions(sample_engine: sa.Engine) -> dict[str, float] | None:
     (e.g. low-coverage → UNCERTAIN, no stored finding) — in which case the PRS
     must stay *uncalibrated* rather than be percentile'd against a wrong ancestry.
     """
-    from backend.analysis.ancestry import _get_latest_ancestry_finding
+    from backend.analysis.ancestry import UNCERTAIN, _get_latest_ancestry_finding
 
-    _top, detail = _get_latest_ancestry_finding(sample_engine)
+    top, detail = _get_latest_ancestry_finding(sample_engine)
     if not detail:
+        return None
+    # A low-coverage result is stored as UNCERTAIN with ``is_sufficient=false``
+    # yet keeps its diagnostic admixture fractions. Calibrating against them would
+    # undo the ancestry module's own coverage gate (#2168). ADMIXED is a confident
+    # assessment, not this state, and still calibrates.
+    if (
+        top == UNCERTAIN
+        or detail.get("is_sufficient") is False
+        or detail.get("classification_status") == "uncertain"
+    ):
         return None
     fracs = detail.get("nnls_fractions") or detail.get("admixture_fractions")
     if not fracs:
