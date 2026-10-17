@@ -84,7 +84,9 @@ and displays `present / total`, where `total = present + conflicting + missing`:
 - **Conflicting** — the marker is typed but its derived allele is absent, which is positive
   evidence against that clade.
 - **Missing** — the marker is untyped or a no-call, so it supplies no evidence either way. It
-  is nevertheless included in `total`.
+  is nevertheless included in `total`. For mtDNA, a position whose call carries two alleles,
+  or whose probes disagree, also counts as missing: the exported genotype records no allele
+  fraction, so it is neither full derived nor full ancestral evidence.
 
 This percentage is therefore **not an estimated probability that the haplogroup call is
 correct**. It reports how many of the assigned path's defining-marker entries were observed

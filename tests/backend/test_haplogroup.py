@@ -10903,6 +10903,143 @@ _CROSS_CLADE_WITHHELD_Y_RSIDS = {
 # ── Confidence formula unit tests (#640) ─────────────────────────────────
 
 
+class TestMixedMtCalls:
+    """A mixed mtDNA call is neither full derived nor full ancestral evidence (#2167).
+
+    An exported allele pair records no allele fraction, so a position carrying two
+    alleles is withheld from marker scoring, exactly like two disagreeing probes,
+    and counts as a conflict for an optional guard.
+    """
+
+    @staticmethod
+    def _mt(bundle: HaplogroupBundle, engine: sa.Engine) -> HaplogroupResult:
+        return next(r for r in assign_haplogroups(bundle, engine) if r.tree_type == "mt")
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    @pytest.mark.parametrize(
+        ("genotype", "expected"),
+        [
+            pytest.param("AG", ("mt-MRCA", 0, 0, 0.0), id="mixed"),
+            pytest.param("GG", ("L3", 1, 1, 1.0), id="derived-doubled"),
+            pytest.param("G", ("L3", 1, 1, 1.0), id="derived-haploid"),
+            pytest.param("AA", ("mt-MRCA", 0, 0, 0.0), id="ancestral"),
+            pytest.param("--", ("mt-MRCA", 0, 0, 0.0), id="no-call"),
+        ],
+    )
+    def test_lone_m1018_call(
+        self,
+        bundle: HaplogroupBundle,
+        sample_engine: sa.Engine,
+        source_table: sa.Table,
+        genotype: str,
+        expected: tuple[str, int, int, float],
+    ) -> None:
+        """The issue's witness: a lone mixed m.1018 must not read as L3 at 1/1."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(source_table),
+                [{"rsid": "vendor_mt_1018", "chrom": "MT", "pos": 1018, "genotype": genotype}],
+            )
+
+        mt = self._mt(bundle, sample_engine)
+
+        assert (
+            mt.haplogroup,
+            mt.defining_snps_present,
+            mt.defining_snps_total,
+            mt.confidence,
+        ) == expected
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_mixed_gateway_marker_stops_descent(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine, source_table: sa.Table
+    ) -> None:
+        """A mixed call at N's sole marker cannot carry the walk past L3."""
+        rows = [
+            {**row, "genotype": "CT"} if row["pos"] == 9540 else row
+            for row in _derived_mt_path_genotypes("N")
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = self._mt(bundle, sample_engine)
+
+        assert mt.haplogroup == "L3"
+        assert [step.haplogroup for step in mt.traversal_path] == ["L3"]
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_mixed_marker_on_the_path_counts_as_missing(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine, source_table: sa.Table
+    ) -> None:
+        """Mixed m.16223 is scored like two disagreeing probes there (#1388): missing."""
+        rows = [
+            {**row, "genotype": "CT"} if row["pos"] == 16223 else row for row in _H1A_GENOTYPES
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = self._mt(bundle, sample_engine)
+
+        assert mt.haplogroup == "H1a"
+        assert (mt.defining_snps_present, mt.defining_snps_total) == (8, 9)
+
+    @pytest.mark.parametrize("source_table", [raw_variants, annotated_variants])
+    def test_mixed_optional_guard_vetoes_descent(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine, source_table: sa.Table
+    ) -> None:
+        """A mixed m.16270 is a conflict for U5's optional guard, not a pass."""
+        direct_calls = _ISSUE_1798_BATCH13_DIRECT_CASES["U5a"][0]
+        rows = [
+            {**row, "rsid": f"vendor_issue_2167_{index}", "chrom": "MT"}
+            for index, row in enumerate(
+                [
+                    *_derived_mt_path_genotypes("R"),
+                    *({"pos": pos, "genotype": allele * 2} for pos, allele in direct_calls),
+                    {"pos": 16270, "genotype": "CT"},
+                ]
+            )
+        ]
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(source_table), rows)
+
+        mt = self._mt(bundle, sample_engine)
+
+        assert mt.haplogroup == "U"
+        assert all(not step.haplogroup.startswith("U5") for step in mt.traversal_path)
+
+    def test_ancestrydna_mixed_row_end_to_end(
+        self, bundle: HaplogroupBundle, sample_engine: sa.Engine
+    ) -> None:
+        """Chromosome 26 ``A``/``G`` parses to ``MT AG``, kept for audit, but is not L3."""
+        parsed = parse_ancestrydna(
+            io.StringIO(
+                "#AncestryDNA raw data download\n"
+                "rsid\tchromosome\tposition\tallele1\tallele2\n"
+                "vendor_mt_1018_mixed\t26\t1018\tA\tG\n"
+            )
+        )
+        [variant] = parsed.variants
+        assert (variant.chrom, variant.pos, variant.genotype) == ("MT", 1018, "AG")
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(raw_variants),
+                [
+                    {
+                        "rsid": variant.rsid,
+                        "chrom": variant.chrom,
+                        "pos": variant.pos,
+                        "genotype": variant.genotype,
+                    }
+                ],
+            )
+
+        mt = self._mt(bundle, sample_engine)
+
+        assert mt.haplogroup != "L3"
+        assert mt.defining_snps_present == 0
+        assert mt.confidence == 0.0
+
+
 class TestHaplogroupConfidence:
     """Pin the ``_haplogroup_confidence`` formula to literals (#640).
 
