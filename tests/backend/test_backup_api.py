@@ -15,6 +15,7 @@ import io
 import json
 import sqlite3
 import tarfile
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -534,43 +535,57 @@ class TestBackupDownload:
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def _legacy_phenytoin_archive(tmp_path: Path) -> bytes:
-    """A registry-less archive holding one v20 sample with a legacy phenytoin alert.
+def _legacy_phenytoin_archive(
+    tmp_path: Path,
+    *,
+    alert_ids: tuple[int, ...] = (7,),
+    plain_ids: tuple[int, ...] = (),
+    journal_mode: str = "wal",
+) -> bytes:
+    """A registry-less archive of v20 samples, members in ``plain_ids + alert_ids`` order.
 
-    Restoring it upgrades the sample to v21, which quarantines the alert and
-    records the CYP2C9/phenytoin reanalysis marker with ``prompted=false``.
+    Restoring an ``alert_ids`` sample upgrades it to v21, which quarantines its
+    legacy phenytoin alert and records the CYP2C9/phenytoin reanalysis marker
+    with ``prompted=false``; a ``plain_ids`` sample gets no marker.
+    ``create_sample_tables`` leaves a database in WAL mode, as the app's own
+    are; ``journal_mode="delete"`` stands in for an archive whose databases use
+    a rollback journal.
     """
-    legacy_db = tmp_path / "sample_7.db"
-    legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
-    create_sample_tables(legacy_engine)
-    with legacy_engine.begin() as conn:
-        conn.execute(
-            sample_metadata_table.insert(),
-            {
-                "id": 1,
-                "name": "Legacy local sample",
-                "file_format": "23andme_v5",
-                "file_hash": "legacy-local-hash",
-                "created_at": datetime(2025, 4, 3, 2, 1, tzinfo=UTC),
-            },
-        )
-        conn.execute(
-            findings.insert(),
-            {
-                "module": "pharmacogenomics",
-                "category": "prescribing_alert",
-                "evidence_level": 4,
-                "gene_symbol": "CYP2C9",
-                "drug": "phenytoin",
-                "finding_text": "Legacy phenotype-only recommendation",
-            },
-        )
-        conn.execute(sa.text("PRAGMA user_version = 20"))
-    legacy_engine.dispose()
-
     archive_buffer = io.BytesIO()
     with tarfile.open(fileobj=archive_buffer, mode="w:gz") as tf:
-        tf.add(legacy_db, arcname="samples/sample_7.db")
+        for sample_id in (*plain_ids, *alert_ids):
+            legacy_db = tmp_path / f"sample_{sample_id}.db"
+            legacy_engine = sa.create_engine(f"sqlite:///{legacy_db}")
+            create_sample_tables(legacy_engine)
+            with legacy_engine.begin() as conn:
+                conn.execute(
+                    sample_metadata_table.insert(),
+                    {
+                        "id": 1,
+                        "name": "Legacy local sample",
+                        "file_format": "23andme_v5",
+                        "file_hash": f"legacy-local-hash-{sample_id}",
+                        "created_at": datetime(2025, 4, 3, 2, 1, tzinfo=UTC),
+                    },
+                )
+                if sample_id in alert_ids:
+                    conn.execute(
+                        findings.insert(),
+                        {
+                            "module": "pharmacogenomics",
+                            "category": "prescribing_alert",
+                            "evidence_level": 4,
+                            "gene_symbol": "CYP2C9",
+                            "drug": "phenytoin",
+                            "finding_text": "Legacy phenotype-only recommendation",
+                        },
+                    )
+                conn.execute(sa.text("PRAGMA user_version = 20"))
+            legacy_engine.dispose()
+            if journal_mode != "wal":
+                with closing(sqlite3.connect(legacy_db)) as raw:
+                    raw.execute(f"PRAGMA journal_mode={journal_mode}")
+            tf.add(legacy_db, arcname=f"samples/sample_{sample_id}.db")
     return archive_buffer.getvalue()
 
 
@@ -603,13 +618,25 @@ def _read_restored_phenytoin_state(sample_db: Path) -> tuple[dict, int]:
 
 
 class TestBackupRoundTrip:
+    @pytest.mark.parametrize(
+        ("wal_mode", "archive_journal_mode"),
+        [
+            pytest.param(False, "wal", id="rollback-config"),
+            # The production default meeting an archive whose databases use a
+            # rollback journal: the first WAL connection rewrites the file, so
+            # publication must not fingerprint it before that has happened.
+            pytest.param(True, "delete", id="wal-config-rollback-archive"),
+        ],
+    )
     def test_legacy_archive_without_registry_uses_local_identity_for_reanalysis_prompt(
         self,
         tmp_data_dir: Path,
         tmp_path: Path,
+        wal_mode: bool,
+        archive_journal_mode: str,
     ) -> None:
-        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
-        archive = _legacy_phenytoin_archive(tmp_path)
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=wal_mode)
+        archive = _legacy_phenytoin_archive(tmp_path, journal_mode=archive_journal_mode)
 
         with _make_client(settings):
             reset_registry()
@@ -658,7 +685,7 @@ class TestBackupRoundTrip:
         assert result.samples_restored == 1
         assert registry_row["name"] == "Legacy local sample"
         assert registry_row["file_format"] == "23andme_v5"
-        assert registry_row["file_hash"] == "legacy-local-hash"
+        assert registry_row["file_hash"] == "legacy-local-hash-7"
         assert legacy_alerts == 0
         assert marker["prompted"] is True
         # Publication used a disposable engine: a restore of many samples must
@@ -735,6 +762,57 @@ class TestBackupRoundTrip:
         assert [(p["sample_id"], p["prompt_type"]) for p in prompts_after_retry] == [
             (7, "version_staleness")
         ]
+
+    def test_locked_reference_db_defers_once_and_skips_marker_free_samples(
+        self,
+        tmp_data_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A held reference.db lock costs the restore one busy timeout, not one per sample.
+
+        Every attempt that reaches reference.db waits out its busy timeout while
+        another writer holds it. Sample 3 has no marker, and its prompts were
+        deleted with the registry insert, so it must not reach reference.db at
+        all. Once sample 7 defers, sample 8 is left for its next open rather
+        than waiting again.
+        """
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        archive = _legacy_phenytoin_archive(tmp_path, alert_ids=(7, 8), plain_ids=(3,))
+
+        with _make_client(settings):
+            reset_registry()
+            from backend.api.routes.setup import import_backup
+            from backend.db.connection import get_registry
+
+            registry = get_registry()
+            reference_metadata.create_all(registry.reference_engine)
+            locked = sa.exc.OperationalError(
+                "INSERT INTO reannotation_prompts", {}, sqlite3.OperationalError("locked")
+            )
+            with (
+                patch(
+                    "backend.db.update_manager.publish_cyp2c9_phenytoin_reanalysis_prompt",
+                    side_effect=locked,
+                ) as publish,
+                patch(
+                    "backend.db.update_manager.retract_cyp2c9_phenytoin_reanalysis_prompt"
+                ) as retract,
+            ):
+                result = asyncio.run(
+                    import_backup(_UploadBytes(filename="legacy.tar.gz", content=archive))
+                )
+            prompted = {
+                sample_id: _read_restored_phenytoin_state(
+                    settings.data_dir / "samples" / f"sample_{sample_id}.db"
+                )[0]["prompted"]
+                for sample_id in (7, 8)
+            }
+            reset_registry()
+
+        assert result.samples_restored == 3
+        assert [c.kwargs["sample_id"] for c in publish.call_args_list] == [7]
+        retract.assert_not_called()
+        assert prompted == {7: False, 8: False}
 
     def test_export_then_import_restores_sample_registry(
         self, tmp_data_dir: Path, tmp_path: Path

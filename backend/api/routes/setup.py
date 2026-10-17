@@ -1277,21 +1277,33 @@ def _publish_restored_reanalysis_prompts(sample_paths: list[Path]) -> None:
     an archive of many samples does not leave one cached engine per sample.
 
     Call only after the registry rows commit: ``_insert_registry_rows`` deletes
-    every prompt for the restored IDs, so publishing earlier would be undone. A
-    failure never fails the restore, whose files and rows are already in place;
-    the synchronizer leaves the marker unprompted on a transient error and the
-    next open of the sample retries.
+    every prompt for the restored IDs, so publishing earlier would be undone,
+    and a sample without a marker has nothing left to reconcile. A failure
+    never fails the restore, whose files and rows are already in place; the
+    synchronizer leaves the marker unprompted and the next open of the sample
+    retries.
     """
     registry = get_registry()
-    for sample_path in sample_paths:
+    for index, sample_path in enumerate(sample_paths):
         try:
-            registry.publish_sample_reanalysis_prompt(sample_path)
+            published = registry.publish_sample_reanalysis_prompt(sample_path)
         except Exception as exc:
             logger.warning(
                 "restore_reanalysis_prompt_sync_deferred",
                 sample_db=sample_path.name,
                 error=str(exc),
             )
+            continue
+        if not published:
+            # Usually reference.db stayed locked past its busy timeout. Every
+            # remaining marker is retried when its sample is next opened, so
+            # stop rather than wait out that timeout once per sample.
+            logger.warning(
+                "restore_reanalysis_prompt_sync_deferred",
+                sample_db=sample_path.name,
+                samples_not_attempted=len(sample_paths) - index - 1,
+            )
+            break
 
 
 @router.post("/import-backup", response_model=ImportBackupResponse)

@@ -508,11 +508,35 @@ class DBRegistry:
 
         For callers that touch many samples once, such as a backup restore:
         ``get_sample_engine`` would retain a pooled engine per sample for the
-        life of the process. The synchronization itself is the same, so a
-        ``False`` return (deferred) leaves the marker for the next open to retry.
+        life of the process. The engine is opened the way ``get_sample_engine``
+        opens one, so the journal mode is settled before the synchronizer
+        fingerprints the file.
+
+        Publish-only: a sample without a marker returns ``True`` without the
+        retraction ``get_sample_engine`` would attempt, so use that instead
+        where stale prompts may exist. ``False`` means publication was deferred
+        and the marker stays for the next open to retry.
         """
+        from backend.db.sample_schema import (
+            CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY,
+            ensure_sample_schema_current,
+        )
+        from backend.db.tables import annotation_state
+
         engine = self._create_engine(Path(sample_db_path), wal=self._settings.wal_mode)
         try:
+            ensure_sample_schema_current(engine)
+            with engine.connect() as conn:
+                has_marker = (
+                    conn.execute(
+                        sa.select(annotation_state.c.key).where(
+                            annotation_state.c.key == CYP2C9_PHENYTOIN_REANALYSIS_STATE_KEY
+                        )
+                    ).first()
+                    is not None
+                )
+            if not has_marker:
+                return True
             return self._sync_cyp2c9_phenytoin_reanalysis_prompt(engine, sample_db_path)
         finally:
             engine.dispose()
