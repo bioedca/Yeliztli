@@ -338,7 +338,8 @@ def _validate_ensembl_release_check(
     if "snapshot_ensembl_release" not in check or check["snapshot_ensembl_release"] is not None:
         _fail("Ensembl release check: the snapshot's release must stay explicitly null")
     sources = check.get("variation_source_versions")
-    if not isinstance(sources, dict) or not isinstance(sources.get("dbSNP"), str):
+    dbsnp = sources.get("dbSNP") if isinstance(sources, dict) else None
+    if not isinstance(dbsnp, str) or not dbsnp.strip():
         _fail("Ensembl release check: missing the dbSNP source version")
     if check.get("records") != snapshot.get("records"):
         _fail(

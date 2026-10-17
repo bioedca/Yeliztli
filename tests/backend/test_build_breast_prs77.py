@@ -380,6 +380,9 @@ def _drop_last_record(check: dict[str, Any]) -> None:
         (_set("mapping_policy", "all mappings"), "mapping_policy differs"),
         (_set("raw_payload_sha256", "0" * 64), "raw response-set SHA-256"),
         (_set("variation_source_versions", {}), "dbSNP source version"),
+        (_set("variation_source_versions", {"dbSNP": ""}), "dbSNP source version"),
+        (_set("variation_source_versions", {"dbSNP": "  "}), "dbSNP source version"),
+        (_set("variation_source_versions", None), "dbSNP source version"),
     ],
 )
 def test_release_check_must_reproduce_the_snapshot_and_name_its_release(

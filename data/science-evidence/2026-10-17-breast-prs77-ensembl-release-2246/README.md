@@ -102,12 +102,16 @@ SHA-256:
 | Ensembl REST captures (4 `/info` endpoints, the variation POST, its request body, the headers) | 7 |
 | 2026-07-16 variation response, verbatim copy | 1 |
 | Local derivation (record comparison) | 1 |
-| Licence pages (Ensembl, EMBL-EBI, NCBI) | 3 |
+| Licence pages (Ensembl, EMBL-EBI, NCBI), sanitized text extracts | 3 |
 | Consensus (derived) and Scite (unavailable) | 2 |
 | PubMed E-utilities (esearch, esummary, efetch) | 3 |
 | **Total** | **17** |
 
-Payloads are retained as fetched, except for two deliberate changes:
+Payloads are retained as fetched, except for three deliberate changes:
 - the header file, which drops cookie lines;
+- the three licence pages, which are **sanitized text extracts**: script,
+  style and markup are removed, and each `queries.json` entry records the
+  fetched page's `original_sha256`. The full pages carried third-party inline
+  JavaScript that code scanning analyses as repository source;
 - the three records marked `"kind": "derived"`, which are summaries, not
   captures.
