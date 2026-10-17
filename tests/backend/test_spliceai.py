@@ -21,13 +21,16 @@ from backend.analysis.spliceai import (
     spliceai_splice_context,
 )
 from backend.annotation.spliceai import (
+    _GRCH37_CONTIG_LENGTHS,
     SPLICEAI_PMID,
     SpliceAILoadStats,
+    _classify_build_label,
     create_spliceai_tables,
     ingest_spliceai_vcf,
     lookup_spliceai_by_variant,
     normalize_chrom,
     parse_spliceai_info,
+    read_spliceai_assembly,
     record_spliceai_version,
     spliceai_scores,
 )
@@ -44,6 +47,8 @@ from backend.db.tables import database_versions, reference_metadata
 #  H malformed   (<8 columns)                       → bad row
 _VCF = (
     "##fileformat=VCFv4.0\n"
+    # As in Illumina's own example VCF (examples/input.vcf at 03f4243).
+    "##reference=GRCh37/hg19\n"
     '##INFO=<ID=SpliceAI,Number=.,Type=String,Description="SpliceAIv1.3">\n'
     "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
     "7\t117559590\t.\tG\tA\t.\t.\tSpliceAI=A|CFTR|0.02|0.91|0.00|0.05|-7|3|12|-21\n"
@@ -155,6 +160,7 @@ class TestIngestion:
         engine = _engine(tmp_path)
         ingest_spliceai_vcf(_write(tmp_path, "s.vcf", _VCF), engine)
         extra = (
+            "##reference=GRCh37\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "9\t9000\t.\tA\tC\t.\t.\tSpliceAI=C|GENE9|0.95|0|0|0|1|2|3|4\n"
         )
@@ -164,6 +170,7 @@ class TestIngestion:
     def test_empty_parse_raises(self, tmp_path: Path) -> None:
         # All rows below the floor → zero stored → refuse to clear/replace.
         only_low = (
+            "##reference=GRCh37\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "1\t1\t.\tA\tC\t.\t.\tSpliceAI=C|G|0.05|0|0|0|1|2|3|4\n"
         )
@@ -180,6 +187,7 @@ class TestIngestion:
     def test_multiallelic_matched_allele_stored(self, tmp_path: Path) -> None:
         # Multi-allelic row whose SpliceAI ALLELE matches one ALT → stored under it.
         vcf = (
+            "##reference=GRCh37\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "8\t8000\t.\tA\tC,T\t.\t.\tSpliceAI=T|GENE8|0.90|0|0|0|1|2|3|4\n"
         )
@@ -195,6 +203,7 @@ class TestIngestion:
         # Multi-allelic row whose SpliceAI ALLELE matches NEITHER ALT must be
         # skipped (a bad row), never stored under an arbitrary ALT.
         vcf = (
+            "##reference=GRCh37\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
             "8\t8000\t.\tA\tC,T\t.\t.\tSpliceAI=G|GENE8|0.90|0|0|0|1|2|3|4\n"
         )
@@ -298,7 +307,7 @@ class TestRecordVersion:
     def test_records_grch37_in_reference_db(self, tmp_path: Path) -> None:
         ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
         reference_metadata.create_all(ref)
-        record_spliceai_version(ref, version="1.3", file_size_bytes=123)
+        record_spliceai_version(ref, genome_build="GRCh37", version="1.3", file_size_bytes=123)
         with ref.connect() as conn:
             row = conn.execute(
                 sa.select(database_versions).where(database_versions.c.db_name == "spliceai")
@@ -306,6 +315,165 @@ class TestRecordVersion:
         assert row is not None
         assert row.version == "1.3"
         assert row.genome_build == "GRCh37"  # hg19 precomputed, joined by position
+
+    def test_refuses_to_record_another_build(self, tmp_path: Path) -> None:
+        ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
+        reference_metadata.create_all(ref)
+        with pytest.raises(ValueError, match="only GRCh37"):
+            record_spliceai_version(ref, genome_build="GRCh38", version="1.3")
+        with ref.connect() as conn:
+            assert conn.execute(sa.select(database_versions)).fetchall() == []
+
+
+# ── Assembly verification (#2175) ─────────────────────────────────────────
+
+_ROW = "7\t117559590\t.\tG\tA\t.\t.\tSpliceAI=A|GENE38|0.90|0.00|0.00|0.00|1|2|3|4\n"
+_COLUMNS = "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+
+
+def _vcf_with_header(*header_lines: str) -> str:
+    return "##fileformat=VCFv4.2\n" + "".join(f"{h}\n" for h in header_lines) + _COLUMNS + _ROW
+
+
+class TestAssemblyVerification:
+    """Scores are joined to GRCh37 coordinates without liftover, so the build is verified."""
+
+    def test_rejects_explicit_grch38_before_replace(self, tmp_path: Path) -> None:
+        engine = _engine(tmp_path)
+        ingest_spliceai_vcf(_write(tmp_path, "grch37.vcf", _VCF), engine)
+        before = _count(engine)
+        grch38 = _vcf_with_header(
+            "##reference=GRCh38", "##contig=<ID=7,length=159345973,assembly=GRCh38>"
+        )
+
+        with pytest.raises(ValueError, match="does not describe GRCh37"):
+            ingest_spliceai_vcf(_write(tmp_path, "grch38.vcf", grch38), engine)
+
+        assert _count(engine) == before  # the prior database is untouched
+
+    def test_rejects_a_grch38_contig_length_without_any_label(self, tmp_path: Path) -> None:
+        vcf = _vcf_with_header("##contig=<ID=chr1,length=248956422>")
+        with pytest.raises(ValueError, match="length=248956422"):
+            ingest_spliceai_vcf(_write(tmp_path, "unlabelled38.vcf", vcf), _engine(tmp_path))
+
+    def test_rejects_conflicting_reference_headers(self, tmp_path: Path) -> None:
+        """A GRCh37 label beside a GRCh38 contig length is a contradiction, not a pass."""
+        vcf = _vcf_with_header("##reference=GRCh37", "##contig=<ID=1,length=248956422>")
+        with pytest.raises(ValueError, match="does not describe GRCh37"):
+            ingest_spliceai_vcf(_write(tmp_path, "conflict.vcf", vcf), _engine(tmp_path))
+
+    def test_missing_assembly_requires_explicit_build(self, tmp_path: Path) -> None:
+        path = _write(tmp_path, "silent.vcf", _vcf_with_header())
+        engine = _engine(tmp_path)
+
+        with pytest.raises(ValueError, match="declares no genome build"):
+            ingest_spliceai_vcf(path, engine)
+        with pytest.raises(ValueError, match="only GRCh37"):
+            ingest_spliceai_vcf(path, engine, genome_build="GRCh38")
+
+        stats = ingest_spliceai_vcf(path, engine, genome_build="GRCh37")
+        assert stats.loaded == 1
+        assert stats.genome_build == "GRCh37"
+
+    def test_grch37_contig_lengths_verify_an_unlabelled_file(self, tmp_path: Path) -> None:
+        vcf = _vcf_with_header("##contig=<ID=1,length=249250621>", "##contig=<ID=7,length=1>")
+        stats = ingest_spliceai_vcf(_write(tmp_path, "lengths37.vcf", vcf), _engine(tmp_path))
+        assert stats.loaded == 1
+        assert stats.genome_build == "GRCh37"
+
+    def test_records_verified_spliceai_build(self, tmp_path: Path) -> None:
+        stats = ingest_spliceai_vcf(_write(tmp_path, "grch37.vcf", _VCF), _engine(tmp_path))
+        ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
+        reference_metadata.create_all(ref)
+        record_spliceai_version(ref, genome_build=stats.genome_build, version="1.3")
+        with ref.connect() as conn:
+            build = conn.execute(
+                sa.select(database_versions.c.genome_build).where(
+                    database_versions.c.db_name == "spliceai"
+                )
+            ).scalar_one()
+        assert build == "GRCh37"
+
+    def test_header_only_read_of_a_gzip_file(self, tmp_path: Path) -> None:
+        path = _write(tmp_path, "grch38.vcf.gz", _vcf_with_header("##reference=hg38"), gz=True)
+        with pytest.raises(ValueError, match="hg38"):
+            read_spliceai_assembly(path)
+        assert read_spliceai_assembly(_write(tmp_path, "grch37.vcf", _VCF)) == "GRCh37"
+
+    @pytest.mark.parametrize(
+        ("label", "expected"),
+        [
+            ("GRCh37/hg19", "GRCh37"),
+            ("file:///refs/hs37d5.fa", "GRCh37"),
+            ("human_g1k_v37.fasta", "GRCh37"),
+            ("GRCh38", "other"),
+            ("hg19 lifted over to hg38", "other"),
+            ("custom_reference", None),
+        ],
+    )
+    def test_build_label_classification(self, label: str, expected: str | None) -> None:
+        assert _classify_build_label(label) == expected
+
+    def test_contig_lengths_match_the_genome_browser_sentinels(self) -> None:
+        """Two copies of GRCh37 contig lengths must not drift apart."""
+        from backend.api.routes.igv_tracks import _GRCH37_HG19_SENTINEL_LENGTHS
+
+        for contig, length in _GRCH37_CONTIG_LENGTHS.items():
+            assert _GRCH37_HG19_SENTINEL_LENGTHS[f"chr{contig}"] == length
+
+
+class TestIngestScript:
+    """The CLI checks every file before loading any, so a bad later file cannot half-replace."""
+
+    def _run(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]):
+        from types import SimpleNamespace
+
+        import scripts.ingest_spliceai_scores as cli
+
+        engine = _engine(tmp_path)
+        ref = sa.create_engine(f"sqlite:///{tmp_path}/reference.db")
+        reference_metadata.create_all(ref)
+        ingest_spliceai_vcf(_write(tmp_path, "existing.vcf", _VCF), engine)
+        registry = SimpleNamespace(
+            settings=SimpleNamespace(spliceai_db_path=tmp_path / "spliceai.db"),
+            spliceai_engine=engine,
+            reference_engine=ref,
+        )
+        monkeypatch.setattr(cli, "get_registry", lambda: registry)
+        return cli, engine, ref
+
+    def _versions(self, ref: sa.Engine) -> list:
+        with ref.connect() as conn:
+            return conn.execute(sa.select(database_versions)).fetchall()
+
+    def test_a_later_grch38_file_is_refused_before_anything_loads(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cli, engine, ref = self._run(tmp_path, monkeypatch, [])
+        before = _count(engine)
+        good = _write(tmp_path, "snv.hg19.vcf", _vcf_with_header("##reference=GRCh37"))
+        bad = _write(tmp_path, "indel.hg38.vcf", _vcf_with_header("##reference=GRCh38"))
+
+        with pytest.raises(SystemExit):
+            cli.main([str(good), str(bad)])
+
+        assert _count(engine) == before
+        assert self._versions(ref) == []
+
+    def test_a_silent_header_needs_the_genome_build_flag(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cli, engine, ref = self._run(tmp_path, monkeypatch, [])
+        silent = _write(tmp_path, "silent.vcf", _vcf_with_header())
+
+        with pytest.raises(SystemExit):
+            cli.main([str(silent)])
+        assert self._versions(ref) == []
+
+        assert cli.main([str(silent), "--genome-build", "GRCh37"]) == 0
+        assert _count(engine) == 1
+        [version] = self._versions(ref)
+        assert version.genome_build == "GRCh37"
 
 
 class TestRegistryWiring:

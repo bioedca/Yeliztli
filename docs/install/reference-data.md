@@ -177,6 +177,9 @@ reference data:
 - **ClinGen** gene-disease validity data is built when installed and is not version-checked by the
   automatic update system.
 - **SpliceAI** is a manual, user-supplied database and is never downloaded or updated by Yeliztli.
+  Supply the hg19 (GRCh37) precomputed files: `scripts/ingest_spliceai_scores.py` reads each VCF
+  header first and refuses a file that declares another build, leaving the existing database
+  unchanged. A file whose header declares no build needs `--genome-build GRCh37`.
 
 These sources do not appear in the per-database auto-update table and do not have automatic
 upstream release checks. To refresh them, use the relevant manual rebuild, local ingest, or setup

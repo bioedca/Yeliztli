@@ -12,6 +12,8 @@ then surfaces, for a sample's *typed* SNVs, SpliceAI's predicted splice impact a
 The hg19 precomputed files are GRCh37-coordinate — the same build as the app's
 sample data — so rows are stored position-keyed (chrom/pos/ref/alt) and joined
 directly, with NO liftover and NO rsID round-trip. (Use the hg19 files, not hg38.)
+Because nothing converts coordinates, ingestion verifies the build from the VCF
+header and refuses any other build before touching existing data (#2175).
 
 SpliceAI VCF INFO format (Illumina/SpliceAI README; Jaganathan 2019)::
 
@@ -116,6 +118,109 @@ class SpliceAILoadStats:
     loaded: int
     skipped_below_threshold: int
     skipped_bad_row: int
+    genome_build: str = "GRCh37"
+
+
+# GRCh37 lengths of contigs whose length differs between builds, as declared in
+# Illumina's own SpliceAI example VCF (examples/input.vcf at commit 03f4243,
+# accessed 2026-10-17). They match the hg19 FASTA sentinels the Genome Browser
+# validates (#1449). MT is left out: GRCh37's MT and hg19's chrM are different
+# sequences, so a genuine GRCh37 file can declare either length.
+_GRCH37_CONTIG_LENGTHS: dict[str, int] = {
+    "1": 249_250_621,
+    "2": 243_199_373,
+    "10": 135_534_747,
+    "X": 155_270_560,
+    "Y": 59_373_566,
+}
+_GRCH37_LABELS = ("grch37", "hg19", "b37", "hs37", "g1k_v37")
+_OTHER_BUILD_LABELS = ("grch38", "hg38", "b38", "hs38", "ncbi36", "hg18", "chm13", "t2t")
+_CONTIG_FIELD_RE = re.compile(r"(\w+)=([^,>]*)")
+
+
+def _classify_build_label(label: str) -> str | None:
+    """``"GRCh37"``, ``"other"`` (any other build named, alone or alongside), or None."""
+    lower = label.lower()
+    if any(token in lower for token in _OTHER_BUILD_LABELS):
+        return "other"
+    if any(token in lower for token in _GRCH37_LABELS):
+        return "GRCh37"
+    return None
+
+
+def _assess_header(path: Path, header: list[str]) -> str | None:
+    """Return ``"GRCh37"`` when the header verifies it, ``None`` when it is silent.
+
+    Evidence is the ``##reference`` line, each ``##contig`` ``assembly=`` value,
+    and the declared length of any contig in :data:`_GRCH37_CONTIG_LENGTHS`.
+
+    Raises:
+        ValueError: the header names another build, or contradicts itself
+            (e.g. a GRCh37 label with a GRCh38 contig length).
+    """
+    grch37: list[str] = []
+    other: list[str] = []
+    for line in header:
+        if line.startswith("##reference="):
+            label = line[len("##reference=") :].strip()
+            verdict = _classify_build_label(label)
+            if verdict == "GRCh37":
+                grch37.append(f"##reference={label}")
+            elif verdict == "other":
+                other.append(f"##reference={label}")
+        elif line.startswith("##contig=<"):
+            body = line[len("##contig=<") :].rstrip().removesuffix(">")
+            fields = dict(_CONTIG_FIELD_RE.findall(body))
+            assembly = fields.get("assembly", "").strip()
+            verdict = _classify_build_label(assembly) if assembly else None
+            if verdict == "GRCh37":
+                grch37.append(f"contig assembly={assembly}")
+            elif verdict == "other":
+                other.append(f"contig assembly={assembly}")
+            contig = normalize_chrom(fields.get("ID", ""))
+            expected = _GRCH37_CONTIG_LENGTHS.get(contig)
+            length = fields.get("length", "").strip()
+            if expected is not None and length.isdigit():
+                if int(length) == expected:
+                    grch37.append(f"contig {contig} length={length}")
+                else:
+                    other.append(f"contig {contig} length={length} (GRCh37: {expected})")
+    if other:
+        raise ValueError(
+            f"{path}: the VCF header does not describe GRCh37 ({'; '.join(other)}). "
+            "SpliceAI scores are joined to GRCh37 sample coordinates without liftover; "
+            "use the hg19 precomputed files."
+        )
+    return "GRCh37" if grch37 else None
+
+
+def _require_grch37(path: Path, declared: str | None, genome_build: str | None) -> str:
+    """Reconcile the header's verdict with the caller's stated build, or raise."""
+    if genome_build is not None and genome_build != "GRCh37":
+        raise ValueError(f"{path}: only GRCh37 SpliceAI scores can be joined; got {genome_build}.")
+    if declared is None and genome_build is None:
+        raise ValueError(
+            f"{path}: the VCF header declares no genome build. Confirm the file is the "
+            "hg19 (GRCh37) release, then pass genome_build='GRCh37' "
+            "(--genome-build GRCh37 on the command line)."
+        )
+    return "GRCh37"
+
+
+def read_spliceai_assembly(vcf_path: Path, *, genome_build: str | None = None) -> str:
+    """Verify a SpliceAI VCF is GRCh37 from its header alone, without reading rows.
+
+    Raises:
+        ValueError: the header names another build or contradicts itself, or it
+            names none and ``genome_build`` does not supply GRCh37.
+    """
+    header: list[str] = []
+    with _open_maybe_gzip(vcf_path) as fh:
+        for line in fh:
+            if not line.startswith("#"):
+                break
+            header.append(line.rstrip("\n"))
+    return _require_grch37(vcf_path, _assess_header(vcf_path, header), genome_build)
 
 
 def create_spliceai_tables(engine: sa.Engine) -> None:
@@ -213,6 +318,7 @@ def ingest_spliceai_vcf(
     min_ds: float = DEFAULT_MIN_DS,
     clear_existing: bool = True,
     parse_progress: Callable[[int], None] | None = None,
+    genome_build: str | None = None,
 ) -> SpliceAILoadStats:
     """Ingest a BYO SpliceAI precomputed-scores VCF into ``spliceai.db``.
 
@@ -226,10 +332,14 @@ def ingest_spliceai_vcf(
             second file, e.g. indels after SNVs).
         parse_progress: Optional callback invoked with the running stored-row
             count as parsing proceeds.
+        genome_build: The caller's confirmation that the file is ``"GRCh37"``,
+            required only when the header declares no build. A header that names
+            another build is refused either way.
 
     Raises:
         ValueError: zero rows met the threshold (no silent clear/replace with
-            empty data — mirrors the GTEx empty-parse guard).
+            empty data — mirrors the GTEx empty-parse guard), or the file is not
+            verifiably GRCh37 (raised before any existing row is touched).
     """
     create_spliceai_tables(engine)
 
@@ -237,10 +347,18 @@ def ingest_spliceai_vcf(
     skipped_below = 0
     skipped_bad = 0
     lines = 0
+    header: list[str] = []
+    build: str | None = None
     with _open_maybe_gzip(vcf_path) as fh:
         for line in fh:
-            if not line or line.startswith("#"):
+            if not line:
                 continue
+            if line.startswith("#"):
+                if build is None:
+                    header.append(line.rstrip("\n"))
+                continue
+            if build is None:
+                build = _require_grch37(vcf_path, _assess_header(vcf_path, header), genome_build)
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 8:
                 skipped_bad += 1
@@ -296,6 +414,8 @@ def ingest_spliceai_vcf(
             if parse_progress is not None and lines % 100_000 == 0:
                 parse_progress(len(rows))
 
+    if build is None:
+        build = _require_grch37(vcf_path, _assess_header(vcf_path, header), genome_build)
     if not rows:
         raise ValueError(
             f"parsed zero SpliceAI rows at/above min_ds={min_ds} — refusing to "
@@ -314,6 +434,7 @@ def ingest_spliceai_vcf(
         loaded=len(rows),
         skipped_below_threshold=skipped_below,
         skipped_bad_row=skipped_bad,
+        genome_build=build,
     )
 
 
@@ -354,18 +475,23 @@ def lookup_spliceai_by_variant(
 def record_spliceai_version(
     engine: sa.Engine,
     *,
+    genome_build: str,
     version: str = SPLICEAI_VERSION,
     file_path: str | None = None,
     file_size_bytes: int | None = None,
     checksum: str | None = None,
 ) -> None:
-    """Record the SpliceAI version in ``database_versions`` (GRCh37).
+    """Record the SpliceAI version in ``database_versions``.
 
-    The precomputed hg19 scores are GRCh37-coordinate and joined directly by
-    position (no liftover), so the recorded build is GRCh37. Must be written to
-    reference.db so the Update Manager / Database Stats surface a row.
+    ``genome_build`` is the build ingestion verified (``SpliceAILoadStats``), not a
+    constant: the scores are joined directly by position, so only GRCh37 is
+    accepted. Must be written to reference.db so the Update Manager / Database
+    Stats surface a row.
     """
     from backend.db.database_registry import _record_db_version
+
+    if genome_build != "GRCh37":
+        raise ValueError(f"only GRCh37 SpliceAI scores can be recorded; got {genome_build}")
 
     _record_db_version(
         engine,
@@ -374,5 +500,5 @@ def record_spliceai_version(
         file_size_bytes=file_size_bytes,
         sha256=checksum,
         file_path=file_path,
-        genome_build="GRCh37",
+        genome_build=genome_build,
     )
