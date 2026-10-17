@@ -375,6 +375,24 @@ class TestAssemblyVerification:
         assert stats.loaded == 1
         assert stats.genome_build == "GRCh37"
 
+    def test_an_assembly_header_line_is_read(self, tmp_path: Path) -> None:
+        vcf = _vcf_with_header("##assembly=GRCh38")
+        with pytest.raises(ValueError, match="##assembly=GRCh38"):
+            ingest_spliceai_vcf(
+                _write(tmp_path, "assembly.vcf", vcf), _engine(tmp_path), genome_build="GRCh37"
+            )
+
+    @pytest.mark.parametrize("reference", ["CHM13v2.0", "GRCh38p14", "Homo_sapiens_assembly38"])
+    def test_a_named_other_build_is_refused_even_when_the_caller_confirms_grch37(
+        self, tmp_path: Path, reference: str
+    ) -> None:
+        """The confirmation covers a silent header, never one that names another build."""
+        vcf = _vcf_with_header(f"##reference={reference}")
+        with pytest.raises(ValueError, match="does not describe GRCh37"):
+            ingest_spliceai_vcf(
+                _write(tmp_path, "other.vcf", vcf), _engine(tmp_path), genome_build="GRCh37"
+            )
+
     def test_grch37_contig_lengths_verify_an_unlabelled_file(self, tmp_path: Path) -> None:
         vcf = _vcf_with_header("##contig=<ID=1,length=249250621>", "##contig=<ID=7,length=1>")
         stats = ingest_spliceai_vcf(_write(tmp_path, "lengths37.vcf", vcf), _engine(tmp_path))
@@ -410,7 +428,11 @@ class TestAssemblyVerification:
             ("human_g1k_v37.fasta", "GRCh37"),
             ("GRCh38", "other"),
             ("GCA_000001405.15_GRCh38_no_alt", "other"),
+            ("GRCh38p14", "other"),
             ("T2T-CHM13v2.0", "other"),
+            ("CHM13v2.0", "other"),
+            ("Homo_sapiens_assembly19.fasta", "GRCh37"),
+            ("Homo_sapiens_assembly38.fasta", "other"),
             ("hg19 lifted over to hg38", "other"),
             # Whole tokens only: a lookalike or a path segment is not a build.
             ("GRCh370", None),

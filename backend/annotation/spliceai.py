@@ -133,13 +133,15 @@ _GRCH37_CONTIG_LENGTHS: dict[str, int] = {
     "X": 155_270_560,
     "Y": 59_373_566,
 }
-# Build names, matched as whole tokens of a label split on non-alphanumerics, so
-# "GRCh370" or a path segment like "lab37" is not mistaken for a build. A name not
-# listed (a future release, say) is unrecognized, which leaves the header silent:
-# the caller must then confirm the build, and contig lengths still apply.
-_GRCH37_LABELS = frozenset({"grch37", "ncbi37", "hg19", "b37", "hs37", "hs37d5"})
-_OTHER_BUILD_LABELS = frozenset(
-    {"grch38", "hg38", "b38", "hs38", "hs38dh", "ncbi36", "hg18", "b36", "t2t", "chm13", "hs1"}
+# Build names, each matched at the start of a label token (the label split on
+# non-alphanumerics) and not followed by another digit. Suffixed releases such as
+# "GRCh38p14", "hs37d5" or "CHM13v2" are recognized; "GRCh370" or a path segment
+# like "lab37" is not. Broad's references are "Homo_sapiens_assembly19/38". A name
+# in neither set leaves the header silent, so the caller must confirm the build,
+# and the contig-length check still applies.
+_GRCH37_NAME_RE = re.compile(r"(?:grch37|ncbi37|hg19|b37|hs37|assembly19)(?!\d)")
+_OTHER_BUILD_NAME_RE = re.compile(
+    r"(?:grch38|hg38|b38|hs38|assembly38|ncbi36|hg18|b36|chm13|t2t|hs1)(?!\d)"
 )
 _LABEL_TOKEN_RE = re.compile(r"[a-z0-9]+")
 _CONTIG_FIELD_RE = re.compile(r"(\w+)=([^,>]*)")
@@ -148,11 +150,11 @@ _CONTIG_FIELD_RE = re.compile(r"(\w+)=([^,>]*)")
 def _classify_build_label(label: str) -> str | None:
     """``"GRCh37"``, ``"other"`` (any other build named, alone or alongside), or None."""
     lower = label.lower()
-    tokens = set(_LABEL_TOKEN_RE.findall(lower))
-    if tokens & _OTHER_BUILD_LABELS:
+    tokens = _LABEL_TOKEN_RE.findall(lower)
+    if any(_OTHER_BUILD_NAME_RE.match(token) for token in tokens):
         return "other"
     # 1000 Genomes' GRCh37 reference is "human_g1k_v37", which splits into "g1k"/"v37".
-    if tokens & _GRCH37_LABELS or "g1k_v37" in lower:
+    if any(_GRCH37_NAME_RE.match(token) for token in tokens) or "g1k_v37" in lower:
         return "GRCh37"
     return None
 
@@ -160,7 +162,8 @@ def _classify_build_label(label: str) -> str | None:
 def _assess_header(path: Path, header: list[str]) -> str | None:
     """Return ``"GRCh37"`` when the header verifies it, ``None`` when it is silent.
 
-    Evidence is the ``##reference`` line, each ``##contig`` ``assembly=`` value,
+    Evidence is the ``##reference`` and ``##assembly`` lines, each ``##contig``
+    ``assembly=`` value,
     and the declared length of any contig in :data:`_GRCH37_CONTIG_LENGTHS`.
 
     Raises:
@@ -170,13 +173,13 @@ def _assess_header(path: Path, header: list[str]) -> str | None:
     grch37: list[str] = []
     other: list[str] = []
     for line in header:
-        if line.startswith("##reference="):
-            label = line[len("##reference=") :].strip()
-            verdict = _classify_build_label(label)
+        if line.startswith(("##reference=", "##assembly=")):
+            key, _, label = line[2:].partition("=")
+            verdict = _classify_build_label(label.strip())
             if verdict == "GRCh37":
-                grch37.append(f"##reference={label}")
+                grch37.append(f"##{key}={label.strip()}")
             elif verdict == "other":
-                other.append(f"##reference={label}")
+                other.append(f"##{key}={label.strip()}")
         elif line.startswith("##contig=<"):
             body = line[len("##contig=<") :].rstrip().removesuffix(">")
             fields = dict(_CONTIG_FIELD_RE.findall(body))
