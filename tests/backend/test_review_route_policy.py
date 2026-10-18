@@ -1658,6 +1658,7 @@ def test_formal_bot_review_without_edit_metadata_fails_closed(gate: str) -> None
         "second_line_folded_into_the_verdict",
         "finding_between_receipt_marker_and_verdict",
         "text_after_receipt_marker",
+        "prose_marker_before_verdict",
         "multi_line_html_comment_before_verdict",
         "receipt_marker_only",
         "wrong_head",
@@ -1721,6 +1722,14 @@ def test_v2_codex_clean_issue_comment_fails_closed_when_untrusted(case: str) -> 
             CODEX_CLEAN_COMPLETION_MARKER,
             "<!-- codex-review-receipt:v1 --> Blocking: the migration drops a column.\n"
             f"{CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "prose_marker_before_verdict":
+        # Only a single-token marker is skipped; a one-line comment carrying
+        # prose could hide a finding, so it is read as the verdict line.
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            f"<!-- Blocking: the migration drops a column. -->\n\n{CODEX_CLEAN_COMPLETION_MARKER}",
             1,
         )
     elif case == "multi_line_html_comment_before_verdict":
