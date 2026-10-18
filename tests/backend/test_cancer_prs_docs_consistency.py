@@ -180,9 +180,20 @@ def test_advertised_traits_read_a_parenthetical_qualifier_as_part_of_its_label()
         "colorectal_cancer": None,
         "melanoma": None,
     }
+    # Several qualified models, with commas and "and" inside their qualifiers.
+    assert _advertised_trait_qualifiers(
+        "(PRS) for prostate (XY, adults), colorectal (screened and unscreened), and melanoma."
+    ) == {
+        "prostate_cancer": "XY, adults",
+        "colorectal_cancer": "screened and unscreened",
+        "melanoma": None,
+    }
     # A qualifier never rescues an unknown model, and its own words are not split off.
     with pytest.raises(AssertionError, match="unknown PRS trait labels.*lung"):
         _advertised_traits("(PRS) for prostate (XY, and adults), and lung (XY only).")
+    # Nested parentheses are not parsed: they fail closed rather than mis-split.
+    with pytest.raises(AssertionError, match="unknown PRS trait labels"):
+        _advertised_traits("(PRS) for melanoma (a (nested) note), and colorectal.")
 
 
 def test_cancer_docs_name_the_sex_gate_of_every_sex_specific_prs_model() -> None:
