@@ -406,6 +406,34 @@ CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we 
 CODEX_CLEAN_COMPLETION_LINE = re.compile(
     rf"^{re.escape(CODEX_CLEAN_COMPLETION_PREFIX)}(?: [^\r\n]+)?$"
 )
+# From 2026-10-16 Codex opens its clean verdict with an invisible
+# `<!-- codex-review-receipt:v1 -->` line and a blank line, so the literal first
+# line stopped being the verdict and every genuine clean review was rejected
+# (#2461). Only a one-line marker whose content is a single token is skipped: it
+# renders as nothing and has no room to carry a finding. This is an allowlist,
+# not an HTML filter -- a multi-line comment, or a marker sharing its line with
+# text, is deliberately not recognised, so it becomes the verdict line and then
+# fails the match.
+CODEX_MARKER_OPEN = "<!-- "
+CODEX_MARKER_CLOSE = " -->"
+CODEX_MARKER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]*")
+
+
+def _is_codex_marker_line(line: str) -> bool:
+    if not (line.startswith(CODEX_MARKER_OPEN) and line.endswith(CODEX_MARKER_CLOSE)):
+        return False
+    token = line[len(CODEX_MARKER_OPEN) : -len(CODEX_MARKER_CLOSE)]
+    return CODEX_MARKER_TOKEN.fullmatch(token) is not None
+
+
+def _codex_verdict_line(body: str) -> str | None:
+    """Return the first rendered line of a Codex comment, or None if it has none."""
+    for line in body.splitlines():
+        if line.strip() and not _is_codex_marker_line(line):
+            return line
+    return None
+
+
 CODEX_REVIEWED_COMMIT_LINE = re.compile(
     r"(?m)^\*\*Reviewed commit:\*\* `(?P<sha>[0-9a-f]{10})`\s*$"
 )
@@ -2057,12 +2085,12 @@ def _bot_activity(
                 and comment["lastEditedAt"] is None
             )
             commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
-            first_lines = body.splitlines()[0:1]
+            verdict_line = _codex_verdict_line(body)
             clean_completion = (
                 immutable
                 and created > head_epoch
-                and len(first_lines) == 1
-                and CODEX_CLEAN_COMPLETION_LINE.fullmatch(first_lines[0]) is not None
+                and verdict_line is not None
+                and CODEX_CLEAN_COMPLETION_LINE.fullmatch(verdict_line) is not None
                 and len(commit_lines) == 1
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe
