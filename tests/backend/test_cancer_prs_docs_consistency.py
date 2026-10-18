@@ -42,7 +42,7 @@ _ADVERTISED_TRAITS_RE = re.compile(r"\(PRS\) for (?P<traits>[^.]+)\.", re.IGNORE
 # One advertised model: its label, optionally followed by a parenthetical
 # qualifier such as a sex gate ("prostate (XY samples only)", #2261).
 _ADVERTISED_LABEL_RE = re.compile(r"(?P<label>[^()]+?)\s*(?:\((?P<qualifier>[^()]*)\))?")
-_SEX_TOKEN_RE = re.compile(r"\bX[XY]\b")
+_SEX_TOKEN_RE = re.compile(r"\bX[XY]\b", re.IGNORECASE)
 _BREAST_PRS_NOTE_RE = re.compile(
     r'^!!! note "Breast-cancer PRS is currently unavailable"\n'
     r"(?P<body>(?: {4}.*(?:\n|$))+)",
@@ -202,6 +202,42 @@ def test_advertised_traits_read_a_parenthetical_qualifier_as_part_of_its_label()
         _advertised_traits("(PRS) for melanoma (a (nested) note), and colorectal.")
 
 
+def _sex_gate_violations(qualifiers: dict[str, str | None]) -> list[str]:
+    """Advertised models whose qualifier misstates their production sex gate."""
+    violations = []
+    for trait, qualifier in qualifiers.items():
+        required = SEX_SPECIFIC_PRS_TRAITS.get(trait)
+        if required is None:
+            stated = sorted({token.upper() for token in _SEX_TOKEN_RE.findall(qualifier or "")})
+            if stated:
+                violations.append(
+                    f"cancer.md qualifies {trait} with sex {stated}, but it has no sex gate"
+                )
+            continue
+        # One canonical eligibility phrase. Merely finding the token would
+        # accept "not XY" as stating an XY-only gate.
+        expected = f"{required} samples only"
+        if qualifier != expected:
+            violations.append(
+                f"cancer.md must list {trait} as '({expected})' to state its sex gate; "
+                f"qualifier reads {qualifier!r}"
+            )
+    return violations
+
+
+def test_sex_gate_check_rejects_a_misstated_gate() -> None:
+    assert _sex_gate_violations({"prostate_cancer": "XY samples only", "melanoma": None}) == []
+    for qualifiers in (
+        {"prostate_cancer": None},
+        {"prostate_cancer": "not XY"},
+        {"prostate_cancer": "xy samples only"},
+        {"prostate_cancer": "XX samples only"},
+        {"colorectal_cancer": "xy only"},
+        {"melanoma": "XX samples only"},
+    ):
+        assert len(_sex_gate_violations(qualifiers)) == 1, qualifiers
+
+
 def test_cancer_docs_name_the_sex_gate_of_every_sex_specific_prs_model() -> None:
     """A sex-gated model must be advertised with its required sex (#2261).
 
@@ -212,21 +248,8 @@ def test_cancer_docs_name_the_sex_gate_of_every_sex_specific_prs_model() -> None
     until the page states it.
     """
     qualifiers = _advertised_trait_qualifiers(_DOC_PATH.read_text(encoding="utf-8"))
-    for trait, qualifier in qualifiers.items():
-        required = SEX_SPECIFIC_PRS_TRAITS.get(trait)
-        if required is None:
-            stated = sorted(set(_SEX_TOKEN_RE.findall(qualifier or "")))
-            assert not stated, (
-                f"cancer.md qualifies {trait} with sex {stated}, but it has no sex gate"
-            )
-        else:
-            # One canonical eligibility phrase. Merely finding the token would
-            # accept "not XY" as stating an XY-only gate.
-            expected = f"{required} samples only"
-            assert qualifier == expected, (
-                f"cancer.md must list {trait} as '({expected})' to state its sex gate; "
-                f"qualifier reads {qualifier!r}"
-            )
+    assert qualifiers, "cancer.md's advertised PRS list parsed to no models"
+    assert not _sex_gate_violations(qualifiers), _sex_gate_violations(qualifiers)
 
 
 def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:
