@@ -1549,6 +1549,45 @@ def test_v2_codex_current_clean_issue_comment_markers_are_verified(
     assert validate_context(context, files, now=NOW) == []
 
 
+CODEX_RECEIPT_CLEAN_BODIES = {
+    # Comment 6210448157 on PR #2458, 2026-10-16T07:31:24Z, and comment
+    # 6231501175 on PR #2463, 2026-10-17T08:02:00Z: genuine immutable clean
+    # verdicts whose first line became an invisible receipt marker (#2461).
+    # Verbatim up to the `<details>` footer, except that the reviewed commit is
+    # this module's head.
+    "pr_2458": (
+        "<!-- codex-review-receipt:v1 -->\n\n"
+        "Codex Review: Didn't find any major issues. Keep it up!\n\n"
+        f"**Reviewed commit:** `{HEAD_SHA[:10]}`\n\n"
+        "<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n</details>"
+    ),
+    "pr_2463": (
+        "<!-- codex-review-receipt:v1 -->\n\n"
+        "Codex Review: Didn't find any major issues. You're on a roll.\n\n"
+        f"**Reviewed commit:** `{HEAD_SHA[:10]}`\n\n"
+        "<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n</details>"
+    ),
+}
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+@pytest.mark.parametrize("observed", sorted(CODEX_RECEIPT_CLEAN_BODIES))
+def test_codex_clean_comment_behind_a_receipt_marker_is_verified(
+    observed: str,
+    schema_version: int,
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={CODEX_GATE},
+        schema_version=schema_version,
+    )
+    _, response = _use_codex_clean_comment(context, include_trigger=False)
+    response["body"] = CODEX_RECEIPT_CLEAN_BODIES[observed]
+    assert validate_context(context, files, now=NOW) == []
+
+
 @pytest.mark.parametrize(
     "resolved",
     [
@@ -1617,6 +1656,10 @@ def test_formal_bot_review_without_edit_metadata_fails_closed(gate: str) -> None
         "wrong_completion_sentence",
         "trailing_space_only_flourish",
         "second_line_folded_into_the_verdict",
+        "finding_between_receipt_marker_and_verdict",
+        "text_after_receipt_marker",
+        "multi_line_html_comment_before_verdict",
+        "receipt_marker_only",
         "wrong_head",
         "duplicate_commit",
         "short_commit",
@@ -1662,6 +1705,36 @@ def test_v2_codex_clean_issue_comment_fails_closed_when_untrusted(case: str) -> 
         response["body"] = response["body"].replace(
             CODEX_CLEAN_COMPLETION_MARKER,
             f"Blocking: the migration drops a column.\n{CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "finding_between_receipt_marker_and_verdict":
+        # Skipping the receipt marker (#2461) must not skip what follows it:
+        # the first rendered line is still the one that has to be the verdict.
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            "<!-- codex-review-receipt:v1 -->\n\n"
+            f"Blocking: the migration drops a column.\n{CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "text_after_receipt_marker":
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            "<!-- codex-review-receipt:v1 --> Blocking: the migration drops a column.\n"
+            f"{CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "multi_line_html_comment_before_verdict":
+        # Only a one-line marker is skipped; a comment that can hide a finding
+        # across lines leaves its opening line as the verdict line.
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            f"<!--\nBlocking: the migration drops a column.\n-->\n{CODEX_CLEAN_COMPLETION_MARKER}",
+            1,
+        )
+    elif case == "receipt_marker_only":
+        response["body"] = response["body"].replace(
+            CODEX_CLEAN_COMPLETION_MARKER,
+            "<!-- codex-review-receipt:v1 -->",
             1,
         )
     elif case == "wrong_head":
