@@ -106,8 +106,11 @@ def _advertised_trait_qualifiers(doc_text: str) -> dict[str, str | None]:
         if label not in trait_by_label:
             unknown.append(label)
             continue
+        trait = trait_by_label[label]
+        # A repeated model would let a later qualifier silently replace an earlier one.
+        assert trait not in qualifiers, f"cancer.md advertises {trait} more than once"
         qualifier = parsed.group("qualifier") if parsed else None
-        qualifiers[trait_by_label[label]] = qualifier.strip() if qualifier else None
+        qualifiers[trait] = qualifier.strip() if qualifier else None
     assert not unknown, f"cancer.md advertises unknown PRS trait labels: {sorted(unknown)}"
     return qualifiers
 
@@ -191,6 +194,9 @@ def test_advertised_traits_read_a_parenthetical_qualifier_as_part_of_its_label()
     # A qualifier never rescues an unknown model, and its own words are not split off.
     with pytest.raises(AssertionError, match="unknown PRS trait labels.*lung"):
         _advertised_traits("(PRS) for prostate (XY, and adults), and lung (XY only).")
+    # A repeated model is rejected rather than letting its last qualifier win.
+    with pytest.raises(AssertionError, match="prostate_cancer more than once"):
+        _advertised_traits("(PRS) for prostate (XX samples only), and prostate (XY samples only).")
     # Nested parentheses are not parsed: they fail closed rather than mis-split.
     with pytest.raises(AssertionError, match="unknown PRS trait labels"):
         _advertised_traits("(PRS) for melanoma (a (nested) note), and colorectal.")
@@ -207,15 +213,18 @@ def test_cancer_docs_name_the_sex_gate_of_every_sex_specific_prs_model() -> None
     """
     qualifiers = _advertised_trait_qualifiers(_DOC_PATH.read_text(encoding="utf-8"))
     for trait, qualifier in qualifiers.items():
-        stated = set(_SEX_TOKEN_RE.findall(qualifier or ""))
         required = SEX_SPECIFIC_PRS_TRAITS.get(trait)
         if required is None:
+            stated = sorted(set(_SEX_TOKEN_RE.findall(qualifier or "")))
             assert not stated, (
-                f"cancer.md qualifies {trait} with sex {sorted(stated)}, but it has no sex gate"
+                f"cancer.md qualifies {trait} with sex {stated}, but it has no sex gate"
             )
         else:
-            assert stated == {required}, (
-                f"cancer.md lists {trait} without its {required}-only gate; "
+            # One canonical eligibility phrase. Merely finding the token would
+            # accept "not XY" as stating an XY-only gate.
+            expected = f"{required} samples only"
+            assert qualifier == expected, (
+                f"cancer.md must list {trait} as '({expected})' to state its sex gate; "
                 f"qualifier reads {qualifier!r}"
             )
 
