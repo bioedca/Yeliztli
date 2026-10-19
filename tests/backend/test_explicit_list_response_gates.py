@@ -157,7 +157,8 @@ def test_variant_list_aggregates_withhold_cross_row_pair(
 
     cancer_response = cancer.list_cancer_variants(sample_id=1)
 
-    assert cancer_response == cancer.CancerVariantsListResponse(items=[], total=0)
+    assert cancer_response == cancer.CancerVariantsListResponse(items=[], total=0, withheld=True)
+    assert cancer_response.withheld is True
 
     cardiovascular_rows = [
         {"rsid": "rs1", "gene_symbol": "CYP2D6", "clinvar_significance": "Pathogenic"},
@@ -179,8 +180,9 @@ def test_variant_list_aggregates_withhold_cross_row_pair(
     cardiovascular_response = cardiovascular.list_cardiovascular_variants(sample_id=1)
 
     assert cardiovascular_response == cardiovascular.CardiovascularVariantsListResponse(
-        items=[], total=0
+        items=[], total=0, withheld=True
     )
+    assert cardiovascular_response.withheld is True
 
     carrier_rows = [
         {"rsid": "rs1", "gene_symbol": "CYP2D6", "clinvar_significance": "Pathogenic"},
@@ -198,8 +200,9 @@ def test_variant_list_aggregates_withhold_cross_row_pair(
     carrier_response = carrier.list_carrier_variants(sample_id=1)
 
     assert carrier_response == carrier.CarrierVariantsListResponse(
-        items=[], total=0, genes_with_findings=[]
+        items=[], total=0, genes_with_findings=[], withheld=True
     )
+    assert carrier_response.withheld is True
 
 
 def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
@@ -222,11 +225,13 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     metabolic_response = metabolic.list_metabolic_prs(sample_id=1)
 
     assert cancer_response == cancer.CancerPRSListResponse(
-        items=[], total=0, sufficient_count=0, insufficient_traits=[]
+        items=[], total=0, sufficient_count=0, insufficient_traits=[], withheld=True
     )
+    assert cancer_response.withheld is True
     assert metabolic_response == metabolic.MetabolicPRSListResponse(
-        items=[], total=0, scoring_state="current", scoring_generation="f"
+        items=[], total=0, scoring_state="current", scoring_generation="f", withheld=True
     )
+    assert metabolic_response.withheld is True
 
     anchor_rows = [
         _finding_row(
@@ -246,8 +251,9 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     anchors_response = metabolic.list_metabolic_anchors(sample_id=1)
 
     assert anchors_response == metabolic.MetabolicAnchorListResponse(
-        items=[], total=0, scoring_generation="f"
+        items=[], total=0, scoring_generation="f", withheld=True
     )
+    assert anchors_response.withheld is True
 
 
 def test_finding_list_aggregates_withhold_cross_row_pair(
@@ -275,9 +281,11 @@ def test_finding_list_aggregates_withhold_cross_row_pair(
             for row in rows
         ],
     )
-    assert hemochromatosis.list_hemochromatosis_findings(sample_id=1) == (
-        hemochromatosis.HemochromatosisFindingsListResponse(items=[], total=0)
+    hemochromatosis_response = hemochromatosis.list_hemochromatosis_findings(sample_id=1)
+    assert hemochromatosis_response == hemochromatosis.HemochromatosisFindingsListResponse(
+        items=[], total=0, withheld=True
     )
+    assert hemochromatosis_response.withheld is True
 
     text_rows = [
         _finding_row(id=3, finding_text="CYP2D6"),
@@ -288,10 +296,14 @@ def test_finding_list_aggregates_withhold_cross_row_pair(
 
     monkeypatch.setattr(apoe, "_get_sample_engine", lambda _sample_id: text_engine)
     monkeypatch.setattr(apoe, "_ensure_gate_acknowledged", lambda _engine: None)
-    assert apoe.list_apoe_findings(sample_id=1) == apoe.APOEFindingsListResponse(items=[], total=0)
+    apoe_response = apoe.list_apoe_findings(sample_id=1)
+    assert apoe_response == apoe.APOEFindingsListResponse(items=[], total=0, withheld=True)
+    assert apoe_response.withheld is True
 
     monkeypatch.setattr(kinship, "resolve_sample_engine", lambda _sample_id: text_engine)
-    assert kinship.list_findings(sample_id=1) == kinship.KinshipListResponse(items=[], total=0)
+    kinship_response = kinship.list_findings(sample_id=1)
+    assert kinship_response == kinship.KinshipListResponse(items=[], total=0, withheld=True)
+    assert kinship_response.withheld is True
 
     risk_rows = [
         {
@@ -320,14 +332,18 @@ def test_finding_list_aggregates_withhold_cross_row_pair(
     )
     endpoint = next(route.endpoint for route in router.routes if route.path == "/test/findings")
 
-    assert endpoint(sample_id=1) == risk_common.RiskFindingsListResponse(items=[], total=0)
+    risk_response = endpoint(sample_id=1)
+    assert risk_response == risk_common.RiskFindingsListResponse(items=[], total=0, withheld=True)
+    assert risk_response.withheld is True
 
     monkeypatch.setattr(parkinsons, "resolve_sample_engine", lambda _sample_id: object())
     monkeypatch.setattr(parkinsons, "_ensure_gate_acknowledged", lambda _engine: None)
     monkeypatch.setattr(parkinsons, "fetch_risk_findings", lambda _engine, _module: risk_rows)
-    assert parkinsons.list_findings(sample_id=1) == risk_common.RiskFindingsListResponse(
-        items=[], total=0
+    parkinsons_response = parkinsons.list_findings(sample_id=1)
+    assert parkinsons_response == risk_common.RiskFindingsListResponse(
+        items=[], total=0, withheld=True
     )
+    assert parkinsons_response.withheld is True
 
 
 def test_rare_findings_and_exports_withhold_cross_row_pair(
@@ -370,7 +386,10 @@ def test_rare_findings_and_exports_withhold_cross_row_pair(
     tsv_response = rare_variants.export_rare_variants_tsv(sample_id=1)
     vcf_response = rare_variants.export_rare_variants_vcf(sample_id=1)
 
-    assert findings_response == rare_variants.RareVariantFindingsListResponse(items=[], total=0)
+    assert findings_response == rare_variants.RareVariantFindingsListResponse(
+        items=[], total=0, withheld=True
+    )
+    assert findings_response.withheld is True
     tsv = tsv_response.content
     vcf = vcf_response.content
     assert tsv.count("\n") == 1

@@ -27,6 +27,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import (
@@ -62,7 +63,7 @@ class CardiovascularVariantResponse(BaseModel):
     pmids: list[str] = []
 
 
-class CardiovascularVariantsListResponse(BaseModel):
+class CardiovascularVariantsListResponse(WithheldMarker):
     """All cardiovascular P/LP findings for a sample."""
 
     items: list[CardiovascularVariantResponse]
@@ -203,7 +204,7 @@ def _cardiovascular_variants_response(
     """Return a final, aggregate-gated cardiovascular-variant response."""
     response = CardiovascularVariantsListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return CardiovascularVariantsListResponse(items=[], total=0)
+        return CardiovascularVariantsListResponse(items=[], total=0, withheld=True)
     return response
 
 

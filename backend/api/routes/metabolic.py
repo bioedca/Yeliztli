@@ -26,6 +26,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
@@ -78,7 +79,7 @@ class MetabolicPRSResponse(BaseModel):
     source_url: str | None = None
 
 
-class MetabolicPRSListResponse(BaseModel):
+class MetabolicPRSListResponse(WithheldMarker):
     """All metabolic PRS results for a sample."""
 
     items: list[MetabolicPRSResponse]
@@ -106,7 +107,7 @@ class MetabolicAnchorResponse(BaseModel):
     pmids: list[str] = []
 
 
-class MetabolicAnchorListResponse(BaseModel):
+class MetabolicAnchorListResponse(WithheldMarker):
     """All anchor-SNP results for a sample."""
 
     items: list[MetabolicAnchorResponse]
@@ -225,6 +226,7 @@ def list_metabolic_prs(
             total=0,
             scoring_state=confirmed.state,
             scoring_generation=confirmed.recorded,
+            withheld=True,
         )
     return response
 
@@ -278,7 +280,9 @@ def list_metabolic_anchors(
     if not is_patient_presentable_response_payload(
         response.model_dump(mode="json", exclude={"scoring_generation"})
     ):
-        return MetabolicAnchorListResponse(items=[], total=0, scoring_generation=generation)
+        return MetabolicAnchorListResponse(
+            items=[], total=0, scoring_generation=generation, withheld=True
+        )
     return response
 
 

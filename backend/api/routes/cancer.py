@@ -32,6 +32,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import CANCER_DISCLAIMER_TEXT, CANCER_DISCLAIMER_TITLE
@@ -68,7 +69,7 @@ class CancerVariantResponse(BaseModel):
     clinical_caveat: str | None = None
 
 
-class CancerVariantsListResponse(BaseModel):
+class CancerVariantsListResponse(WithheldMarker):
     """All cancer P/LP findings for a sample."""
 
     items: list[CancerVariantResponse]
@@ -145,7 +146,7 @@ class CancerPRSUnavailableResponse(BaseModel):
     reason: Literal["runtime_blocked", "scoring_disabled"]
 
 
-class CancerPRSListResponse(BaseModel):
+class CancerPRSListResponse(WithheldMarker):
     """All cancer PRS results for a sample."""
 
     items: list[CancerPRSResponse]
@@ -298,7 +299,7 @@ def _cancer_variants_response(
     """Return a final, aggregate-gated cancer-variant response."""
     response = CancerVariantsListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return CancerVariantsListResponse(items=[], total=0)
+        return CancerVariantsListResponse(items=[], total=0, withheld=True)
     return response
 
 
@@ -459,22 +460,25 @@ def list_cancer_prs(
             items, withheld, _unavailable_models(weight_sets, items, withheld)
         )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return _prs_list_response([])
+        return _prs_list_response([], withheld=True)
     return response
 
 
 def _prs_list_response(
     items: list[CancerPRSResponse],
-    withheld: list[CancerPRSWithheldResponse] | None = None,
+    withheld_traits: list[CancerPRSWithheldResponse] | None = None,
     unavailable: list[CancerPRSUnavailableResponse] | None = None,
+    *,
+    withheld: bool = False,
 ) -> CancerPRSListResponse:
     return CancerPRSListResponse(
         items=items,
         total=len(items),
         sufficient_count=sum(1 for item in items if item.is_sufficient),
         insufficient_traits=[item.trait for item in items if not item.is_sufficient],
-        withheld_traits=withheld or [],
+        withheld_traits=withheld_traits or [],
         unavailable_models=unavailable or [],
+        withheld=withheld,
     )
 
 

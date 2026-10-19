@@ -48,6 +48,9 @@ export interface CarrierVariantsListResponse {
   items: CarrierVariant[]
   total: number
   genes_with_findings: string[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 /** Carrier status disclaimer with per-gene notes. */

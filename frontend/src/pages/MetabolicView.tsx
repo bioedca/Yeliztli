@@ -14,6 +14,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import SectionError from "@/components/ui/SectionError"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
@@ -173,6 +174,8 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
                   <PRSGaugeCard key={prs.trait} prs={toGaugePrs(prs)} />
                 ))}
               </div>
+            ) : prsQuery.data?.withheld ? (
+              <WithheldResults label="Polygenic score" />
             ) : (
               <PageEmpty
                 icon={Activity}
@@ -188,6 +191,7 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
               with no items. */}
           {(anchorsError ||
             anchorsQuery.isLoading ||
+            anchorsQuery.data?.withheld ||
             (anchorsQuery.data && anchorsQuery.data.items.length > 0)) && (
             <section aria-label="Established anchor SNPs" className="mt-8">
               <h2 className="text-lg font-semibold mb-1">Established variants</h2>
@@ -206,6 +210,8 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
                 </div>
+              ) : anchorsQuery.data?.withheld && anchorsQuery.data.items.length === 0 ? (
+                <WithheldResults label="Established variant" />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {anchorsQuery.data?.items.map((a) => (

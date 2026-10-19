@@ -29,6 +29,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import apoe_gate_status
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import apoe_gate, findings, samples
 from backend.disclaimers import (
@@ -102,7 +103,7 @@ class APOEFindingResponse(BaseModel):
     detail_json: dict[str, Any] = {}
 
 
-class APOEFindingsListResponse(BaseModel):
+class APOEFindingsListResponse(WithheldMarker):
     """All APOE findings for a sample (gate-protected)."""
 
     items: list[APOEFindingResponse]
@@ -397,7 +398,7 @@ def list_apoe_findings(
 
     response = APOEFindingsListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return APOEFindingsListResponse(items=[], total=0)
+        return APOEFindingsListResponse(items=[], total=0, withheld=True)
     return response
 
 

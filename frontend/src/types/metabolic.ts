@@ -38,6 +38,9 @@ export interface MetabolicPRSListResponse {
   scoring_state: ScoringState
   /** The run these results came from; the anchors response carries the same one. */
   scoring_generation: string | null
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 /** A single established anchor-SNP result (TCF7L2 / FTO / MC4R). */
@@ -64,6 +67,9 @@ export interface MetabolicAnchorListResponse {
   total: number
   /** The run these results came from; compare with the PRS response's (#2118). */
   scoring_generation: string | null
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 /**

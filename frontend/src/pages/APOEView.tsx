@@ -24,6 +24,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import {
   useAPOEDisclaimer,
   useAPOEGateStatus,
@@ -167,6 +168,8 @@ export default function APOEView() {
                       <APOEFindingCard key={finding.category} finding={finding} />
                     ))}
                   </div>
+                ) : findingsQuery.data && findingsQuery.data.items.length === 0 && findingsQuery.data.withheld ? (
+                  <WithheldResults label="APOE" />
                 ) : findingsQuery.data && findingsQuery.data.items.length === 0 ? (
                   <PageEmpty
                     icon={Brain}

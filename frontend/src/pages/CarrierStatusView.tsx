@@ -14,6 +14,7 @@ import { Heart, ChevronDown, ChevronUp, Info } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { useCarrierVariants, useCarrierDisclaimer } from "@/api/carrier"
@@ -189,6 +190,11 @@ export default function CarrierStatusView() {
                   />
                 ))}
               </div>
+            ) : variantsQuery.data?.withheld ? (
+              <WithheldResults
+                label="Carrier status"
+                detail="Do not read this as having no carrier variants."
+              />
             ) : (
               <PageEmpty
                 icon={Heart}

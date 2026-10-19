@@ -22,6 +22,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import (
@@ -55,7 +56,7 @@ class HemochromatosisFindingResponse(BaseModel):
     pmids: list[str] = []
 
 
-class HemochromatosisFindingsListResponse(BaseModel):
+class HemochromatosisFindingsListResponse(WithheldMarker):
     items: list[HemochromatosisFindingResponse]
     total: int
 
@@ -161,7 +162,7 @@ def list_hemochromatosis_findings(
     items = [HemochromatosisFindingResponse(**f) for f in raw]
     response = HemochromatosisFindingsListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return HemochromatosisFindingsListResponse(items=[], total=0)
+        return HemochromatosisFindingsListResponse(items=[], total=0, withheld=True)
     return response
 
 

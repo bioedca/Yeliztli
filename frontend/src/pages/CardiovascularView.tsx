@@ -18,6 +18,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import SectionError from "@/components/ui/SectionError"
 import {
   useCardiovascularVariants,
@@ -184,6 +185,11 @@ export default function CardiovascularView() {
                   />
                 ))}
               </div>
+            ) : variantsQuery.data?.withheld ? (
+              <WithheldResults
+                label="Cardiovascular"
+                detail="Do not read this as having no pathogenic or likely pathogenic variants."
+              />
             ) : (
               <PageEmpty
                 icon={HeartPulse}
