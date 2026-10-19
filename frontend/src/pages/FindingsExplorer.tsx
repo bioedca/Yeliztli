@@ -424,6 +424,9 @@ export default function FindingsExplorer() {
           <p className="text-sm text-muted-foreground">
             {selectedModule || minStars
               ? "No findings match the current filters."
+              : summary?.withheld
+              ? // Not "no findings", and annotation cannot help (#2522).
+                "Findings are withheld for this sample. Part of these results could not be shown safely, so none are shown here. This is not the same as having no findings."
               : "No findings yet. Run annotation to generate analysis findings."}
           </p>
           {(selectedModule || minStars) && (

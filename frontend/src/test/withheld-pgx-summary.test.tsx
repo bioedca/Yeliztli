@@ -187,6 +187,9 @@ describe("withheld findings summary (#2522)", () => {
 
     expect(screen.getByText("The findings summary is withheld for this sample.")).toBeInTheDocument()
     expect(screen.queryByText(/0 findings across 0 modules/)).not.toBeInTheDocument()
+    // The empty list beneath must not contradict the header with run-annotation advice.
+    expect(screen.getByText(/Findings are withheld for this sample/)).toBeInTheDocument()
+    expect(screen.queryByText(/Run annotation/)).not.toBeInTheDocument()
   })
 
   it("an ordinary empty summary still counts zero in the Findings Explorer header", () => {
@@ -194,5 +197,6 @@ describe("withheld findings summary (#2522)", () => {
     render(<FindingsExplorer />)
 
     expect(screen.getByText("0 findings across 0 modules")).toBeInTheDocument()
+    expect(screen.getByText(/No findings yet. Run annotation/)).toBeInTheDocument()
   })
 })
