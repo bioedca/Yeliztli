@@ -10,6 +10,8 @@ Covers:
 
 from __future__ import annotations
 
+import gzip
+import itertools
 import json
 import threading
 import time
@@ -175,6 +177,90 @@ class TestDatabaseRegistry:
 
     def test_get_database_unknown(self):
         assert get_database("nonexistent") is None
+
+    def test_mondo_hpo_build_progress_never_decreases_across_its_three_downloads(
+        self,
+        tmp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The persisted job progress climbs once through all three sources (#2286)."""
+        from backend.annotation import mondo_hpo
+        from backend.api.routes import databases
+
+        settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
+        reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
+        reference_metadata.create_all(reference_engine)
+        sources = {
+            "gene_disease.9606.tsv.gz": gzip.compress(
+                b"subject\tsubject_label\tpredicate\tobject\tobject_label\tqualifier\n"
+                b"HGNC:1100\tBRCA1\tbiolink:gene_associated_with_condition\t"
+                b"MONDO:0011450\tHereditary breast cancer\t\n"
+            ),
+            "genes_to_phenotype.txt": (
+                b"ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id\n"
+                b"672\tBRCA1\tHP:0003002\tBreast carcinoma\t\tOMIM:604370\n"
+            ),
+            "mondo.sssom.tsv": (
+                b"subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\t"
+                b"mapping_justification\n"
+                b"MONDO:0011450\tHereditary breast cancer\tskos:exactMatch\tOMIM:604370\t"
+                b"Breast-ovarian cancer\tsemapv:UnspecifiedMatching\n"
+            ),
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(sources[filename])
+            # Each source reports its own (downloaded, total), as download_file does.
+            for downloaded in (0, 500, 1_000):
+                kwargs["progress_callback"](downloaded, 1_000)
+            return target
+
+        monkeypatch.setattr(mondo_hpo, "download_file", fake_download)
+        for floor in (
+            "MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES",
+            "MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES",
+            "MINIMUM_UNAMBIGUOUS_MONDO_XREFS",
+        ):
+            monkeypatch.setattr(mondo_hpo, floor, 1)
+        # Step the route's clock past its 2 s write throttle so every update persists.
+        clock = itertools.count(start=1_000.0, step=3.0)
+        monkeypatch.setattr(
+            databases,
+            "time",
+            SimpleNamespace(monotonic=lambda: next(clock), sleep=time.sleep),
+        )
+        persisted: list[tuple[str | None, float]] = []
+        real_update_job = databases._update_job  # noqa: SLF001
+
+        def recording_update_job(engine: sa.Engine, job_id: str, **fields: object) -> None:
+            if "progress_pct" in fields:
+                persisted.append((fields.get("status"), fields["progress_pct"]))
+            real_update_job(engine, job_id, **fields)
+
+        monkeypatch.setattr(databases, "_update_job", recording_update_job)
+        try:
+            db_info = get_database("mondo_hpo")
+            assert db_info is not None
+            job_id = "job-mondo-hpo-progress"
+            _create_job_record(reference_engine, job_id, db_info.name)
+
+            _execute_build(
+                db_info=db_info,
+                job_id=job_id,
+                engine=reference_engine,
+                settings=settings,
+            )
+        finally:
+            reference_engine.dispose()
+
+        assert persisted[-1] == ("complete", 100.0), persisted
+        download_pcts = [pct for status, pct in persisted[:-1] if status == "running"]
+        assert len(download_pcts) == 9
+        assert download_pcts == sorted(download_pcts)
+        assert download_pcts[0] == 0.0
+        assert download_pcts[-1] == 90.0
 
     def test_dbnsfp_build_uses_downloads_dir(
         self,

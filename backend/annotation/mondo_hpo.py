@@ -2498,6 +2498,43 @@ def check_mondo_hpo_update(
     return available
 
 
+# Byte sizes the canonical URLs served on 2026-10-19 (Monarch primary archive,
+# HPO genes_to_phenotype, MONDO SSSOM; data/science-evidence/
+# 2026-10-19-hpo-disease-scope-floor-2285). They only apportion one progress bar
+# across the three sequential downloads, so the HPO export moves it most.
+_SOURCE_PROGRESS_WEIGHTS = (183_321, 20_821_704, 13_124_886)
+
+
+class _CombinedDownloadProgress:
+    """Report the three sequential source downloads as one monotonic byte count (#2286).
+
+    Each source owns a fixed share of ``sum(_SOURCE_PROGRESS_WEIGHTS)``, in
+    download order, and progress within that share follows the source's own
+    ``(downloaded, total)``. A source without a ``Content-Length`` is measured
+    against its nominal size instead. Either way it stops at the end of its share
+    until the next source starts. The reported count never decreases, so a
+    download that restarts from zero holds the bar still rather than moving it
+    back, and the combined total is always known.
+    """
+
+    def __init__(self, callback: Callable[[int, int | None], None]) -> None:
+        self._callback = callback
+        self._total = sum(_SOURCE_PROGRESS_WEIGHTS)
+        self._reported = 0
+
+    def for_source(self, index: int) -> Callable[[int, int | None], None]:
+        offset = sum(_SOURCE_PROGRESS_WEIGHTS[:index])
+        share = _SOURCE_PROGRESS_WEIGHTS[index]
+
+        def report(downloaded: int, total: int | None) -> None:
+            size = total if total is not None and total > 0 else share
+            within = min(share, max(0, downloaded) * share // size)
+            self._reported = max(self._reported, offset + within)
+            self._callback(self._reported, self._total)
+
+        return report
+
+
 def download_and_load_mondo_hpo(
     engine: sa.Engine,
     dest_dir: Path,
@@ -2516,7 +2553,8 @@ def download_and_load_mondo_hpo(
         mondo_url: Override URL for MONDO gene-disease TSV.
         hpo_url: Override URL for HPO genes-to-phenotype file.
         mondo_sssom_url: Override URL for MONDO's SSSOM exact cross-references.
-        download_progress: Callback for download progress.
+        download_progress: Called with ``(bytes, total)`` for all three downloads
+            together, on one monotonic scale (see ``_CombinedDownloadProgress``).
         timeout: HTTP timeout seconds.
 
     Returns:
@@ -2530,6 +2568,13 @@ def download_and_load_mondo_hpo(
     # Fence a downloader that starts from one provenance state but reaches the
     # final write section only after another updater has committed a newer one.
     starting_installation = _mondo_hpo_installation_state(engine)
+    combined_progress = (
+        _CombinedDownloadProgress(download_progress) if download_progress is not None else None
+    )
+    source_progress = [
+        combined_progress.for_source(index) if combined_progress is not None else None
+        for index in range(len(source_filenames))
+    ]
     with _create_pinned_staged_source_bundle(dest_dir) as staging:
         # All downloader, parser, and manifest paths below resolve through the
         # held staging descriptor, never through its mutable lexical name.
@@ -2539,7 +2584,7 @@ def download_and_load_mondo_hpo(
             mondo_url,
             staging_dir,
             source_filenames[0],
-            progress_callback=download_progress,
+            progress_callback=source_progress[0],
             timeout=timeout,
             meta=mondo_meta,
         )
@@ -2548,7 +2593,7 @@ def download_and_load_mondo_hpo(
             hpo_url,
             staging_dir,
             source_filenames[1],
-            progress_callback=download_progress,
+            progress_callback=source_progress[1],
             timeout=timeout,
             meta=hpo_meta,
         )
@@ -2557,7 +2602,7 @@ def download_and_load_mondo_hpo(
             mondo_sssom_url,
             staging_dir,
             source_filenames[2],
-            progress_callback=download_progress,
+            progress_callback=source_progress[2],
             timeout=timeout,
             meta=mondo_sssom_meta,
         )
