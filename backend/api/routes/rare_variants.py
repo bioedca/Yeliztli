@@ -344,9 +344,11 @@ def _iter_rare_variant_tsv_data_lines(
 # ordinary export never touches disk; past it, peak memory is a function of
 # these two constants, not of the result count.
 _RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS = 4_000_000
-# Spilled runs kept before they are merged into one, which bounds the number of
-# spill files open at once however large the export grows.
-_RARE_VARIANT_VCF_MAX_SPILLED_RUNS = 16
+# Runs merged at once. Spilled runs are kept in levels, and a level that fills
+# up merges into one run on the next level, so each line is rewritten once per
+# level -- logarithmically often in the number of runs -- and at most
+# ``fan-in - 1`` spill files rest open per level.
+_RARE_VARIANT_VCF_MERGE_FAN_IN = 16
 
 _VcfSortKey = tuple[Any, ...]
 
@@ -376,6 +378,10 @@ class _VcfSortSpool:
     sort: lines accumulate in one in-memory run up to a fixed size, a full run
     is sorted and spilled, and the replay merges the spilled runs.
 
+    Spilled runs are merged in levels, as a balanced multipass merge: merging
+    every spill into one ever-growing run instead would rewrite the whole
+    accumulated export at each merge, quadratically in the number of runs.
+
     The sort key is computed in Python from the decoded record, so the order is
     the one the export always produced. Pushing it into SQL would mean
     re-implementing ``detail_json`` decoding and the legacy coordinate backfill
@@ -391,7 +397,8 @@ class _VcfSortSpool:
     def __init__(self) -> None:
         self._run: list[tuple[_VcfSortKey, str]] = []
         self._chars = 0
-        self._spilled: list[IO[str]] = []
+        # Level i holds runs that are each a merge of fan-in**i spilled runs.
+        self._levels: list[list[IO[str]]] = []
 
     def append(self, key: _VcfSortKey, line: str) -> None:
         """Retain one rendered data line under its sort key."""
@@ -413,6 +420,20 @@ class _VcfSortSpool:
         for key, line in entries:
             spill.write(json.dumps([*key, line]) + "\n")
 
+    def _write_new_spill(self, entries: Iterator[tuple[_VcfSortKey, str]]) -> IO[str]:
+        """A new spill holding ``entries``, closed again if writing it fails.
+
+        The spool only tracks a spill once it is complete, so a failure while
+        writing must close the half-written one here or it would stay open.
+        """
+        spill = self._new_spill()
+        try:
+            self._write(spill, entries)
+        except BaseException:
+            spill.close()
+            raise
+        return spill
+
     @staticmethod
     def _read(spill: IO[str]) -> Iterator[tuple[_VcfSortKey, str]]:
         spill.flush()
@@ -423,40 +444,50 @@ class _VcfSortSpool:
 
     def _spill_run(self) -> None:
         self._run.sort(key=lambda entry: entry[0])
-        spill = self._new_spill()
-        self._write(spill, iter(self._run))
+        spill = self._write_new_spill(iter(self._run))
         self._run.clear()
         self._chars = 0
-        self._spilled.append(spill)
-        if len(self._spilled) >= _RARE_VARIANT_VCF_MAX_SPILLED_RUNS:
-            merged = self._new_spill()
-            self._write(merged, self._merge(self._spilled))
-            for old in self._spilled:
-                old.close()
-            self._spilled = [merged]
+        self._add_spill(0, spill)
+
+    def _add_spill(self, level: int, spill: IO[str]) -> None:
+        while len(self._levels) <= level:
+            self._levels.append([])
+        self._levels[level].append(spill)
+        if len(self._levels[level]) < _RARE_VARIANT_VCF_MERGE_FAN_IN:
+            return
+        runs = self._levels[level]
+        # On failure the source runs are still tracked, so close() releases them.
+        merged = self._write_new_spill(self._merge(runs))
+        for old in runs:
+            old.close()
+        self._levels[level] = []
+        self._add_spill(level + 1, merged)
+
+    def _spilled(self) -> list[IO[str]]:
+        return [spill for level in self._levels for spill in level]
 
     def _merge(self, spills: list[IO[str]]) -> Iterator[tuple[_VcfSortKey, str]]:
         return heapq.merge(*(self._read(spill) for spill in spills), key=lambda entry: entry[0])
 
     def sorted_lines(self) -> Iterator[str]:
         """Yield every retained line once, in sort-key order."""
-        if not self._spilled:
+        if not self._spilled():
             self._run.sort(key=lambda entry: entry[0])
             for _, line in self._run:
                 yield line
             return
         if self._run:
             self._spill_run()
-        for _, line in self._merge(self._spilled):
+        for _, line in self._merge(self._spilled()):
             yield line
 
     def close(self) -> None:
         """Release the run and every spill file. Safe to call repeatedly."""
         self._run.clear()
         self._chars = 0
-        for spill in self._spilled:
+        for spill in self._spilled():
             spill.close()
-        self._spilled = []
+        self._levels = []
 
 
 def _render_vcf_header(file_date: str) -> str:

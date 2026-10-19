@@ -916,7 +916,7 @@ def test_rare_vcf_export_withholds_a_cross_row_pair_through_the_spill_files(
 def test_rare_vcf_spilled_and_merged_runs_reproduce_the_in_memory_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every line its own run, compacted every two runs: same bytes as the RAM sort.
+    """Every line its own run, merged two at a time: same bytes as the RAM sort.
 
     The order is genomic, records missing a chrom and then a pos last, and fetch
     order breaks ties, which is what the stable in-memory sort always produced.
@@ -940,11 +940,11 @@ def test_rare_vcf_spilled_and_merged_runs_reproduce_the_in_memory_order(
     in_memory = rare_variants.export_rare_variants_vcf(sample_id=1).content
 
     monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
-    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_MAX_SPILLED_RUNS", 2)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_MERGE_FAN_IN", 2)
     spills = _record_spill_files(monkeypatch)
     spilled = rare_variants.export_rare_variants_vcf(sample_id=1).content
 
-    assert len(spills) > 2, "compaction must have run, not only single-run spills"
+    assert len(spills) > len(coordinates), "merges must have run, not only single-run spills"
     assert all(spill.closed for spill in spills)
     assert spilled == in_memory
 
@@ -996,4 +996,90 @@ def test_rare_vcf_export_never_iterated_still_releases_the_spill(
     assert spills and not any(spill.closed for spill in spills)
     assert response.background is not None
     response.background.func()
+    assert all(spill.closed for spill in spills)
+
+
+def _count_spool_writes(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Count every entry the VCF spool writes to a spill file."""
+    written = [0]
+    real_write = rare_variants._VcfSortSpool._write
+
+    def _counting(spill: Any, entries: Iterator[Any]) -> None:
+        def _tally() -> Iterator[Any]:
+            for entry in entries:
+                written[0] += 1
+                yield entry
+
+        real_write(spill, _tally())
+
+    monkeypatch.setattr(rare_variants._VcfSortSpool, "_write", staticmethod(_counting))
+    return written
+
+
+def test_rare_vcf_spool_rewrites_each_line_once_per_merge_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Codex on #2536: merging into one ever-growing run is quadratic in the runs.
+
+    A balanced multipass merge writes each line once when its run spills and
+    once per merge level after that, so 256 one-line runs merged four at a time
+    write at most 256 * (log4(256) + 1) entries. Folding every merge back into
+    one accumulating run, the rejected design, writes several times that.
+    """
+    lines = 256
+    fan_in = 4
+    levels = 4  # log4(256)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_MERGE_FAN_IN", fan_in)
+    spills = _record_spill_files(monkeypatch)
+    written = _count_spool_writes(monkeypatch)
+
+    spool = rare_variants._VcfSortSpool()
+    most_open = 0
+    try:
+        for index in range(lines):
+            # A shuffled but deterministic order: 97 is coprime with 256.
+            position = (index * 97) % lines
+            spool.append((False, "1", False, position, index), f"line {position}\n")
+            most_open = max(most_open, sum(not spill.closed for spill in spills))
+        emitted = list(spool.sorted_lines())
+    finally:
+        spool.close()
+
+    assert emitted == [f"line {position}\n" for position in range(lines)]
+    assert written[0] <= lines * (levels + 1), f"{written[0]} entries written"
+    assert most_open <= (fan_in - 1) * levels + 1, f"{most_open} spill files open at once"
+    assert all(spill.closed for spill in spills)
+
+
+@pytest.mark.parametrize("failing_write", [1, 3], ids=["first-spill", "first-merge"])
+def test_rare_vcf_spool_closes_every_spill_when_a_write_fails(
+    monkeypatch: pytest.MonkeyPatch, failing_write: int
+) -> None:
+    """A spill that fails half-written is not tracked yet, so it must close itself.
+
+    With one-line runs merged two at a time, write 1 is the first spill and
+    write 3 is the first merge.
+    """
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_MERGE_FAN_IN", 2)
+    spills = _record_spill_files(monkeypatch)
+    calls = [0]
+    real_write = rare_variants._VcfSortSpool._write
+
+    def _failing(spill: Any, entries: Iterator[Any]) -> None:
+        calls[0] += 1
+        if calls[0] == failing_write:
+            raise OSError("simulated full disk")
+        real_write(spill, entries)
+
+    monkeypatch.setattr(rare_variants._VcfSortSpool, "_write", staticmethod(_failing))
+
+    spool = rare_variants._VcfSortSpool()
+    with pytest.raises(OSError, match="simulated full disk"):
+        for index in range(8):
+            spool.append((False, "1", False, index, index), f"line {index}\n")
+    spool.close()
+
+    assert spills, "the failure must have happened on the disk path"
     assert all(spill.closed for spill in spills)
