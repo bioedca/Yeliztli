@@ -1526,3 +1526,61 @@ class TestVCFExport:
         cols = data_lines[0].split("\t")
         assert cols[0] == "5" and cols[1] == "500"  # real coords, not placeholders
         assert cols[3] == "T" and cols[4] == "C"
+
+    @pytest.mark.parametrize("run_chars", [None, 0])
+    def test_vcf_export_orders_a_backfilled_legacy_finding_by_its_joined_coordinates(
+        self,
+        rare_client: TestClient,
+        sample_db_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_chars: int | None,
+    ) -> None:
+        """#2336: the backfill comes from a join now, and still decides the order.
+
+        The legacy finding has no coordinates in detail_json; its annotated_variants
+        row puts it between the other two, in RAM and when every line spills to
+        its own run alike.
+        """
+        from backend.api.routes import rare_variants
+
+        if run_chars is not None:
+            monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", run_chars)
+        engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+        with engine.begin() as conn:
+            conn.execute(sa.delete(findings))
+            conn.execute(
+                sa.insert(annotated_variants),
+                [{"rsid": "rs_legacy_mid", "chrom": "7", "pos": 150, "ref": "T", "alt": "C"}],
+            )
+
+            def finding(rsid: str, detail: dict) -> dict:
+                return {
+                    "module": "rare_variants",
+                    "category": "rare",
+                    "evidence_level": 1,
+                    "gene_symbol": "GENEZ",
+                    "rsid": rsid,
+                    "finding_text": "synthetic finding",
+                    "clinvar_significance": None,
+                    "detail_json": json.dumps(detail),
+                }
+
+            conn.execute(
+                sa.insert(findings),
+                [
+                    finding("rs_late", {"chrom": "7", "pos": 200, "ref": "A", "alt": "G"}),
+                    finding("rs_legacy_mid", {}),
+                    finding("rs_early", {"chrom": "7", "pos": 100, "ref": "A", "alt": "G"}),
+                ],
+            )
+        engine.dispose()
+
+        resp = rare_client.get("/api/analysis/rare-variants/export/vcf?sample_id=1")
+
+        assert resp.status_code == 200
+        data_lines = [ln for ln in resp.text.splitlines() if ln and not ln.startswith("#")]
+        assert [line.split("\t")[:5] for line in data_lines] == [
+            ["7", "100", "rs_early", "A", "G"],
+            ["7", "150", "rs_legacy_mid", "T", "C"],
+            ["7", "200", "rs_late", "A", "G"],
+        ]
