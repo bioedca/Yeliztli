@@ -59,7 +59,7 @@ function q(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   mockVariants.mockReturnValue(q({ data: { items: [VARIANT], total: 1 } }))
-  mockPRS.mockReturnValue(q({ data: { items: [], total: 0, sufficient_count: 0, insufficient_traits: [] } }))
+  mockPRS.mockReturnValue(q({ data: { items: [], total: 0, sufficient_count: 0, insufficient_traits: [], withheld_traits: [] } }))
   mockDisclaimer.mockReturnValue(q({ data: { title: "Cancer disclaimer", text: "Research use only." } }))
   mockAbsoluteRisk.mockReturnValue(q({ data: undefined }))
   mockSetConsent.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false })

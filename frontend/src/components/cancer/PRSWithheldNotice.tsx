@@ -1,0 +1,55 @@
+/** Names each sex-specific cancer PRS model the biological-sex gate keeps off
+ * this sample, and why (#2498).
+ *
+ * Without it a withheld prostate (or breast) score simply vanishes from the
+ * page, indistinguishable from a model that was never installed. The two
+ * reasons read differently on purpose: a confident other-sex result means the
+ * model does not apply, while an ambiguous or undetermined sex means a score
+ * that might apply is being withheld.
+ */
+
+import { Info } from "lucide-react"
+import type { CancerPRSWithheld } from "@/types/cancer"
+
+function withheldReason(item: CancerPRSWithheld): string {
+  if (item.reason === "sex_mismatch") {
+    return `it is computed only for ${item.required_sex} samples, and this sample's biological sex is ${item.resolved_sex}.`
+  }
+  const state = item.resolved_sex === "manual_review" ? "ambiguous" : "undetermined"
+  return (
+    `it is computed only for ${item.required_sex} samples, and this sample's biological sex ` +
+    `is ${state}, so the score is withheld. Recording the individual's biological sex and ` +
+    `re-running the analysis resolves this.`
+  )
+}
+
+export default function PRSWithheldNotice({
+  withheld = [],
+}: {
+  /** Optional so a response without the field degrades to no notice, never a crash. */
+  withheld?: CancerPRSWithheld[]
+}) {
+  if (withheld.length === 0) return null
+  return (
+    <div
+      role="note"
+      aria-label="Polygenic risk scores not shown for this sample"
+      data-testid="prs-withheld-notice"
+      className="mb-3 rounded-md bg-sky-50 p-2 dark:bg-sky-950/30"
+    >
+      <ul className="space-y-1">
+        {withheld.map((item) => (
+          <li key={item.trait} className="flex gap-1.5">
+            <Info
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-300"
+              aria-hidden="true"
+            />
+            <p className="text-xs text-sky-800 dark:text-sky-200">
+              <span className="font-medium">{item.name}</span> is not shown: {withheldReason(item)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
