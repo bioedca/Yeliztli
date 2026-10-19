@@ -82,7 +82,9 @@ for an XX sample the model does not apply, while for an ambiguous or undetermine
 is withheld. Recording the individual's biological sex and re-running the analysis resolves the
 second case. The check uses the biological sex as it stands when the page loads, so if the
 recorded sex changes after the analysis ran, a prostate score computed under the earlier sex is
-withheld in the same way rather than shown as current.
+withheld in the same way rather than shown as current. In the other direction, if the sex is
+recorded as XY after an analysis that skipped prostate, the page says the score has not been
+computed yet and that re-running the analysis will compute it.
 
 ## References
 

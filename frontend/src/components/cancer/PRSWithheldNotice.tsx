@@ -2,20 +2,34 @@
  * this sample, and why (#2498).
  *
  * Without it a withheld prostate (or breast) score simply vanishes from the
- * page, indistinguishable from a model that was never installed. The two
- * reasons read differently on purpose: a confident other-sex result means the
- * model does not apply, while an ambiguous or undetermined sex means a score
- * that might apply is being withheld.
+ * page, indistinguishable from a model that was never installed. The reasons
+ * read differently on purpose: a confident other-sex result means the model
+ * does not apply, an ambiguous or undetermined sex means a score that might
+ * apply is being withheld, and a sex recorded after the analysis ran means the
+ * score simply has not been computed yet (#2509).
  */
 
 import { Info } from "lucide-react"
 import type { CancerPRSWithheld } from "@/types/cancer"
 
+/** How a resolved sex context reads in a sentence. */
+function sexState(sex: string | null): string {
+  if (sex === "XX" || sex === "XY") return sex
+  return sex === "manual_review" ? "ambiguous" : "undetermined"
+}
+
 function withheldReason(item: CancerPRSWithheld): string {
   if (item.reason === "sex_mismatch") {
     return `it is computed only for ${item.required_sex} samples, and this sample's biological sex is ${item.resolved_sex}.`
   }
-  const state = item.resolved_sex === "manual_review" ? "ambiguous" : "undetermined"
+  if (item.reason === "sex_changed_since_scoring") {
+    return (
+      `it has not been computed yet. The analysis ran while this sample's biological sex was ` +
+      `${sexState(item.scored_sex)}, and it is now ${item.resolved_sex}. Re-running the analysis ` +
+      `computes it.`
+    )
+  }
+  const state = sexState(item.resolved_sex)
   return (
     `it is computed only for ${item.required_sex} samples, and this sample's biological sex ` +
     `is ${state}, so the score is withheld. Recording the individual's biological sex and ` +

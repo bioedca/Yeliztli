@@ -71,13 +71,16 @@ export interface CancerPRS {
  * `sex_mismatch`: the sample resolves to the other sex, so the model does not
  * apply. `sex_unresolved`: the sex is ambiguous (`manual_review`) or
  * undetermined, so a score that might apply is withheld rather than guessed.
+ * `sex_changed_since_scoring`: the current sex passes the gate, but the stored
+ * analysis ran under `scored_sex`, which did not, so a re-run is needed (#2509).
  */
 export interface CancerPRSWithheld {
   trait: string
   name: string
   required_sex: string
   resolved_sex: string | null
-  reason: "sex_mismatch" | "sex_unresolved"
+  reason: "sex_mismatch" | "sex_unresolved" | "sex_changed_since_scoring"
+  scored_sex: string | null
 }
 
 /** All cancer PRS results for a sample. */

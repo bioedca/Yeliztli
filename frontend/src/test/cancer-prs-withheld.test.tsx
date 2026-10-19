@@ -44,6 +44,7 @@ function withheld(over: Partial<CancerPRSWithheld> = {}): CancerPRSWithheld {
     required_sex: "XY",
     resolved_sex: "XX",
     reason: "sex_mismatch",
+    scored_sex: null,
     ...over,
   }
 }
@@ -128,6 +129,33 @@ describe("CancerView sex-gated PRS notice (#2498)", () => {
         `biological sex is ${state}, so the score is withheld. Recording the individual's ` +
         `biological sex and re-running the analysis resolves this.`,
     )
+  })
+
+  it.each([
+    ["XX", "XX"],
+    ["manual_review", "ambiguous"],
+    ["unknown", "undetermined"],
+  ])("asks for a re-run when the analysis ran while the sex was %s (#2509)", (scoredSex, state) => {
+    mockPRS.mockReturnValue(
+      prsData(
+        [COLORECTAL_PRS],
+        [
+          withheld({
+            resolved_sex: "XY",
+            reason: "sex_changed_since_scoring",
+            scored_sex: scoredSex,
+          }),
+        ],
+      ),
+    )
+    render(<CancerView />)
+
+    const note = screen.getByTestId("prs-withheld-notice")
+    expect(note).toHaveTextContent(
+      `${PROSTATE_NAME} is not shown: it has not been computed yet. The analysis ran while this ` +
+        `sample's biological sex was ${state}, and it is now XY. Re-running the analysis computes it.`,
+    )
+    expect(note).not.toHaveTextContent("withheld")
   })
 
   it("shows the notice in the empty state when no score was computed", () => {

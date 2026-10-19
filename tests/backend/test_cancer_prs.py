@@ -1518,6 +1518,7 @@ class TestCancerPRSWithheldBySexGate:
                 "required_sex": "XY",
                 "resolved_sex": sex_context,
                 "reason": reason,
+                "scored_sex": None,
             }
         ]
         assert resolved_for == [42]
@@ -1714,3 +1715,110 @@ class TestCancerPRSWithheldBySexGate:
         assert [(w.trait, w.resolved_sex, w.reason) for w in response.withheld_traits] == [
             ("prostate_cancer", "XX", "sex_mismatch")
         ]
+
+
+# ── Re-run prompt after the recorded sex changes (#2509) ─────────────────
+
+
+def _stored_cancer_prs_details(engine: sa.Engine) -> list[dict]:
+    with engine.connect() as conn:
+        return [
+            json.loads(row.detail_json)
+            for row in conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "cancer", findings.c.category == "prs"
+                )
+            )
+        ]
+
+
+class TestCancerPRSRerunAfterSexChange:
+    """A model skipped for the sex recorded at scoring time asks for a re-run."""
+
+    def test_stored_findings_record_the_scored_sex_context(
+        self, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XX")
+
+        details = _stored_cancer_prs_details(sample_with_prs_snps)
+        assert details
+        assert {detail["scored_sex_context"] for detail in details} == {"XX"}
+
+    @pytest.mark.parametrize("scored_sex", ["XX", "manual_review", "unknown"])
+    def test_model_skipped_for_the_scoring_sex_asks_for_a_rerun(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_with_prs_snps: sa.Engine,
+        scored_sex: str,
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex=scored_sex)
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert {item.trait for item in response.items} == XX_CANCER_PRS_TRAITS
+        assert [w.model_dump() for w in response.withheld_traits] == [
+            {
+                "trait": "prostate_cancer",
+                "name": "Prostate cancer (PRACTICAL)",
+                "required_sex": "XY",
+                "resolved_sex": "XY",
+                "reason": "sex_changed_since_scoring",
+                "scored_sex": scored_sex,
+            }
+        ]
+        assert resolved_for == [42]
+
+    def test_rows_without_a_scored_context_infer_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        """Findings stored before #2509 cannot say which sex the run was gated on."""
+        _store_prs(sample_with_prs_snps, inferred_sex="XX")
+        with sample_with_prs_snps.begin() as conn:
+            for row in conn.execute(sa.select(findings.c.id, findings.c.detail_json)).all():
+                detail = json.loads(row.detail_json)
+                detail.pop("scored_sex_context")
+                conn.execute(
+                    sa.update(findings)
+                    .where(findings.c.id == row.id)
+                    .values(detail_json=json.dumps(detail))
+                )
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert {item.trait for item in response.items} == XX_CANCER_PRS_TRAITS
+        assert response.withheld_traits == []
+
+    def test_disagreeing_scored_contexts_infer_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        """Only one recorded context is trusted, even when every candidate would fail."""
+        _store_prs(sample_with_prs_snps, inferred_sex="XX")
+        with sample_with_prs_snps.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 1,
+                        "finding_text": "Row recorded under another context",
+                        "detail_json": json.dumps(
+                            {"trait": "other_trait", "scored_sex_context": "unknown"}
+                        ),
+                    }
+                ],
+            )
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert response.withheld_traits == []
+
+    def test_model_scored_under_the_current_sex_needs_no_rerun(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert "prostate_cancer" in {item.trait for item in response.items}
+        assert response.withheld_traits == []
