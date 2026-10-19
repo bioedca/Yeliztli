@@ -33,6 +33,7 @@ import backend.annotation.mondo_hpo as mondo_hpo
 from backend.annotation.http_download import DownloadOutcome
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
+    _SOURCE_PROGRESS_WEIGHTS,
     MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT,
     MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES,
     MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES,
@@ -42,6 +43,7 @@ from backend.annotation.mondo_hpo import (
     GenePhenotypeRecord,
     HpoTerm,
     LoadStats,
+    _CombinedDownloadProgress,
     _extract_gene_symbol_from_subject,
     _records_to_rows,
     decode_hpo_terms,
@@ -806,6 +808,61 @@ class TestRecordMerging:
         assert len(rows) == 1
         assert rows[0]["hpo_terms"] is None
         assert rows[0]["inheritance"] is None
+
+
+class TestCombinedDownloadProgress:
+    """The three-source progress combiner on its own (#2286)."""
+
+    def test_shares_are_the_measured_source_sizes_in_download_order(self) -> None:
+        """Byte-weighted, not equal thirds: the ~20 MB HPO export moves the bar most."""
+        measurements = json.loads(
+            (SCOPE_FLOOR_EVIDENCE_DIR / "raw" / "measurements-2026-10-19.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        latest = next(s for s in measurements["snapshots"] if s["label"] == "2026-10-07")
+        files = latest["files"]
+        assert _SOURCE_PROGRESS_WEIGHTS == (
+            files["gene_disease.9606.tsv.gz"]["bytes"],
+            files["genes_to_phenotype.txt"]["bytes"],
+            files["mondo.sssom.tsv"]["bytes"],
+        )
+        assert max(_SOURCE_PROGRESS_WEIGHTS) == _SOURCE_PROGRESS_WEIGHTS[1]
+
+    def test_a_source_without_content_length_advances_against_its_share(self) -> None:
+        """No total: bytes count against the nominal size and stop at the share's end."""
+        first, second, _ = _SOURCE_PROGRESS_WEIGHTS
+        seen: list[tuple[int, int | None]] = []
+        progress = _CombinedDownloadProgress(lambda done, total: seen.append((done, total)))
+
+        hpo = progress.for_source(1)
+        hpo(second // 4, None)
+        hpo(second * 3, None)  # larger than nominal: holds at the end of its share
+        progress.for_source(2)(0, None)
+
+        combined = sum(_SOURCE_PROGRESS_WEIGHTS)
+        assert seen == [
+            (first + second // 4, combined),
+            (first + second, combined),
+            (first + second, combined),
+        ]
+
+    def test_a_download_that_restarts_from_zero_holds_the_bar(self) -> None:
+        """A restarted transfer never moves the reported count backwards."""
+        first, second, _ = _SOURCE_PROGRESS_WEIGHTS
+        seen: list[int] = []
+        progress = _CombinedDownloadProgress(lambda done, _total: seen.append(done))
+
+        hpo = progress.for_source(1)
+        hpo(600, 1_000)
+        hpo(0, 1_000)
+        hpo(800, 1_000)
+
+        assert seen == [
+            first + second * 600 // 1_000,
+            first + second * 600 // 1_000,
+            first + second * 800 // 1_000,
+        ]
 
 
 class TestDownloadAndLoad:
@@ -2386,6 +2443,56 @@ class TestDownloadAndLoad:
             ).scalar_one()
         assert version == "20270101+disease-scope-v2"
         assert not (downloads / "mondo_hpo_sources").exists()
+
+    def test_download_progress_is_one_monotonic_scale_across_the_three_sources(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Each source starts where the previous one stopped; the bar never resets (#2286)."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            # Each source reports its own (downloaded, total), as download_file does.
+            for downloaded in (0, 500, 1_000):
+                kwargs["progress_callback"](downloaded, 1_000)
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        seen: list[tuple[int, int | None]] = []
+
+        download_and_load_mondo_hpo(
+            reference_engine,
+            tmp_path / "downloads",
+            download_progress=lambda downloaded, total: seen.append((downloaded, total)),
+        )
+
+        first, second, third = _SOURCE_PROGRESS_WEIGHTS
+        combined = first + second + third
+        assert len(seen) == 9
+        assert {total for _, total in seen} == {combined}
+        reported = [downloaded for downloaded, _ in seen]
+        assert reported == sorted(reported)
+        # Byte-weighted shares, in download order: HPO moves the bar most.
+        assert reported[0:3] == [0, first // 2, first]
+        assert reported[3:6] == [first, first + second // 2, first + second]
+        assert reported[6:9] == [first + second, first + second + third // 2, combined]
 
     def test_refuses_zero_exact_matches_before_clearing_existing_rows(
         self,
