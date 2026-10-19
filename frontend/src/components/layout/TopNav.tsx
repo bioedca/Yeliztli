@@ -50,12 +50,17 @@ export default function TopNav() {
         type="button"
         onClick={openPalette}
         className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground border border-input rounded-md px-3 py-1.5 hover:bg-accent hover:text-accent-foreground transition-colors"
-        aria-label="Open command palette"
+        // The name starts with the visible "Search..." so a voice-control user can
+        // reach the button by saying what it shows (WCAG 2.5.3 Label in Name,
+        // #2306). The shortcut hint is announced via aria-keyshortcuts, not read
+        // as part of the name.
+        aria-label="Search..., open command palette"
+        aria-keyshortcuts="Control+K Meta+K"
         data-testid="command-palette-trigger"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Search className="h-3.5 w-3.5" aria-hidden="true" />
         <span>Search...</span>
-        <kbd className="ml-2 text-xs bg-muted text-secondary-foreground px-1.5 py-0.5 rounded">{/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}K</kbd>
+        <kbd aria-hidden="true" className="ml-2 text-xs bg-muted text-secondary-foreground px-1.5 py-0.5 rounded">{/Mac|iPhone|iPad/.test(navigator.userAgent) ? '⌘' : 'Ctrl+'}K</kbd>
       </button>
 
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />

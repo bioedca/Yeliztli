@@ -347,9 +347,12 @@ export default function IndividualSelector() {
         )}
         aria-haspopup="tree"
         aria-expanded={open}
-        aria-label="Switch sample"
+        // The name starts with the visible sample label so a voice-control user
+        // can reach the button by saying what it shows (WCAG 2.5.3 Label in
+        // Name, #2306); "switch sample" still says what activating it does.
+        aria-label={`${label}, switch sample`}
       >
-        <FlaskConical className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <FlaskConical className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
         <span className="truncate">{label}</span>
         <ChevronDown
           className={cn(

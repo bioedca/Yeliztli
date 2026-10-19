@@ -10,7 +10,7 @@
  *   - Route announcer (aria-live region)
  */
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { bypassSetup, waitForReactHydration } from './helpers'
 
@@ -70,6 +70,30 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     '.monaco-editor',                // Monaco SQL editor
   ]
 
+  // WCAG 2.1 AA, the tag set every scan below runs.
+  const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']
+
+  // axe-core 4.11 tags WCAG 2.5.3 Label in Name (`label-content-name-mismatch`)
+  // `experimental`, and a tag-based runOnly drops experimental rules by default,
+  // so no scan here ever ran it -- the #2027 sort-toggle defect could not have
+  // been caught (#2306). A `rules` entry enables one rule on top of a tag set
+  // (axe API: "runOnly with type tag ... combined with the rules option"). The
+  // builder's options(), withTags() and disableRules() each replace part of one
+  // options object, so every scan is built here in a single call.
+  function wcagScan(page: Page, { disable = [] }: { disable?: string[] } = {}) {
+    let builder = new AxeBuilder({ page }).options({
+      runOnly: { type: 'tag', values: WCAG_TAGS },
+      rules: {
+        'label-content-name-mismatch': { enabled: true },
+        ...Object.fromEntries(disable.map((id) => [id, { enabled: false }])),
+      },
+    })
+    for (const sel of THIRD_PARTY_EXCLUDES) {
+      builder = builder.exclude(sel)
+    }
+    return builder
+  }
+
   // Pages with known third-party color-contrast violations we cannot fix
   const PAGES_WITH_THIRD_PARTY_CONTRAST = new Set(['/genome-browser'])
 
@@ -85,21 +109,15 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
         await p.goto(page.path)
         await p.waitForLoadState('networkidle')
 
-        let builder = new AxeBuilder({ page: p })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        for (const sel of THIRD_PARTY_EXCLUDES) {
-          builder = builder.exclude(sel)
-        }
-        // Disable color-contrast on pages with third-party rendered elements
-        if (PAGES_WITH_THIRD_PARTY_CONTRAST.has(page.path)) {
-          builder = builder.disableRules(['color-contrast'])
-        }
-        // Disable color-contrast on pages where Firefox/WebKit report false
-        // positives due to browser-specific font rendering (passes on Chromium)
-        if (BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium') {
-          builder = builder.disableRules(['color-contrast'])
-        }
-        const results = await builder.analyze()
+        // Disable color-contrast on pages with third-party rendered elements, and
+        // on pages where Firefox/WebKit report false positives due to
+        // browser-specific font rendering (they pass on Chromium).
+        const disable =
+          PAGES_WITH_THIRD_PARTY_CONTRAST.has(page.path) ||
+          (BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium')
+            ? ['color-contrast']
+            : []
+        const results = await wcagScan(p, { disable }).analyze()
 
         const violations = results.violations.map((v) => ({
           id: v.id,
@@ -120,15 +138,11 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
         await p.goto(page.path)
         await p.waitForLoadState('networkidle')
 
-        let builder = new AxeBuilder({ page: p })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        for (const sel of THIRD_PARTY_EXCLUDES) {
-          builder = builder.exclude(sel)
-        }
-        if (BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium') {
-          builder = builder.disableRules(['color-contrast'])
-        }
-        const results = await builder.analyze()
+        const disable =
+          BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium'
+            ? ['color-contrast']
+            : []
+        const results = await wcagScan(p, { disable }).analyze()
 
         const violations = results.violations.map((v) => ({
           id: v.id,
@@ -161,15 +175,11 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
         await p.goto(page.path)
         await p.waitForLoadState('networkidle')
 
-        let builder = new AxeBuilder({ page: p })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        for (const sel of THIRD_PARTY_EXCLUDES) {
-          builder = builder.exclude(sel)
-        }
-        if (BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium') {
-          builder = builder.disableRules(['color-contrast'])
-        }
-        const results = await builder.analyze()
+        const disable =
+          BROWSER_SPECIFIC_CONTRAST_PAGES.has(page.path) && browserName !== 'chromium'
+            ? ['color-contrast']
+            : []
+        const results = await wcagScan(p, { disable }).analyze()
 
         const violations = results.violations.map((v) => ({
           id: v.id,
@@ -411,12 +421,7 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       // Wait for the data-rich content (confidence labels) to render.
       await expect(page.getByText('Partial').first()).toBeVisible()
 
-      let builder = new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      for (const sel of THIRD_PARTY_EXCLUDES) {
-        builder = builder.exclude(sel)
-      }
-      const results = await builder.analyze()
+      const results = await wcagScan(page).analyze()
       const violations = results.violations.map((v) => ({
         id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
         targets: v.nodes.map((n) => n.target),
@@ -449,12 +454,7 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await expect(page.getByTestId('ancestry-pie-chart')).toBeVisible()
       await expect(page.locator('[data-testid="painting-chr1"] rect[fill="#EF4444"]').first()).toBeVisible()
 
-      let builder = new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      for (const sel of THIRD_PARTY_EXCLUDES) {
-        builder = builder.exclude(sel)
-      }
-      const results = await builder.analyze()
+      const results = await wcagScan(page).analyze()
       const violations = results.violations.map((v) => ({
         id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
         targets: v.nodes.map((n) => n.target),
@@ -505,12 +505,7 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       await expect(lipidDietary).toContainText('enhanced LDL sensitivity')
       await expect(lipidDietary).not.toContainText('Risk level:')
 
-      let builder = new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      for (const sel of THIRD_PARTY_EXCLUDES) {
-        builder = builder.exclude(sel)
-      }
-      const results = await builder.analyze()
+      const results = await wcagScan(page).analyze()
       const violations = results.violations.map((v) => ({
         id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
         targets: v.nodes.map((n) => n.target),
@@ -520,6 +515,155 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
       expect(
         violations,
         `axe-core violations on data-rich /apoe:\n${JSON.stringify(violations, null, 2)}`,
+      ).toEqual([])
+    })
+  })
+
+  // ── axe-core on the seeded Variant Explorer (#2306) ─────────
+  // Every `/variants` visit above is unseeded, so the table rows, the detail
+  // panel and the Watching sidebar -- whose sort toggle renders only once a
+  // variant is watched, and was the #2027 Label-in-Name defect -- never rendered
+  // under axe. These stubs mirror tests/e2e/variant-row-watch-toggle.spec.ts.
+  test.describe('axe-core on the seeded Variant Explorer (#2306)', () => {
+    const jsonRoute = (payload: unknown) => ({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(payload),
+    })
+
+    const ROWS = [
+      { rsid: 'rs1000', pos: 1000 },
+      { rsid: 'rs2000', pos: 2000 },
+    ]
+
+    const row = ({ rsid, pos }: (typeof ROWS)[number]) => ({
+      rsid, chrom: '1', pos, ref: 'A', alt: 'G', genotype: 'AG', zygosity: 'het',
+      gene_symbol: 'GENE1', consequence: 'missense_variant', clinvar_significance: null,
+      clinvar_review_stars: null, gnomad_af_global: 0.01, rare_flag: false, cadd_phred: 10,
+      sift_score: null, sift_pred: null, polyphen2_hsvar_score: null, polyphen2_hsvar_pred: null,
+      revel: null, annotation_coverage: 0b111111, evidence_conflict: false,
+      ensemble_pathogenic: false, chrom_grch38: null, pos_grch38: null,
+    })
+
+    const DETAIL = {
+      ...row(ROWS[1]),
+      zygosity_label: 'Heterozygous', transcript_id: null, hgvs_coding: null,
+      hgvs_protein: null, strand: '+', exon_number: null, intron_number: null,
+      mane_select: null, clinvar_accession: null, clinvar_conditions: null,
+      ultra_rare_flag: false, deleterious_count: null, deleterious_total_assessed: null,
+      evidence_conflict_detail: null, transcripts: [], gene_phenotypes: [],
+    }
+
+    test.beforeEach(async ({ page }) => {
+      // Server-side watch list, mutated by the row toggle, so the sidebar
+      // renders from a real round trip. Anchored on the port: `**/api/watches**`
+      // would also match Vite's request for the app's own src/api/watches.ts.
+      let watched: string[] = []
+      await page.route(/:\d+\/api\/watches/, async (route) => {
+        const request = route.request()
+        if (request.method() === 'POST') {
+          const body = JSON.parse(request.postData() ?? '{}')
+          if (!watched.includes(body.rsid)) watched.push(body.rsid)
+          return route.fulfill(jsonRoute({ rsid: body.rsid }))
+        }
+        if (request.method() === 'DELETE') {
+          const rsid = decodeURIComponent(request.url().split('/api/watches/')[1].split('?')[0])
+          watched = watched.filter((w) => w !== rsid)
+          return route.fulfill(jsonRoute({}))
+        }
+        return route.fulfill(
+          jsonRoute(watched.map((rsid) => ({ rsid, watched_at: '2026-10-15T00:00:00Z' }))),
+        )
+      })
+      await page.route(/:\d+\/api\/variants\/count/, (route) =>
+        route.fulfill(jsonRoute({ total: ROWS.length, filtered: false })),
+      )
+      await page.route(/:\d+\/api\/variants\/chromosomes/, (route) =>
+        route.fulfill(jsonRoute([{ chrom: '1', count: ROWS.length }])),
+      )
+      await page.route(/:\d+\/api\/variants\/rs2000(\?|$)/, (route) =>
+        route.fulfill(jsonRoute(DETAIL)),
+      )
+      await page.route(/:\d+\/api\/samples\/1\/merge-provenance/, (route) =>
+        route.fulfill(jsonRoute(null)),
+      )
+      await page.route(/:\d+\/api\/tags/, (route) => route.fulfill(jsonRoute([])))
+      await page.route(/:\d+\/api\/column-presets/, (route) =>
+        route.fulfill(jsonRoute({ presets: [] })),
+      )
+      await page.route(/:\d+\/api\/variants\?/, (route) =>
+        route.fulfill(
+          jsonRoute({
+            items: ROWS.map(row),
+            next_cursor_chrom: null,
+            next_cursor_pos: null,
+            has_more: false,
+            limit: 100,
+          }),
+        ),
+      )
+    })
+
+    const summarise = (violations: Awaited<ReturnType<AxeBuilder['analyze']>>['violations']) =>
+      violations.map((v) => ({
+        id: v.id, impact: v.impact, description: v.description, nodes: v.nodes.length,
+        targets: v.nodes.map((n) => n.target),
+        failureSummary: v.nodes.map((n) => n.failureSummary),
+      }))
+
+    test('rows, a watched variant and an open detail panel pass axe-core', async ({ page }) => {
+      await page.goto('/variants?sample_id=1')
+      await waitForReactHydration(page)
+      await expect(page.getByText('rs1000', { exact: true }).first()).toBeVisible()
+
+      // 1. Rows plus the Watching sidebar, whose sort toggle renders only once a
+      //    variant is watched. Scanned before the panel opens: axe leaves content
+      //    outside an open aria-modal dialog unevaluated.
+      await page.getByRole('button', { name: 'Watch rs1000', exact: true }).click()
+      await expect(page.getByRole('list', { name: 'Watched variants' })).toContainText('rs1000')
+      // Found by its visible text, not its accessible name: a name regression is
+      // what axe must catch below, and a name-based locator would fail first
+      // without saying why.
+      await expect(page.getByRole('button').filter({ hasText: /^Sort: / })).toBeVisible()
+
+      const sidebar = await wcagScan(page).analyze()
+      expect(
+        summarise(sidebar.violations),
+        `axe-core violations on seeded /variants (rows + Watching sidebar)`,
+      ).toEqual([])
+      // The opt-in must actually run, and must reach the sort toggle: a rule
+      // that silently reports `inapplicable` is the gap this test closes.
+      const labelInNameNodes = [...sidebar.passes, ...sidebar.violations]
+        .filter((r) => r.id === 'label-content-name-mismatch')
+        .flatMap((r) => r.nodes)
+      expect(
+        labelInNameNodes.some((n) => /aria-label="Sort[: ]/.test(n.html)),
+        'label-content-name-mismatch did not evaluate the Watching sidebar sort toggle',
+      ).toBe(true)
+
+      // 2. The other row's detail panel.
+      await page.getByText('rs2000', { exact: true }).first().click()
+      await expect(page.getByRole('dialog', { name: /Variant detail for rs2000/ })).toBeVisible()
+      const panel = await wcagScan(page).analyze()
+
+      // One known, app-wide defect is filed rather than fixed here: white text on
+      // --color-primary is 3.67:1 (#2525), and the panel's "Open full detail" link
+      // is the first primary button any scan renders. Only that exact pairing is
+      // set aside, and it must still reproduce, so fixing #2525 fails this line
+      // until the filter is deleted.
+      const isKnownPrimaryContrast = (id: string, html: string) =>
+        id === 'color-contrast' && html.includes('bg-primary text-primary-foreground')
+      expect(
+        panel.violations.flatMap((v) => v.nodes.filter((n) => isKnownPrimaryContrast(v.id, n.html)))
+          .length,
+        '#2525 no longer reproduces on seeded /variants: delete this filter',
+      ).toBeGreaterThan(0)
+      const remaining = panel.violations
+        .map((v) => ({ ...v, nodes: v.nodes.filter((n) => !isKnownPrimaryContrast(v.id, n.html)) }))
+        .filter((v) => v.nodes.length > 0)
+      expect(
+        summarise(remaining),
+        `axe-core violations on seeded /variants (detail panel open)`,
       ).toEqual([])
     })
   })
@@ -573,18 +717,33 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     })
 
     test('Escape closes sample switcher dropdown', async ({ page }) => {
+      // A synthetic sample so the switcher always renders. This test used to
+      // find the trigger by an exact aria-label inside `if (isVisible())` and
+      // wait for a listbox the switcher never renders (it is a tree), so it
+      // passed without checking anything whenever the trigger was missing or
+      // renamed (#2306).
+      const json = (payload: unknown) => ({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(payload),
+      })
+      await page.route(/:\d+\/api\/samples(\?.*)?$/, (route) =>
+        route.fulfill(json([{
+          id: 1, name: 'synthetic.txt', db_path: 'samples/sample_1.db', file_format: '23andme_v5',
+          file_hash: 'hash1', notes: null, date_collected: null, source: null, extra: null,
+          created_at: '2026-05-01T00:00:00', updated_at: null,
+        }])),
+      )
+      await page.route(/:\d+\/api\/individuals(\?.*)?$/, (route) => route.fulfill(json([])))
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      const trigger = page.locator('[aria-label="Switch sample"]')
-      if (await trigger.isVisible()) {
-        await trigger.click()
-        const listbox = page.locator('[role="listbox"]')
-        await expect(listbox).toBeVisible()
+      await page.getByRole('button', { name: /switch sample$/i }).click()
+      const tree = page.getByRole('tree', { name: 'Individuals and samples' })
+      await expect(tree).toBeVisible()
 
-        await page.keyboard.press('Escape')
-        await expect(listbox).not.toBeVisible()
-      }
+      await page.keyboard.press('Escape')
+      await expect(tree).not.toBeVisible()
     })
 
     test('Escape closes command palette', async ({ page }) => {

@@ -742,7 +742,7 @@ describe("VariantToolbar", () => {
     render(<VariantTable sampleId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /show conflicts only/i })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /^conflicts only$/i })).toBeInTheDocument()
     })
   })
 
@@ -754,7 +754,7 @@ describe("VariantToolbar", () => {
     render(<VariantTable sampleId={1} />)
 
     const toggle = await waitFor(() =>
-      screen.getByRole("button", { name: /show conflicts only/i }),
+      screen.getByRole("button", { name: /^conflicts only$/i }),
     )
 
     expect(toggle).toHaveAttribute("aria-pressed", "false")
@@ -764,6 +764,35 @@ describe("VariantToolbar", () => {
 
     await user.click(toggle)
     expect(toggle).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("keeps the visible text in the name of pressed and active controls (#2306)", async () => {
+    // WCAG 2.5.3 Label in Name. Pressed, "Conflicts only" was named "Show all
+    // variants"; the active-tag badge reading "Tag: Review" was named "Clear tag
+    // filter: Review". Saying the words on screen reached neither.
+    const page = makeVariantPage(2)
+    const reviewTag: Tag = {
+      id: 1, name: "Review", color: "#0ea5e9", is_predefined: false, created_at: null, variant_count: 2,
+    }
+    setupFetchMock(page, makeCountResponse(2), defaultChromCounts, defaultPresets, [reviewTag])
+
+    const user = userEvent.setup()
+    render(<VariantTable sampleId={1} />)
+
+    const conflicts = await waitFor(() =>
+      screen.getByRole("button", { name: /^conflicts only$/i }),
+    )
+    await user.click(conflicts)
+    expect(conflicts).toHaveAttribute("aria-pressed", "true")
+    expect(conflicts).toHaveAccessibleName("Conflicts only")
+
+    await user.click(screen.getByRole("button", { name: "Tags, filter by tag" }))
+    await user.click(await screen.findByRole("option", { name: /Review/ }))
+
+    expect(screen.getByRole("button", { name: "Review, tag filter" })).toHaveTextContent("Review")
+    const badge = screen.getByRole("button", { name: /clear tag filter$/ })
+    expect(badge).toHaveTextContent("Tag: Review")
+    expect(badge).toHaveAccessibleName("Tag: Review, clear tag filter")
   })
 
   it("sends evidence_conflict:1 filter when Conflicts only is active (P2-22)", async () => {
@@ -778,7 +807,7 @@ describe("VariantToolbar", () => {
     })
 
     // Activate conflicts only toggle
-    const toggle = screen.getByRole("button", { name: /show conflicts only/i })
+    const toggle = screen.getByRole("button", { name: /^conflicts only$/i })
     await user.click(toggle)
 
     // Verify evidence_conflict:1 is in the fetch filter
@@ -822,7 +851,7 @@ describe("Evidence conflict indicator (P2-22)", () => {
     })
 
     // Switch to Research preset — should show CADD, SIFT, etc.
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument())
     await user.click(screen.getByRole("menuitem", { name: /Research/ }))
 
@@ -930,7 +959,7 @@ describe("ColumnPresets (P1-15c)", () => {
     render(<VariantTable sampleId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Column presets" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /column presets$/i })).toBeInTheDocument()
     })
     // Default label
     expect(screen.getByText("All Columns")).toBeInTheDocument()
@@ -944,10 +973,10 @@ describe("ColumnPresets (P1-15c)", () => {
     render(<VariantTable sampleId={1} />)
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Column presets" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /column presets$/i })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
 
     await waitFor(() => {
       expect(screen.getByRole("menu")).toBeInTheDocument()
@@ -974,7 +1003,7 @@ describe("ColumnPresets (P1-15c)", () => {
     expect(screen.getByText("CADD")).toBeInTheDocument()
 
     // Click preset button and select Clinical
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => {
       expect(screen.getByRole("menu")).toBeInTheDocument()
     })
@@ -1002,7 +1031,7 @@ describe("ColumnPresets (P1-15c)", () => {
     })
 
     // Switch to Clinical (hides CADD)
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument())
     await user.click(screen.getByRole("menuitem", { name: /Clinical/ }))
 
@@ -1011,7 +1040,7 @@ describe("ColumnPresets (P1-15c)", () => {
     })
 
     // Switch back to All Columns
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument())
     await user.click(screen.getByRole("menuitem", { name: /All Columns/ }))
 
@@ -1031,7 +1060,7 @@ describe("ColumnPresets (P1-15c)", () => {
       expect(screen.getByText("rs100")).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument())
     await user.click(screen.getByRole("menuitem", { name: /Frequency/ }))
 
@@ -1689,7 +1718,7 @@ describe("GRCh38 liftover toggle (P4-20)", () => {
     })
 
     // Switch to Clinical preset
-    await user.click(screen.getByRole("button", { name: "Column presets" }))
+    await user.click(screen.getByRole("button", { name: /column presets$/i }))
     await waitFor(() => expect(screen.getByRole("menu")).toBeInTheDocument())
     await user.click(screen.getByRole("menuitem", { name: /Clinical/ }))
 
@@ -1781,6 +1810,30 @@ describe("Unannotated count badge (#1978)", () => {
       .map((c) => c[0] as string)
       .find((url) => url.includes("/api/variants/count") && url.includes("annotation_coverage%3Anull"))
     expect(nullCountCall).toBeDefined()
+  })
+
+  it("names the toolbar's labelled controls by their visible text first (#2306)", async () => {
+    // WCAG 2.5.3 Label in Name: a voice-control user says what a button shows.
+    // "Show unannotated variants", "Filter by tag" and "Column presets" each
+    // replaced visible text ("Show unannotated (7)", "Tags", "All Columns") that
+    // the name never contained, so saying it matched nothing.
+    setupCountMock({ total: 100, annotated: 93, unannotated: 7 })
+
+    render(<VariantTable sampleId={1} />)
+
+    const toggle = await waitFor(() =>
+      screen.getByRole("button", { name: /show unannotated/i }),
+    )
+    await waitFor(() => expect(toggle).toHaveTextContent("Show unannotated (7)"))
+    expect(toggle).toHaveAccessibleName("Show unannotated (7)")
+
+    const columns = screen.getByRole("button", { name: /column presets$/i })
+    expect(columns).toHaveTextContent("All Columns")
+    expect(columns).toHaveAccessibleName("All Columns, column presets")
+
+    const tags = screen.getByRole("button", { name: /filter by tag$/i })
+    expect(tags).toHaveTextContent("Tags")
+    expect(tags).toHaveAccessibleName("Tags, filter by tag")
   })
 
   it("reads (0) and disables the toggle for a fully-annotated sample", async () => {

@@ -160,6 +160,28 @@ describe("IndividualSelector", () => {
     })
   })
 
+  it("names the trigger by the sample it shows, then what it does (#2306)", async () => {
+    // WCAG 2.5.3 Label in Name: the trigger shows the active sample but was
+    // named only "Switch sample", so a voice-control user saying the sample
+    // name on screen matched nothing.
+    installFetchScenario(
+      [
+        {
+          id: 1,
+          name: "alice_23andme.txt",
+          file_format: "23andme_v5",
+          created_at: "2026-05-01T00:00:00",
+        },
+      ],
+      [{ id: 10, display_name: "Alice", sample_ids: [1] }],
+    )
+    render(<IndividualSelector />, { route: "/variants?sample_id=1" })
+
+    const trigger = await screen.findByRole("button", { name: /switch sample$/i })
+    await waitFor(() => expect(trigger).toHaveTextContent("Alice / alice_23andme.txt"))
+    expect(trigger).toHaveAccessibleName("Alice / alice_23andme.txt, switch sample")
+  })
+
   it("groups linked samples under each individual and lists unassigned separately", async () => {
     installFetchScenario(
       [

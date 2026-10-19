@@ -3,7 +3,7 @@
  *  Click behavior: single click on any variant row opens this panel.
  *  The full detail page is only reached via the "Open full detail" link. */
 
-import { useRef, useCallback } from "react"
+import { useRef } from "react"
 import { Link } from "react-router-dom"
 import {
   X,
@@ -361,28 +361,22 @@ export default function VariantDetailSidePanel({
   // and renders null when closed, so the open flag drives focus entry per open.
   useDialogFocus(panelRef, onClose, isOpen)
 
-  // Close when clicking the overlay
-  const handleOverlayClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    },
-    [onClose],
-  )
-
   if (!isOpen) return null
 
   return (
-    // Overlay
-    <div
-      className="fixed inset-0 z-40 bg-black/20 dark:bg-black/40 transition-opacity"
-      onClick={handleOverlayClick}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onClose() }}
-      role="button"
-      tabIndex={0}
-      aria-label="Close panel"
-    >
+    <>
+      {/* Backdrop: a pointer-only dismiss target. It used to be a focusable
+          role="button" named "Close panel" that WRAPPED the dialog, so
+          assistive tech heard the whole panel as one button, and an Enter or
+          Space pressed on any control inside bubbled up and closed it (#2306).
+          Keyboard and screen-reader users close with Escape (useDialogFocus) or
+          the panel's own Close button. */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 dark:bg-black/40 transition-opacity"
+        onClick={onClose}
+        aria-hidden="true"
+        data-testid="variant-detail-backdrop"
+      />
       {/* Slide-in drawer */}
       <div
         ref={panelRef}
@@ -391,7 +385,7 @@ export default function VariantDetailSidePanel({
         aria-modal="true"
         tabIndex={-1}
         className={cn(
-          "fixed right-0 top-0 h-full w-full max-w-md bg-card border-l border-border shadow-xl",
+          "fixed right-0 top-0 z-40 h-full w-full max-w-md bg-card border-l border-border shadow-xl",
           "flex flex-col",
           "animate-in slide-in-from-right duration-200",
         )}
@@ -421,6 +415,6 @@ export default function VariantDetailSidePanel({
           <PanelContent variant={variant} sampleId={sampleId} onClose={onClose} />
         ) : null}
       </div>
-    </div>
+    </>
   )
 }

@@ -117,7 +117,8 @@ export default function ColumnPresets({ activePreset, onPresetChange }: ColumnPr
         className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md border border-input bg-background text-foreground hover:bg-accent transition-colors"
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label="Column presets"
+        // Visible preset name first (WCAG 2.5.3 Label in Name, #2306).
+        aria-label={`${activePreset ?? "All Columns"}, column presets`}
       >
         <Columns3 className="h-4 w-4" />
         <span>{activePreset ?? "All Columns"}</span>
