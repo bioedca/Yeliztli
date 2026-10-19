@@ -33,6 +33,7 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import CrossModuleCard from "@/components/CrossModuleCard"
 
 const SKIN_LABEL = getModuleMeta("skin").label
@@ -350,7 +351,11 @@ export default function SkinView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty icon={Sun} title="No skin results yet." description="Run annotation to generate pathway scores." />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Skin" />
+            ) : (
+              <PageEmpty icon={Sun} title="No skin results yet." description="Run annotation to generate pathway scores." />
+            )
           )}
         </>
       )}

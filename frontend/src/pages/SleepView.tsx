@@ -16,6 +16,7 @@ import { Moon, Coffee } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { getModuleMeta } from "@/lib/modules"
@@ -175,11 +176,15 @@ export default function SleepView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty
-              icon={Moon}
-              title="No sleep results yet."
-              description="Run annotation to generate pathway scores."
-            />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Sleep" />
+            ) : (
+              <PageEmpty
+                icon={Moon}
+                title="No sleep results yet."
+                description="Run annotation to generate pathway scores."
+              />
+            )
           )}
         </>
       )}

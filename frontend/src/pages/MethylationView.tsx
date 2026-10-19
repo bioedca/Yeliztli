@@ -15,6 +15,7 @@ import { FlaskConical } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { useMethylationPathways } from "@/api/methylation"
@@ -132,11 +133,15 @@ export default function MethylationView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty
-              icon={FlaskConical}
-              title="No methylation results yet."
-              description="Run annotation to generate pathway scores."
-            />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Methylation" />
+            ) : (
+              <PageEmpty
+                icon={FlaskConical}
+                title="No methylation results yet."
+                description="Run annotation to generate pathway scores."
+              />
+            )
           )}
         </>
       )}

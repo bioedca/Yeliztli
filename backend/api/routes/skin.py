@@ -30,6 +30,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.skin import load_skin_panel
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -142,7 +143,7 @@ class InsufficientDataItem(BaseModel):
     pmids: list[str] = []
 
 
-class PathwaysResponse(BaseModel):
+class PathwaysResponse(WithheldMarker):
     """All pathway results for a sample."""
 
     items: list[PathwaySummary]
@@ -344,7 +345,7 @@ def list_pathways(
         insufficient_data=insuf_items,
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return PathwaysResponse(items=[], total=0)
+        return PathwaysResponse(items=[], total=0, withheld=True)
     return response
 
 

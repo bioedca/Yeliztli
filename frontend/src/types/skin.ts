@@ -86,6 +86,9 @@ export interface PathwaysResponse {
   mc1r_aggregate: MC1RAggregateItem | null
   cross_module: CrossModuleItem[]
   insufficient_data: InsufficientDataItem[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2519). */
+  withheld?: boolean
 }
 
 /** Full pathway detail with per-SNP breakdown. */

@@ -52,6 +52,9 @@ export interface PathwaysResponse {
   total: number
   cross_module: CrossModuleItem[]
   module_disclaimer: string | null
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2519). */
+  withheld?: boolean
 }
 
 /** Full pathway detail with per-SNP breakdown. */

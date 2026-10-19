@@ -33,6 +33,7 @@ from backend.analysis.pharmacogenomics import (
     patient_visible_finding_clause,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -131,7 +132,7 @@ class CrossModuleItem(BaseModel):
     pgx_guidance_available: bool = False
 
 
-class PathwaysResponse(BaseModel):
+class PathwaysResponse(WithheldMarker):
     """All pathway results for a sample."""
 
     items: list[PathwaySummary]
@@ -139,10 +140,6 @@ class PathwaysResponse(BaseModel):
     celiac_combined: CeliacCombinedItem | None = None
     histamine_combined: HistamineCombinedItem | None = None
     cross_module: list[CrossModuleItem] = []
-    # True only on the empty fallback that replaces an assembled response the
-    # presentability guard refused, so the page can say the results are withheld
-    # instead of that there are none (#2297).
-    withheld: bool = False
 
 
 class PathwayDetailResponse(BaseModel):

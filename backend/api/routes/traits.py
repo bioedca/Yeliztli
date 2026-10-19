@@ -27,6 +27,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.traits import INDETERMINATE
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -122,7 +123,7 @@ class CrossModuleItem(BaseModel):
     pmids: list[str] = []
 
 
-class PathwaysResponse(BaseModel):
+class PathwaysResponse(WithheldMarker):
     """All pathway results for a sample."""
 
     items: list[PathwaySummary]
@@ -154,7 +155,7 @@ class PathwayDetailResponse(BaseModel):
     snp_details: list[SNPDetail] = []
 
 
-class PRSResponse(BaseModel):
+class PRSResponse(WithheldMarker):
     """PRS results for the traits module."""
 
     items: list[PRSFinding]
@@ -336,7 +337,9 @@ def list_pathways(
     if not is_patient_presentable_response_payload(
         response.model_dump(mode="json", exclude={"module_disclaimer"})
     ):
-        return PathwaysResponse(items=[], total=0, module_disclaimer=panel.module_disclaimer)
+        return PathwaysResponse(
+            items=[], total=0, module_disclaimer=panel.module_disclaimer, withheld=True
+        )
     return response
 
 
@@ -498,7 +501,9 @@ def list_prs(
     if not is_patient_presentable_response_payload(
         response.model_dump(mode="json", exclude={"module_disclaimer"})
     ):
-        return PRSResponse(items=[], total=0, module_disclaimer=panel.module_disclaimer)
+        return PRSResponse(
+            items=[], total=0, module_disclaimer=panel.module_disclaimer, withheld=True
+        )
     return response
 
 
