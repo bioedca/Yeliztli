@@ -26,6 +26,9 @@ export interface GeneSummary {
 export interface GeneSummaryResponse {
   items: GeneSummary[]
   total: number
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2522). */
+  withheld?: boolean
 }
 
 /** Drug list item from CPIC database. */
@@ -70,6 +73,9 @@ export interface GeneEffect {
 export interface DrugLookupResponse {
   drug: string
   gene_effects: GeneEffect[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2522). */
+  withheld?: boolean
 }
 
 // ── Medication-safety report (SW-E4) ─────────────────────────────────
@@ -148,4 +154,7 @@ export interface MedicationSafetyReportResponse {
   actionable_drug_count: number
   gene_coverage: GeneCoverageSummary[]
   drugs: DrugSafetyEntry[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2522). */
+  withheld?: boolean
 }

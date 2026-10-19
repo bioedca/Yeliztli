@@ -344,7 +344,9 @@ export default function FindingsExplorer() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">All Findings</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {summary
+            {summary?.withheld
+              ? "The findings summary is withheld for this sample."
+              : summary
               ? `${summary.total_findings} findings across ${summary.modules.length} modules`
               : // Without the summary there is no total: the list is capped at
                 // FINDINGS_PAGE_SIZE, so say what is loaded rather than imply a

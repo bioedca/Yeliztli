@@ -28,6 +28,7 @@ from backend.analysis.pharmacogenomics import (
     patient_visible_finding_clause,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import cpic_guidelines, findings, samples
 from backend.disclaimers import MEDICATION_SAFETY_REFERENCE_BIAS
@@ -87,7 +88,7 @@ class GeneEffect(BaseModel):
     not_assessed: bool = False
 
 
-class DrugLookupResponse(BaseModel):
+class DrugLookupResponse(WithheldMarker):
     """Full drug detail with per-gene genotype effects for a sample."""
 
     drug: str
@@ -110,7 +111,7 @@ class GeneSummary(BaseModel):
     gene_caveat: str | None = None  # interpretive caveat (e.g. DPYD fatal-toxicity)
 
 
-class GeneSummaryResponse(BaseModel):
+class GeneSummaryResponse(WithheldMarker):
     """List of per-gene star-allele results for a sample."""
 
     items: list[GeneSummary]
@@ -184,7 +185,7 @@ class GeneCoverageSummary(BaseModel):
     indeterminate_alleles: list[str] = []
 
 
-class MedicationSafetyReportResponse(BaseModel):
+class MedicationSafetyReportResponse(WithheldMarker):
     """Consolidated drug-centric medication-safety report for a sample (SW-E4)."""
 
     reference_bias_disclosure: str
@@ -511,7 +512,7 @@ def drug_lookup(
             record["drug"] = canonical_drug
             dynamic_records.append(record)
         if not is_patient_presentable_response_payload(dynamic_records):
-            return DrugLookupResponse(drug=canonical_drug, gene_effects=[])
+            return DrugLookupResponse(drug=canonical_drug, gene_effects=[], withheld=True)
     return response
 
 
@@ -631,7 +632,7 @@ def gene_results(
     if not is_patient_presentable_response_payload(
         {"records": dynamic_records, "drug_associations": drug_associations}
     ):
-        return GeneSummaryResponse(items=[], total=0)
+        return GeneSummaryResponse(items=[], total=0, withheld=True)
     return GeneSummaryResponse(items=items, total=len(items))
 
 
@@ -794,5 +795,6 @@ def medication_safety_report(
             actionable_drug_count=0,
             gene_coverage=[],
             drugs=[],
+            withheld=True,
         )
     return response
