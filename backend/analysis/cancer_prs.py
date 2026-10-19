@@ -408,9 +408,12 @@ def store_cancer_prs_findings(
     Delegates to the generic store_prs_findings with module='cancer'. Only
     results carrying the exact fingerprint of an enabled bundled model can cross
     this final persistence boundary; this prevents a manually constructed result
-    or same-trait alternate model from bypassing a non-reporting gate. Among
-    eligible results, only those with sufficient coverage (≥50%) are stored.
-    Each stored finding records the run's ``scored_sex_context`` (#2509).
+    or same-trait alternate model from bypassing a non-reporting gate. An
+    eligible result below the 50% coverage threshold is still stored, as a
+    "coverage too low" finding with its score and percentile withheld, so the
+    model is explained rather than silently missing (#2503) -- the same
+    transparent storage FH, eBMD and metabolic PRS use. Each stored finding
+    records the run's ``scored_sex_context`` (#2509).
 
     Args:
         cancer_result: CancerPRSResult from run_cancer_prs.
@@ -444,5 +447,6 @@ def store_cancer_prs_findings(
         eligible_results,
         sample_engine,
         module="cancer",
+        store_insufficient=True,
         extra_detail={SCORED_SEX_CONTEXT_KEY: cancer_result.scored_sex_context},
     )

@@ -1339,18 +1339,40 @@ class TestStoreCancerPRSFindings:
             assert detail["bootstrap_iterations"] == 0
             assert detail["research_use_only"] is True
 
-    def test_does_not_store_insufficient(
+    def test_stores_insufficient_with_score_and_percentile_withheld(
         self, cancer_weight_sets: list[PRSWeightSet], sample_engine: sa.Engine
     ) -> None:
-        """Results with < 50% coverage should not be stored."""
+        """A model below 50% coverage is stored as an explanation, never as a score (#2503)."""
         prs_result = run_cancer_prs(
             cancer_weight_sets,
             sample_engine,
             n_bootstrap=100,
             rng_seed=42,
         )
+        assert prs_result.results
+        assert not any(r.is_sufficient for r in prs_result.results)
+
         count = store_cancer_prs_findings(prs_result, sample_engine)
-        assert count == 0
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "cancer", findings.c.category == "prs"
+                )
+            ).fetchall()
+        assert count == len(prs_result.results) == len(rows)
+        assert {json.loads(row.detail_json)["trait"] for row in rows} == set(
+            prs_result.insufficient_traits
+        )
+        for row in rows:
+            detail = json.loads(row.detail_json)
+            assert detail["is_sufficient"] is False
+            assert detail["percentile"] is None
+            assert detail["z_score"] is None
+            assert row.prs_percentile is None
+            assert row.prs_score is None
+            assert "coverage too low" in row.finding_text
+            assert "percentile withheld" in row.finding_text
 
     def test_does_not_clear_monogenic_findings(
         self, cancer_weight_sets: list[PRSWeightSet], sample_with_prs_snps: sa.Engine
@@ -1918,3 +1940,34 @@ class TestCancerPRSUnavailableModels:
 
         assert [w.trait for w in response.withheld_traits] == ["breast_cancer"]
         assert response.unavailable_models == []
+
+
+# ── Insufficient-coverage models are explained, not dropped (#2503) ───────
+
+
+class TestCancerPRSInsufficientCoverage:
+    def test_sparse_sample_lists_each_model_as_insufficient(
+        self, monkeypatch: pytest.MonkeyPatch, sample_partial_coverage: sa.Engine
+    ) -> None:
+        _store_prs(sample_partial_coverage, inferred_sex="XY")
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_partial_coverage, "XY")
+
+        assert {item.trait for item in response.items} == XY_CANCER_PRS_TRAITS
+        assert all(not item.is_sufficient for item in response.items)
+        assert all(item.percentile is None for item in response.items)
+        assert response.sufficient_count == 0
+        assert set(response.insufficient_traits) == XY_CANCER_PRS_TRAITS
+        # Stored, so the sex gate has nothing to explain for prostate.
+        assert response.withheld_traits == []
+
+    def test_sufficient_models_keep_their_scores_beside_insufficient_ones(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert response.items
+        assert all(item.is_sufficient for item in response.items)
+        assert response.insufficient_traits == []

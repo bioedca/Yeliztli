@@ -228,6 +228,39 @@ describe("CancerView unavailable PRS models (#2504)", () => {
   })
 })
 
+describe("CancerView insufficient-coverage models (#2503)", () => {
+  it("names a low-coverage model by its name, never its trait id", () => {
+    const sparse: CancerPRS = {
+      ...COLORECTAL_PRS,
+      trait: "prostate_cancer",
+      name: PROSTATE_NAME,
+      is_sufficient: false,
+      coverage_fraction: 0.05,
+      snps_used: 1,
+    }
+    mockPRS.mockReturnValue(
+      q({
+        data: {
+          items: [sparse],
+          total: 1,
+          sufficient_count: 0,
+          insufficient_traits: ["prostate_cancer"],
+          withheld_traits: [],
+          unavailable_models: [],
+        },
+      }),
+    )
+    render(<CancerView />)
+
+    const line = screen.getByTestId("prs-insufficient-line")
+    expect(line).toHaveTextContent(`Insufficient SNP coverage for: ${PROSTATE_NAME}`)
+    expect(line).not.toHaveTextContent("prostate_cancer")
+    // The model gets its own card instead of the "Run annotation" empty state.
+    expect(screen.getByText("Insufficient SNP coverage (5%)")).toBeInTheDocument()
+    expect(screen.queryByText("No PRS results yet.")).not.toBeInTheDocument()
+  })
+})
+
 describe("PRSWithheldNotice", () => {
   it("renders nothing for a response without the field", () => {
     const { container } = render(<PRSWithheldNotice />)
