@@ -1308,8 +1308,21 @@ class TestCheckMondoHpoUpdate:
     @pytest.mark.parametrize(
         ("installed_source", "offered"),
         [
-            pytest.param("unverified-0123456789abcdef", True, id="loader-fallback"),
-            pytest.param("unverified-latest", False, id="lookalike"),
+            pytest.param(
+                "unverified-0123456789abcdef+{rev}+hpo-unknown+mondo-sssom-unknown",
+                True,
+                id="loader-fallback",
+            ),
+            pytest.param(
+                "unverified-latest+{rev}+hpo-unknown+mondo-sssom-unknown",
+                False,
+                id="lookalike-primary",
+            ),
+            pytest.param(
+                "unverified-0123456789abcdef+vNext+{rev}+hpo-unknown+mondo-sssom-unknown",
+                False,
+                id="hand-written-stamp",
+            ),
         ],
     )
     def test_unverified_scoped_install_is_offered_the_dated_release(
@@ -1325,7 +1338,7 @@ class TestCheckMondoHpoUpdate:
         _record_version_row(
             reference_engine,
             "mondo_hpo",
-            f"{installed_source}+{MONDO_HPO_INGESTION_REVISION}+hpo-unknown+mondo-sssom-unknown",
+            installed_source.format(rev=MONDO_HPO_INGESTION_REVISION),
         )
 
         mock_client, primary = _mock_head_client(

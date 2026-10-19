@@ -869,8 +869,10 @@ class TestCombinedDownloadProgress:
 class TestUnverifiedInstallRefresh:
     """A metadata-less install is replaceable by the first dated release (#2288)."""
 
-    UNVERIFIED = f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+hpo-x+mondo-sssom-y"
-    DATED = f"20260415+{MONDO_HPO_INGESTION_REVISION}+hpo-x+mondo-sssom-y"
+    # Stamps exactly as _mondo_hpo_install_version writes them.
+    SECONDARIES = "hpo-0123456789abcdef+mondo-sssom-unknown"
+    UNVERIFIED = f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}"
+    DATED = f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}"
 
     def test_a_dated_download_may_replace_the_unverified_fallback(self) -> None:
         _assert_mondo_hpo_source_is_not_older((self.UNVERIFIED, None, None), self.DATED)
@@ -880,8 +882,8 @@ class TestUnverifiedInstallRefresh:
         [
             # Still nothing to order: an undated download over an undated install.
             pytest.param(
-                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}",
-                f"unverified-fedcba9876543210+{MONDO_HPO_INGESTION_REVISION}",
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"unverified-fedcba9876543210+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
                 id="undated-over-unverified",
             ),
             # An operator-named release is never replaced blindly.
@@ -892,9 +894,25 @@ class TestUnverifiedInstallRefresh:
             ),
             # Only the loader's exact unverified-<16 hex> stamp qualifies.
             pytest.param(
-                f"unverified-latest+{MONDO_HPO_INGESTION_REVISION}",
-                f"20260415+{MONDO_HPO_INGESTION_REVISION}",
-                id="dated-over-lookalike",
+                f"unverified-latest+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-lookalike-primary",
+            ),
+            # Only the complete loader stamp qualifies, not a version that merely starts like it.
+            pytest.param(
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-truncated-stamp",
+            ),
+            pytest.param(
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+hpo-x+mondo-sssom-y",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-malformed-fingerprints",
+            ),
+            pytest.param(
+                f"unverified-0123456789abcdef+vNext+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-extra-component",
             ),
         ],
     )

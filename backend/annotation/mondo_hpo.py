@@ -2311,21 +2311,37 @@ def _trusted_installed_source_date(version: str) -> str | None:
     return source
 
 
+def _is_loader_fingerprint(value: str, *, allow_unknown: bool) -> bool:
+    """Whether *value* is a 16-hex fingerprint as the loader writes it."""
+    if allow_unknown and value == "unknown":
+        return True
+    return len(value) == 16 and all(character in "0123456789abcdef" for character in value)
+
+
 def _is_unverified_source_install(version: str) -> bool:
     """Whether *version* is the loader's own stamp for a primary without release metadata.
 
     :func:`download_and_load_mondo_hpo` writes ``unverified-<16 hex>`` rather
     than a wall-clock date when the primary response carries no release
     version. Unlike an operator-named release, it orders nothing, so the first
-    trusted release may replace it (#2288).
+    trusted release may replace it (#2288). Only the complete stamp that
+    :func:`_mondo_hpo_install_version` builds qualifies, so a hand-written
+    version that merely starts the same way is still never replaced blindly.
     """
-    source = _mondo_hpo_source_version(version)
-    digest = source.removeprefix(_UNVERIFIED_SOURCE_PREFIX)
+    parts = version.split("+")
+    if len(parts) != 4:
+        return False
+    source, revision, hpo, sssom = parts
     return (
-        _has_current_ingestion_revision(version)
-        and source.startswith(_UNVERIFIED_SOURCE_PREFIX)
-        and len(digest) == 16
-        and all(character in "0123456789abcdef" for character in digest)
+        source.startswith(_UNVERIFIED_SOURCE_PREFIX)
+        and _is_loader_fingerprint(
+            source.removeprefix(_UNVERIFIED_SOURCE_PREFIX), allow_unknown=False
+        )
+        and revision == MONDO_HPO_INGESTION_REVISION
+        and hpo.startswith("hpo-")
+        and _is_loader_fingerprint(hpo.removeprefix("hpo-"), allow_unknown=True)
+        and sssom.startswith("mondo-sssom-")
+        and _is_loader_fingerprint(sssom.removeprefix("mondo-sssom-"), allow_unknown=True)
     )
 
 
