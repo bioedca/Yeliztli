@@ -13,6 +13,7 @@ from __future__ import annotations
 import gzip
 import itertools
 import json
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -50,6 +51,7 @@ class FakeDBHandler(BaseHTTPRequestHandler):
     data = TEST_DB_DATA
 
     def do_GET(self) -> None:
+        self.server.requested_paths.append(self.path)  # type: ignore[attr-defined]
         self.send_response(200)
         self.send_header("Content-Length", str(len(self.data)))
         self.send_header("Content-Type", "application/octet-stream")
@@ -62,12 +64,39 @@ class FakeDBHandler(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def fake_db_server():
-    """Local HTTP server serving fake database files."""
+    """Local HTTP server serving fake database files.
+
+    A download the test starts runs on the module-level download executor and
+    outlives the request that started it. So the server waits for every queued
+    and running download before it shuts down. Otherwise they retry against a
+    closed port well into later tests and log into those tests' databases
+    (#2534). The test's ``db_client`` patches are still active here, because
+    this fixture is set up after ``db_client`` and so is torn down before it.
+
+    The bundle manifest must not redirect a download that points here. With no
+    sha256 in the registry, ``_apply_manifest_overrides`` swaps in the
+    manifest's URL. That sent a "fake" gnomAD download to the real ~1.3 GB
+    release asset, fetched in the background on every run. ``requested_paths``
+    records what this server actually served.
+    """
     server = HTTPServer(("127.0.0.1", 0), FakeDBHandler)
+    server.requested_paths = []  # type: ignore[attr-defined]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    yield server
+    with patch("backend.api.routes.databases._apply_manifest_overrides", side_effect=lambda d: d):
+        yield server
+        _wait_for_downloads()
     server.shutdown()
+
+
+def _wait_for_downloads() -> None:
+    """Let every download on the module-level executor finish, then drop it."""
+    from backend.api.routes import databases
+
+    executor = databases._download_executor
+    if executor is not None:
+        executor.shutdown(wait=True)
+        databases._download_executor = None
 
 
 def server_url(server: HTTPServer) -> str:
@@ -133,6 +162,36 @@ def clear_sessions():
     _active_sessions.clear()
     yield
     _active_sessions.clear()
+
+
+def _threads_running_downloads() -> list[str]:
+    """Names of the live threads currently inside ``databases._run_download``."""
+    frames = sys._current_frames()
+    names = []
+    for thread in threading.enumerate():
+        frame = frames.get(thread.ident) if thread.ident is not None else None
+        while frame is not None:
+            code = frame.f_code
+            if code.co_name == "_run_download" and code.co_filename.endswith(
+                str(Path("routes") / "databases.py")
+            ):
+                names.append(thread.name)
+                break
+            frame = frame.f_back
+    return names
+
+
+@pytest.fixture(autouse=True)
+def _no_download_outlives_its_test():
+    """Fail a test that leaves a download running into the tests after it.
+
+    Autouse, so it is torn down after every fixture the test requested. A
+    download still running then would retry against a closed fake server and
+    log into a later test's databases (#2534).
+    """
+    yield
+    leaked = _threads_running_downloads()
+    assert not leaked, f"download threads outlived the test: {leaked}"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1039,6 +1098,13 @@ class TestTriggerDownload:
         assert resp.status_code == 202
         data = resp.json()
         assert len(data["downloads"]) == required_count
+
+        # Every selected download reached this server, including gnomAD, whose
+        # manifest entry once redirected it to the real release asset (#2534).
+        _wait_for_downloads()
+        assert sorted(fake_db_server.requested_paths) == sorted(  # type: ignore[attr-defined]
+            f"/{db.filename}" for db in test_dbs.values() if db.required
+        )
 
     def test_download_creates_session(
         self,
