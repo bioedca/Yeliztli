@@ -27,6 +27,7 @@ from backend.analysis.cross_module_links import (
     INDETERMINATE_CATEGORY,
     STANDARD_CATEGORY,
     emits_cross_module_card,
+    is_withheld_call,
 )
 
 ANALYSIS_DIR = Path(__file__).resolve().parents[2] / "backend" / "analysis"
@@ -99,6 +100,9 @@ def test_the_predicate_skips_standard_and_withheld_calls() -> None:
     # A drug-safety handoff keeps its withheld call, never its non-carrier one.
     assert emits_cross_module_card(INDETERMINATE_CATEGORY, drug_safety_handoff=True) is True
     assert emits_cross_module_card(STANDARD_CATEGORY, drug_safety_handoff=True) is False
+    assert is_withheld_call(INDETERMINATE_CATEGORY) is True
+    assert is_withheld_call(STANDARD_CATEGORY) is False
+    assert is_withheld_call("Moderate") is False
 
 
 @pytest.mark.parametrize("name", sorted(NON_DRUG_LINKS))
@@ -175,11 +179,56 @@ def test_every_cross_module_builder_decides_through_the_shared_predicate(path: P
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     assert "emits_cross_module_card" in calls, f"{path.stem}.{BUILDER} must use the predicate"
+    assert _category_label_comparisons(builder) == [], (
+        f"{path.stem}.{BUILDER} compares a category with a label itself"
+    )
 
-    for node in ast.walk(builder):
-        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Attribute):
-            if node.left.attr == "category" and any(
-                isinstance(comparator, ast.Name) and comparator.id == "STANDARD"
-                for comparator in node.comparators
-            ):
-                pytest.fail(f"{path.stem}.{BUILDER} compares category with STANDARD itself")
+
+_CATEGORY_LABELS = {"STANDARD", "INDETERMINATE"}
+
+
+def _category_label_comparisons(function: ast.AST) -> list[str]:
+    """Every comparison in ``function`` between a ``.category`` and a category label.
+
+    Operand order and container do not matter: ``x.category == STANDARD``,
+    ``STANDARD == x.category`` and ``x.category in (STANDARD, INDETERMINATE)``
+    (the shape Sleep used before #2310) are all the same divergent check.
+    """
+    found = []
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Compare):
+            continue
+        names = {
+            sub.id
+            for operand in (node.left, *node.comparators)
+            for sub in ast.walk(operand)
+            if isinstance(sub, ast.Name)
+        }
+        reads_category = any(
+            isinstance(sub, ast.Attribute) and sub.attr == "category"
+            for operand in (node.left, *node.comparators)
+            for sub in ast.walk(operand)
+        )
+        if reads_category and names & _CATEGORY_LABELS:
+            found.append(ast.unparse(node))
+    return found
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "snp.category == STANDARD",
+        "STANDARD == snp.category",
+        "snp.category != INDETERMINATE",
+        "snp.category in (STANDARD, INDETERMINATE)",
+        "snp_result.category not in {STANDARD}",
+    ],
+)
+def test_the_guard_catches_every_comparison_shape(source: str) -> None:
+    """The structural guard would pass vacuously if it missed a spelling."""
+    assert _category_label_comparisons(ast.parse(source)) == [source]
+
+
+def test_the_guard_ignores_comparisons_that_are_not_category_checks() -> None:
+    source = "snp.cross_module is None or drug is not None or level == STANDARD"
+    assert _category_label_comparisons(ast.parse(source)) == []

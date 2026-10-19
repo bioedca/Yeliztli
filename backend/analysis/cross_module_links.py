@@ -40,9 +40,18 @@ def emits_cross_module_card(category: str, *, drug_safety_handoff: bool = False)
     """
     if category == STANDARD_CATEGORY:
         return False
-    if category == INDETERMINATE_CATEGORY:
+    if is_withheld_call(category):
         return drug_safety_handoff
     return True
+
+
+def is_withheld_call(category: str) -> bool:
+    """Whether the scorer withheld this call as uninterpretable (#2310).
+
+    A drug-safety card kept for such a call must say it can neither confirm nor
+    exclude the allele, rather than read as a carrier call.
+    """
+    return category == INDETERMINATE_CATEGORY
 
 
 def panel_cross_module_links(panel: Any) -> dict[str, dict]:

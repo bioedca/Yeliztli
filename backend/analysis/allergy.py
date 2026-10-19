@@ -44,7 +44,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry
-from backend.analysis.cross_module_links import emits_cross_module_card
+from backend.analysis.cross_module_links import emits_cross_module_card, is_withheld_call
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -851,7 +851,7 @@ def _generate_cross_module_findings(
                 snp_result.category, drug_safety_handoff=drug is not None
             ):
                 continue
-            unresolved = snp_result.category == INDETERMINATE
+            unresolved = is_withheld_call(snp_result.category)
 
             # Build cross-module finding text
             if snp_result.hla_proxy is not None:
