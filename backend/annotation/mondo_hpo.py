@@ -100,6 +100,19 @@ MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES = 100_000
 # completeness.
 MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES = 10_000_000
 
+# Across five paired releases of the three exports above (Monarch KG 2025-09-17
+# to 2026-10-07, measured 2026-10-19 with these parsers; evidence in
+# data/science-evidence/2026-10-19-hpo-disease-scope-floor-2285), 63.9-71.5% of
+# HPO gene-disease scopes resolved to a loaded MONDO row for the same gene. With
+# its OMIM rows removed, each release's mapping export still carried at least
+# 98,153 exact identifiers, passing MINIMUM_UNAMBIGUOUS_MONDO_XREFS, yet
+# resolved only 10.9-12.2% of scopes. Requiring 40% rejects that namespace
+# mismatch while leaving more than three times the largest observed
+# release-to-release drop. It is an ingest sanity floor: the rate does not prove
+# semantic completeness, nor that any one gene or disease is fully annotated.
+# Integer percent keeps the boundary exact.
+MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT = 40
+
 # Batch size for bulk inserts
 BATCH_SIZE = 10_000
 
@@ -2596,6 +2609,17 @@ def download_and_load_mondo_hpo(
                 raise ValueError(
                     "Refusing to replace MONDO/HPO rows because no HPO disease scope resolved "
                     "through a validated exact MONDO cross-reference."
+                )
+            scope_count = stats.hpo_disease_matches + stats.hpo_disease_unmatched
+            if (
+                stats.hpo_disease_matches * 100
+                < MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT * scope_count
+            ):
+                raise ValueError(
+                    "Refusing to replace MONDO/HPO rows because only "
+                    f"{stats.hpo_disease_matches:,} of {scope_count:,} HPO disease scopes "
+                    "resolved through a validated exact MONDO cross-reference; expected at "
+                    f"least {MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT}%."
                 )
 
             rows = _records_to_rows(records_by_gene, hpo_data, mondo_xrefs)

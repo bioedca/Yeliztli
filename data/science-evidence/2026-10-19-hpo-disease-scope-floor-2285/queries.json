@@ -1,0 +1,152 @@
+{
+ "accessed": "2026-10-19",
+ "issue": "#2285",
+ "repository_base": "e6c56f219e52202ff0c21121e194e1ac3231a8ba",
+ "claim": "Measurement only. C1: with the loader's own parsers and _count_scoped_hpo_matches, five paired releases of the Monarch KG gene_disease.9606 export, HPO genes_to_phenotype.txt and MONDO SSSOM (Monarch KG 2025-09-17 to 2026-10-07) resolved 63.9-71.45% of HPO gene-disease scopes to a loaded MONDO row for the same gene. C2: removing the OMIM rows from each release's MONDO SSSOM export left 98,153-99,666 unambiguous exact identifiers (above MINIMUM_UNAMBIGUOUS_MONDO_XREFS = 50,000) and a match rate of 10.87-12.18%, with at least one match, so the pre-#2285 zero-match guard accepted it. C3: a 40% floor on that rate is derived from C1 and C2. No biological, statistical or clinical claim is made.",
+ "not_claimed": "That the match rate measures semantic completeness, or that any one gene or disease is fully annotated. That unmatched scopes are defects: most are HPO gene-disease pairs whose exact MONDO target Monarch does not list for the same gene. That the five pairings are exactly what a refresh on each date fetched; see raw/snapshot-sources.json for the selection rule.",
+ "citations": [
+  "Gargano MA, et al. The Human Phenotype Ontology in 2024: phenotypes around the world. Nucleic Acids Res. 2024. PMID:37953324 / DOI:10.1093/nar/gkad1005 (accessed 2026-10-19)",
+  "Matentzoglu N, et al. A Simple Standard for Sharing Ontological Mappings (SSSOM). Database (Oxford). 2022. PMID:35616100 / DOI:10.1093/database/baac035 (accessed 2026-10-19)",
+  "Putman TE, et al. The Monarch Initiative in 2024: an analytic platform integrating phenotypes, genes and diseases across species. Nucleic Acids Res. 2024. PMID:38000386 / DOI:10.1093/nar/gkad1082 (accessed 2026-10-19)"
+ ],
+ "claim_mapping": {
+  "C1": "raw/measurements-2026-10-19.json (snapshots[].match_percent), produced by raw/measure_disease_scope_rate.py from the files whose URLs are in raw/snapshot-sources.json and whose sha256/bytes are in the measurements",
+  "C2": "raw/measurements-2026-10-19.json (snapshots[].simulated_sssom_without_omim and snapshots[-1].simulations)",
+  "C3": "derivation below, from C1 and C2",
+  "PMID:37953324": "context only: identifies the HPO resource and its disease annotations; not evidence for any rate",
+  "PMID:35616100": "context only: identifies the SSSOM mapping format whose skos:exactMatch rows the loader reads; not evidence for any rate",
+  "PMID:38000386": "context only: identifies the Monarch KG that publishes the gene_disease export; not evidence for any rate"
+ },
+ "high_stakes_two_source_rule": "Not engaged: C1-C3 are measurements of public files, not biological or clinical claims. The three exports are not independent of each other (Monarch KG integrates MONDO and HPO annotations), and they are measured jointly because that is how the loader uses them. Independence across time is the five releases, not separate sources.",
+ "floor": {
+  "minimum_hpo_disease_scope_match_percent": 40,
+  "lowest_observed_match_percent": 63.9,
+  "highest_observed_match_percent": 71.45,
+  "largest_release_to_release_change_points": 6.89,
+  "highest_simulated_omim_loss_match_percent": 12.18,
+  "rationale": "40% sits 23.9 points below the lowest observed rate (more than three times the largest observed release-to-release change) and well above every simulated namespace failure: OMIM rows lost from the mapping export (10.9-12.2%), an OMIM prefix change in HPO (12.2%), a mapping export with neither OMIM nor Orphanet rows (0%), and a mapping export randomly truncated to 60% of its rows (38.7%). It deliberately does not catch the loss of Orphanet rows alone (52.6%) or a 75% truncation (47.4%): a floor high enough for those would sit within about 11 points of a healthy release.",
+  "comparison_is_integer_percent": "matches * 100 < 40 * scopes, so the boundary cannot shift by float rounding"
+ },
+ "source_versions_and_licenses": {
+  "Monarch KG gene_disease.9606.tsv.gz": {
+   "observed_version": "releases 2025-09-17, 2026-01-11, 2026-04-14, 2026-07-14 and 2026-10-07 (latest; raw/monarch-kg-latest-metadata-excerpt-2026-10-19.txt)",
+   "license_reference": "raw/monarch-kg-licensing-2026-10-19.txt: Monarch recommends CC0 1.0 (preferred) or CC-BY 4.0 for data it produces, and states that per-repository LICENSE files take precedence. The aggregate export integrates third-party sources; as in data/science-evidence/2026-08-01-hpo-disease-scope-2163, no license is asserted for it.",
+   "retention_basis": "Not retained. Only derived counts, sizes and sha256 digests are committed."
+  },
+  "HPO genes_to_phenotype.txt": {
+   "observed_version": "releases v2025-09-01, v2026-01-08, v2026-02-16, v2026-06-23 and v2026-09-01 (the canonical purl's redirect target on 2026-10-19; raw/canonical-url-response-headers-2026-10-19.txt)",
+   "license_reference": "raw/github-license-hpo-2026-10-19.json: the repository LICENSE.md defers to the HPO website's license page, which a scripted client could not read (raw/hpo-license-page-2026-10-19.json). Terms not asserted.",
+   "retention_basis": "Not retained. Only derived counts, sizes and sha256 digests are committed."
+  },
+  "MONDO mondo.sssom.tsv": {
+   "observed_version": "tags v2025-09-02, v2026-01-06, v2026-04-07, v2026-07-06, and the master branch the canonical purl served on 2026-10-19 (etag in raw/canonical-url-response-headers-2026-10-19.txt)",
+   "license_reference": "raw/github-license-mondo-2026-10-19.json: CC-BY-4.0 (repository LICENSE).",
+   "retention_basis": "Not retained, to keep the packet small; derived counts, sizes and sha256 digests are committed."
+  },
+  "PubMed (NCBI E-utilities)": {
+   "observed_version": "not exposed in the esummary/efetch responses",
+   "license_reference": "Public bibliographic records; NCBI's policy is quoted in data/science-evidence/2026-10-17-breast-prs77-ensembl-release-2246/raw/ncbi-policies-2026-10-17.txt.",
+   "retention_basis": "Raw esearch, esummary and efetch responses retained verbatim."
+  }
+ },
+ "discovery_ladder": [
+  {
+   "step": "Consensus",
+   "outcome": "3 results; HPO 2024 used for discovery",
+   "payload": "raw/consensus-search-2026-10-19.json"
+  },
+  {
+   "step": "Scite",
+   "outcome": "unavailable: monthly MCP quota reached (resets 2026-11-03)",
+   "payload": "raw/scite-unavailable-2026-10-19.json"
+  },
+  {
+   "step": "PubMed esearch, esummary and efetch",
+   "outcome": "PMIDs 37953324, 35616100 and 38000386 resolved and title-matched; no CommentsCorrections element on any (the correction and retraction screen)",
+   "payload": "raw/pubmed-*.json, raw/pubmed-efetch-37953324-35616100-38000386-2026-10-19.xml"
+  }
+ ],
+ "cross_check": "The 2026-07-14 Monarch archive's sha256 (8a57c65a...) and the v2026-06-23 HPO file's size (20,732,778 bytes) equal the values data/science-evidence/2026-08-01-hpo-disease-scope-2163/source-manifest.json recorded, and that packet's 109,306 exact identifiers equal this measurement's 2026-07-14 figure.",
+ "payloads": [
+  {
+   "path": "raw/canonical-url-response-headers-2026-10-19.txt",
+   "bytes": 1662,
+   "sha256": "6356f7b00fc0a7ddabde6adae9ae6d79944f540cd960644d0d3a8340b7fb9afa"
+  },
+  {
+   "path": "raw/consensus-search-2026-10-19.json",
+   "bytes": 1540,
+   "sha256": "063a8a25ddefc7177b7793a061f59058424929b27fb7d5e37125e52dbecc3c6a"
+  },
+  {
+   "path": "raw/github-license-hpo-2026-10-19.json",
+   "bytes": 1145,
+   "sha256": "07ce3b81165c29bd8c54d02029e0108c20e0ab7c1b0512c83d13f9db71336090"
+  },
+  {
+   "path": "raw/github-license-mondo-2026-10-19.json",
+   "bytes": 26704,
+   "sha256": "4dd7758664a6459434e2c84130a41f98898c43e0b214d245d5f35fd330d12a24"
+  },
+  {
+   "path": "raw/hpo-license-page-2026-10-19.json",
+   "bytes": 939,
+   "sha256": "0660c48bd304ef58666fbf7408dbe46d846cabece86fa7d9e95b2a3ce3d1c5df"
+  },
+  {
+   "path": "raw/measure_disease_scope_rate.py",
+   "bytes": 6554,
+   "sha256": "8d92f6135c9d2446fb46139a16a327facfa81b1f41e81f02265cc5d161ea5486"
+  },
+  {
+   "path": "raw/measurements-2026-10-19.json",
+   "bytes": 8742,
+   "sha256": "7322b20377db10fa01b0b158b991f49d8314f2ba431c0e3f0b0c899749fbb5bf"
+  },
+  {
+   "path": "raw/monarch-kg-latest-metadata-excerpt-2026-10-19.txt",
+   "bytes": 318,
+   "sha256": "9e706e80dbf1efc7415c1e3e25df275382121d8fe822034365a50b6dc3795635"
+  },
+  {
+   "path": "raw/monarch-kg-licensing-2026-10-19.txt",
+   "bytes": 1707,
+   "sha256": "b205bd2ac20a8df1e9fe3f817f7e7e1c7041b9f1e1e364b3238d3cd69310a710"
+  },
+  {
+   "path": "raw/pubmed-efetch-37953324-35616100-38000386-2026-10-19.xml",
+   "bytes": 162879,
+   "sha256": "000c307658e36e84338d7ffd3043cceeb171b2d48ea035b2ee992f250493d0db"
+  },
+  {
+   "path": "raw/pubmed-esearch-hpo-2024-2026-10-19.json",
+   "bytes": 359,
+   "sha256": "8ef95985ce50eaf5d1581d625c880a41a1569d0d0bb7734591fe361f07f4f3bd"
+  },
+  {
+   "path": "raw/pubmed-esearch-monarch-2024-2026-10-19.json",
+   "bytes": 348,
+   "sha256": "5cee324b26e7b3221932ca34ab851c988e3f879e7a4e04a5c2564873c4ccf701"
+  },
+  {
+   "path": "raw/pubmed-esearch-sssom-2026-10-19.json",
+   "bytes": 271,
+   "sha256": "e7ecbec9abb8da704d0f7e3f37a86731ecf51c70f916d16e91c820d32da6333e"
+  },
+  {
+   "path": "raw/pubmed-esummary-37953324-35616100-38000386-2026-10-19.json",
+   "bytes": 20266,
+   "sha256": "5c317477ddb6689535eaa926deae7ba6d7ea097576472d813f162f4ae2de325f"
+  },
+  {
+   "path": "raw/scite-unavailable-2026-10-19.json",
+   "bytes": 579,
+   "sha256": "88373762a01e03e4e165c997b49ffe7cae9c2d627fffd60ca64879cf5821d0a6"
+  },
+  {
+   "path": "raw/snapshot-sources.json",
+   "bytes": 3223,
+   "sha256": "050aa5ca53346960f7fdde43449f50bcc3bf4dbc87d42c4f536f8e878a5d9661"
+  }
+ ]
+}

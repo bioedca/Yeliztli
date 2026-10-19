@@ -1,0 +1,19 @@
+{
+  "accessed": "2026-10-19",
+  "kind": "derived_record",
+  "why": "The HPO repository LICENSE.md (raw/github-license-hpo-2026-10-19.json) defers to the HPO website's license page. That page is a client-rendered application: both URLs returned HTTP 404 with an application shell whose only text, once scripts are removed, is the site title. The terms could therefore not be read by a scripted client and are not asserted here.",
+  "responses": {
+    "https://hpo.jax.org/license": {
+      "http_status": 404,
+      "bytes": 60203,
+      "sha256": "69f399660885603de990fda606cbdd3d260515641ab9e61012aaf346e4449b7c",
+      "rendered_text_without_scripts": "Human Phenotype Ontology"
+    },
+    "https://hpo.jax.org/app/license": {
+      "http_status": 404,
+      "bytes": 60203,
+      "sha256": "69f399660885603de990fda606cbdd3d260515641ab9e61012aaf346e4449b7c",
+      "rendered_text_without_scripts": "Human Phenotype Ontology"
+    }
+  }
+}

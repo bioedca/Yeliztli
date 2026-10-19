@@ -1,0 +1,9 @@
+{
+  "accessed": "2026-10-19",
+  "kind": "derived_record",
+  "tool": "Scite MCP search_literature",
+  "query": "\"Simple Standard for Sharing Ontological Mappings\"",
+  "outcome": "unavailable",
+  "error": "You have reached your monthly MCP usage limit (250 calls). [...] or wait until usage resets on 2026-11-03 (UTC).",
+  "fallback": "Correction and retraction screening used PubMed efetch instead: none of PMID 37953324, 35616100 or 38000386 carries a CommentsCorrections element (raw/pubmed-efetch-37953324-35616100-38000386-2026-10-19.xml). Pay-as-you-go was not enabled."
+}

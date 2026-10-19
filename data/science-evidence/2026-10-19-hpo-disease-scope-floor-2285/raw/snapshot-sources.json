@@ -1,0 +1,51 @@
+{
+  "accessed": "2026-10-19",
+  "selection": "For each Monarch KG release, the latest HPO release and MONDO release tag published on or before that date. The 2026-10-07 row is what the loader's canonical URLs served on 2026-10-19; its MONDO SSSOM came from the master branch that MONDO_SSSOM_URL redirects to, not from a tag.",
+  "snapshots": [
+    {
+      "label": "2025-09-17",
+      "monarch_kg_release": "2025-09-17",
+      "monarch_gene_disease_url": "https://data.monarchinitiative.org/monarch-kg/2025-09-17/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "hpo_release": "v2025-09-01",
+      "hpo_genes_to_phenotype_url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2025-09-01/genes_to_phenotype.txt",
+      "mondo_release": "v2025-09-02",
+      "mondo_sssom_url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2025-09-02/src/ontology/mappings/mondo.sssom.tsv"
+    },
+    {
+      "label": "2026-01-11",
+      "monarch_kg_release": "2026-01-11",
+      "monarch_gene_disease_url": "https://data.monarchinitiative.org/monarch-kg/2026-01-11/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "hpo_release": "v2026-01-08",
+      "hpo_genes_to_phenotype_url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-01-08/genes_to_phenotype.txt",
+      "mondo_release": "v2026-01-06",
+      "mondo_sssom_url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-01-06/src/ontology/mappings/mondo.sssom.tsv"
+    },
+    {
+      "label": "2026-04-14",
+      "monarch_kg_release": "2026-04-14",
+      "monarch_gene_disease_url": "https://data.monarchinitiative.org/monarch-kg/2026-04-14/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "hpo_release": "v2026-02-16",
+      "hpo_genes_to_phenotype_url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-02-16/genes_to_phenotype.txt",
+      "mondo_release": "v2026-04-07",
+      "mondo_sssom_url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-04-07/src/ontology/mappings/mondo.sssom.tsv"
+    },
+    {
+      "label": "2026-07-14",
+      "monarch_kg_release": "2026-07-14",
+      "monarch_gene_disease_url": "https://data.monarchinitiative.org/monarch-kg/2026-07-14/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "hpo_release": "v2026-06-23",
+      "hpo_genes_to_phenotype_url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-06-23/genes_to_phenotype.txt",
+      "mondo_release": "v2026-07-06",
+      "mondo_sssom_url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-07-06/src/ontology/mappings/mondo.sssom.tsv"
+    },
+    {
+      "label": "2026-10-07",
+      "monarch_kg_release": "2026-10-07",
+      "monarch_gene_disease_url": "https://data.monarchinitiative.org/monarch-kg/latest/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "hpo_release": "v2026-09-01",
+      "hpo_genes_to_phenotype_url": "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt",
+      "mondo_release": "master branch as served on 2026-10-19 (after tag v2026-10-06)",
+      "mondo_sssom_url": "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"header":{"type":"esearch","version":"0.3"},"esearchresult":{"count":"1","retmax":"1","retstart":"0","idlist":["38000386"],"translationset":[{"from":"Putman TE[Author]","to":"Putman, Te[Full Author Name] OR putman te[Author]"}],"querytranslation":"(putman, te[Author] OR putman te[Author]) AND \"monarch initiative\"[Title] AND \"2024\"[Title]"}}

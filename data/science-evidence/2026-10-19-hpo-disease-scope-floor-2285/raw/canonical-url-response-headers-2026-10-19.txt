@@ -1,0 +1,33 @@
+curl -sSIL against the loader's canonical URLs on 2026-10-19. Only status, location, etag, last-modified, content-length and x-goog-generation lines are kept; the one-time signature on GitHub's release-asset redirect is removed.
+
+== https://data.monarchinitiative.org/monarch-kg/latest/tsv/gene_associations/gene_disease.9606.tsv.gz
+HTTP/2 200 
+x-goog-generation: 1791407169955626
+content-length: 183321
+last-modified: Wed, 07 Oct 2026 21:06:09 GMT
+etag: "28650a8bc4a1042bc89fa84aa95ad4f3"
+== https://purl.obolibrary.org/obo/hp/hpoa/genes_to_phenotype.txt
+HTTP/2 302 
+location: https://github.com/obophenotype/human-phenotype-ontology/releases/latest/download/genes_to_phenotype.txt
+HTTP/2 302 
+location: https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-09-01/genes_to_phenotype.txt
+content-length: 0
+HTTP/2 302 
+location: https://release-assets.githubusercontent.com/github-production-release-asset/41063438/ba097af0-1912-439e-86ed-81ef2303a1e3?<signed query string removed>
+content-length: 0
+HTTP/2 200 
+last-modified: Wed, 02 Sep 2026 21:09:45 GMT
+etag: "0x8DF093683A471FF"
+content-length: 20821704
+== https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv
+HTTP/2 302 
+location: https://raw.githubusercontent.com/monarch-initiative/mondo/master/src/ontology/mappings/mondo.sssom.tsv
+HTTP/2 200 
+etag: "5f06a4f526ef942601c19c1c888d8b847d7482ea6eddeb31946dcb563dd45f5b"
+content-length: 13124886
+== https://data.monarchinitiative.org/monarch-kg/latest/metadata.yaml
+HTTP/2 200 
+x-goog-generation: 1791407170258256
+content-length: 46235
+last-modified: Wed, 07 Oct 2026 21:06:10 GMT
+etag: "1fdfff1f24fc4b49cc85ba3c9ed7a724"

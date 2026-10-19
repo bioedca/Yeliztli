@@ -1,0 +1,284 @@
+{
+  "measured_with": "backend.annotation.mondo_hpo parsers and _count_scoped_hpo_matches",
+  "truncation_seed": 2285,
+  "snapshots": [
+    {
+      "label": "2025-09-17",
+      "files": {
+        "gene_disease.9606.tsv.gz": {
+          "bytes": 221943,
+          "sha256": "95367dde6875fb2bc458e410ab8fa59ffa9070367572ef048d7cde72bb4521e5"
+        },
+        "genes_to_phenotype.txt": {
+          "bytes": 24100644,
+          "sha256": "89b5cf8f59ef736926d31371ce7b23f2fa10f5bb948f6250a896ad6aac638c1c"
+        },
+        "mondo.sssom.tsv": {
+          "bytes": 12791252,
+          "sha256": "9782a2dc50d28c53da97af8de78d06f024390aa4e2728c5678abc2d983071270"
+        }
+      },
+      "monarch_lines": 8919,
+      "monarch_records": 8918,
+      "hpo_genes": 5178,
+      "hpo_gene_disease_scopes": 14392,
+      "unambiguous_exact_xrefs": 108064,
+      "hpo_disease_matches": 10283,
+      "hpo_disease_unmatched": 4109,
+      "match_percent": 71.45,
+      "unmatched_reasons": {
+        "gene_has_no_monarch_rows": 631,
+        "no_unambiguous_exact_xref": 24,
+        "xref_target_not_a_monarch_disease_for_the_gene": 3454
+      },
+      "scopes_by_namespace": {
+        "OMIM": {
+          "total": 9138,
+          "matched": 8718
+        },
+        "Orphanet": {
+          "total": 5254,
+          "matched": 1565
+        }
+      },
+      "rows_written": 8918,
+      "rows_with_hpo_terms": 8723,
+      "simulated_sssom_without_omim": {
+        "unambiguous_exact_xrefs": 98153,
+        "hpo_disease_matches": 1565,
+        "hpo_disease_unmatched": 12827,
+        "match_percent": 10.87
+      }
+    },
+    {
+      "label": "2026-01-11",
+      "files": {
+        "gene_disease.9606.tsv.gz": {
+          "bytes": 155427,
+          "sha256": "679aa40540a1f65db259f5e72aed0dc2a0d2df2677cf28acaae1d9ee01b0b0c8"
+        },
+        "genes_to_phenotype.txt": {
+          "bytes": 20125120,
+          "sha256": "e913c803a3b1f3cd511ba4b63281bd3c1e91573e8abab8fa92b2f0fbeb940888"
+        },
+        "mondo.sssom.tsv": {
+          "bytes": 12875543,
+          "sha256": "908b6929c70d2f7488efcb1bbfb8a3095b2e75396454d4cdab44acab47bb3092"
+        }
+      },
+      "monarch_lines": 7048,
+      "monarch_records": 6775,
+      "hpo_genes": 5193,
+      "hpo_gene_disease_scopes": 12490,
+      "unambiguous_exact_xrefs": 108770,
+      "hpo_disease_matches": 8064,
+      "hpo_disease_unmatched": 4426,
+      "match_percent": 64.56,
+      "unmatched_reasons": {
+        "gene_has_no_monarch_rows": 771,
+        "no_unambiguous_exact_xref": 29,
+        "xref_target_not_a_monarch_disease_for_the_gene": 3626
+      },
+      "scopes_by_namespace": {
+        "OMIM": {
+          "total": 7204,
+          "matched": 6544
+        },
+        "Orphanet": {
+          "total": 5286,
+          "matched": 1520
+        }
+      },
+      "rows_written": 6775,
+      "rows_with_hpo_terms": 6560,
+      "simulated_sssom_without_omim": {
+        "unambiguous_exact_xrefs": 98811,
+        "hpo_disease_matches": 1520,
+        "hpo_disease_unmatched": 10970,
+        "match_percent": 12.17
+      }
+    },
+    {
+      "label": "2026-04-14",
+      "files": {
+        "gene_disease.9606.tsv.gz": {
+          "bytes": 194035,
+          "sha256": "9e8a29caf1c9ac456d806fb01dc5ba1009bd106ed98075d21e03a4f8f2c9d18a"
+        },
+        "genes_to_phenotype.txt": {
+          "bytes": 20533481,
+          "sha256": "25d3e5a40203cbb4cc027747c70fcb5431bcfb26283479608a97f3d810285c7d"
+        },
+        "mondo.sssom.tsv": {
+          "bytes": 13068495,
+          "sha256": "3f31bcc5276bd9d7b475abc91b9830dd014ca535ace31caabaa9f315bea87997"
+        }
+      },
+      "monarch_lines": 7047,
+      "monarch_records": 6772,
+      "hpo_genes": 5251,
+      "hpo_gene_disease_scopes": 12627,
+      "unambiguous_exact_xrefs": 109245,
+      "hpo_disease_matches": 8069,
+      "hpo_disease_unmatched": 4558,
+      "match_percent": 63.9,
+      "unmatched_reasons": {
+        "gene_has_no_monarch_rows": 828,
+        "no_unambiguous_exact_xref": 15,
+        "xref_target_not_a_monarch_disease_for_the_gene": 3715
+      },
+      "scopes_by_namespace": {
+        "OMIM": {
+          "total": 7341,
+          "matched": 6548
+        },
+        "Orphanet": {
+          "total": 5286,
+          "matched": 1521
+        }
+      },
+      "rows_written": 6772,
+      "rows_with_hpo_terms": 6562,
+      "simulated_sssom_without_omim": {
+        "unambiguous_exact_xrefs": 99209,
+        "hpo_disease_matches": 1521,
+        "hpo_disease_unmatched": 11106,
+        "match_percent": 12.05
+      }
+    },
+    {
+      "label": "2026-07-14",
+      "files": {
+        "gene_disease.9606.tsv.gz": {
+          "bytes": 183547,
+          "sha256": "8a57c65a851f6812150a03eba3a2b41fd9a6b1afa33bae8a37bfe7edcde5e618"
+        },
+        "genes_to_phenotype.txt": {
+          "bytes": 20732778,
+          "sha256": "26cb7ee00c73b5777f6e5ad43323c941e1fcef1d191592f332d7929f3ea1ab3f"
+        },
+        "mondo.sssom.tsv": {
+          "bytes": 13075785,
+          "sha256": "627e62b1677159b82a9d01083e0243a1c7717c6892551fa687abf9288e25e1ae"
+        }
+      },
+      "monarch_lines": 7178,
+      "monarch_records": 6903,
+      "hpo_genes": 5268,
+      "hpo_gene_disease_scopes": 12654,
+      "unambiguous_exact_xrefs": 109306,
+      "hpo_disease_matches": 8198,
+      "hpo_disease_unmatched": 4456,
+      "match_percent": 64.79,
+      "unmatched_reasons": {
+        "gene_has_no_monarch_rows": 744,
+        "no_unambiguous_exact_xref": 22,
+        "xref_target_not_a_monarch_disease_for_the_gene": 3690
+      },
+      "scopes_by_namespace": {
+        "OMIM": {
+          "total": 7369,
+          "matched": 6677
+        },
+        "Orphanet": {
+          "total": 5285,
+          "matched": 1521
+        }
+      },
+      "rows_written": 6903,
+      "rows_with_hpo_terms": 6691,
+      "simulated_sssom_without_omim": {
+        "unambiguous_exact_xrefs": 99261,
+        "hpo_disease_matches": 1521,
+        "hpo_disease_unmatched": 11133,
+        "match_percent": 12.02
+      }
+    },
+    {
+      "label": "2026-10-07",
+      "files": {
+        "gene_disease.9606.tsv.gz": {
+          "bytes": 183321,
+          "sha256": "1f35f77eca54025fff45a472ff4e22f2761c42e820698e7faea04d33065c0dc0"
+        },
+        "genes_to_phenotype.txt": {
+          "bytes": 20821704,
+          "sha256": "507a17bff9c49e6329fbd88b1f91734fa7e9fdea5c06304044c0892eb6ab248c"
+        },
+        "mondo.sssom.tsv": {
+          "bytes": 13124886,
+          "sha256": "ec15afdb32fab3d3cb679d357e25ef4fb38b5e2c468ff4ac5456da10e2f6c80b"
+        }
+      },
+      "monarch_lines": 7183,
+      "monarch_records": 6907,
+      "hpo_genes": 5277,
+      "hpo_gene_disease_scopes": 12672,
+      "unambiguous_exact_xrefs": 109712,
+      "hpo_disease_matches": 8214,
+      "hpo_disease_unmatched": 4458,
+      "match_percent": 64.82,
+      "unmatched_reasons": {
+        "gene_has_no_monarch_rows": 756,
+        "no_unambiguous_exact_xref": 26,
+        "xref_target_not_a_monarch_disease_for_the_gene": 3676
+      },
+      "scopes_by_namespace": {
+        "OMIM": {
+          "total": 7372,
+          "matched": 6671
+        },
+        "Orphanet": {
+          "total": 5300,
+          "matched": 1543
+        }
+      },
+      "rows_written": 6907,
+      "rows_with_hpo_terms": 6686,
+      "simulated_sssom_without_omim": {
+        "unambiguous_exact_xrefs": 99666,
+        "hpo_disease_matches": 1543,
+        "hpo_disease_unmatched": 11129,
+        "match_percent": 12.18
+      },
+      "simulations": {
+        "sssom_without_orphanet": {
+          "unambiguous_exact_xrefs": 99926,
+          "hpo_disease_matches": 6671,
+          "hpo_disease_unmatched": 6001,
+          "match_percent": 52.64
+        },
+        "sssom_without_omim_and_orphanet": {
+          "unambiguous_exact_xrefs": 89880,
+          "hpo_disease_matches": 0,
+          "hpo_disease_unmatched": 12672,
+          "match_percent": 0.0
+        },
+        "hpo_omim_prefix_renamed_to_mim": {
+          "unambiguous_exact_xrefs": 109712,
+          "hpo_disease_matches": 1543,
+          "hpo_disease_unmatched": 11129,
+          "match_percent": 12.18
+        },
+        "sssom_random_rows_kept_0.75": {
+          "unambiguous_exact_xrefs": 82114,
+          "hpo_disease_matches": 6010,
+          "hpo_disease_unmatched": 6662,
+          "match_percent": 47.43
+        },
+        "sssom_random_rows_kept_0.6": {
+          "unambiguous_exact_xrefs": 65834,
+          "hpo_disease_matches": 4904,
+          "hpo_disease_unmatched": 7768,
+          "match_percent": 38.7
+        },
+        "sssom_random_rows_kept_0.5": {
+          "unambiguous_exact_xrefs": 55194,
+          "hpo_disease_matches": 4085,
+          "hpo_disease_unmatched": 8587,
+          "match_percent": 32.24
+        }
+      }
+    }
+  ]
+}
