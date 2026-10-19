@@ -1,0 +1,85 @@
+{
+ "accessed": "2026-10-19",
+ "issue": "#2300",
+ "repository_base": "c39070d15d4ebf1465afbd1c45e1c5ed0fa5b50a",
+ "claim": "C1: the direction of effect of SLC19A1 rs1051266 (RFC1 codon 27, His27/Arg27) on folate status is contested. Two independent groups report higher folate in His27 carriers (PMID:19650776, red-cell folate in Northern Irish women; PMID:10993718, plasma folate in the MTHFR 677CT stratum of 169 healthy subjects). One group reports that His27 lowers cellular folate uptake (PMID:15964598, higher extracellular-to-intracellular folate ratio; PMID:16750224, dietary folate tracked red-cell folate in GG and GA but not AA carriers). C2: because the direction is contested, methylation_panel.json scores no genotype at this locus (all Standard), keeps it as context, and records both sides.",
+ "not_claimed": "That either direction is correct. That the locus has no effect on folate metabolism. Anything about methotrexate response or disease risk, which the row's other two citations (PMID:24597986, PMID:33935279) concern and which this change does not use as evidence for either direction.",
+ "citations": [
+  "Stanisławska-Sachadyn A, et al. The reduced folate carrier (SLC19A1) c.80G>A polymorphism is associated with red cell folate concentrations among women. Ann Hum Genet. 2009. PMID:19650776 / DOI:10.1111/j.1469-1809.2009.00529.x (accessed 2026-10-19)",
+  "Chango A, et al. A polymorphism (80G->A) in the reduced folate carrier gene and its associations with folate status and homocysteinemia. Mol Genet Metab. 2000. PMID:10993718 / DOI:10.1006/mgme.2000.3034 (accessed 2026-10-19)",
+  "Yates Z, Lucock M. G80A reduced folate carrier SNP modulates cellular uptake of folate and affords protection against thrombosis via a non homocysteine related mechanism. Life Sci. 2005. PMID:15964598 / DOI:10.1016/j.lfs.2005.02.029 (accessed 2026-10-19)",
+  "Dufficy L, et al. G80A reduced folate carrier SNP influences the absorption and cellular translocation of dietary folate and its association with blood pressure in an elderly population. Life Sci. 2006. PMID:16750224 / DOI:10.1016/j.lfs.2006.05.009 (accessed 2026-10-19)"
+ ],
+ "claim_mapping": {
+  "PMID:19650776": "His27 carriers (GA, AA) had higher red-cell folate than GG among women (P=0.02); not associated in men or with serum folate or homocysteine. Supports the higher-folate side.",
+  "PMID:10993718": "80AA/677CT individuals had higher plasma folate than 80GG/677CT (P=0.02). Supports the higher-folate side, within one MTHFR stratum.",
+  "PMID:15964598": "The 80A allele raised the extracellular-to-intracellular folate ratio, consistent with lower cellular uptake. Supports the lower-uptake side.",
+  "PMID:16750224": "Dietary folate correlated with red-cell folate in GG and GA but not AA carriers. Supports the lower-uptake side, as an absence of correlation rather than a measured reduction.",
+  "PMID:24597986": "Already cited. Meta-analysis finding no association with methotrexate toxicity in paediatric ALL. Context only; not used for either direction.",
+  "PMID:33935279": "Already cited. Meta-analysis of congenital heart disease risk. Context only; not used for either direction."
+ },
+ "allele_frame": "The literature's 80A/80G naming (G80A, c.80G>A) and the panel's A80G (c.80A>G on NM_194255.4) use the same base letter for the same residue: 80A is His27 and 80G is Arg27 (data/science-evidence/2026-08-10-slc19a1-rs1051266-nomenclature-2023/). So the papers' 80AA is the panel's AA, and 'His27 carriers' is the frame-independent name the panel prose uses.",
+ "high_stakes_two_source_rule": "C1 is a claim that the evidence conflicts. It is met by opposite findings on folate status from independent groups. The higher-folate side has two independent groups: Chango et al. (INSERM U-308, France) and Stanisławska-Sachadyn et al. (Northern Ireland), with no shared authors. The lower-uptake side is ONE group: Yates Z appears on both PMID:15964598 and PMID:16750224, as does Lucock M(D), so those two count once. This is a wellness-panel, evidence-level-1 locus, not a clinical call, and the change only withholds a direction, so a single group on one side is enough to establish that the direction is not settled.",
+ "source_versions_and_licenses": {
+  "PubMed (NCBI E-utilities)": {
+   "observed_version": "not exposed in the esearch, esummary or efetch responses",
+   "license_reference": "Public bibliographic records. NCBI's policy is quoted in data/science-evidence/2026-10-17-breast-prs77-ensembl-release-2246/raw/ncbi-policies-2026-10-17.txt.",
+   "retention_basis": "Raw esearch, esummary and efetch responses retained verbatim."
+  }
+ },
+ "corrections_and_retractions": "Screened through PubMed CommentsCorrections in the retained efetch XML. None of the six PMIDs has a correction, erratum, expression of concern or retraction link. PMID:10993718 has a CommentIn link (to PMID:11461197), which is a published comment.",
+ "discovery_ladder": [
+  {
+   "step": "Consensus",
+   "outcome": "2 searches; PMID:19650776, PMID:10993718 and PMID:15964598 surfaced (PMID:19650776 twice, counted once)",
+   "payload": "raw/consensus-searches-2026-10-19.json"
+  },
+  {
+   "step": "Scite",
+   "outcome": "unavailable: monthly MCP quota reached (resets 2026-11-03)",
+   "payload": "raw/scite-unavailable-2026-10-19.json"
+  },
+  {
+   "step": "PubMed esearch, esummary and efetch",
+   "outcome": "the three new PMIDs resolved by author and title search and title-matched; abstracts read for all six; correction screen as above",
+   "payload": "raw/pubmed-esearch-*.json, raw/pubmed-esummary-6-pmids-2026-10-19.json, raw/pubmed-efetch-6-pmids-2026-10-19.xml"
+  }
+ ],
+ "payloads": [
+  {
+   "path": "raw/consensus-searches-2026-10-19.json",
+   "bytes": 2634,
+   "sha256": "b1b73e7567451073c08e09a0c2fe278898a0292bae1eb06a0b28b99e14b28fae"
+  },
+  {
+   "path": "raw/pubmed-efetch-6-pmids-2026-10-19.xml",
+   "bytes": 74901,
+   "sha256": "74db14a2bed2172ea1dc76409ea35839182ee542c5e001f4f2e3056dde9992f1"
+  },
+  {
+   "path": "raw/pubmed-esearch-chango-2000-2026-10-19.json",
+   "bytes": 319,
+   "sha256": "0cf87d0b3494e42ee0dc52c214cc0b07b3da9489bfdbc136768f57dbe86385cb"
+  },
+  {
+   "path": "raw/pubmed-esearch-stanislawska-2009-2026-10-19.json",
+   "bytes": 303,
+   "sha256": "c77f638cabc8800a2b7cd9393d4f9e47c59c268d75b3ad2519c37d5ba6d27c10"
+  },
+  {
+   "path": "raw/pubmed-esearch-yates-2005-2026-10-19.json",
+   "bytes": 296,
+   "sha256": "a298f73254a4742485cda75a0a30164c8e1607cff974b68e3c2f8918354c1903"
+  },
+  {
+   "path": "raw/pubmed-esummary-6-pmids-2026-10-19.json",
+   "bytes": 12645,
+   "sha256": "8ad25552b1c7025330c11c40716d9145ae9c8e7b875b62ebe65cfbe20e788e7f"
+  },
+  {
+   "path": "raw/scite-unavailable-2026-10-19.json",
+   "bytes": 644,
+   "sha256": "a5e3fa3e309e2cc6f1e26bf27253dcf5fddb45caf8b01ff78c5082b6ac180a10"
+  }
+ ]
+}

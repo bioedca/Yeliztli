@@ -1260,7 +1260,8 @@ class TestStoreFindingsIntegration:
             [
                 ("rs1801133", "1", 11856378, "GA"),  # C677T het → Moderate (★★)
                 ("rs1801131", "1", 11854476, "AC"),  # A1298C het → Moderate (★★)
-                ("rs1051266", "21", 46957794, "AA"),  # SLC19A1 hom → Moderate (★☆)
+                # SLC19A1 hom: context only since #2300, so it must not count.
+                ("rs1051266", "21", 46957794, "AA"),
                 ("rs202676", "11", 49175363, "GG"),  # FOLH1 hom variant → Moderate (★☆) (#750)
             ],
         )
@@ -1270,6 +1271,8 @@ class TestStoreFindingsIntegration:
 
         assert folate.level == MODERATE
         assert folate.additive_promoted is False
+        slc19a1 = next(s for s in folate.called_snps if s.rsid == "rs1051266")
+        assert slc19a1.category == STANDARD
 
         store_methylation_findings(result, sample_engine)
         with sample_engine.connect() as conn:
@@ -1290,7 +1293,7 @@ class TestStoreFindingsIntegration:
         )
         detail = json.loads(row.detail_json)
         assert detail["additive_promoted"] is False
-        assert detail["moderate_snp_count"] == 4
+        assert detail["moderate_snp_count"] == 3
         assert detail["multiple_moderate_findings"] is True
 
     def test_reference_folate_genotypes_do_not_store_multiple_moderate_marker(
@@ -1391,82 +1394,79 @@ class TestStoredFindingTextGeneLabel:
         assert doubled == [], f"stored methylation text prints a gene twice: {doubled}"
 
 
+# What the context-only SLC19A1 row renders for each genotype (#2300).
+_SLC19A1_CONTESTED = (
+    "Published studies disagree on whether His27 or Arg27 lowers folate status, so this "
+    "genotype is not scored as an effect."
+)
+_SLC19A1_HET = f"Heterozygous at RFC1 codon 27 (His/Arg). {_SLC19A1_CONTESTED}"
+_SLC19A1_HIS27 = f"Homozygous His27 at RFC1 codon 27. {_SLC19A1_CONTESTED}"
+_SLC19A1_ARG27 = f"Homozygous Arg27 at RFC1 codon 27. {_SLC19A1_CONTESTED}"
+
+
 class TestSLC19A1ComplementaryStrandRendering:
-    """#2023: the rendered SLC19A1 finding must read correctly on either strand.
+    """#2023 / #2300: SLC19A1 must read correctly on either strand, and score nothing.
 
     SLC19A1 is a minus-strand gene, so ``methylation_panel.json`` keys its
     ``genotype_effects`` on the coding strand (GG/GA/AG/AA) while the arrays
     report the plus strand (CC/CT/TC/TT). ``lookup_by_genotype`` reconciles the
-    two, but ``SNPResult`` keeps and ``store_methylation_findings`` prints the
-    *observed* genotype, so the effect summary is rendered next to a plus-strand
-    call. Prose naming a coding-strand base — "one copy of the 80A allele" — then
-    prints an allele the displayed genotype does not contain.
+    two, but ``SNPResult`` keeps the *observed* genotype, and the pathway summary
+    renders the effect summary beside it. Prose naming a coding-strand base, such
+    as "one copy of the 80A allele", would then print an allele the displayed
+    genotype does not contain (#2023).
 
-    Every pre-existing fixture for this row seeded coding-strand genotypes only
-    (AA, GG), so the complementary path was entirely uncovered. These seed the
-    plus-strand calls a real AncestryDNA/23andMe file actually carries.
+    Since #2300 the row is context only. Independent cohorts disagree on which
+    residue lowers folate status, so every genotype scores ``Standard`` and no
+    ``snp_finding`` is stored. What the user still sees is the pathway summary's
+    ``snp_details`` entry, so that is what this class reads back. Evidence:
+    ``data/science-evidence/2026-10-19-slc19a1-rs1051266-direction-2300/``.
     """
 
-    def _stored_finding(
+    def _rendered_entry(
         self,
         panel: MethylationPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
         genotype: str,
-    ) -> sa.Row:
-        """Score, persist, and read back the row the user is actually shown.
+    ) -> dict:
+        """Score, persist, and read back the ``snp_details`` entry the user is shown.
 
         Deliberately goes through ``store_methylation_findings`` and the DB rather
-        than rebuilding the display string here: the contradiction this class
-        exists to catch is a property of the *stored* ``finding_text``, so a test
-        that formats its own copy would stay green through a storage-path change.
+        than rebuilding the entry here: the contradiction this class exists to
+        catch is a property of what is *stored*, so a test that builds its own copy
+        would stay green through a storage-path change.
         """
         _seed_variants(sample_engine, [("rs1051266", "21", 46957794, genotype)])
         result = score_methylation_pathways(panel, sample_engine, reference_engine)
         store_methylation_findings(result, sample_engine)
         with sample_engine.connect() as conn:
-            row = conn.execute(
+            rows = conn.execute(
                 sa.select(findings).where(
                     sa.and_(
                         findings.c.module == MODULE_NAME,
-                        findings.c.category == "snp_finding",
-                        findings.c.rsid == "rs1051266",
+                        findings.c.category == "pathway_summary",
                     )
                 )
-            ).first()
-        assert row is not None, f"no stored snp_finding for genotype {genotype!r}"
-        return row
+            ).fetchall()
+        entries = [
+            entry
+            for row in rows
+            for entry in json.loads(row.detail_json)["snp_details"]
+            if entry["rsid"] == "rs1051266"
+        ]
+        assert len(entries) == 1, f"expected one rendered rs1051266 entry, got {entries}"
+        return entries[0]
 
     @pytest.mark.parametrize(
         ("genotype", "expected"),
         [
-            (
-                "CT",
-                "SLC19A1 A80G (His27Arg) (CT) — Heterozygous at RFC1 codon 27 (His/Arg). "
-                "May modestly reduce folate transport into cells.",
-            ),
-            (
-                "TC",
-                "SLC19A1 A80G (His27Arg) (TC) — Heterozygous at RFC1 codon 27 (His/Arg). "
-                "May modestly reduce folate transport into cells.",
-            ),
-            (
-                "TT",
-                "SLC19A1 A80G (His27Arg) (TT) — Homozygous His27 at RFC1. May reduce folate "
-                "carrier efficiency, though published studies disagree on the direction. "
-                "Adequate dietary folate is sensible regardless.",
-            ),
-            (
-                "GA",
-                "SLC19A1 A80G (His27Arg) (GA) — Heterozygous at RFC1 codon 27 (His/Arg). "
-                "May modestly reduce folate transport into cells.",
-            ),
-            (
-                "AA",
-                "SLC19A1 A80G (His27Arg) (AA) — Homozygous His27 at RFC1. May reduce folate "
-                "carrier efficiency, though published studies disagree on the direction. "
-                "Adequate dietary folate is sensible regardless.",
-            ),
+            ("CT", _SLC19A1_HET),
+            ("TC", _SLC19A1_HET),
+            ("TT", _SLC19A1_HIS27),
+            ("CC", _SLC19A1_ARG27),
+            ("GA", _SLC19A1_HET),
+            ("AA", _SLC19A1_HIS27),
+            ("GG", _SLC19A1_ARG27),
         ],
     )
     def test_rendered_text_never_names_an_absent_allele(
@@ -1477,54 +1477,39 @@ class TestSLC19A1ComplementaryStrandRendering:
         genotype: str,
         expected: str,
     ) -> None:
-        """The stored finding must not assert a base the shown genotype lacks.
+        """The rendered summary must not assert a base the shown genotype lacks.
 
         ``TT`` is the decisive case: it is the plus-strand spelling of coding AA,
         so a coding-strand summary would print "two copies of the 80A allele"
-        beside a genotype with no A in it.
-
-        The allele check is scoped to the effect prose. ``variant_name``
-        legitimately carries the coding-strand nomenclature ``A80G`` beside a
-        plus-strand genotype — that mismatch is inherent to labelling a
-        minus-strand gene in HGVS, predates this row, affects every such locus in
-        every panel, and is filed separately rather than papered over here.
-
-        The expected text is asserted in FULL rather than as a prefix. A prefix
-        stopping at ``Homozygous His27 at RFC1.`` would pass equally against the
-        earlier unhedged body, so the conflict disclosure added once the direction
-        of effect turned out to be contested would not have been locked by
-        anything — the wording could revert and this class would stay green.
+        beside a genotype with no A in it. The text is asserted in FULL, so the
+        conflict disclosure cannot be tidied back into a direction unnoticed.
         """
-        row = self._stored_finding(panel, sample_engine, reference_engine, genotype)
-        assert row.finding_text == expected, row.finding_text
-        prose = row.finding_text.split(" — ", 1)[1]
+        entry = self._rendered_entry(panel, sample_engine, reference_engine, genotype)
+        assert entry["genotype"] == genotype
+        assert entry["category"] == STANDARD
+        assert entry["effect_summary"] == expected, entry["effect_summary"]
         for base in "ACGT":
             if base in genotype:
                 continue
-            assert f"80{base}" not in prose, (
-                f"stored effect prose names allele 80{base}, absent from displayed "
-                f"{genotype!r}: {row.finding_text}"
+            assert f"80{base}" not in entry["effect_summary"], (
+                f"rendered prose names allele 80{base}, absent from displayed "
+                f"{genotype!r}: {entry['effect_summary']}"
             )
 
-    @pytest.mark.parametrize("genotype", ["CC", "GG"])
-    def test_non_carrier_stores_no_snp_finding_on_either_strand(
+    @pytest.mark.parametrize("genotype", ["CC", "GG", "CT", "TC", "GA", "TT", "AA"])
+    def test_no_genotype_stores_an_snp_finding_on_either_strand(
         self,
         panel: MethylationPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
         genotype: str,
     ) -> None:
-        """Negative control: the reference homozygote must emit nothing.
+        """No genotype raises the pathway or stores a finding of its own (#2300).
 
-        ``store_methylation_findings`` skips SNPs scored ``Standard``, so a
-        non-carrier produces no ``snp_finding`` row at all. Every other case in
-        this class asserts a row *exists*, which means none of them could catch a
-        strand-lookup change that starts reporting rs1051266 for non-carriers —
-        the reassuring-output-from-nothing failure this suite is meant to refuse.
-
-        Both spellings are covered deliberately: ``GG`` is the panel's own
-        coding-strand key, and ``CC`` is the plus-strand call a real array file
-        actually carries, which only resolves through the complement.
+        ``store_methylation_findings`` skips SNPs scored ``Standard``. Before
+        #2300 that was the negative control for the reference homozygote alone;
+        now it holds for every genotype, on both strands. A carrier scored
+        ``Moderate`` again would mean the contested direction had come back.
         """
         _seed_variants(sample_engine, [("rs1051266", "21", 46957794, genotype)])
         result = score_methylation_pathways(panel, sample_engine, reference_engine)
@@ -1532,8 +1517,7 @@ class TestSLC19A1ComplementaryStrandRendering:
             s for pr in result.pathway_results for s in pr.called_snps if s.rsid == "rs1051266"
         )
         assert scored.category == STANDARD, (
-            f"{genotype!r} is the reference homozygote and must score Standard, "
-            f"got {scored.category}: {scored.effect_summary}"
+            f"{genotype!r} must score Standard, got {scored.category}: {scored.effect_summary}"
         )
 
         store_methylation_findings(result, sample_engine)
@@ -1548,29 +1532,27 @@ class TestSLC19A1ComplementaryStrandRendering:
                 )
             ).fetchall()
         assert rows == [], (
-            f"non-carrier {genotype!r} stored an rs1051266 finding: "
-            f"{[r.finding_text for r in rows]}"
+            f"{genotype!r} stored an rs1051266 finding: {[r.finding_text for r in rows]}"
         )
 
-    def test_stored_recommendation_keeps_the_conflict_disclosure(
+    def test_stored_summary_keeps_the_conflict_disclosure(
         self,
         panel: MethylationPanel,
         sample_engine: sa.Engine,
         reference_engine: sa.Engine,
     ) -> None:
-        """The recommendation persisted beside the finding must keep the caveat.
+        """The disagreement reaches the user through the rendered summary.
 
-        ``recommendation_text`` is stored in ``detail_json`` and rendered under the
-        effect summary, so it is the second place the contested direction reaches
-        the user. Locked here because it is the piece most likely to be tidied
-        back into a confident claim by someone who has not read the packet.
+        A ``Standard`` SNP stores no ``snp_finding``, so the row's
+        ``recommendation_text`` is no longer persisted beside it. The effect
+        summary is therefore the only place the contested direction is disclosed,
+        and it is locked here for the plus-strand homozygote a real array reports.
         """
-        row = self._stored_finding(panel, sample_engine, reference_engine, "TT")
-        recommendation = json.loads(row.detail_json)["recommendation"]
-        assert "Published studies disagree on which allele at codon 27 reduces folate" in (
-            recommendation
-        ), recommendation
-        assert "weak context rather than a direction" in recommendation, recommendation
+        entry = self._rendered_entry(panel, sample_engine, reference_engine, "TT")
+        assert (
+            "Published studies disagree on whether His27 or Arg27 lowers folate status"
+            in (entry["effect_summary"])
+        ), entry["effect_summary"]
 
 
 # ── PathwayResult properties ────────────────────────────────────────────

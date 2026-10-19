@@ -385,24 +385,42 @@ class TestSLC19A1Nomenclature:
         assert snp["variant_name"] == "A80G (His27Arg)"
         assert snp["hgvs_protein"] == "p.His27Arg"
 
-    def test_dosage_frame_and_scoring_are_untouched(self, panel_data: dict) -> None:
-        """This was a nomenclature fix, not a direction call.
+    def test_dosage_frame_is_kept_and_no_genotype_is_scored(self, panel_data: dict) -> None:
+        """#2023 was a nomenclature fix; #2300 withholds the contested direction.
 
         ``ref_allele`` is the non-risk allele of the ``{risk, ref}`` dosage pair,
-        not the genome-reference base, so renaming the label implies no change
-        here — and which rs1051266 allele actually reduces folate transport is a
-        separate, contested question this row does not settle.
+        not the genome-reference base, so the frame is unchanged. Before #2300
+        every A-bearing genotype scored ``Moderate``, which raised the folate
+        pathway for most samples (MAF ~0.49) on a direction independent cohorts
+        dispute. Now every genotype is ``Standard``, so the row is context only.
+        This lock replaces #2023's deliberately, rather than being deleted: an
+        evidence-backed direction call must update it on purpose. Evidence:
+        ``data/science-evidence/2026-10-19-slc19a1-rs1051266-direction-2300/``.
         """
         snp = self._snp(panel_data)
         assert (snp["risk_allele"], snp["ref_allele"]) == ("A", "G")
-        assert set(snp["genotype_effects"]) == {"GG", "GA", "AG", "AA"}
-        assert snp["genotype_effects"]["GG"]["category"] == "Standard"
         assert {
-            genotype: effect["category"]
-            for genotype, effect in snp["genotype_effects"].items()
-            if genotype != "GG"
-        } == {"GA": "Moderate", "AG": "Moderate", "AA": "Moderate"}
+            genotype: effect["category"] for genotype, effect in snp["genotype_effects"].items()
+        } == {"GG": "Standard", "GA": "Standard", "AG": "Standard", "AA": "Standard"}
         assert snp["evidence_level"] == 1
+
+    def test_both_sides_of_the_conflict_are_recorded(self, panel_data: dict) -> None:
+        """The row cites each direction it declines to choose between (#2300).
+
+        Higher folate in His27 carriers: PMID:19650776 (Northern Irish women, red
+        cells) and PMID:10993718 (French cohort, plasma, MTHFR 677CT stratum).
+        Lower cellular uptake with His27: PMID:15964598 and PMID:16750224, one
+        research group, so they count once.
+        """
+        snp = self._snp(panel_data)
+        assert {"19650776", "10993718"} <= set(snp["pmids"])
+        assert {"15964598", "16750224"} <= set(snp["pmids"])
+        recommendation = snp["recommendation_text"]
+        assert "higher red-cell or plasma folate in His27 carriers" in recommendation
+        assert "His27 lowers cellular folate uptake" in recommendation
+        assert "does not raise the pathway result" in recommendation
+        for genotype, effect in snp["genotype_effects"].items():
+            assert "Published studies disagree" in effect["effect_summary"], genotype
 
     def test_a_bearing_genotypes_are_not_called_the_variant(self, panel_data: dict) -> None:
         """``A80G`` puts A in the reference position, so prose calling an
@@ -1108,7 +1126,8 @@ class TestMethylationCitationRemediation:
 
     # rsid -> exact verified on-topic PMID set the row must cite:
     _REMEDIATED: dict[str, set[str]] = {
-        "rs1051266": {"33935279", "16750224", "24597986"},  # SLC19A1 RFC1 A80G (legacy G80A)
+        # SLC19A1 RFC1 A80G (legacy G80A); the last three verified for #2300.
+        "rs1051266": {"33935279", "16750224", "24597986", "19650776", "10993718", "15964598"},
         "rs202676": {"22918695", "30120883"},  # FOLH1 folate hydrolase
         "rs3758149": {"31739835", "14597182", "15564880"},  # GGH -401C>T
         "rs1979277": {"16137637", "17446168", "11386852"},  # SHMT1 L474F
