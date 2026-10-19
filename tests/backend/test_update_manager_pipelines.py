@@ -1305,6 +1305,48 @@ class TestCheckMondoHpoUpdate:
             call(MONDO_SSSOM_URL, headers=IDENTITY_REPRESENTATION),
         ]
 
+    @pytest.mark.parametrize(
+        ("installed_source", "offered"),
+        [
+            pytest.param("unverified-0123456789abcdef", True, id="loader-fallback"),
+            pytest.param("unverified-latest", False, id="lookalike"),
+        ],
+    )
+    def test_unverified_scoped_install_is_offered_the_dated_release(
+        self, tmp_path: Path, monkeypatch, reference_engine, installed_source, offered
+    ):
+        """The loader's no-metadata stamp is offered the next trusted release (#2288).
+
+        Before, the check returned None for it like any unorderable scoped
+        release, and the source could never be updated again.
+        """
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            f"{installed_source}+{MONDO_HPO_INGESTION_REVISION}+hpo-unknown+mondo-sssom-unknown",
+        )
+
+        mock_client, primary = _mock_head_client(
+            content_length="98765432",
+            last_modified=MONDO_HPO_LAST_MODIFIED_NEW,
+        )
+        hpo = MagicMock(headers={"Content-Length": "20", "ETag": "hpo-current"})
+        hpo.raise_for_status = MagicMock()
+        sssom = MagicMock(headers={"Content-Length": "13", "ETag": "sssom-current"})
+        sssom.raise_for_status = MagicMock()
+        mock_client.return_value.head.side_effect = [primary, hpo, sssom]
+        with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
+            result = check_mondo_hpo_update(reference_engine)
+
+        if not offered:
+            assert result is None
+            return
+        assert isinstance(result, VersionInfo)
+        assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
+        assert result.download_size_bytes == 98_765_465
+
     def test_noncanonical_scoped_installed_version_is_not_overwritten(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
