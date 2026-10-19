@@ -341,7 +341,8 @@ def list_cancer_prs(
     Returns findings from currently eligible cancer PRS models, including
     calibration, optional percentile/z-score, and ancestry mismatch status.
     Results are in the "Research Use Only" tier. ``withheld_traits`` names each
-    sex-specific model the biological-sex gate keeps off the sample, with why.
+    sex-specific model the biological-sex gate keeps off the sample, with why --
+    including a stored score that the sample's current sex no longer allows.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``
     """
@@ -412,44 +413,53 @@ def list_cancer_prs(
             )
         )
 
-    sufficient = [i for i in items if i.is_sufficient]
-    insufficient = [i.trait for i in items if not i.is_sufficient]
-
-    response = CancerPRSListResponse(
-        items=items,
-        total=len(items),
-        sufficient_count=len(sufficient),
-        insufficient_traits=insufficient,
-    )
+    response = _prs_list_response(items)
     # A response the gate below would blank needs no sex context, so the
     # sample's sex is only resolved for one that can actually be served.
     if is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        response.withheld_traits = _sex_withheld_prs(
-            sample_engine, sample_id, stored_traits=stored_traits
+        items, withheld = _apply_sex_gate(
+            sample_engine, sample_id, items, stored_traits=stored_traits
         )
+        response = _prs_list_response(items, withheld)
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return CancerPRSListResponse(
-            items=[],
-            total=0,
-            sufficient_count=0,
-            insufficient_traits=[],
-        )
+        return _prs_list_response([])
     return response
 
 
-def _sex_withheld_prs(
+def _prs_list_response(
+    items: list[CancerPRSResponse],
+    withheld: list[CancerPRSWithheldResponse] | None = None,
+) -> CancerPRSListResponse:
+    return CancerPRSListResponse(
+        items=items,
+        total=len(items),
+        sufficient_count=sum(1 for item in items if item.is_sufficient),
+        insufficient_traits=[item.trait for item in items if not item.is_sufficient],
+        withheld_traits=withheld or [],
+    )
+
+
+def _apply_sex_gate(
     sample_engine: sa.Engine,
     sample_id: int,
+    items: list[CancerPRSResponse],
     *,
     stored_traits: set[str],
-) -> list[CancerPRSWithheldResponse]:
-    """Name the sex-specific models the sex gate keeps off this sample (#2498).
+) -> tuple[list[CancerPRSResponse], list[CancerPRSWithheldResponse]]:
+    """Hold sex-specific cancer PRS to the sample's current sex context.
 
     The gate runs at analysis time and leaves nothing behind but a log line, so
-    the reason is recomputed here from the sample's current sex context. A model
-    is listed only when it is runtime-scored and has no stored finding: a model
-    that cannot run is not a sex-gate result, and a displayed score is never
-    contradicted by a notice beside it.
+    it is re-applied here against the sex context as it stands now (#2498).
+    Two kinds of model are checked:
+
+    * a displayed sex-specific score, because the recorded biological sex can
+      change after the score was stored. A score that now fails the gate is
+      withheld rather than served as current (#2505);
+    * a runtime-scored sex-specific model with no stored finding, so its absence
+      is explained. A model that cannot run is not a sex-gate result.
+
+    A score the presentation filter already hid is neither: it was computed, so
+    the sex gate did not withhold it, and no notice is raised for it.
     """
     from backend.analysis.cancer_prs import (
         SEX_SPECIFIC_PRS_TRAITS,
@@ -458,15 +468,18 @@ def _sex_withheld_prs(
         sex_gate_required_sex,
     )
 
-    gated = [
+    shown_traits = {item.trait for item in items}
+    candidates = [
         weight_set
         for weight_set in load_cancer_prs_weights()
-        if weight_set.is_runtime_scored
-        and weight_set.trait in SEX_SPECIFIC_PRS_TRAITS
-        and weight_set.trait not in stored_traits
+        if weight_set.trait in SEX_SPECIFIC_PRS_TRAITS
+        and (
+            weight_set.trait in shown_traits
+            or (weight_set.is_runtime_scored and weight_set.trait not in stored_traits)
+        )
     ]
-    if not gated:
-        return []
+    if not candidates:
+        return items, []
 
     sex_context = resolve_cancer_prs_sex_context(
         sample_engine,
@@ -474,7 +487,7 @@ def _sex_withheld_prs(
         sample_id=sample_id,
     )
     withheld: list[CancerPRSWithheldResponse] = []
-    for weight_set in gated:
+    for weight_set in candidates:
         required_sex = sex_gate_required_sex(weight_set.trait, sex_context)
         if required_sex is None:
             continue
@@ -487,7 +500,8 @@ def _sex_withheld_prs(
                 reason="sex_mismatch" if sex_context in ("XX", "XY") else "sex_unresolved",
             )
         )
-    return withheld
+    withheld_traits = {entry.trait for entry in withheld}
+    return [item for item in items if item.trait not in withheld_traits], withheld
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])
