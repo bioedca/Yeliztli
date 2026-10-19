@@ -56,6 +56,7 @@ test('Cancer page renders SDHD clinical caveat on the card and detail panel (#10
         total: 0,
         sufficient_count: 0,
         insufficient_traits: [],
+        withheld_traits: [],
       }),
     ),
   )

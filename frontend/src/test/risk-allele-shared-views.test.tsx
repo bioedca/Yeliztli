@@ -146,7 +146,7 @@ beforeEach(() => {
   )
   mockCancerPRS.mockReturnValue(
     queryResult({
-      data: { items: [], total: 0, sufficient_count: 0, insufficient_traits: [] },
+      data: { items: [], total: 0, sufficient_count: 0, insufficient_traits: [], withheld_traits: [] },
     }),
   )
   mockCancerDisclaimer.mockReturnValue(queryResult())

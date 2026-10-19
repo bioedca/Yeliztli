@@ -66,12 +66,27 @@ export interface CancerPRS {
   monogenic_note: string | null
 }
 
+/** A sex-specific cancer PRS model the biological-sex gate withholds (#2498).
+ *
+ * `sex_mismatch`: the sample resolves to the other sex, so the model does not
+ * apply. `sex_unresolved`: the sex is ambiguous (`manual_review`) or
+ * undetermined, so a score that might apply is withheld rather than guessed.
+ */
+export interface CancerPRSWithheld {
+  trait: string
+  name: string
+  required_sex: string
+  resolved_sex: string | null
+  reason: "sex_mismatch" | "sex_unresolved"
+}
+
 /** All cancer PRS results for a sample. */
 export interface CancerPRSListResponse {
   items: CancerPRS[]
   total: number
   sufficient_count: number
   insufficient_traits: string[]
+  withheld_traits: CancerPRSWithheld[]
 }
 
 /** Cancer module disclaimer text (P3-17). */

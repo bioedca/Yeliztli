@@ -121,7 +121,13 @@ async function mockNavigationData(page: Page): Promise<void> {
   )
   await page.route('**/api/analysis/cancer/prs**', (route) =>
     route.fulfill({
-      json: { items: [], total: 0, sufficient_count: 0, insufficient_traits: [] },
+      json: {
+        items: [],
+        total: 0,
+        sufficient_count: 0,
+        insufficient_traits: [],
+        withheld_traits: [],
+      },
     }),
   )
   await page.route('**/api/analysis/cancer/disclaimer', (route) =>

@@ -255,6 +255,20 @@ def load_cancer_prs_weights(
 # ── Cancer PRS pipeline ──────────────────────────────────────────────────
 
 
+def sex_gate_required_sex(trait: str, sex_context: str | None) -> str | None:
+    """Return the sex a sex-specific trait requires when ``sex_context`` fails it.
+
+    ``None`` means the gate lets the trait through: either it is not
+    sex-specific, or the resolved context matches. Anything other than an exact
+    match fails, so ``manual_review``, ``unknown`` and ``None`` withhold the
+    score just as the opposite sex does.
+    """
+    required_sex = SEX_SPECIFIC_PRS_TRAITS.get(trait)
+    if required_sex is not None and sex_context != required_sex:
+        return required_sex
+    return None
+
+
 def resolve_cancer_prs_sex_context(
     sample_engine: sa.Engine,
     *,
@@ -330,8 +344,8 @@ def run_cancer_prs(
             )
             continue
 
-        required_sex = SEX_SPECIFIC_PRS_TRAITS.get(ws.trait)
-        if required_sex is not None and inferred_sex != required_sex:
+        required_sex = sex_gate_required_sex(ws.trait, inferred_sex)
+        if required_sex is not None:
             skipped_traits.append(ws.trait)
             logger.info(
                 "cancer_prs_trait_skipped",

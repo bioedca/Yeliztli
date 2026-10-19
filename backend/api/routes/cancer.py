@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -109,6 +109,22 @@ class CancerPRSResponse(BaseModel):
     monogenic_note: str | None = None
 
 
+class CancerPRSWithheldResponse(BaseModel):
+    """A sex-specific cancer PRS model the biological-sex gate withholds (#2498).
+
+    ``reason`` is ``sex_mismatch`` when the sample confidently resolves to the
+    other sex, so the model does not apply, and ``sex_unresolved`` when the sex
+    is ambiguous (``manual_review``) or undetermined, so a score that might
+    apply is withheld rather than guessed.
+    """
+
+    trait: str
+    name: str
+    required_sex: str
+    resolved_sex: str | None = None
+    reason: Literal["sex_mismatch", "sex_unresolved"]
+
+
 class CancerPRSListResponse(BaseModel):
     """All cancer PRS results for a sample."""
 
@@ -116,6 +132,7 @@ class CancerPRSListResponse(BaseModel):
     total: int
     sufficient_count: int
     insufficient_traits: list[str]
+    withheld_traits: list[CancerPRSWithheldResponse] = []
 
 
 class CancerDisclaimerResponse(BaseModel):
@@ -323,7 +340,8 @@ def list_cancer_prs(
 
     Returns findings from currently eligible cancer PRS models, including
     calibration, optional percentile/z-score, and ancestry mismatch status.
-    Results are in the "Research Use Only" tier.
+    Results are in the "Research Use Only" tier. ``withheld_traits`` names each
+    sex-specific model the biological-sex gate keeps off the sample, with why.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``
     """
@@ -395,6 +413,12 @@ def list_cancer_prs(
         sufficient_count=len(sufficient),
         insufficient_traits=insufficient,
     )
+    # A response the gate below would blank needs no sex context, so the
+    # sample's sex is only resolved for one that can actually be served.
+    if is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        response.withheld_traits = _sex_withheld_prs(
+            sample_engine, sample_id, shown_traits={item.trait for item in items}
+        )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
         return CancerPRSListResponse(
             items=[],
@@ -403,6 +427,59 @@ def list_cancer_prs(
             insufficient_traits=[],
         )
     return response
+
+
+def _sex_withheld_prs(
+    sample_engine: sa.Engine,
+    sample_id: int,
+    *,
+    shown_traits: set[str],
+) -> list[CancerPRSWithheldResponse]:
+    """Name the sex-specific models the sex gate keeps off this sample (#2498).
+
+    The gate runs at analysis time and leaves nothing behind but a log line, so
+    the reason is recomputed here from the sample's current sex context. A model
+    is listed only when it is runtime-scored and has no stored finding: a model
+    that cannot run is not a sex-gate result, and a displayed score is never
+    contradicted by a notice beside it.
+    """
+    from backend.analysis.cancer_prs import (
+        SEX_SPECIFIC_PRS_TRAITS,
+        load_cancer_prs_weights,
+        resolve_cancer_prs_sex_context,
+        sex_gate_required_sex,
+    )
+
+    gated = [
+        weight_set
+        for weight_set in load_cancer_prs_weights()
+        if weight_set.is_runtime_scored
+        and weight_set.trait in SEX_SPECIFIC_PRS_TRAITS
+        and weight_set.trait not in shown_traits
+    ]
+    if not gated:
+        return []
+
+    sex_context = resolve_cancer_prs_sex_context(
+        sample_engine,
+        reference_engine=get_registry().reference_engine,
+        sample_id=sample_id,
+    )
+    withheld: list[CancerPRSWithheldResponse] = []
+    for weight_set in gated:
+        required_sex = sex_gate_required_sex(weight_set.trait, sex_context)
+        if required_sex is None:
+            continue
+        withheld.append(
+            CancerPRSWithheldResponse(
+                trait=weight_set.trait,
+                name=weight_set.name,
+                required_sex=required_sex,
+                resolved_sex=sex_context,
+                reason="sex_mismatch" if sex_context in ("XX", "XY") else "sex_unresolved",
+            )
+        )
+    return withheld
 
 
 @router.post("/run", dependencies=[Depends(require_fresh_sample)])

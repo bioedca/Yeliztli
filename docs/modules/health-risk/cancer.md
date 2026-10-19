@@ -77,7 +77,10 @@ Sex-specific context matters. For XY/male samples, Yeliztli does not show the fe
 sex cannot be resolved from array data, sex-specific numeric penetrance is withheld.
 Prostate PRS is computed only when the sample's biological sex resolves to XY. It is not
 computed for XX samples, or when sex is ambiguous or cannot be determined, so those
-samples' results show no prostate score.
+samples' results show no prostate score. The Cancer page names the missing score and says why:
+for an XX sample the model does not apply, while for an ambiguous or undetermined sex the score
+is withheld. Recording the individual's biological sex and re-running the analysis resolves the
+second case.
 
 ## References
 

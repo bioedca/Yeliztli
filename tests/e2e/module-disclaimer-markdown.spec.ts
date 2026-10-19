@@ -28,7 +28,13 @@ const emptyCancerData = async (page: Page) => {
   )
   await page.route('**/api/analysis/cancer/prs**', (route) =>
     route.fulfill(
-      jsonRoute({ items: [], total: 0, sufficient_count: 0, insufficient_traits: [] }),
+      jsonRoute({
+        items: [],
+        total: 0,
+        sufficient_count: 0,
+        insufficient_traits: [],
+        withheld_traits: [],
+      }),
     ),
   )
   await page.route('**/api/analysis/cancer/absolute-risk**', (route) =>
