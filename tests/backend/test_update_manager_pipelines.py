@@ -903,6 +903,9 @@ class TestCheckDbsnpUpdate:
 # ── check_mondo_hpo_update ─────────────────────────────────────────────
 
 
+# Every MONDO/HPO probe asks for the representation stream_download records (#2287).
+IDENTITY_REPRESENTATION = {"Accept-Encoding": "identity"}
+
 # Tue, 15 Apr 2026 12:34:56 GMT → 20260415
 MONDO_HPO_LAST_MODIFIED_NEW = "Wed, 15 Apr 2026 12:34:56 GMT"
 MONDO_HPO_LAST_MODIFIED_NEW_VERSION = "20260415"
@@ -952,9 +955,9 @@ class TestCheckMondoHpoUpdate:
         assert result.download_size_bytes == 98_765_465
         assert result.release_date == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
         assert mock_client.return_value.head.call_args_list == [
-            call(MONDO_HPO_URL),
-            call(HPO_GENES_TO_PHENOTYPE_URL),
-            call(MONDO_SSSOM_URL),
+            call(MONDO_HPO_URL, headers=IDENTITY_REPRESENTATION),
+            call(HPO_GENES_TO_PHENOTYPE_URL, headers=IDENTITY_REPRESENTATION),
+            call(MONDO_SSSOM_URL, headers=IDENTITY_REPRESENTATION),
         ]
 
     def test_newer_recorded_returns_none(self, tmp_path: Path, monkeypatch, reference_engine):
@@ -1154,6 +1157,81 @@ class TestCheckMondoHpoUpdate:
             assert check_mondo_hpo_update(reference_engine) is None
 
     @pytest.mark.parametrize(
+        ("identity_changed", "offered"),
+        [
+            pytest.param(None, False, id="identity-unchanged"),
+            pytest.param("hpo", True, id="hpo-identity-changed"),
+            pytest.param("sssom", True, id="sssom-identity-changed"),
+        ],
+    )
+    def test_encoding_specific_validators_are_compared_as_identity(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+        reference_engine,
+        identity_changed: str | None,
+        offered: bool,
+    ):
+        """A server with per-encoding ETags is probed for the bytes it installed (#2287).
+
+        The installed fingerprints come from stream_download's identity GET. A
+        probe that let httpx advertise gzip saw the compressed ETag, never matched,
+        and offered the same ~34 MB update on every check.
+        """
+        path = _write_manifest(tmp_path, SAMPLE_MANIFEST)
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(
+            reference_engine,
+            "mondo_hpo",
+            _current_mondo_hpo_version('"hpo-identity-v1"', '"sssom-identity-v1"'),
+        )
+        sources = {
+            MONDO_HPO_URL: ("primary", 183_321, 150_000),
+            HPO_GENES_TO_PHENOTYPE_URL: ("hpo", 20_821_704, 4_000_000),
+            MONDO_SSSOM_URL: ("sssom", 13_124_886, 2_000_000),
+        }
+        probed: list[tuple[str, str | None]] = []
+
+        def serve(request: httpx.Request) -> httpx.Response:
+            name, identity_bytes, gzip_bytes = sources[str(request.url)]
+            encoding = request.headers.get("Accept-Encoding")
+            probed.append((name, encoding))
+            if encoding == "identity":
+                release = "v2" if name == identity_changed else "v1"
+                etag, length = f'"{name}-identity-{release}"', identity_bytes
+            else:
+                etag, length = f'W/"{name}-gzip-v1"', gzip_bytes
+            return httpx.Response(
+                200,
+                headers={
+                    "ETag": etag,
+                    "Last-Modified": MONDO_HPO_LAST_MODIFIED_NEW,
+                    "Content-Length": str(length),
+                },
+            )
+
+        real_client = httpx.Client
+
+        def client_over_transport(*args, **kwargs):
+            return real_client(*args, transport=httpx.MockTransport(serve), **kwargs)
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.httpx.Client", client_over_transport)
+
+        result = check_mondo_hpo_update(reference_engine)
+
+        assert probed == [
+            ("primary", "identity"),
+            ("hpo", "identity"),
+            ("sssom", "identity"),
+        ]
+        if not offered:
+            assert result is None
+            return
+        assert isinstance(result, VersionInfo)
+        # The bandwidth estimate is the identity transfer, not the compressed one.
+        assert result.download_size_bytes == 183_321 + 20_821_704 + 13_124_886
+
+    @pytest.mark.parametrize(
         ("installed_version", "hpo_etag", "sssom_etag"),
         [
             (_current_mondo_hpo_version("hpo-old", "sssom-current"), "hpo-new", "sssom-current"),
@@ -1199,9 +1277,9 @@ class TestCheckMondoHpoUpdate:
         assert isinstance(result, VersionInfo)
         assert result.download_url == MONDO_HPO_URL
         assert mock_client.return_value.head.call_args_list == [
-            call(MONDO_HPO_URL),
-            call(HPO_GENES_TO_PHENOTYPE_URL),
-            call(MONDO_SSSOM_URL),
+            call(MONDO_HPO_URL, headers=IDENTITY_REPRESENTATION),
+            call(HPO_GENES_TO_PHENOTYPE_URL, headers=IDENTITY_REPRESENTATION),
+            call(MONDO_SSSOM_URL, headers=IDENTITY_REPRESENTATION),
         ]
 
     @pytest.mark.parametrize(
@@ -1222,9 +1300,9 @@ class TestCheckMondoHpoUpdate:
         assert isinstance(result, VersionInfo)
         assert result.latest_version == MONDO_HPO_LAST_MODIFIED_NEW_VERSION
         assert mock_client.return_value.head.call_args_list == [
-            call(MONDO_HPO_URL),
-            call(HPO_GENES_TO_PHENOTYPE_URL),
-            call(MONDO_SSSOM_URL),
+            call(MONDO_HPO_URL, headers=IDENTITY_REPRESENTATION),
+            call(HPO_GENES_TO_PHENOTYPE_URL, headers=IDENTITY_REPRESENTATION),
+            call(MONDO_SSSOM_URL, headers=IDENTITY_REPRESENTATION),
         ]
 
     def test_noncanonical_scoped_installed_version_is_not_overwritten(
@@ -1243,7 +1321,9 @@ class TestCheckMondoHpoUpdate:
         with patch("backend.annotation.mondo_hpo.httpx.Client", mock_client):
             assert check_mondo_hpo_update(reference_engine) is None
 
-        mock_client.return_value.head.assert_called_once_with(MONDO_HPO_URL)
+        mock_client.return_value.head.assert_called_once_with(
+            MONDO_HPO_URL, headers=IDENTITY_REPRESENTATION
+        )
 
     def test_no_recorded_version_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
@@ -1352,9 +1432,9 @@ class TestCheckMondoHpoUpdate:
             assert check_mondo_hpo_update(reference_engine) is None
 
         assert mock_client.return_value.head.call_args_list == [
-            call(MONDO_HPO_URL),
-            call(HPO_GENES_TO_PHENOTYPE_URL),
-            call(MONDO_SSSOM_URL),
+            call(MONDO_HPO_URL, headers=IDENTITY_REPRESENTATION),
+            call(HPO_GENES_TO_PHENOTYPE_URL, headers=IDENTITY_REPRESENTATION),
+            call(MONDO_SSSOM_URL, headers=IDENTITY_REPRESENTATION),
         ]
 
     @pytest.mark.parametrize(
