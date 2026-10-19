@@ -26,6 +26,7 @@ from _isolated_data_home import (
 
 from backend import config
 from backend.config import get_settings
+from backend.db.connection import current_registry, get_registry
 
 # Imported at collection, like every test module that imports backend.main: the
 # module binds the global Huey to get_settings().data_dir/huey.db right here.
@@ -74,6 +75,52 @@ def test_each_test_gets_its_own_home(_round: int) -> None:
     marker.write_text(str(_round), encoding="utf-8")
 
 
+@pytest.mark.parametrize("_round", [1, 2])
+def test_each_test_starts_without_a_registry(_round: int) -> None:
+    # Whichever round runs second fails if the first round's registry leaked:
+    # the singleton keeps the data dir of whichever test built it, so code that
+    # resolves paths through get_registry() would use another test's home (#2529).
+    assert current_registry() is None
+    assert get_registry().settings.data_dir == get_settings().data_dir
+
+
+def test_isolation_drops_a_registry_bound_to_another_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    earlier = get_registry()
+    home = tmp_path / "home" / ".yeliztli"
+    isolate_data_home(monkeypatch, home)
+    assert current_registry() is None
+    assert get_registry().settings.data_dir == home
+    assert get_registry() is not earlier
+
+
+def test_the_new_home_has_its_pointer_before_default_data_dir_moves(tmp_path: Path) -> None:
+    # A thread an earlier test left running can resolve settings at any moment.
+    # If DEFAULT_DATA_DIR pointed at a home whose pointer was not written yet,
+    # data_dir would resolve to the real home, and so would any registry built
+    # then (#2529).
+    home = tmp_path / "home" / ".yeliztli"
+    pointers_seen: list[str | None] = []
+
+    class _Recording(pytest.MonkeyPatch):
+        def setattr(self, *args: object, **kwargs: object) -> None:  # type: ignore[override]
+            if args[:2] == (config, "DEFAULT_DATA_DIR"):
+                pointer = Path(str(args[2])) / config.DATA_DIR_POINTER_NAME
+                pointers_seen.append(
+                    pointer.read_text(encoding="utf-8") if pointer.exists() else None
+                )
+            super().setattr(*args, **kwargs)  # type: ignore[arg-type]
+
+    recording = _Recording()
+    try:
+        isolate_data_home(recording, home)
+    finally:
+        recording.undo()
+        config.get_settings.cache_clear()
+    assert pointers_seen == [str(home)]
+
+
 def test_ambient_settings_env_is_removed_but_harness_controls_kept(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -106,9 +153,12 @@ def test_the_project_dotenv_is_ignored(monkeypatch: pytest.MonkeyPatch, tmp_path
 def test_real_home_can_be_restored() -> None:
     isolated = get_settings().data_dir
     # Its own MonkeyPatch, so undoing it leaves this test's isolation in place.
+    get_registry()
     restore = pytest.MonkeyPatch()
     try:
         restore_real_data_home(restore)
+        # A registry bound to the isolated home must not serve real-home tests.
+        assert current_registry() is None
         assert not _is_within(config.config_toml_path(), session_root())
         assert config.Settings.model_config["env_file"] == ".env"
     finally:

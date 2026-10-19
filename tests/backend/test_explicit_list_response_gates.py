@@ -26,6 +26,7 @@ from backend.api.routes import (
     rare_variants,
     risk_common,
 )
+from backend.config import get_settings
 from backend.services.route_scoring_state import ScoringRead
 
 
@@ -694,6 +695,28 @@ def test_spool_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     spool.close()
 
     assert spills and spills[0].closed
+
+
+def test_spool_spills_into_this_tests_own_data_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The spill follows this test's data home, not a registry an earlier test built.
+
+    The spill directory comes from the ``get_registry()`` singleton. Inherited
+    from an earlier test, that singleton pointed at the earlier test's home, or
+    at the runner's real home, which did not exist and failed the spill (#2529).
+    """
+    spill_dirs: list[object] = []
+    real_temporary_file = tempfile.TemporaryFile
+
+    def _recording(*args: object, **kwargs: object) -> Any:
+        spill_dirs.append(kwargs.get("dir"))
+        return real_temporary_file(*args, **kwargs)
+
+    monkeypatch.setattr(tempfile, "TemporaryFile", _recording)
+    spool = _spool_with_limit(monkeypatch, 0)
+    spool.append("x\n")
+    spool.close()
+
+    assert spill_dirs == [get_settings().data_dir]
 
 
 class _RetainedStreamingResponse:

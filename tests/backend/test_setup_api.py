@@ -1750,6 +1750,10 @@ def test_save_credentials_busts_settings_cache(tmp_path: Path, monkeypatch) -> N
     from backend.config import get_settings
 
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    # Without a pointer, data_dir would fall back to the real ~/.yeliztli, and
+    # save_credentials' log line would bind the DB registry, and with it the
+    # log database, there (#2529).
+    config.write_data_dir_pointer(tmp_path)
     get_settings.cache_clear()
     assert get_settings().pubmed_email == ""  # fresh: empty home config
 
