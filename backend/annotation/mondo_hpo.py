@@ -73,6 +73,12 @@ HPO_GENES_TO_PHENOTYPE_URL = "https://purl.obolibrary.org/obo/hp/hpoa/genes_to_p
 # only ``skos:exactMatch`` records from this authoritative MONDO export.
 MONDO_SSSOM_URL = "https://purl.obolibrary.org/obo/mondo/mappings/mondo.sssom.tsv"
 
+# stream_download records each source's validators from an identity GET, so a
+# HEAD probe compared against them must ask for the same representation. A
+# server with encoding-specific ETags otherwise answers the compressed one, the
+# fingerprint never matches, and the same update is offered forever (#2287).
+_IDENTITY_REPRESENTATION = {"Accept-Encoding": "identity"}
+
 # The upstream URLs whose paths are safe to record verbatim. Anything else is an
 # operator override whose path is untrusted -- see `_public_source_url`.
 _CANONICAL_SOURCE_URLS = frozenset(
@@ -2394,7 +2400,7 @@ def check_mondo_hpo_update(
             follow_redirects=True,
             timeout=httpx.Timeout(timeout, connect=10.0),
         ) as client:
-            resp = client.head(pin.url)
+            resp = client.head(pin.url, headers=_IDENTITY_REPRESENTATION)
             resp.raise_for_status()
             last_modified = resp.headers.get("Last-Modified", "")
     except Exception as exc:
@@ -2440,9 +2446,9 @@ def check_mondo_hpo_update(
             follow_redirects=True,
             timeout=httpx.Timeout(timeout, connect=10.0),
         ) as client:
-            hpo_resp = client.head(HPO_GENES_TO_PHENOTYPE_URL)
+            hpo_resp = client.head(HPO_GENES_TO_PHENOTYPE_URL, headers=_IDENTITY_REPRESENTATION)
             hpo_resp.raise_for_status()
-            sssom_resp = client.head(MONDO_SSSOM_URL)
+            sssom_resp = client.head(MONDO_SSSOM_URL, headers=_IDENTITY_REPRESENTATION)
             sssom_resp.raise_for_status()
     except Exception as exc:
         logger.warning("mondo_hpo_secondary_update_check_failed", error=str(exc))
