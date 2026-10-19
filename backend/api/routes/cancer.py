@@ -358,15 +358,20 @@ def list_cancer_prs(
         ).fetchall()
 
     items: list[CancerPRSResponse] = []
+    # Every stored model, including one the presentation filter hides: a hidden
+    # score was still computed, so the sex gate did not withhold it (#2498).
+    stored_traits: set[str] = set()
     for row in rows:
-        if not is_patient_presentable_finding_payload(row._mapping):
-            continue
         detail: dict[str, Any] = {}
         if row.detail_json:
             try:
                 detail = json.loads(row.detail_json)
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Failed to parse detail_json for PRS finding id=%s", row.id)
+        if isinstance(detail.get("trait"), str):
+            stored_traits.add(detail["trait"])
+        if not is_patient_presentable_finding_payload(row._mapping):
+            continue
 
         items.append(
             CancerPRSResponse(
@@ -417,7 +422,7 @@ def list_cancer_prs(
     # sample's sex is only resolved for one that can actually be served.
     if is_patient_presentable_response_payload(response.model_dump(mode="json")):
         response.withheld_traits = _sex_withheld_prs(
-            sample_engine, sample_id, shown_traits={item.trait for item in items}
+            sample_engine, sample_id, stored_traits=stored_traits
         )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
         return CancerPRSListResponse(
@@ -433,7 +438,7 @@ def _sex_withheld_prs(
     sample_engine: sa.Engine,
     sample_id: int,
     *,
-    shown_traits: set[str],
+    stored_traits: set[str],
 ) -> list[CancerPRSWithheldResponse]:
     """Name the sex-specific models the sex gate keeps off this sample (#2498).
 
@@ -455,7 +460,7 @@ def _sex_withheld_prs(
         for weight_set in load_cancer_prs_weights()
         if weight_set.is_runtime_scored
         and weight_set.trait in SEX_SPECIFIC_PRS_TRAITS
-        and weight_set.trait not in shown_traits
+        and weight_set.trait not in stored_traits
     ]
     if not gated:
         return []

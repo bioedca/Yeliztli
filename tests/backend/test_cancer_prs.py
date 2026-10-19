@@ -1554,6 +1554,29 @@ class TestCancerPRSWithheldBySexGate:
         assert response.withheld_traits == []
         assert resolved_for == []
 
+    def test_stored_score_hidden_by_presentation_filter_is_not_reported_withheld(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        """A computed score the response gate hides was not withheld by the sex gate."""
+        from backend.api.routes import cancer as cancer_routes
+
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+        presentable = cancer_routes.is_patient_presentable_finding_payload
+
+        def hide_prostate(row: object) -> bool:
+            detail = json.loads(row["detail_json"] or "{}")
+            return detail.get("trait") != "prostate_cancer" and presentable(row)
+
+        monkeypatch.setattr(cancer_routes, "is_patient_presentable_finding_payload", hide_prostate)
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+
+        shown = {item.trait for item in response.items}
+        assert shown
+        assert "prostate_cancer" not in shown
+        assert response.withheld_traits == []
+        assert resolved_for == []
+
     def test_runtime_blocked_model_is_not_reported_as_sex_gated(
         self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
     ) -> None:
