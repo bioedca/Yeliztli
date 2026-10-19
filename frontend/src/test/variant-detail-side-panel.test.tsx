@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, waitFor, within } from "./test-utils"
+import { fireEvent, render, screen, waitFor, within } from "./test-utils"
 import userEvent from "@testing-library/user-event"
 import VariantTable from "@/components/variant-table/VariantTable"
 import VariantDetailSidePanel from "@/components/variant-detail/VariantDetailSidePanel"
@@ -550,11 +550,49 @@ describe("VariantDetailSidePanel (P2-21)", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument()
     })
 
-    // Click the overlay (outside the panel)
-    const overlay = screen.getByLabelText("Close panel")
-    await user.click(overlay)
+    // Click the backdrop (outside the panel)
+    await user.click(screen.getByTestId("variant-detail-backdrop"))
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it("keeps the backdrop out of the accessibility tree and outside the dialog (#2306)", async () => {
+    // The backdrop used to be a focusable role="button" named "Close panel" that
+    // wrapped the dialog, so assistive tech heard the whole panel as one button
+    // (axe: nested-interactive, label-content-name-mismatch).
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => mockVariantDetail,
+    }))
+
+    render(<VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={() => {}} />)
+
+    const dialog = await screen.findByRole("dialog", { name: "Variant detail for rs100" })
+    const backdrop = screen.getByTestId("variant-detail-backdrop")
+    expect(backdrop).toHaveAttribute("aria-hidden", "true")
+    expect(backdrop).not.toHaveAttribute("role")
+    expect(backdrop).not.toHaveAttribute("tabindex")
+    expect(backdrop.contains(dialog)).toBe(false)
+    expect(screen.queryByRole("button", { name: "Close panel" })).not.toBeInTheDocument()
+  })
+
+  it.each(["Enter", " "])(
+    "does not close when %j is pressed inside the dialog (#2306)",
+    async (key) => {
+      // The wrapping backdrop closed on Enter/Space, and key events from every
+      // control inside the dialog bubbled up to it.
+      mockFetch.mockImplementation(async () => ({
+        ok: true,
+        json: async () => mockVariantDetail,
+      }))
+      const onClose = vi.fn()
+
+      render(<VariantDetailSidePanel rsid="rs100" sampleId={1} onClose={onClose} />)
+
+      const dialog = await screen.findByRole("dialog", { name: "Variant detail for rs100" })
+      fireEvent.keyDown(dialog, { key })
+      expect(onClose).not.toHaveBeenCalled()
+    },
+  )
 
   it("annotates CADD and REVEL with a direction/scale tooltip (#1662)", async () => {
     // CADD/REVEL render as bare numbers (unlike SIFT/PolyPhen's labels); a hover

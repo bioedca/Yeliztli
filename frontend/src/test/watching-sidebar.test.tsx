@@ -103,6 +103,33 @@ describe("WatchingSidebar", () => {
     expect(screen.getByLabelText("Reclassified since watched")).toBeInTheDocument()
   })
 
+  it("names each watched variant from everything it shows (#2306)", () => {
+    // The item used to carry aria-label={rsid}, which replaced its content: a
+    // screen reader heard "rs99999 — reclassified" and never the significance
+    // change or watch date on screen, and the visible text was not in the name
+    // (WCAG 2.5.3 Label in Name).
+    mockWatchedVariants.mockReturnValue({
+      data: [
+        {
+          rsid: "rs99999",
+          watched_at: "2026-02-15T10:00:00",
+          clinvar_significance_at_watch: "Uncertain_significance",
+          clinvar_significance_current: "Pathogenic",
+          notes: "",
+        },
+      ],
+      isLoading: false,
+    })
+    renderWithProviders(<WatchingSidebar sampleId={1} />)
+
+    const list = screen.getByRole("list", { name: "Watched variants" })
+    const item = within(list).getByRole("button", { name: /^rs99999\b/ })
+    expect(item).not.toHaveAttribute("aria-label")
+    expect(item).toHaveAccessibleName(
+      /^rs99999 Reclassified since watched Uncertain significance → Pathogenic Feb 15, 2026$/,
+    )
+  })
+
   it("shows reclassified count badge in header", () => {
     mockWatchedVariants.mockReturnValue({
       data: [
@@ -156,14 +183,14 @@ describe("WatchingSidebar", () => {
 
     // Default sort: by watched_at desc — rs111 first
     const items = screen.getAllByRole("button", { name: /^rs/ })
-    expect(items[0]).toHaveAttribute("aria-label", "rs111")
+    expect(items[0]).toHaveAccessibleName(/^rs111 /)
 
     // Click sort toggle to switch to reclassified first
     await user.click(screen.getByText(/sort: date watched/i))
 
     // Now reclassified variant rs222 should be first
     const reorderedItems = screen.getAllByRole("button", { name: /^rs/ })
-    expect(reorderedItems[0]).toHaveAttribute("aria-label", expect.stringContaining("rs222"))
+    expect(reorderedItems[0]).toHaveAccessibleName(/^rs222 /)
   })
 
   it("keeps the sort toggle's accessible name containing its visible text in both states", async () => {

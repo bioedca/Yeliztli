@@ -172,8 +172,11 @@ export default function VariantToolbar({
             ? "border-primary bg-primary/10 text-primary"
             : "border-input bg-background text-muted-foreground hover:text-foreground"
         }`}
+        // Named by its visible text, not an aria-label: the old "Show/Hide
+        // unannotated variants" label never contained the "(N)" count shown on
+        // screen, so a voice-control user saying what they saw matched nothing
+        // (WCAG 2.5.3 Label in Name, #2306). aria-pressed carries the state.
         aria-pressed={showUnannotated}
-        aria-label={showUnannotated ? "Hide unannotated variants" : "Show unannotated variants"}
       >
         {showUnannotated ? (
           <Eye className="h-4 w-4" />
@@ -195,8 +198,9 @@ export default function VariantToolbar({
             ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
             : "border-input bg-background text-muted-foreground hover:text-foreground"
         }`}
+        // Named by its visible text: pressed, the old label read "Show all
+        // variants" while the button said "Conflicts only" (WCAG 2.5.3, #2306).
         aria-pressed={showConflictsOnly}
-        aria-label={showConflictsOnly ? "Show all variants" : "Show conflicts only"}
       >
         <AlertTriangle className="h-4 w-4" />
         <span>Conflicts only</span>
@@ -214,7 +218,8 @@ export default function VariantToolbar({
           }`}
           aria-expanded={tagDropdownOpen}
           aria-haspopup="listbox"
-          aria-label={activeTag ? `Tag filter: ${activeTag}` : "Filter by tag"}
+          // Visible text first (WCAG 2.5.3 Label in Name, #2306).
+          aria-label={activeTag ? `${activeTag}, tag filter` : "Tags, filter by tag"}
         >
           <Tag className="h-4 w-4" />
           <span>{activeTag ?? "Tags"}</span>
@@ -275,7 +280,7 @@ export default function VariantToolbar({
           type="button"
           onClick={() => onTagFilter(null)}
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 transition-colors"
-          aria-label={`Clear tag filter: ${activeTag}`}
+          aria-label={`Tag: ${activeTag}, clear tag filter`}
         >
           Tag: {activeTag}
           <X className="h-3 w-3" />

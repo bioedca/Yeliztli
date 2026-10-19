@@ -162,8 +162,11 @@ export default function WatchingSidebar({
                             ? "bg-accent"
                             : "hover:bg-accent/50",
                         )}
+                        // Named from its content. An aria-label of just the rsid
+                        // hid the significance and watch date it shows from
+                        // screen readers, and left the visible text out of the
+                        // name (WCAG 2.5.3 Label in Name, #2306).
                         onClick={() => onSelectVariant?.(v.rsid)}
-                        aria-label={`${v.rsid}${reclassified ? " — reclassified" : ""}`}
                       >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -171,6 +174,7 @@ export default function WatchingSidebar({
                           {reclassified && (
                             <AlertTriangle
                               className="h-3 w-3 shrink-0 text-amber-500"
+                              role="img"
                               aria-label="Reclassified since watched"
                             />
                           )}
