@@ -44,6 +44,11 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry
+from backend.analysis.cross_module_links import (
+    emits_cross_module_card,
+    is_withheld_call,
+    withheld_call_caveat,
+)
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -831,9 +836,6 @@ def _generate_cross_module_findings(
 
     for pr in pathway_results:
         for snp_result in pr.called_snps:
-            if snp_result.category == STANDARD:
-                continue
-
             # Find the panel SNP to get cross_module metadata
             panel_snp = _find_panel_snp(panel, snp_result.rsid)
             if panel_snp is None or panel_snp.cross_module is None:
@@ -844,6 +846,16 @@ def _generate_cross_module_findings(
             # The drug this handoff is about. Non-PGx targets (Skin,
             # Nutrigenomics) name none (#2020).
             drug = panel_snp.cross_module.get("drug")
+
+            # A non-carrier gets no card, and nor does a withheld call, except
+            # on a drug-safety handoff: an Indeterminate HLA proxy (rs144012689
+            # and rs1061235 are palindromic) cannot exclude the allele, so its
+            # card stays and says so instead of reading as a carrier call (#2310).
+            if not emits_cross_module_card(
+                snp_result.category, drug_safety_handoff=drug is not None
+            ):
+                continue
+            unresolved = is_withheld_call(snp_result.category)
 
             # Build cross-module finding text
             if snp_result.hla_proxy is not None:
@@ -858,9 +870,10 @@ def _generate_cross_module_findings(
                     ]
                     r2_text = f" ({', '.join(r2_parts)})"
 
+                caveat = withheld_call_caveat(hla_allele) if unresolved else ""
                 cross_text = (
                     f"{hla_allele} proxy ({snp_result.rsid}, {snp_result.genotype})"
-                    f"{r2_text} — {note}"
+                    f"{r2_text} — {caveat}{note}"
                 )
             elif snp_result.gene == "IL13":
                 cross_text = (
@@ -868,10 +881,9 @@ def _generate_cross_module_findings(
                     f"Atopic susceptibility variant. {note}"
                 )
             else:
-                cross_text = (
-                    f"{variant_label(snp_result.gene, snp_result.variant_name)} "
-                    f"({snp_result.genotype}) — {note}"
-                )
+                label = variant_label(snp_result.gene, snp_result.variant_name)
+                caveat = withheld_call_caveat(label) if unresolved else ""
+                cross_text = f"{label} ({snp_result.genotype}) — {caveat}{note}"
 
             # Deduplicate at allele/drug-context granularity, not gene-only:
             # multiple HLA-B alleles share gene "HLA-B" but are distinct

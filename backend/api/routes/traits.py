@@ -21,6 +21,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.cross_module_links import stored_card_is_withheld
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -308,6 +309,10 @@ def list_pathways(
     cross_module_findings = [f for f in all_findings if f["category"] == "cross_module"]
     cross_items: list[CrossModuleItem] = []
     for cf in cross_module_findings:
+        # A card stored for a call no card is shown for, such as the DRD4 C/G
+        # homozygote the scorer withholds, is dropped at read time (#2310).
+        if stored_card_is_withheld("traits", cf):
+            continue
         detail = cf["detail"]
         cross_items.append(
             CrossModuleItem(

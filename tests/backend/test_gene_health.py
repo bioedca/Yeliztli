@@ -2761,6 +2761,32 @@ class TestCrossModuleCardWording:
         assert _score_snp(snp, "AA").category == INDETERMINATE
         assert _score_snp(snp, "AT").category == MODERATE
 
+    @pytest.mark.parametrize("genotype", ["TT", "AA"])
+    def test_an_indeterminate_fto_homozygote_gets_no_metabolic_card(
+        self,
+        genotype: str,
+        panel: GeneHealthPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """#2310: the SNP's own call is withheld, so its cross-module card must be too.
+
+        Both FTO homozygotes score Indeterminate, so a TT sample, which may be a
+        non-carrier, used to get the same "your FTO result matters, see
+        Metabolic" card as a carrier. The heterozygote above still gets it.
+        """
+        _seed_variants(sample_engine, [("rs9939609", "16", 53820527, genotype)])
+        result = score_gene_health_pathways(panel, sample_engine, reference_engine)
+
+        called = [
+            snp
+            for pathway in result.pathway_results
+            for snp in pathway.called_snps
+            if snp.rsid == "rs9939609"
+        ]
+        assert [snp.category for snp in called] == [INDETERMINATE]
+        assert [c.rsid for c in result.cross_module_findings] == []
+
 
 def test_nod2_r702w_homozygote_is_not_given_the_pooled_two_allele_fold_risk() -> None:
     """#2097 — the ~20-40-fold Crohn's figure is pooled over any two NOD2 risk
