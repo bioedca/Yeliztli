@@ -1244,6 +1244,115 @@ def test_v3_copilot_accepts_a_clean_verdict_wherever_it_sits(body: str) -> None:
     assert validate_context(context, files, now=NOW) == []
 
 
+# Byte-for-byte the body of all 51 quota refusals Copilot has posted on this
+# repository (2026-07-26 to 2026-10-18), e.g. review 5564230327 on PR #2495.
+COPILOT_QUOTA_REFUSAL = (
+    "Copilot was unable to review this pull request because the user who "
+    "requested the review has reached their quota limit."
+)
+
+
+def _copilot_review_node(context: dict[str, object]) -> dict[str, object]:
+    return next(
+        item
+        for item in context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]
+        if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    )
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+@pytest.mark.parametrize(
+    "body",
+    [
+        COPILOT_QUOTA_REFUSAL,
+        # Whitespace is normalised before the prefix is compared.
+        f"\n{COPILOT_QUOTA_REFUSAL}\r\n",
+        COPILOT_QUOTA_REFUSAL.replace(" because ", "\nbecause "),
+        # Hypothetical: the same refusal giving another reason.
+        "Copilot was unable to review this pull request because it is too large.",
+    ],
+    ids=["exact", "surrounding-whitespace", "wrapped", "other-reason"],
+)
+def test_copilot_refusal_is_never_review_evidence(schema_version: int, body: str) -> None:
+    """A review saying Copilot could not review the PR is not a review (#2496).
+
+    v2 reads no other part of a Copilot body, so before #2496 this refusal
+    satisfied the v2 gate; v3 already rejected it for lacking a coverage line.
+    """
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context(
+        "Load-bearing",
+        files,
+        automated_gates={COPILOT_GATE},
+        schema_version=schema_version,
+    )
+    _copilot_review_node(context)["body"] = body
+    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in validate_context(
+        context,
+        files,
+        now=NOW,
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Review completed.",
+        REAL_COPILOT_CLEAN_BODY,
+        _copilot_v3_body(2, generated_comments=1),
+        # Quoting the refusal does not make a review one: only a body that opens
+        # with it is refused.
+        f'## Pull request overview\n\nRejects bodies such as "{COPILOT_QUOTA_REFUSAL}"\n',
+    ],
+    ids=["v2-fixture", "real-clean", "with-findings", "quotes-refusal"],
+)
+def test_v2_copilot_review_that_is_not_a_refusal_is_still_evidence(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE})
+    _copilot_review_node(context)["body"] = body
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_v2_later_copilot_refusal_supersedes_an_earlier_review() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"].append(
+        _review(BOT_ACTOR_IDS[COPILOT_GATE], "2026-07-21T12:35:00Z", body=COPILOT_QUOTA_REFUSAL)
+    )
+    reviews["totalCount"] += 1
+    errors = validate_context(context, files, now=NOW)
+    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+
+
+def test_v2_copilot_review_after_a_refusal_restores_the_lane() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE})
+    pull_request = context["data"]["repository"]["pullRequest"]
+    pull_request["body"] = pull_request["body"].replace(
+        GATE_TIMES[COPILOT_GATE],
+        "2026-07-21T12:35:00Z",
+    )
+    reviews = pull_request["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[COPILOT_GATE]
+    ]
+    reviews["nodes"].extend(
+        [
+            _review(
+                BOT_ACTOR_IDS[COPILOT_GATE],
+                "2026-07-21T12:30:00Z",
+                body=COPILOT_QUOTA_REFUSAL,
+            ),
+            _review(BOT_ACTOR_IDS[COPILOT_GATE], "2026-07-21T12:35:00Z"),
+        ]
+    )
+    reviews["totalCount"] = len(reviews["nodes"])
+    assert validate_context(context, files, now=NOW) == []
+
+
 @pytest.mark.parametrize(
     "body",
     [
