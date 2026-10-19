@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.analysis.cancer_prs import load_cancer_prs_weights
+from backend.analysis.cancer_prs import SEX_SPECIFIC_PRS_TRAITS, load_cancer_prs_weights
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _PANEL_PATH = REPO_ROOT / "backend" / "data" / "panels" / "cancer_prs_weights.json"
@@ -39,6 +39,10 @@ _AUDIT_SOURCE_IDENTIFIERS = {
     "Ensembl Variation": "DOI:10.1093/database/bay119",
 }
 _ADVERTISED_TRAITS_RE = re.compile(r"\(PRS\) for (?P<traits>[^.]+)\.", re.IGNORECASE)
+# One advertised model: its label, optionally followed by a parenthetical
+# qualifier such as a sex gate ("prostate (XY samples only)", #2261).
+_ADVERTISED_LABEL_RE = re.compile(r"(?P<label>[^()]+?)\s*(?:\((?P<qualifier>[^()]*)\))?")
+_SEX_TOKEN_RE = re.compile(r"\bX[XY]\b", re.IGNORECASE)
 _BREAST_PRS_NOTE_RE = re.compile(
     r'^!!! note "Breast-cancer PRS is currently unavailable"\n'
     r"(?P<body>(?: {4}.*(?:\n|$))+)",
@@ -81,19 +85,38 @@ def _weight_sets() -> list[dict[str, object]]:
     return data["weight_sets"]
 
 
-def _advertised_traits(doc_text: str) -> set[str]:
+def _advertised_trait_qualifiers(doc_text: str) -> dict[str, str | None]:
+    """Map each advertised PRS trait to its parenthetical qualifier, if any."""
     match = _ADVERTISED_TRAITS_RE.search(doc_text)
     assert match, "cancer.md must retain an explicit '(PRS) for ...' active-trait list"
     prose = match.group("traits")
-    advertised_labels = {
-        label.strip().lower()
-        for label in re.split(r",|\band\b", prose, flags=re.IGNORECASE)
-        if label.strip()
-    }
+    # Split on commas and "and" outside parentheses only, so a qualifier's own
+    # wording can never be read as a further model.
+    entries = [
+        entry.strip()
+        for entry in re.split(r",(?![^(]*\))|\band\b(?![^(]*\))", prose, flags=re.IGNORECASE)
+        if entry.strip()
+    ]
     trait_by_label = {label: trait for trait, label in _TRAIT_LABELS.items()}
-    unknown = sorted(advertised_labels - trait_by_label.keys())
-    assert not unknown, f"cancer.md advertises unknown PRS trait labels: {unknown}"
-    return {trait_by_label[label] for label in advertised_labels}
+    qualifiers: dict[str, str | None] = {}
+    unknown: list[str] = []
+    for entry in entries:
+        parsed = _ADVERTISED_LABEL_RE.fullmatch(entry)
+        label = (parsed.group("label") if parsed else entry).strip().lower()
+        if label not in trait_by_label:
+            unknown.append(label)
+            continue
+        trait = trait_by_label[label]
+        # A repeated model would let a later qualifier silently replace an earlier one.
+        assert trait not in qualifiers, f"cancer.md advertises {trait} more than once"
+        qualifier = parsed.group("qualifier") if parsed else None
+        qualifiers[trait] = qualifier.strip() if qualifier else None
+    assert not unknown, f"cancer.md advertises unknown PRS trait labels: {sorted(unknown)}"
+    return qualifiers
+
+
+def _advertised_traits(doc_text: str) -> set[str]:
+    return set(_advertised_trait_qualifiers(doc_text))
 
 
 def _breast_prs_note(doc_text: str) -> str:
@@ -150,6 +173,83 @@ def _reference_entry(doc_text: str, number: int) -> str:
 def test_advertised_traits_reject_unknown_labels() -> None:
     with pytest.raises(AssertionError, match="unknown PRS trait labels.*lung"):
         _advertised_traits("(PRS) for prostate and lung.")
+
+
+def test_advertised_traits_read_a_parenthetical_qualifier_as_part_of_its_label() -> None:
+    assert _advertised_trait_qualifiers(
+        "(PRS) for prostate (XY samples only), colorectal, and melanoma."
+    ) == {
+        "prostate_cancer": "XY samples only",
+        "colorectal_cancer": None,
+        "melanoma": None,
+    }
+    # Several qualified models, with commas and "and" inside their qualifiers.
+    assert _advertised_trait_qualifiers(
+        "(PRS) for prostate (XY, adults), colorectal (screened and unscreened), and melanoma."
+    ) == {
+        "prostate_cancer": "XY, adults",
+        "colorectal_cancer": "screened and unscreened",
+        "melanoma": None,
+    }
+    # A qualifier never rescues an unknown model, and its own words are not split off.
+    with pytest.raises(AssertionError, match="unknown PRS trait labels.*lung"):
+        _advertised_traits("(PRS) for prostate (XY, and adults), and lung (XY only).")
+    # A repeated model is rejected rather than letting its last qualifier win.
+    with pytest.raises(AssertionError, match="prostate_cancer more than once"):
+        _advertised_traits("(PRS) for prostate (XX samples only), and prostate (XY samples only).")
+    # Nested parentheses are not parsed: they fail closed rather than mis-split.
+    with pytest.raises(AssertionError, match="unknown PRS trait labels"):
+        _advertised_traits("(PRS) for melanoma (a (nested) note), and colorectal.")
+
+
+def _sex_gate_violations(qualifiers: dict[str, str | None]) -> list[str]:
+    """Advertised models whose qualifier misstates their production sex gate."""
+    violations = []
+    for trait, qualifier in qualifiers.items():
+        required = SEX_SPECIFIC_PRS_TRAITS.get(trait)
+        if required is None:
+            stated = sorted({token.upper() for token in _SEX_TOKEN_RE.findall(qualifier or "")})
+            if stated:
+                violations.append(
+                    f"cancer.md qualifies {trait} with sex {stated}, but it has no sex gate"
+                )
+            continue
+        # One canonical eligibility phrase. Merely finding the token would
+        # accept "not XY" as stating an XY-only gate.
+        expected = f"{required} samples only"
+        if qualifier != expected:
+            violations.append(
+                f"cancer.md must list {trait} as '({expected})' to state its sex gate; "
+                f"qualifier reads {qualifier!r}"
+            )
+    return violations
+
+
+def test_sex_gate_check_rejects_a_misstated_gate() -> None:
+    assert _sex_gate_violations({"prostate_cancer": "XY samples only", "melanoma": None}) == []
+    for qualifiers in (
+        {"prostate_cancer": None},
+        {"prostate_cancer": "not XY"},
+        {"prostate_cancer": "xy samples only"},
+        {"prostate_cancer": "XX samples only"},
+        {"colorectal_cancer": "xy only"},
+        {"melanoma": "XX samples only"},
+    ):
+        assert len(_sex_gate_violations(qualifiers)) == 1, qualifiers
+
+
+def test_cancer_docs_name_the_sex_gate_of_every_sex_specific_prs_model() -> None:
+    """A sex-gated model must be advertised with its required sex (#2261).
+
+    ``run_cancer_prs`` skips a model in ``SEX_SPECIFIC_PRS_TRAITS`` unless the
+    sample's resolved biological sex equals the required one, so listing it
+    unqualified names a score that a whole group of users can never receive.
+    Read from the production constant, so a new or changed gate fails here
+    until the page states it.
+    """
+    qualifiers = _advertised_trait_qualifiers(_DOC_PATH.read_text(encoding="utf-8"))
+    assert qualifiers, "cancer.md's advertised PRS list parsed to no models"
+    assert not _sex_gate_violations(qualifiers), _sex_gate_violations(qualifiers)
 
 
 def test_cancer_docs_advertise_exactly_the_enabled_prs_models() -> None:

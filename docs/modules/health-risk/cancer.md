@@ -10,7 +10,7 @@ separately estimates polygenic risk for a few common cancers.
 A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB2*, *ATM*,
 *CHEK2*, the Lynch-syndrome mismatch-repair genes (*MLH1*, *MSH2*, *MSH6*, *PMS2*), *APC*,
 *MUTYH*, *PTEN*, *STK11*, *CDH1*, and others. It also computes **polygenic risk scores**
-(PRS) for prostate, colorectal, and melanoma.
+(PRS) for prostate (XY samples only), colorectal, and melanoma.
 
 ## What you'll see
 
@@ -75,6 +75,9 @@ complete personal risk calculation.
 Sex-specific context matters. For XY/male samples, Yeliztli does not show the female
 *BRCA1*/*BRCA2* cumulative-risk figures; it shows male-specific framing instead. If biological
 sex cannot be resolved from array data, sex-specific numeric penetrance is withheld.
+Prostate PRS is computed only when the sample's biological sex resolves to XY. It is not
+computed for XX samples, or when sex is ambiguous or cannot be determined, so those
+samples' results show no prostate score.
 
 ## References
 
