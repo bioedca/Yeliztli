@@ -19,10 +19,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.analysis.cross_module_links import (
-    current_link,
     current_recommendation,
     panel_cross_module_links,
-    refreshed_finding_text,
+    resolve_stored_card,
 )
 from backend.analysis.gene_health import load_gene_health_panel, refreshed_gene_health_row
 from backend.analysis.pharmacogenomics import (
@@ -248,17 +247,19 @@ def list_pathways(
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
-        link = current_link(links, cf)
-        if link is None:
-            # The panel no longer declares this handoff at all.
+        resolved = resolve_stored_card("gene_health", cf, links)
+        if resolved is None:
+            # The panel no longer declares this handoff, or the call it was
+            # built from is one no card is shown for (#2021, #2310).
             continue
+        link, finding_text = resolved
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "gene_health"),
                 target_module=link["module"],
-                finding_text=refreshed_finding_text(cf, link),
+                finding_text=finding_text,
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )

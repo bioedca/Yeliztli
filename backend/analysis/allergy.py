@@ -44,7 +44,11 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry
-from backend.analysis.cross_module_links import emits_cross_module_card, is_withheld_call
+from backend.analysis.cross_module_links import (
+    emits_cross_module_card,
+    is_withheld_call,
+    withheld_call_caveat,
+)
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -866,11 +870,7 @@ def _generate_cross_module_findings(
                     ]
                     r2_text = f" ({', '.join(r2_parts)})"
 
-                caveat = (
-                    f"indeterminate call: it can neither confirm nor exclude {hla_allele}. "
-                    if unresolved
-                    else ""
-                )
+                caveat = withheld_call_caveat(hla_allele) if unresolved else ""
                 cross_text = (
                     f"{hla_allele} proxy ({snp_result.rsid}, {snp_result.genotype})"
                     f"{r2_text} — {caveat}{note}"
@@ -882,11 +882,7 @@ def _generate_cross_module_findings(
                 )
             else:
                 label = variant_label(snp_result.gene, snp_result.variant_name)
-                caveat = (
-                    f"indeterminate call: it can neither confirm nor exclude {label}. "
-                    if unresolved
-                    else ""
-                )
+                caveat = withheld_call_caveat(label) if unresolved else ""
                 cross_text = f"{label} ({snp_result.genotype}) — {caveat}{note}"
 
             # Deduplicate at allele/drug-context granularity, not gene-only:

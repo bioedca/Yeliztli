@@ -28,6 +28,10 @@ from backend.analysis.cross_module_links import (
     STANDARD_CATEGORY,
     emits_cross_module_card,
     is_withheld_call,
+    normalize_cross_module_row,
+    panel_cross_module_links,
+    resolve_stored_card,
+    withheld_call_caveat,
 )
 
 ANALYSIS_DIR = Path(__file__).resolve().parents[2] / "backend" / "analysis"
@@ -232,3 +236,89 @@ def test_the_guard_catches_every_comparison_shape(source: str) -> None:
 def test_the_guard_ignores_comparisons_that_are_not_category_checks() -> None:
     source = "snp.cross_module is None or drug is not None or level == STANDARD"
     assert _category_label_comparisons(ast.parse(source)) == []
+
+
+# ── Cards stored before the rule existed ─────────────────────────────────
+#
+# A card is written when its module is scored, and a scorer change marks no
+# sample stale, so the read path re-derives each stored card's call from the
+# genotype it recorded and applies the same rule (#2310).
+
+
+def _stored_card(rsid: str, genotype: str, text: str, **detail: Any) -> dict[str, Any]:
+    return {"rsid": rsid, "finding_text": text, "detail": {"genotype": genotype, **detail}}
+
+
+def _links(name: str) -> dict[str, dict]:
+    return panel_cross_module_links(getattr(_module(name), f"load_{name}_panel")())
+
+
+@pytest.mark.parametrize(("genotype", "kept"), [("TT", False), ("AA", False), ("AT", True)])
+def test_a_stored_fto_card_is_served_only_for_the_determinate_call(
+    genotype: str, kept: bool
+) -> None:
+    links = _links("gene_health")
+    note = links["rs9939609"]["note"]
+    card = _stored_card("rs9939609", genotype, f"FTO intron 1 ({genotype}) — {note}")
+
+    resolved = resolve_stored_card("gene_health", card, links)
+
+    assert (resolved is not None) is kept
+
+
+def test_a_stored_hla_card_for_a_withheld_call_gains_the_caveat_before_its_note() -> None:
+    links = _links("allergy")
+    link = links["rs1061235"]
+    old_text = f"HLA-A*31:01 proxy (rs1061235, TT) — {link['note']}"
+    card = _stored_card("rs1061235", "TT", old_text, drug=link["drug"])
+
+    resolved = resolve_stored_card("allergy", card, links)
+
+    assert resolved is not None
+    _, text = resolved
+    caveat = withheld_call_caveat("HLA-A*31:01")
+    assert text == f"HLA-A*31:01 proxy (rs1061235, TT) — {caveat}{link['note']}"
+    # Applied once: a card that already carries it is left as it is.
+    again = resolve_stored_card("allergy", {**card, "finding_text": text}, links)
+    assert again is not None and again[1] == text
+
+
+def test_a_stored_hla_card_for_a_carrier_call_is_unchanged() -> None:
+    links = _links("allergy")
+    link = links["rs1061235"]
+    text = f"HLA-A*31:01 proxy (rs1061235, AT) — {link['note']}"
+    resolved = resolve_stored_card(
+        "allergy", _stored_card("rs1061235", "AT", text, drug=link["drug"]), links
+    )
+    assert resolved is not None and resolved[1] == text
+
+
+@pytest.mark.parametrize(("genotype", "kept"), [("GG", False), ("CC", False), ("CG", True)])
+def test_the_generic_path_drops_a_stored_traits_card_for_a_withheld_call(
+    genotype: str, kept: bool
+) -> None:
+    """Traits is not link-resolved there, but the withheld-call rule still applies."""
+    text = f"DRD4 ({genotype}) — probe"
+    detail = {"genotype": genotype, "to_module": "gene_health"}
+    resolved = normalize_cross_module_row("traits", "cross_module", "rs747302", text, detail)
+    assert (resolved is not None) is kept
+    if kept:
+        assert resolved == (text, detail)
+
+
+def test_the_generic_path_drops_a_stored_gene_health_card_for_a_withheld_call() -> None:
+    note = _links("gene_health")["rs9939609"]["note"]
+    detail = {"genotype": "TT", "target_module": "metabolic", "cross_module_note": note}
+    assert (
+        normalize_cross_module_row(
+            "gene_health", "cross_module", "rs9939609", f"FTO intron 1 (TT) — {note}", detail
+        )
+        is None
+    )
+
+
+def test_a_stored_card_that_recorded_no_genotype_is_left_to_link_resolution() -> None:
+    """Rows from before cards recorded a genotype keep the behaviour they had."""
+    links = _links("gene_health")
+    card = {"rsid": "rs9939609", "finding_text": "FTO intron 1 — old", "detail": {}}
+    assert resolve_stored_card("gene_health", card, links) is not None
