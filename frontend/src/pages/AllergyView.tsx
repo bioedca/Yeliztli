@@ -423,8 +423,16 @@ export default function AllergyView() {
             </>
           )}
 
-          {/* Empty state */}
-          {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
+          {/* Empty state. A withheld response is empty too, but it is not "no results":
+              the server refused to show what it assembled, so say that (#2297). */}
+          {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && pathwaysQuery.data.withheld && (
+            <PageEmpty
+              icon={AlertTriangle}
+              title="Allergy results are withheld for this sample."
+              description="Part of these results could not be shown safely, so none are shown here. This is not the same as having no results."
+            />
+          )}
+          {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && !pathwaysQuery.data.withheld && (
             <PageEmpty icon={Flower2} title="No allergy results yet." description="Run annotation to generate pathway scores." />
           )}
         </>

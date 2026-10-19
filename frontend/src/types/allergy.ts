@@ -119,6 +119,9 @@ export interface PathwaysResponse {
   celiac_combined: CeliacCombinedItem | null
   histamine_combined: HistamineCombinedItem | null
   cross_module: CrossModuleItem[]
+  /** True only when the server refused to present the assembled results and
+   *  sent this empty response instead, so it is not "no results" (#2297). */
+  withheld?: boolean
 }
 
 /** Full pathway detail with per-SNP breakdown. */

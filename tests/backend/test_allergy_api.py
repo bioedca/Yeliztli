@@ -397,6 +397,95 @@ def seeded_client(
 # ── Endpoint tests ───────────────────────────────────────────────────
 
 
+def _pathway_with_proxy_lookup(pathway_id: str, name: str, lookup: dict) -> dict:
+    """A pathway summary row whose only free-form field is its HLA proxy lookup."""
+    return {
+        "module": "allergy",
+        "category": "pathway_summary",
+        "evidence_level": 2,
+        "gene_symbol": None,
+        "rsid": None,
+        "finding_text": f"{name} — Moderate consideration",
+        "pathway": name,
+        "pathway_level": "Moderate",
+        "pmid_citations": json.dumps([]),
+        "detail_json": json.dumps(
+            {
+                "pathway_id": pathway_id,
+                "called_snps": 1,
+                "total_snps": 1,
+                "missing_snps": [],
+                "hla_proxy_lookup": lookup,
+            }
+        ),
+    }
+
+
+class TestWithheldPathways:
+    """A withheld response says so instead of reading as 'no results' (#2297)."""
+
+    def test_a_refused_response_is_marked_withheld_and_logged(
+        self, _env: tuple[sa.Engine, sa.Engine]
+    ) -> None:
+        from fastapi import FastAPI
+        from structlog.testing import capture_logs
+
+        from backend.analysis.pharmacogenomics import (
+            is_patient_presentable_finding_payload,
+            is_patient_presentable_response_payload,
+        )
+        from backend.api.routes.allergy import router
+
+        # Each row is presentable on its own; together they assemble a held
+        # gene/drug pair, which the response guard refuses.
+        halves = [
+            _pathway_with_proxy_lookup("pathway_a", "Pathway A", {"gene": "CYP2D6"}),
+            _pathway_with_proxy_lookup("pathway_b", "Pathway B", {"note": "tamoxifen"}),
+        ]
+        assert all(is_patient_presentable_finding_payload(row) for row in halves)
+        assert not is_patient_presentable_response_payload(
+            [json.loads(row["detail_json"]) for row in halves]
+        )
+        sample_engine, _ = _env
+        with sample_engine.begin() as conn:
+            conn.execute(sa.insert(findings), halves)
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+
+        with capture_logs() as logs:
+            resp = TestClient(app).get("/api/analysis/allergy/pathways?sample_id=1")
+
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "items": [],
+            "total": 0,
+            "celiac_combined": None,
+            "histamine_combined": None,
+            "cross_module": [],
+            "withheld": True,
+        }
+        withheld = [log for log in logs if log["event"] == "patient_response_payload_withheld"]
+        assert withheld == [
+            {
+                "event": "patient_response_payload_withheld",
+                "log_level": "warning",
+                "caller": "backend.api.routes.allergy.list_pathways",
+            }
+        ]
+
+    def test_a_presentable_response_is_not_marked_withheld(
+        self, seeded_client: TestClient
+    ) -> None:
+        from structlog.testing import capture_logs
+
+        with capture_logs() as logs:
+            data = seeded_client.get("/api/analysis/allergy/pathways?sample_id=1").json()
+
+        assert data["total"] == 4
+        assert data["withheld"] is False
+        assert not [log for log in logs if log["event"] == "patient_response_payload_withheld"]
+
+
 class TestListPathways:
     def test_sample_gate_uses_fixture_registry_not_global_singleton(
         self,

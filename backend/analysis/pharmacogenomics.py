@@ -48,6 +48,7 @@ Usage::
 from __future__ import annotations
 
 import enum
+import inspect
 import json
 import re
 import sqlite3
@@ -937,8 +938,25 @@ def is_patient_presentable_response_payload(value: object) -> bool:
     collector preserves complete ``gene``/``drug`` record boundaries, while
     still rejecting a held pair assembled across free fragments from multiple
     sources.
+
+    Callers answer a rejection with an empty or not-found response, which is
+    otherwise indistinguishable from having nothing to show. So every rejection
+    is logged as ``patient_response_payload_withheld``, naming the calling
+    function and nothing from the payload (#2297).
     """
-    return not contains_unpresentable_prescribing_identifier(value)
+    if not contains_unpresentable_prescribing_identifier(value):
+        return True
+    frame = inspect.currentframe()
+    caller = frame.f_back if frame is not None else None
+    logger.warning(
+        "patient_response_payload_withheld",
+        caller=(
+            f"{caller.f_globals.get('__name__', '?')}.{caller.f_code.co_qualname}"
+            if caller is not None
+            else "unknown"
+        ),
+    )
+    return False
 
 
 @dataclass

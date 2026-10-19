@@ -139,6 +139,10 @@ class PathwaysResponse(BaseModel):
     celiac_combined: CeliacCombinedItem | None = None
     histamine_combined: HistamineCombinedItem | None = None
     cross_module: list[CrossModuleItem] = []
+    # True only on the empty fallback that replaces an assembled response the
+    # presentability guard refused, so the page can say the results are withheld
+    # instead of that there are none (#2297).
+    withheld: bool = False
 
 
 class PathwayDetailResponse(BaseModel):
@@ -422,7 +426,7 @@ def list_pathways(
         cross_module=cross_items,
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return PathwaysResponse(items=[], total=0)
+        return PathwaysResponse(items=[], total=0, withheld=True)
     return response
 
 
