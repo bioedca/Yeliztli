@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 from _isolated_data_home import REPO_MANIFEST
-from _no_network import begin, end
+from _no_network import _is_local, begin, end
 
 from backend.db import manifest
 
@@ -55,6 +55,33 @@ def test_a_connect_to_a_real_address_is_refused_and_failed() -> None:
         "connect to 185.199.108.133",
         "connect to 185.199.108.133",
     ]
+
+
+@pytest.mark.parametrize(
+    ("host", "local"),
+    [
+        ("127.0.0.1", True),
+        ("127.255.0.9", True),
+        ("::1", True),
+        ("::ffff:127.0.0.1", True),
+        ("0.0.0.0", True),
+        ("::", True),
+        ("localhost", True),
+        ("LOCALHOST", True),
+        ("", True),
+        (None, True),
+        ("::1234", False),
+        ("::ffff:185.199.108.133", False),
+        ("185.199.108.133", False),
+        ("localhost.example.org", False),
+        ("127.example.org", False),
+        ("raw.githubusercontent.com", False),
+    ],
+)
+def test_only_loopback_and_unspecified_hosts_count_as_local(host: object, local: bool) -> None:
+    # Prefix matching passed "::1234" and "localhost.example.org" as local, and
+    # refused the loopback "::ffff:127.0.0.1".
+    assert _is_local(host) is local
 
 
 class _Ok(BaseHTTPRequestHandler):

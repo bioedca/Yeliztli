@@ -19,23 +19,41 @@ the error and silently takes its offline path, and the test would still pass.
 from __future__ import annotations
 
 import errno
+import ipaddress
 import socket
 import threading
 from typing import Any
 
-_LOOPBACK = ("127.", "::1", "localhost", "0.0.0.0")
+# Names a resolver answers locally, from the hosts file. Anything else is a
+# real lookup, including look-alikes such as "localhost.example.org".
+_LOCAL_NAMES = frozenset(
+    {"", "localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
+)
 
 _state: dict[str, Any] = {"installed": False, "enforce": False, "violations": []}
 _lock = threading.Lock()
 
 
 def _is_local(host: object) -> bool:
+    """True for a loopback or unspecified address, or a hosts-file local name.
+
+    Numeric addresses are parsed, not prefix-matched. ``::1234`` is not
+    loopback, while ``::ffff:127.0.0.1`` (IPv4-mapped) is.
+    """
     if host is None:
         return True
     if isinstance(host, bytes):
         host = host.decode("ascii", "replace")
-    text = str(host)
-    return text == "" or text.startswith(_LOOPBACK)
+    text = str(host).strip()
+    if text.lower() in _LOCAL_NAMES:
+        return True
+    try:
+        address = ipaddress.ip_address(text.split("%", 1)[0])  # drop an IPv6 zone id
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_loopback or address.is_unspecified
 
 
 def _refuse(action: str, host: object) -> bool:
