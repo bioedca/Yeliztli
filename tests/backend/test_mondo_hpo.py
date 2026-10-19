@@ -43,6 +43,7 @@ from backend.annotation.mondo_hpo import (
     GenePhenotypeRecord,
     HpoTerm,
     LoadStats,
+    _assert_mondo_hpo_source_is_not_older,
     _CombinedDownloadProgress,
     _extract_gene_symbol_from_subject,
     _records_to_rows,
@@ -863,6 +864,63 @@ class TestCombinedDownloadProgress:
             first + second * 600 // 1_000,
             first + second * 800 // 1_000,
         ]
+
+
+class TestUnverifiedInstallRefresh:
+    """A metadata-less install is replaceable by the first dated release (#2288)."""
+
+    # Stamps exactly as _mondo_hpo_install_version writes them.
+    SECONDARIES = "hpo-0123456789abcdef+mondo-sssom-unknown"
+    UNVERIFIED = f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}"
+    DATED = f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}"
+
+    def test_a_dated_download_may_replace_the_unverified_fallback(self) -> None:
+        _assert_mondo_hpo_source_is_not_older((self.UNVERIFIED, None, None), self.DATED)
+
+    @pytest.mark.parametrize(
+        ("installed", "candidate"),
+        [
+            # Still nothing to order: an undated download over an undated install.
+            pytest.param(
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"unverified-fedcba9876543210+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="undated-over-unverified",
+            ),
+            # An operator-named release is never replaced blindly.
+            pytest.param(
+                f"vNext+{MONDO_HPO_INGESTION_REVISION}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}",
+                id="dated-over-operator-release",
+            ),
+            # Only the loader's exact unverified-<16 hex> stamp qualifies.
+            pytest.param(
+                f"unverified-latest+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-lookalike-primary",
+            ),
+            # Only the complete loader stamp qualifies, not a version that merely starts like it.
+            pytest.param(
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-truncated-stamp",
+            ),
+            pytest.param(
+                f"unverified-0123456789abcdef+{MONDO_HPO_INGESTION_REVISION}+hpo-x+mondo-sssom-y",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-malformed-fingerprints",
+            ),
+            pytest.param(
+                f"unverified-0123456789abcdef+vNext+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                f"20260415+{MONDO_HPO_INGESTION_REVISION}+{SECONDARIES}",
+                id="dated-over-extra-component",
+            ),
+        ],
+    )
+    def test_anything_else_unordered_is_still_refused(
+        self, installed: str, candidate: str
+    ) -> None:
+        with pytest.raises(RuntimeError, match="retry manually"):
+            _assert_mondo_hpo_source_is_not_older((installed, None, None), candidate)
 
 
 class TestDownloadAndLoad:
@@ -2493,6 +2551,59 @@ class TestDownloadAndLoad:
         assert reported[0:3] == [0, first // 2, first]
         assert reported[3:6] == [first, first + second // 2, first + second]
         assert reported[6:9] == [first + second, first + second + third // 2, combined]
+
+    def test_an_unverified_install_is_refreshed_by_the_next_dated_release(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        mondo_tsv_file: Path,
+        hpo_phenotype_file: Path,
+        mondo_sssom_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        """One metadata-less response no longer leaves the source unupdatable (#2288)."""
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        source_files = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+        release: dict[str, str] = {}
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            meta = kwargs.get("meta")
+            if meta is not None:
+                meta.update({"etag": f'"{filename}-etag"', **release})
+            return target
+
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+
+        def installed_version() -> str:
+            with reference_engine.connect() as conn:
+                return conn.execute(
+                    sa.select(database_versions.c.version).where(
+                        database_versions.c.db_name == "mondo_hpo"
+                    )
+                ).scalar_one()
+
+        # The primary arrives without release metadata: the loader stamps its fallback.
+        first = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert first.version.startswith("unverified-")
+        assert installed_version() == first.version
+
+        # The next response carries a release date; the refresh now goes through.
+        release["version"] = "20260415"
+        second = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert second.version.startswith(f"20260415+{MONDO_HPO_INGESTION_REVISION}+")
+        assert installed_version() == second.version
 
     def test_refuses_zero_exact_matches_before_clearing_existing_rows(
         self,
