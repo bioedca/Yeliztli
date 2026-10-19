@@ -97,7 +97,7 @@ test('badge reads (0) and the toggle is disabled for a fully-annotated sample (#
   await page.goto('/variants?sample_id=1')
   await waitForReactHydration(page)
 
-  const toggle = page.getByRole('button', { name: 'Show unannotated variants' })
+  const toggle = page.getByRole('button', { name: /^Show unannotated/ })
   await expect(toggle).toContainText('Show unannotated (0)')
   await expect(toggle).not.toContainText('677,436')
   await expect(toggle).toBeDisabled()
@@ -110,7 +110,7 @@ test('badge shows the real unannotated count and stays enabled when > 0 (#1978)'
   await page.goto('/variants?sample_id=1')
   await waitForReactHydration(page)
 
-  const toggle = page.getByRole('button', { name: 'Show unannotated variants' })
+  const toggle = page.getByRole('button', { name: /^Show unannotated/ })
   await expect(toggle).toContainText('Show unannotated (7)')
   await expect(toggle).not.toContainText('(100)')
   await expect(toggle).toBeEnabled()
