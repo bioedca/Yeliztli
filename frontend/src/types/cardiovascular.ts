@@ -23,6 +23,9 @@ export interface CardiovascularVariant {
 export interface CardiovascularVariantsListResponse {
   items: CardiovascularVariant[]
   total: number
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 /** Summary of a single FH variant within the FH status response. */

@@ -25,6 +25,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import (
@@ -68,7 +69,7 @@ class CarrierVariantResponse(BaseModel):
     copy_number_caveat: str | None = None
 
 
-class CarrierVariantsListResponse(BaseModel):
+class CarrierVariantsListResponse(WithheldMarker):
     """All carrier findings for a sample."""
 
     items: list[CarrierVariantResponse]
@@ -200,7 +201,9 @@ def _carrier_variants_response(items: list[CarrierVariantResponse]) -> CarrierVa
         genes_with_findings=genes,
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return CarrierVariantsListResponse(items=[], total=0, genes_with_findings=[])
+        return CarrierVariantsListResponse(
+            items=[], total=0, genes_with_findings=[], withheld=True
+        )
     return response
 
 

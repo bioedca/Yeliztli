@@ -23,6 +23,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_response_payload,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -51,7 +52,7 @@ class RiskFindingResponse(BaseModel):
     pmids: list[str] = []
 
 
-class RiskFindingsListResponse(BaseModel):
+class RiskFindingsListResponse(WithheldMarker):
     items: list[RiskFindingResponse]
     total: int
 
@@ -168,7 +169,7 @@ def make_risk_router(
         items = [RiskFindingResponse(**f) for f in raw]
         response = RiskFindingsListResponse(items=items, total=len(items))
         if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-            return RiskFindingsListResponse(items=[], total=0)
+            return RiskFindingsListResponse(items=[], total=0, withheld=True)
         return response
 
     @router.post("/run", dependencies=[Depends(require_fresh_sample)])

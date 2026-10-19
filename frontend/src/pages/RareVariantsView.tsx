@@ -25,6 +25,7 @@ import VariantDetailPanel from "@/components/rare-variants/VariantDetailPanel"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 
 const RARE_VARIANT_TABLE_PAGE_SIZE = 200
 const RARE_VARIANT_TABLE_RENDER_LIMIT = 5000
@@ -330,7 +331,10 @@ export default function RareVariantsView() {
       )}
 
       {/* Empty state: no findings and no search */}
-      {!isLoading && !hasError && !hasSearchResult && !hasFindingsOnly && (
+      {!isLoading && !hasError && !hasSearchResult && !hasFindingsOnly && findingsQuery.data?.withheld && (
+        <WithheldResults label="Rare variant" />
+      )}
+      {!isLoading && !hasError && !hasSearchResult && !hasFindingsOnly && !findingsQuery.data?.withheld && (
         <PageEmpty
           icon={Search}
           title="No rare variant findings yet."

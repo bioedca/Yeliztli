@@ -21,6 +21,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import SectionError from "@/components/ui/SectionError"
 import { useCancerVariants, useCancerPRS, useCancerDisclaimer } from "@/api/cancer"
 import type { CancerVariant } from "@/types/cancer"
@@ -163,6 +164,11 @@ export default function CancerView() {
                   ))}
                 </div>
               </>
+            ) : variantsQuery.data?.withheld ? (
+              <WithheldResults
+                label="Cancer predisposition"
+                detail="Do not read this as having no pathogenic or likely pathogenic variants."
+              />
             ) : (
               <PageEmpty
                 icon={ShieldAlert}
@@ -243,11 +249,15 @@ export default function CancerView() {
                 withheld={prsQuery.data.withheld_traits}
                 unavailable={prsQuery.data.unavailable_models}
               />
-              <PageEmpty
-                icon={ShieldAlert}
-                title="No PRS results yet."
-                description="Run annotation to compute polygenic risk scores."
-              />
+              {prsQuery.data.withheld ? (
+                <WithheldResults label="Polygenic risk score" />
+              ) : (
+                <PageEmpty
+                  icon={ShieldAlert}
+                  title="No PRS results yet."
+                  description="Run annotation to compute polygenic risk scores."
+                />
+              )}
             </section>
           )}
         </>

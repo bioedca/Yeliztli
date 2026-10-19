@@ -101,6 +101,18 @@ describe("APOEView findings empty state", () => {
     expect(findings.getByText("Run the APOE analysis first.")).toBeInTheDocument()
   })
 
+  it("says APOE results are withheld when the server withheld them (#2521)", () => {
+    mockUseAPOEFindings.mockReturnValue(
+      settledQuery({ items: [], total: 0, withheld: true }) as unknown as ReturnType<
+        typeof useAPOEFindings
+      >,
+    )
+    const findings = renderEmptyFindings("determined")
+
+    expect(findings.getByText("APOE results are withheld for this sample.")).toBeInTheDocument()
+    expect(findings.queryByText("No APOE findings available.")).not.toBeInTheDocument()
+  })
+
   it("does not tell a determined sample to rerun when findings are empty", () => {
     const findings = renderEmptyFindings("determined")
 

@@ -145,7 +145,7 @@ def list_findings(
     items = [RiskFindingResponse(**f) for f in raw]
     response = RiskFindingsListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return RiskFindingsListResponse(items=[], total=0)
+        return RiskFindingsListResponse(items=[], total=0, withheld=True)
     return response
 
 

@@ -91,4 +91,7 @@ interface RareVariantFinding {
 export interface RareVariantFindingsListResponse {
   items: RareVariantFinding[]
   total: number
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }

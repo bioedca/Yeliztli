@@ -23,6 +23,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import KINSHIP_DISCLAIMER_TEXT, KINSHIP_DISCLAIMER_TITLE
@@ -50,7 +51,7 @@ class KinshipFindingResponse(BaseModel):
     same_vendor: bool | None = None
 
 
-class KinshipListResponse(BaseModel):
+class KinshipListResponse(WithheldMarker):
     items: list[KinshipFindingResponse]
     total: int
 
@@ -110,7 +111,7 @@ def list_findings(sample_id: int = Query(..., description="Sample ID")) -> Kinsh
         )
     response = KinshipListResponse(items=items, total=len(items))
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return KinshipListResponse(items=[], total=0)
+        return KinshipListResponse(items=[], total=0, withheld=True)
     return response
 
 

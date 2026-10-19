@@ -41,6 +41,7 @@ from backend.analysis.rare_variant_finder import (
     store_rare_variant_findings,
 )
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, findings, samples
 from backend.services.sex_inference import (
@@ -180,7 +181,7 @@ class RareVariantFindingResponse(BaseModel):
     detail: dict[str, Any] = {}
 
 
-class RareVariantFindingsListResponse(BaseModel):
+class RareVariantFindingsListResponse(WithheldMarker):
     """All stored rare variant findings for a sample."""
 
     items: list[RareVariantFindingResponse]
@@ -557,7 +558,7 @@ def list_rare_variant_findings(
     if not is_patient_presentable_response_payload(
         [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
     ):
-        return RareVariantFindingsListResponse(items=[], total=0)
+        return RareVariantFindingsListResponse(items=[], total=0, withheld=True)
     return response
 
 

@@ -24,6 +24,9 @@ export interface CancerVariant {
 export interface CancerVariantsListResponse {
   items: CancerVariant[]
   total: number
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 export type PRSCoverageTier = "typed_only" | "imputed"
@@ -102,6 +105,9 @@ export interface CancerPRSListResponse {
   insufficient_traits: string[]
   withheld_traits: CancerPRSWithheld[]
   unavailable_models: CancerPRSUnavailable[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2521). */
+  withheld?: boolean
 }
 
 /** Cancer module disclaimer text (P3-17). */
