@@ -15,6 +15,7 @@ import { AlertTriangle, CheckCircle2, Info, Pill, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { usePharmaReport } from "@/api/pharmacogenomics"
+import WithheldResults from "@/components/ui/WithheldResults"
 import type {
   CallConfidence,
   CoverageInfo,
@@ -220,6 +221,16 @@ export default function MedicationSafetyReport({ sampleId }: MedicationSafetyRep
   // Additive section: stay silent while loading or on error (the rest of the
   // pharmacogenomics page still renders), and render nothing when there are no
   // pharmacogenomics findings yet (the page's own empty state covers that).
+  // A withheld report is empty too, but vanishing would read as "nothing to
+  // flag" -- the opposite of what it means (#2522).
+  if (data?.withheld) {
+    return (
+      <section aria-label="Medication safety report" className="mb-8">
+        <WithheldResults label="Medication safety report" detail="Do not read this as having no drug–gene interactions." />
+      </section>
+    )
+  }
+
   if (isLoading || isError || !data || data.genes_assessed === 0) {
     return null
   }

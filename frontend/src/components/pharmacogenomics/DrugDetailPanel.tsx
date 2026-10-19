@@ -225,7 +225,13 @@ export default function DrugDetailPanel({
           </div>
         )}
 
-        {data && data.gene_effects.length === 0 && (
+        {data && data.gene_effects.length === 0 && data.withheld && (
+          <p className="text-sm text-muted-foreground py-8 text-center" data-testid="drug-guidance-withheld">
+            Guidance for this drug is withheld for this sample. Part of it could not be shown
+            safely, so none is shown here. Do not read this as having no drug–gene interactions.
+          </p>
+        )}
+        {data && data.gene_effects.length === 0 && !data.withheld && (
           <p className="text-sm text-muted-foreground py-8 text-center">
             No gene interactions found for this drug.
           </p>

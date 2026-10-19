@@ -34,6 +34,7 @@ import EvidenceStars from "@/components/ui/EvidenceStars"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { MODULE_META } from "@/lib/modules"
 import type { FindingSummaryItem } from "@/types/findings"
 
@@ -358,11 +359,15 @@ export default function ReportBuilder() {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">Report Builder</h1>
-        <PageEmpty
-          icon={FileText}
-          title="No analysis findings available."
-          description="Run annotation and analysis modules first."
-        />
+        {summaryQuery.data?.withheld ? (
+          <WithheldResults label="Analysis" />
+        ) : (
+          <PageEmpty
+            icon={FileText}
+            title="No analysis findings available."
+            description="Run annotation and analysis modules first."
+          />
+        )}
       </div>
     )
   }

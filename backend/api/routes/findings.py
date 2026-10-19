@@ -36,6 +36,7 @@ from backend.analysis.roh import normalize_legacy_finding_text, normalize_legacy
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.dependencies import require_fresh_sample
 from backend.api.gating import gated_modules_to_hide
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
@@ -103,7 +104,7 @@ class FindingSummaryItem(BaseModel):
     evidence_level_counts: list[FindingEvidenceLevelCount]
 
 
-class FindingsSummaryResponse(BaseModel):
+class FindingsSummaryResponse(WithheldMarker):
     """Summary of findings across all modules."""
 
     total_findings: int
@@ -487,6 +488,7 @@ def findings_summary(
             modules=[],
             evidence_level_counts=[],
             high_confidence_findings=[],
+            withheld=True,
         )
     return response
 

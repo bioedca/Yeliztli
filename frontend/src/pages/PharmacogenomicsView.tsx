@@ -15,6 +15,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import SectionError from "@/components/ui/SectionError"
 import { usePharmaGenes, usePharmaDrugs } from "@/api/pharmacogenomics"
 import MetabolizerCard from "@/components/pharmacogenomics/MetabolizerCard"
@@ -105,11 +106,15 @@ export default function PharmacogenomicsView() {
           {/* Empty state for genes */}
           {genesQuery.data && genesQuery.data.items.length === 0 && (
             <div className="mb-8">
-              <PageEmpty
-                icon={Pill}
-                title="No pharmacogenomics results yet."
-                description="Run annotation to generate star-allele calls."
-              />
+              {genesQuery.data.withheld ? (
+                <WithheldResults label="Pharmacogenomics" detail="Do not read this as having no drug–gene interactions." />
+              ) : (
+                <PageEmpty
+                  icon={Pill}
+                  title="No pharmacogenomics results yet."
+                  description="Run annotation to generate star-allele calls."
+                />
+              )}
             </div>
           )}
 
