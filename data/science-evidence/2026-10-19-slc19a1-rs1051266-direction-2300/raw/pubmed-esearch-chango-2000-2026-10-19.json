@@ -1,0 +1,1 @@
+{"header":{"type":"esearch","version":"0.3"},"esearchresult":{"count":"1","retmax":"1","retstart":"0","idlist":["10993718"],"translationset":[{"from":"Chango A[Author]","to":"chango a[Author]"}],"querytranslation":"chango a[Author] AND \"reduced folate carrier\"[Title] AND 2000/01/01:2000/12/31[Date - Publication]"}}

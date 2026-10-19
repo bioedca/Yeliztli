@@ -1,0 +1,25 @@
+{
+  "accessed": "2026-10-19",
+  "kind": "derived_record",
+  "tool": "Consensus MCP search (plugin bio-research), no filters",
+  "observed_version": "not exposed by the MCP surface",
+  "why_derived": "An MCP tool call has no wire payload to retain, so this records each query and what came back instead of standing in for a capture. Every paper used was then resolved and read through PubMed (raw/pubmed-*.json and raw/pubmed-efetch-6-pmids-2026-10-19.xml).",
+  "searches": [
+    {
+      "query": "SLC19A1 RFC1 80G>A rs1051266 polymorphism red cell folate plasma folate homocysteine status",
+      "results": [
+        {"rank": 1, "title": "The reduced folate carrier (SLC19A1) c.80G>A polymorphism is associated with red cell folate concentrations among women", "first_author": "Stanisławska-Sachadyn", "year": 2009, "journal": "Annals of human genetics", "resolved_to": "PMID:19650776"},
+        {"rank": 2, "title": "Analysis of the Association Between the SLC19A1 Genetic Variant (rs1051266) and Autism Spectrum Disorders, Cerebral Folate Deficiency, and Clinical and Laboratory Parameters", "first_author": "Stefanyshyn", "year": 2025, "journal": "Journal of Molecular Neuroscience", "resolved_to": "not used: clinical-course association in ASD, not a folate-status direction"},
+        {"rank": 3, "title": "Plasma Homocysteine and Polymorphisms of Genes Involved in Folate Metabolism Correlate with DNMT1 Gene Methylation Levels", "first_author": "Coppedè", "year": 2019, "journal": "Metabolites", "resolved_to": "not used: no SLC19A1-specific folate direction reported"}
+      ]
+    },
+    {
+      "query": "reduced folate carrier RFC1 G80A His27Arg allele lower folate status or higher homocysteine",
+      "results": [
+        {"rank": 1, "title": "A polymorphism (80G->A) in the reduced folate carrier gene and its associations with folate status and homocysteinemia.", "first_author": "Chango", "year": 2000, "journal": "Molecular genetics and metabolism", "resolved_to": "PMID:10993718"},
+        {"rank": 2, "title": "G80A reduced folate carrier SNP modulates cellular uptake of folate and affords protection against thrombosis via a non homocysteine related mechanism.", "first_author": "Yates", "year": 2005, "journal": "Life sciences", "resolved_to": "PMID:15964598"},
+        {"rank": 3, "title": "The reduced folate carrier (SLC19A1) c.80G>A polymorphism is associated with red cell folate concentrations among women", "first_author": "Stanisławska-Sachadyn", "year": 2009, "journal": "Annals of human genetics", "resolved_to": "PMID:19650776 (same record as search 1, rank 1; counted once)"}
+      ]
+    }
+  ]
+}
