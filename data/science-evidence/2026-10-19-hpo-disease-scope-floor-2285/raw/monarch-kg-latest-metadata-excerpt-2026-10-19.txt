@@ -1,0 +1,6 @@
+Source: https://data.monarchinitiative.org/monarch-kg/latest/metadata.yaml (accessed 2026-10-19)
+Original sha256: 84d984bf0f6a70603ca964e4db46e155a801f3f0b4f002647751d56b86c6f8b1 (46235 bytes)
+Excerpt: the top-level version and generated_at lines, verbatim.
+
+version: '2026-10-07'
+generated_at: '2026-10-07T03:22:02Z'

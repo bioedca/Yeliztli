@@ -87,9 +87,12 @@ empty. Refresh MONDO/HPO to restore disease-scoped rows.
 
 The loader rejects grossly truncated inputs before replacing installed rows: the compressed
 Monarch primary archive must be at least 100,000 bytes, the HPO export at least 10,000,000
-bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. These
-are fail-closed operational guards based on the recorded source snapshot, not proof of semantic
-completeness. Configure the downloads directory and its `mondo_hpo_sources` child as private to
+bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. It
+also requires at least 40% of HPO's gene-disease scopes to resolve to a MONDO disease row for
+the same gene. Five releases measured between September 2025 and October 2026 resolved 64-71%,
+while a mapping export that has lost a whole identifier namespace resolves far less even when
+it still clears the mapping-count floor. These are fail-closed operational guards based on
+recorded source snapshots, not proof of semantic completeness. Configure the downloads directory and its `mondo_hpo_sources` child as private to
 the updating account and not group/world-writable, and prefer ancestors that are likewise not
 writable by group or other users.
 

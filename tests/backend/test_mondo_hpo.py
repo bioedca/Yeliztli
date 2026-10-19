@@ -33,8 +33,10 @@ import backend.annotation.mondo_hpo as mondo_hpo
 from backend.annotation.http_download import DownloadOutcome
 from backend.annotation.mondo_hpo import (
     _INHERITANCE_MAP,
+    MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT,
     MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES,
     MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES,
+    MINIMUM_UNAMBIGUOUS_MONDO_XREFS,
     MONDO_HPO_INGESTION_REVISION,
     SOURCE_BUNDLE_PENDING,
     GenePhenotypeRecord,
@@ -65,6 +67,12 @@ EVIDENCE_DIR = (
     / "science-evidence"
     / "2026-08-01-hpo-disease-scope-2163"
 )
+SCOPE_FLOOR_EVIDENCE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "science-evidence"
+    / "2026-10-19-hpo-disease-scope-floor-2285"
+)
 _SSSOM_HEADER = (
     "subject_id\tsubject_label\tpredicate_id\tobject_id\tobject_label\tmapping_justification"
 )
@@ -72,6 +80,46 @@ _SSSOM_HEADER = (
 
 def _sssom_line(*columns: str) -> str:
     return "\t".join(columns)
+
+
+def _write_scope_rate_sources(tmp_path: Path, *, matched: int, total: int) -> dict[str, Path]:
+    """Write three sources whose join resolves exactly *matched* of *total* HPO scopes.
+
+    Every gene has one Monarch disease row and one HPO scope. Only the first
+    *matched* scopes get an exact MONDO cross-reference; the rest have none, as
+    when a release drops a namespace from the mapping export.
+    """
+    predicate = "biolink:gene_associated_with_condition"
+    monarch = ["subject\tsubject_label\tpredicate\tobject\tobject_label\tqualifier"]
+    hpo = ["ncbi_gene_id\tgene_symbol\thpo_id\thpo_name\tfrequency\tdisease_id"]
+    sssom = [_SSSOM_HEADER]
+    for index in range(total):
+        gene = f"GENE{index}"
+        mondo_id = f"MONDO:{1_000_000 + index:07d}"
+        omim_id = f"OMIM:{600_000 + index}"
+        monarch.append(
+            f"HGNC:{50_000 + index}\t{gene}\t{predicate}\t{mondo_id}\tDisease {index}\t"
+        )
+        hpo.append(f"{90_000 + index}\t{gene}\tHP:0003002\tBreast carcinoma\t\t{omim_id}")
+        if index < matched:
+            sssom.append(
+                _sssom_line(
+                    mondo_id,
+                    f"Disease {index}",
+                    "skos:exactMatch",
+                    omim_id,
+                    f"Disease {index}",
+                    "semapv:UnspecifiedMatching",
+                )
+            )
+    paths = {
+        "gene_disease.9606.tsv.gz": tmp_path / "scope_rate_gene_disease.tsv",
+        "genes_to_phenotype.txt": tmp_path / "scope_rate_genes_to_phenotype.txt",
+        "mondo.sssom.tsv": tmp_path / "scope_rate_mondo.sssom.tsv",
+    }
+    for filename, lines in zip(paths, (monarch, hpo, sssom), strict=True):
+        paths[filename].write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return paths
 
 
 def test_hpo_disease_scope_evidence_artifacts_are_explicit_and_intact() -> None:
@@ -109,6 +157,53 @@ def test_hpo_disease_scope_evidence_artifacts_are_explicit_and_intact() -> None:
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     assert metadata["release_version"] == hpo_source["release_version"]
     assert metadata["source_snapshot_accessed"] == hpo_source["excerpt_accessed"]
+
+
+def test_disease_scope_floor_is_the_measured_one_and_its_evidence_is_intact() -> None:
+    """The match-rate floor is the packet's, and it separates every measured case (#2285)."""
+    manifest = json.loads((SCOPE_FLOOR_EVIDENCE_DIR / "queries.json").read_text(encoding="utf-8"))
+    floor = manifest["floor"]["minimum_hpo_disease_scope_match_percent"]
+    assert floor == MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT
+
+    listed = {payload["path"] for payload in manifest["payloads"]}
+    on_disk = {
+        path.relative_to(SCOPE_FLOOR_EVIDENCE_DIR).as_posix()
+        for path in (SCOPE_FLOOR_EVIDENCE_DIR / "raw").iterdir()
+    }
+    assert listed == on_disk
+    for payload in manifest["payloads"]:
+        data = (SCOPE_FLOOR_EVIDENCE_DIR / payload["path"]).read_bytes()
+        assert len(data) == payload["bytes"]
+        assert hashlib.sha256(data).hexdigest() == payload["sha256"]
+
+    measurements = json.loads(
+        (SCOPE_FLOOR_EVIDENCE_DIR / "raw" / "measurements-2026-10-19.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    snapshots = {snapshot["label"]: snapshot for snapshot in measurements["snapshots"]}
+    assert len(snapshots) == 5
+    for snapshot in snapshots.values():
+        # Every measured healthy release installs ...
+        assert snapshot["match_percent"] >= floor
+        # ... while the same release without its OMIM mappings is refused, although
+        # it clears the exact-identifier floor and keeps some matches.
+        without_omim = snapshot["simulated_sssom_without_omim"]
+        assert 0 < without_omim["hpo_disease_matches"]
+        assert without_omim["match_percent"] < floor
+        assert without_omim["unambiguous_exact_xrefs"] >= MINIMUM_UNAMBIGUOUS_MONDO_XREFS
+    assert manifest["floor"]["lowest_observed_match_percent"] == min(
+        snapshot["match_percent"] for snapshot in snapshots.values()
+    )
+
+    # The 2026-07-14 release is the one the #2163 packet hashed.
+    prior = json.loads((EVIDENCE_DIR / "source-manifest.json").read_text(encoding="utf-8"))
+    prior_primary = next(
+        source for source in prior["sources"] if source["name"].startswith("Monarch KG")
+    )
+    july = snapshots["2026-07-14"]
+    assert july["files"]["gene_disease.9606.tsv.gz"]["sha256"] == prior_primary["sha256"]
+    assert july["unambiguous_exact_xrefs"] == 109_306
 
 
 @pytest.fixture
@@ -2367,6 +2462,79 @@ class TestDownloadAndLoad:
             ).scalar_one()
         assert preserved == "PRESERVE"
         assert prior_sssom.read_text(encoding="utf-8") == "previous validated source\n"
+
+    @pytest.mark.parametrize(
+        ("matched", "total", "installs"),
+        [
+            pytest.param(2, 5, True, id="exactly-at-the-floor"),
+            pytest.param(3, 7, True, id="just-above-the-floor"),
+            pytest.param(3, 8, False, id="just-below-the-floor"),
+            # One incidental match passed the zero-match guard before #2285.
+            pytest.param(1, 9, False, id="one-incidental-match"),
+        ],
+    )
+    def test_disease_scope_match_rate_floor_guards_the_installed_rows(
+        self,
+        monkeypatch,
+        reference_engine: sa.Engine,
+        tmp_path: Path,
+        matched: int,
+        total: int,
+        installs: bool,
+    ) -> None:
+        """A refresh resolving under 40% of HPO scopes leaves the installed rows alone."""
+        # The cases above sit around 40%; re-derive them if the measured floor changes.
+        assert MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT == 40
+        monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 1)
+        source_files = _write_scope_rate_sources(tmp_path, matched=matched, total=total)
+
+        def fake_download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if filename.endswith(".gz"):
+                with gzip.open(target, "wb") as fh:
+                    fh.write(source_files[filename].read_bytes())
+            else:
+                target.write_bytes(source_files[filename].read_bytes())
+            return target
+
+        with reference_engine.begin() as conn:
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="PRESERVE",
+                    disease_name="Prior disease",
+                    disease_id="MONDO:0000001",
+                    source="mondo_hpo",
+                )
+            )
+        monkeypatch.setattr("backend.annotation.mondo_hpo.download_file", fake_download)
+        downloads = tmp_path / "downloads"
+
+        if installs:
+            stats = download_and_load_mondo_hpo(reference_engine, downloads)
+            assert (stats.hpo_disease_matches, stats.hpo_disease_unmatched) == (
+                matched,
+                total - matched,
+            )
+            with reference_engine.connect() as conn:
+                rows = conn.execute(
+                    sa.select(gene_phenotype.c.gene_symbol, gene_phenotype.c.hpo_terms)
+                ).fetchall()
+            assert {row.gene_symbol for row in rows} == {f"GENE{i}" for i in range(total)}
+            assert sum(1 for row in rows if row.hpo_terms) == matched
+            return
+
+        with pytest.raises(
+            ValueError,
+            match=(
+                rf"only {matched} of {total} HPO disease scopes resolved .*"
+                rf"expected at least {MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT}%"
+            ),
+        ):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            symbols = conn.execute(sa.select(gene_phenotype.c.gene_symbol)).scalars().all()
+        assert symbols == ["PRESERVE"]
 
     def test_refuses_undersized_exact_mapping_before_replacing_rows(
         self,
