@@ -89,6 +89,10 @@ _CANONICAL_SOURCE_URLS = frozenset(
 # installations once, without conflating source release dates with schema data.
 MONDO_HPO_INGESTION_REVISION = "disease-scope-v2"
 
+# Primary source version written when the Monarch response has no release
+# metadata; see _is_unverified_source_install.
+_UNVERIFIED_SOURCE_PREFIX = "unverified-"
+
 # The authoritative MONDO SSSOM export had 109,306 unambiguous exact source
 # identifiers on 2026-08-01. A large floor catches a valid-looking but heavily
 # truncated mapping file before it can erase most disease-scoped HPO context.
@@ -1878,7 +1882,21 @@ def _assert_mondo_hpo_source_is_not_older(
     installed: tuple[str, str | None, str | None] | None,
     candidate_version: str,
 ) -> None:
-    """Reject a direct refresh that would replace a comparable newer source."""
+    """Reject a direct refresh that would replace a comparable newer source.
+
+    A dated install is replaced only by a download dated the same or later, and
+    never by an undated one. An unscoped legacy stamp orders nothing (see
+    :func:`_trusted_installed_source_date`). A scoped install whose primary part
+    is not a date is refused unless the candidate is identical, with one
+    exception: the loader's own ``unverified-`` fallback, written when the
+    primary response carried no release metadata (:func:`_is_unverified_source_install`).
+    That stamp asserts no release at all, so a **dated** download may replace it.
+    The trade-off is deliberate (#2288): its content date was never recorded, so
+    the dated release could in principle be older, but refusing would leave one
+    metadata-less response as a permanently unupdatable install. An undated
+    download still cannot replace it, and an operator-named release such as
+    ``vNext`` is still never replaced blindly.
+    """
     if installed is None:
         return
     installed_version = installed[0]
@@ -1896,6 +1914,10 @@ def _assert_mondo_hpo_source_is_not_older(
             raise RuntimeError(
                 "Refusing to replace a newer installed MONDO/HPO source with an older download"
             )
+        return
+    if _is_unverified_source_install(installed_version) and _is_mondo_hpo_source_date(
+        candidate_source
+    ):
         return
     if (
         _has_current_ingestion_revision(installed_version)
@@ -2289,6 +2311,40 @@ def _trusted_installed_source_date(version: str) -> str | None:
     return source
 
 
+def _is_loader_fingerprint(value: str, *, allow_unknown: bool) -> bool:
+    """Whether *value* is a 16-hex fingerprint as the loader writes it."""
+    if allow_unknown and value == "unknown":
+        return True
+    return len(value) == 16 and all(character in "0123456789abcdef" for character in value)
+
+
+def _is_unverified_source_install(version: str) -> bool:
+    """Whether *version* is the loader's own stamp for a primary without release metadata.
+
+    :func:`download_and_load_mondo_hpo` writes ``unverified-<16 hex>`` rather
+    than a wall-clock date when the primary response carries no release
+    version. Unlike an operator-named release, it orders nothing, so the first
+    trusted release may replace it (#2288). Only the complete stamp that
+    :func:`_mondo_hpo_install_version` builds qualifies, so a hand-written
+    version that merely starts the same way is still never replaced blindly.
+    """
+    parts = version.split("+")
+    if len(parts) != 4:
+        return False
+    source, revision, hpo, sssom = parts
+    return (
+        source.startswith(_UNVERIFIED_SOURCE_PREFIX)
+        and _is_loader_fingerprint(
+            source.removeprefix(_UNVERIFIED_SOURCE_PREFIX), allow_unknown=False
+        )
+        and revision == MONDO_HPO_INGESTION_REVISION
+        and hpo.startswith("hpo-")
+        and _is_loader_fingerprint(hpo.removeprefix("hpo-"), allow_unknown=True)
+        and sssom.startswith("mondo-sssom-")
+        and _is_loader_fingerprint(sssom.removeprefix("mondo-sssom-"), allow_unknown=True)
+    )
+
+
 def _has_current_secondary_validators(
     version: str,
     hpo_meta: dict[str, str],
@@ -2423,6 +2479,7 @@ def check_mondo_hpo_update(
     current = get_current_version(reference_engine, "mondo_hpo")
     current_source_version: str | None = None
     legacy_noncanonical_version = False
+    unverified_install = False
     if current is not None:
         # A legacy stamp's date can be the installation date, not the source's,
         # so it is uncomparable no matter how well it parses.  Ordering it here
@@ -2430,14 +2487,21 @@ def check_mondo_hpo_update(
         # withheld.
         current_source_version = _trusted_installed_source_date(current)
         if current_source_version is None:
-            if _has_current_ingestion_revision(current):
+            if _is_unverified_source_install(current):
+                # The loader's own no-metadata fallback orders nothing, so offer
+                # the trusted release this check just read instead of leaving
+                # the source unupdatable (#2288).
+                unverified_install = True
+                logger.warning("mondo_hpo_update_check_unverified_installed_version")
+            elif _has_current_ingestion_revision(current):
                 logger.warning("mondo_hpo_update_check_uncomparable_scoped_installed_version")
                 return None
-            # The lookup path withholds this unproven legacy data.  Once the
-            # authoritative remote metadata is available, offer a scoped
-            # rebuild instead of leaving the installation permanently empty.
-            legacy_noncanonical_version = True
-            logger.warning("mondo_hpo_update_check_uncomparable_legacy_installed_version")
+            else:
+                # The lookup path withholds this unproven legacy data.  Once the
+                # authoritative remote metadata is available, offer a scoped
+                # rebuild instead of leaving the installation permanently empty.
+                legacy_noncanonical_version = True
+                logger.warning("mondo_hpo_update_check_uncomparable_legacy_installed_version")
         elif current_source_version > remote_version:
             return None
 
@@ -2482,7 +2546,7 @@ def check_mondo_hpo_update(
         download_size_bytes=primary_size + sum(secondary_sizes.values()),
         release_date=remote_version,
     )
-    if current is None or legacy_noncanonical_version:
+    if current is None or legacy_noncanonical_version or unverified_install:
         return available
     if current_source_version is not None and current_source_version < remote_version:
         return available
@@ -2706,7 +2770,9 @@ def download_and_load_mondo_hpo(
                 _assert_opened_staged_source_matches_fd(staging, source)
             # Never turn absent source provenance into the local wall-clock date:
             # it would permit an older payload to masquerade as today's release.
-            source_version = mondo_meta.get("version") or f"unverified-{mondo_checksum[:16]}"
+            source_version = (
+                mondo_meta.get("version") or f"{_UNVERIFIED_SOURCE_PREFIX}{mondo_checksum[:16]}"
+            )
             stats.version = _mondo_hpo_install_version(
                 source_version,
                 hpo_meta,
