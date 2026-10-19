@@ -17,6 +17,47 @@ from functools import cache
 from importlib import import_module
 from typing import Any
 
+# The two category labels every module scorer shares; each module defines the
+# same strings as its own STANDARD / INDETERMINATE.
+STANDARD_CATEGORY = "Standard"
+INDETERMINATE_CATEGORY = "Indeterminate"
+
+
+def emits_cross_module_card(category: str, *, drug_safety_handoff: bool = False) -> bool:
+    """Whether a called SNP's category may produce a cross-module card (#2310).
+
+    A ``Standard`` call is a non-carrier, and an ``Indeterminate`` one is a call
+    the scorer withheld as uninterpretable (a strand-ambiguous palindromic
+    homozygote, or an unmodelled allele). Neither may be handed a carrier-specific
+    destination: the card would assert the very call the module refused to make.
+    ``called_snps`` filters on ``present_in_sample`` only, so every builder has to
+    apply this itself, and all of them do through this one predicate.
+
+    The exception is a drug-safety handoff. An unresolved call cannot exclude the
+    risk allele, and treating it as a no-risk result is the error #1455 corrected
+    for G6PD, so an ``Indeterminate`` drug-safety card is kept and its builder
+    states that the call can neither confirm nor exclude the allele.
+    """
+    if category == STANDARD_CATEGORY:
+        return False
+    if is_withheld_call(category):
+        return drug_safety_handoff
+    return True
+
+
+def is_withheld_call(category: str) -> bool:
+    """Whether the scorer withheld this call as uninterpretable (#2310).
+
+    A drug-safety card kept for such a call must say it can neither confirm nor
+    exclude the allele, rather than read as a carrier call.
+    """
+    return category == INDETERMINATE_CATEGORY
+
+
+def withheld_call_caveat(subject: str) -> str:
+    """The words a kept drug-safety card for a withheld call puts before its note."""
+    return f"indeterminate call: it can neither confirm nor exclude {subject}. "
+
 
 def panel_cross_module_links(panel: Any) -> dict[str, dict]:
     """Map rsid -> the ``cross_module`` block the panel currently declares."""
@@ -87,6 +128,114 @@ def _links_for_module(module: str) -> dict[str, dict]:
     return panel_cross_module_links(getattr(import_module(module_path), loader_name)())
 
 
+# ── Stored cards and the withheld-call rule (#2310) ──────────────────────
+
+# A card is written when its module is scored, and a scorer change marks no
+# sample stale, so a card stored before #2310 for a withheld call would keep
+# being served. Every stored card recorded the genotype it was built from, so
+# re-scoring that genotype against the live panel gives back its call, and the
+# read path applies the same rule as the builders. Source module -> (its
+# single-SNP scorer, whether that scorer also takes the panel).
+_SNP_SCORERS: dict[str, tuple[str, bool]] = {
+    "allergy": ("backend.analysis.allergy:_score_snp", False),
+    "gene_health": ("backend.analysis.gene_health:_score_snp", False),
+    "skin": ("backend.analysis.skin:_score_snp", False),
+    "sleep": ("backend.analysis.sleep:_score_snp", True),
+    "traits": ("backend.analysis.traits:_score_snp", False),
+}
+# Traits is left out of _PANEL_LOADERS for link resolution, but its scorer
+# still needs its panel.
+_SCORING_PANEL_LOADERS = {**_PANEL_LOADERS, "traits": "backend.analysis.traits:load_traits_panel"}
+
+
+def _resolve_callable(target: str) -> Any:
+    module_path, _, name = target.partition(":")
+    return getattr(import_module(module_path), name)
+
+
+@cache
+def _scoring_panel(module: str) -> Any:
+    return _resolve_callable(_SCORING_PANEL_LOADERS[module])()
+
+
+def _panel_snp(module: str, rsid: str) -> Any:
+    panel = _scoring_panel(module)
+    return next(
+        (snp for pathway in panel.pathways for snp in pathway.snps if snp.rsid == rsid), None
+    )
+
+
+def stored_card_call(module: str | None, finding: dict[str, Any]) -> str | None:
+    """Re-derive the call a stored cross-module card was built from.
+
+    ``None`` when it cannot be re-derived: a module without a scorer here, a
+    row that recorded no genotype, or an rsid the panel no longer carries.
+    Such a row is left to the link resolution it already had.
+    """
+    spec = _SNP_SCORERS.get(module or "")
+    rsid = finding.get("rsid")
+    genotype = (finding.get("detail") or {}).get("genotype")
+    if spec is None or not rsid or not genotype:
+        return None
+    panel_snp = _panel_snp(module or "", rsid)
+    if panel_snp is None:
+        return None
+    target, takes_panel = spec
+    scorer = _resolve_callable(target)
+    if takes_panel:
+        return scorer(panel_snp, genotype, _scoring_panel(module or "")).category
+    return scorer(panel_snp, genotype).category
+
+
+def _stored_card_drug(finding: dict[str, Any], link: dict | None) -> Any:
+    return (finding.get("detail") or {}).get("drug") or (link or {}).get("drug")
+
+
+def stored_card_is_withheld(
+    module: str | None, finding: dict[str, Any], link: dict | None = None
+) -> bool:
+    """Whether a stored card's call is one no card may be shown for (#2310)."""
+    call = stored_card_call(module, finding)
+    if call is None:
+        return False
+    drug_safety = _stored_card_drug(finding, link) is not None
+    return not emits_cross_module_card(call, drug_safety_handoff=drug_safety)
+
+
+def _with_withheld_caveat(module: str, finding: dict[str, Any], link: dict, text: str) -> str:
+    """Give a kept drug-safety card for a withheld call its caveat, once."""
+    if "indeterminate call:" in text:
+        return text
+    panel_snp = _panel_snp(module, finding.get("rsid") or "")
+    hla_proxy = getattr(panel_snp, "hla_proxy", None) or {}
+    subject = hla_proxy.get("hla_allele") or finding.get("gene_symbol") or "this allele"
+    caveat = withheld_call_caveat(subject)
+    note = str(link.get("note") or "")
+    if note and text.endswith(note):
+        return text[: -len(note)] + caveat + note
+    return f"{text} {caveat.strip()}"
+
+
+def resolve_stored_card(
+    module: str, finding: dict[str, Any], links: dict[str, dict]
+) -> tuple[dict, str] | None:
+    """The live link and text for a stored cross-module card, or ``None`` to drop it.
+
+    Applies the link the panel declares now (#2021), then the withheld-call
+    rule (#2310): a card whose call is non-carrier or withheld is dropped, and
+    a kept drug-safety card for a withheld call gets the caveat a newly built
+    one carries.
+    """
+    link = current_link(links, finding)
+    if link is None or stored_card_is_withheld(module, finding, link):
+        return None
+    text = refreshed_finding_text(finding, link)
+    call = stored_card_call(module, finding)
+    if call is not None and is_withheld_call(call):
+        text = _with_withheld_caveat(module, finding, link, text)
+    return link, text
+
+
 def normalize_cross_module_row(
     module: str | None,
     category: str | None,
@@ -107,23 +256,25 @@ def normalize_cross_module_row(
     """
     if category != CROSS_MODULE_CATEGORY:
         return finding_text, detail
-    # An unregistered module is not resolved here at all; a *registered* module
-    # whose last link was removed retires every stored row, so "no links" must
-    # not be read as "not our concern".
-    if (module or "") not in _PANEL_LOADERS:
-        return finding_text, detail
-    links = _links_for_module(module or "")
-
     finding = {"rsid": rsid, "finding_text": finding_text, "detail": detail}
-    link = current_link(links, finding)
-    if link is None:
+    # The withheld-call rule (#2310) covers Traits too, whose links are not
+    # resolved here.
+    if (module or "") not in _PANEL_LOADERS:
+        if stored_card_is_withheld(module, finding):
+            return None
+        return finding_text, detail
+    # A *registered* module whose last link was removed retires every stored
+    # row, so "no links" must not be read as "not our concern".
+    resolved = resolve_stored_card(module or "", finding, _links_for_module(module or ""))
+    if resolved is None:
         return None
+    link, text = resolved
 
     corrected_detail = dict(detail or {})
     corrected_detail["target_module"] = link["module"]
     if link.get("note"):
         corrected_detail["cross_module_note"] = link["note"]
-    return refreshed_finding_text(finding, link), corrected_detail
+    return text, corrected_detail
 
 
 @cache

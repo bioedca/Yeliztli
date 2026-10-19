@@ -685,7 +685,10 @@ class TestScorePathways:
                 ("rs1477268", "5", 86427866, "CC"),  # RASA1-region openness hom effect
                 ("rs2576037", "18", 44585420, "TT"),  # KATNAL2 conscientiousness hom effect
                 ("rs993137", "3", 85011544, "CC"),  # CADM2 risk tolerance hom risk
-                ("rs747302", "11", 637371, "GG"),  # DRD4 VNTR proxy hom
+                # DRD4 VNTR proxy het. Not a homozygote: rs747302 is C/G, so GG
+                # and CC are strand-ambiguous, score Indeterminate and get no
+                # cross-module card (#2310).
+                ("rs747302", "11", 637371, "CG"),
             ],
         )
         _seed_gwas(
@@ -705,7 +708,7 @@ class TestScorePathways:
         )
         assert personality.level == MODERATE
 
-        # Behavioral: risk tolerance CC=Moderate, DRD4 GG=Moderate (star1→capped) → Moderate
+        # Behavioral: risk tolerance CC=Moderate, DRD4 CG=Moderate (star1→capped) → Moderate
         behavioral = next(
             pr for pr in result.pathway_results if pr.pathway_id == "behavioral_traits"
         )
@@ -715,8 +718,10 @@ class TestScorePathways:
         assert "rs242949" in result.gwas_matched_rsids
         assert "rs993137" in result.gwas_matched_rsids
 
-        # Cross-module findings should exist (DRD4 GG → Gene Health ADHD)
-        assert len(result.cross_module_findings) >= 1
+        # The determinate DRD4 carrier call gets its Gene Health ADHD card.
+        assert [(c.rsid, c.to_module) for c in result.cross_module_findings] == [
+            ("rs747302", "gene_health")
+        ]
 
         # Module disclaimer preserved
         assert len(result.module_disclaimer) > 0

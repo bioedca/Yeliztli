@@ -23,9 +23,8 @@ from pydantic import BaseModel
 
 from backend.analysis.allergy import load_allergy_panel, pgx_covered_gene_drugs
 from backend.analysis.cross_module_links import (
-    current_link,
     panel_cross_module_links,
-    refreshed_finding_text,
+    resolve_stored_card,
 )
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
@@ -398,9 +397,12 @@ def list_pathways(
     cross_items: list[CrossModuleItem] = []
     for cf in cross_findings:
         detail = cf["detail"]
-        link = current_link(links, cf)
-        if link is None:
+        resolved = resolve_stored_card("allergy", cf, links)
+        if resolved is None:
+            # The panel no longer declares this handoff, or the call it was
+            # built from is one no card is shown for (#2021, #2310).
             continue
+        link, finding_text = resolved
         handoff = handoffs[id(cf)]
         cross_items.append(
             CrossModuleItem(
@@ -408,7 +410,7 @@ def list_pathways(
                 gene=cf["gene_symbol"] or "",
                 source_module=detail.get("source_module", "allergy"),
                 target_module=link["module"],
-                finding_text=refreshed_finding_text(cf, link),
+                finding_text=finding_text,
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
                 pgx_guidance_available=handoff is not None and handoff in assessed,

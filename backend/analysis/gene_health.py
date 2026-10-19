@@ -41,6 +41,7 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.cross_module_links import emits_cross_module_card
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -538,7 +539,8 @@ def _generate_cross_module_findings(
 
     for pr in pathway_results:
         for snp_result in pr.called_snps:
-            if snp_result.category == STANDARD:
+            # Neither a non-carrier nor a withheld call gets a card (#2310).
+            if not emits_cross_module_card(snp_result.category):
                 continue
 
             # Find the panel SNP to get cross_module metadata

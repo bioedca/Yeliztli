@@ -43,6 +43,7 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
+from backend.analysis.cross_module_links import emits_cross_module_card
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
     is_acgt_genotype,
@@ -481,8 +482,8 @@ def _generate_cross_module_findings(
             # a genotype the scorer explicitly withheld as uninterpretable
             # (strand-ambiguous homozygote, unmodelled allele). Neither may be
             # handed a carrier-specific destination. ``called_snps`` filters on
-            # ``present_in_sample`` only, so both need excluding here.
-            if snp_result.category in (STANDARD, INDETERMINATE):
+            # ``present_in_sample`` only, so both need excluding here (#2310).
+            if not emits_cross_module_card(snp_result.category):
                 continue
             cross = _panel_snp_cross_module(panel, snp_result.rsid)
             if cross is None:
