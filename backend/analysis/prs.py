@@ -1322,7 +1322,8 @@ def store_prs_findings(
             coverage caveat in the text). Genome-wide PGS Catalog scores scored
             on an un-imputed array routinely fall below 50% coverage (SW-B5); a
             module may still want to surface them transparently rather than emit
-            nothing. Curated modules (cancer/traits) keep the default skip.
+            nothing. Cancer does too, so a low-coverage model is explained rather
+            than missing (#2503); traits keeps the default skip.
         extra_detail: Run-level facts to record in every stored finding's
             ``detail_json``, such as the sex context a run was gated on. A key
             that collides with a per-result field raises rather than overwriting it.

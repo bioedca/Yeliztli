@@ -440,6 +440,17 @@ describe("PRSGaugeCard", () => {
     expect(screen.queryByText(/Insufficient SNP coverage/)).not.toBeInTheDocument()
   })
 
+  it("blames coverage, not calibration, for a low-coverage uncalibrated score (#2503)", () => {
+    render(
+      <PRSGaugeCard
+        prs={{ ...UNCALIBRATED_PRS, is_sufficient: false, snps_used: 2, coverage_fraction: 0.1 }}
+      />,
+    )
+    expect(screen.getByTestId("prs-insufficient")).toHaveTextContent("Insufficient SNP coverage (10%)")
+    expect(screen.queryByTestId("prs-uncalibrated")).not.toBeInTheDocument()
+    expect(screen.queryByText(/no validated reference distribution/)).not.toBeInTheDocument()
+  })
+
   it("has accessible label", () => {
     render(<PRSGaugeCard prs={BREAST_PRS} />)
     expect(
