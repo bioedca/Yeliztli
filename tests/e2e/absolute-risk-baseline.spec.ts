@@ -28,6 +28,7 @@ test('Cancer page renders the current SEER population baseline after opt-in (#16
         total: 0,
         sufficient_count: 0,
         insufficient_traits: [],
+        withheld_traits: [],
       }),
     ),
   )

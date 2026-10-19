@@ -3,7 +3,8 @@
  * Two-tier layout:
  * - Primary tier: Monogenic pathogenic variant cards (ClinVar P/LP from 28-gene panel)
  * - Secondary tier: PRS gauge charts (breast, prostate, colorectal, melanoma)
- *   with permanent "Research Use Only" badge and per-score ancestry mismatch warnings
+ *   with permanent "Research Use Only" badge and per-score ancestry mismatch warnings,
+ *   plus a notice naming any sex-specific model the biological-sex gate withheld (#2498)
  *
  * BRCA1/2 cross-link: persistent info banner linking to Carrier Status page.
  * Module-specific disclaimer (P3-17) shown at the top.
@@ -25,6 +26,7 @@ import { useCancerVariants, useCancerPRS, useCancerDisclaimer } from "@/api/canc
 import type { CancerVariant } from "@/types/cancer"
 import VariantCard from "@/components/cancer/VariantCard"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
+import PRSWithheldNotice from "@/components/cancer/PRSWithheldNotice"
 import VariantDetailPanel from "@/components/cancer/VariantDetailPanel"
 import AbsoluteRiskOverlay from "@/components/cancer/AbsoluteRiskOverlay"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
@@ -208,6 +210,7 @@ export default function CancerView() {
                       Insufficient SNP coverage for: {prsQuery.data.insufficient_traits.join(", ")}
                     </p>
                   )}
+                  {prsQuery.data && <PRSWithheldNotice withheld={prsQuery.data.withheld_traits} />}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {prsQuery.data?.items.map((prs) => (
@@ -227,6 +230,7 @@ export default function CancerView() {
           {prsQuery.data && prsQuery.data.items.length === 0 && (
             <section aria-label="Cancer polygenic risk scores">
               <h2 className="text-lg font-semibold mb-3">Polygenic Risk Scores</h2>
+              <PRSWithheldNotice withheld={prsQuery.data.withheld_traits} />
               <PageEmpty
                 icon={ShieldAlert}
                 title="No PRS results yet."

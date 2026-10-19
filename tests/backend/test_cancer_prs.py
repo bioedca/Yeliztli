@@ -1438,3 +1438,219 @@ class TestStoreCancerPRSFindings:
                 )
             ).scalar()
         assert count == first_count  # Not doubled
+
+
+# ── Sex-gated models withheld from GET /prs (#2498) ──────────────────────
+
+
+def _list_prs_with_sex(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_engine: sa.Engine,
+    sex_context: str | None,
+    *,
+    weight_sets: list[PRSWeightSet] | None = None,
+) -> tuple[object, list[int | None]]:
+    """Call the real GET /prs route with a fixed resolved sex context."""
+    from backend.api.routes import cancer as cancer_routes
+
+    resolved_for: list[int | None] = []
+
+    def fake_resolve(
+        _sample_engine: sa.Engine,
+        *,
+        reference_engine: object | None = None,
+        sample_id: int | None = None,
+    ) -> str | None:
+        resolved_for.append(sample_id)
+        return sex_context
+
+    monkeypatch.setattr(cancer_routes, "_get_sample_engine", lambda _sample_id: sample_engine)
+    monkeypatch.setattr(
+        cancer_routes, "get_registry", lambda: SimpleNamespace(reference_engine=object())
+    )
+    monkeypatch.setattr(cancer_prs_module, "resolve_cancer_prs_sex_context", fake_resolve)
+    if weight_sets is not None:
+        monkeypatch.setattr(cancer_prs_module, "load_cancer_prs_weights", lambda: weight_sets)
+    return cancer_routes.list_cancer_prs(sample_id=42), resolved_for
+
+
+def _store_prs(sample_engine: sa.Engine, inferred_sex: str) -> None:
+    result = run_cancer_prs(
+        load_cancer_prs_weights(WEIGHTS_PATH),
+        sample_engine,
+        inferred_sex=inferred_sex,
+        n_bootstrap=100,
+        rng_seed=42,
+    )
+    store_cancer_prs_findings(result, sample_engine)
+
+
+class TestCancerPRSWithheldBySexGate:
+    """A model the sex gate keeps off a sample is named, with why (#2498)."""
+
+    @pytest.mark.parametrize(
+        ("sex_context", "reason"),
+        [
+            ("XX", "sex_mismatch"),
+            ("manual_review", "sex_unresolved"),
+            ("unknown", "sex_unresolved"),
+            (None, "sex_unresolved"),
+        ],
+    )
+    def test_prostate_withheld_without_xy_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_with_prs_snps: sa.Engine,
+        sex_context: str | None,
+        reason: str,
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex=sex_context or "unknown")
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, sex_context)
+
+        shown = {item.trait for item in response.items}
+        assert shown
+        assert "prostate_cancer" not in shown
+        assert [w.model_dump() for w in response.withheld_traits] == [
+            {
+                "trait": "prostate_cancer",
+                "name": "Prostate cancer (PRACTICAL)",
+                "required_sex": "XY",
+                "resolved_sex": sex_context,
+                "reason": reason,
+            }
+        ]
+        assert resolved_for == [42]
+
+    def test_xy_sample_gets_prostate_score_and_no_notice(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XY")
+
+        assert "prostate_cancer" in {item.trait for item in response.items}
+        assert response.withheld_traits == []
+        # Every sex-gated model already has a score, so sex is never resolved.
+        assert resolved_for == []
+
+    def test_xy_context_without_a_stored_score_is_not_a_sex_gate_notice(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_engine, "XY")
+
+        assert response.items == []
+        assert response.withheld_traits == []
+        assert resolved_for == [42]
+
+    def test_stored_score_is_never_contradicted_by_a_notice(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+
+        assert "prostate_cancer" in {item.trait for item in response.items}
+        assert response.withheld_traits == []
+        assert resolved_for == []
+
+    def test_stored_score_hidden_by_presentation_filter_is_not_reported_withheld(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    ) -> None:
+        """A computed score the response gate hides was not withheld by the sex gate."""
+        from backend.api.routes import cancer as cancer_routes
+
+        _store_prs(sample_with_prs_snps, inferred_sex="XY")
+        presentable = cancer_routes.is_patient_presentable_finding_payload
+
+        def hide_prostate(row: object) -> bool:
+            detail = json.loads(row["detail_json"] or "{}")
+            return detail.get("trait") != "prostate_cancer" and presentable(row)
+
+        monkeypatch.setattr(cancer_routes, "is_patient_presentable_finding_payload", hide_prostate)
+
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+
+        shown = {item.trait for item in response.items}
+        assert shown
+        assert "prostate_cancer" not in shown
+        assert response.withheld_traits == []
+        assert resolved_for == []
+
+    @pytest.mark.parametrize("payload", ["null", "[]", '"prostate_cancer"', "{not json"])
+    def test_non_object_stored_payload_does_not_break_the_route(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine, payload: str
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XX")
+        with sample_with_prs_snps.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 1,
+                        "finding_text": "Malformed cancer PRS payload",
+                        "detail_json": payload,
+                    }
+                ],
+            )
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+
+        assert {item.trait for item in response.items} == XX_CANCER_PRS_TRAITS
+        assert [w.trait for w in response.withheld_traits] == ["prostate_cancer"]
+
+    def test_runtime_blocked_model_is_not_reported_as_sex_gated(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        weight_sets = load_cancer_prs_weights(WEIGHTS_PATH)
+        breast = next(ws for ws in weight_sets if ws.trait == "breast_cancer")
+        assert not breast.is_runtime_scored
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XY")
+
+        assert "breast_cancer" not in {w.trait for w in response.withheld_traits}
+
+    def test_runtime_scored_breast_model_is_withheld_for_xy(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        weight_sets = [
+            replace(ws, scoring_enabled=True, runtime_scoring_blocked=False)
+            if ws.trait == "breast_cancer"
+            else ws
+            for ws in load_cancer_prs_weights(WEIGHTS_PATH)
+        ]
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XY", weight_sets=weight_sets)
+
+        assert [(w.trait, w.required_sex, w.reason) for w in response.withheld_traits] == [
+            ("breast_cancer", "XX", "sex_mismatch")
+        ]
+
+    def test_route_resolves_recorded_sex_for_this_sample(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        """The notice reads the same recorded-over-inferred context the gate uses."""
+        from backend.api.routes import cancer as cancer_routes
+        from backend.services import sex_inference
+
+        reference_engine = object()
+        recorded_for: list[tuple[object, int]] = []
+
+        def fake_recorded(engine: object, sample_id: int) -> str:
+            recorded_for.append((engine, sample_id))
+            return "XX"
+
+        monkeypatch.setattr(sex_inference, "infer_biological_sex", lambda _engine: "XY")
+        monkeypatch.setattr(sex_inference, "get_recorded_biological_sex", fake_recorded)
+        monkeypatch.setattr(cancer_routes, "_get_sample_engine", lambda _sample_id: sample_engine)
+        registry = SimpleNamespace(reference_engine=reference_engine)
+        monkeypatch.setattr(cancer_routes, "get_registry", lambda: registry)
+
+        response = cancer_routes.list_cancer_prs(sample_id=42)
+
+        assert recorded_for == [(reference_engine, 42)]
+        assert [(w.trait, w.resolved_sex, w.reason) for w in response.withheld_traits] == [
+            ("prostate_cancer", "XX", "sex_mismatch")
+        ]
