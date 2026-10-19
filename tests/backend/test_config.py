@@ -4,6 +4,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from _isolated_data_home import restore_real_data_home
 
 import backend.config as config
 from backend.config import (
@@ -38,17 +39,25 @@ def test_default_settings(tmp_path, monkeypatch):
 
 
 def test_data_dir_default(tmp_path, monkeypatch):
-    """Default data_dir should be ~/.yeliztli (no pointer/env override).
+    """With no pointer or env override, data_dir is the live DEFAULT_DATA_DIR.
 
-    Point the pointer source at an empty temp dir so this stays hermetic: with
-    no .data_dir_pointer present, data_dir falls back to the field default
-    (~/.yeliztli). Without this, the new _DataDirPointerSource would read the
-    developer's real ~/.yeliztli/.data_dir_pointer (written by the storage
-    wizard) and the test would fail on any machine that has used the feature.
+    Point the pointer source at an empty temp dir so this stays hermetic. With
+    no .data_dir_pointer present, data_dir falls back to its default.
+
+    The default is read from DEFAULT_DATA_DIR when settings are built. It used
+    to be frozen to the real ~/.yeliztli when the class was defined, so a test
+    that repointed DEFAULT_DATA_DIR without a pointer resolved, and logged,
+    into the real home (#2533).
     """
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
-    settings = get_settings()
-    assert settings.data_dir == Path.home() / ".yeliztli"
+    assert get_settings().data_dir == tmp_path
+    assert Settings().data_dir == tmp_path
+
+
+def test_production_default_data_dir_is_home_dot_yeliztli(monkeypatch):
+    """The default that data_dir falls back to is ~/.yeliztli in production."""
+    restore_real_data_home(monkeypatch)
+    assert config.DEFAULT_DATA_DIR == Path.home() / ".yeliztli"
 
 
 def test_derived_paths():
@@ -352,9 +361,9 @@ def test_relative_pointer_is_ignored(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
     (tmp_path / ".data_dir_pointer").write_text("relative/path", encoding="utf-8")
 
-    # Field default is frozen at import (the real ~/.yeliztli), not the patched
-    # value — the point is only that the relative pointer is NOT applied.
-    assert Settings().data_dir == Path.home() / ".yeliztli"
+    # The default, the live DEFAULT_DATA_DIR, is what remains when the relative
+    # pointer is NOT applied.
+    assert Settings().data_dir == tmp_path
 
 
 def test_write_data_dir_pointer_round_trip(tmp_path, monkeypatch):

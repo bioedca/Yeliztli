@@ -74,16 +74,16 @@ def isolate_data_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
 
     Ambient settings variables (:func:`settings_env_names`) and the project
     ``.env`` are masked; a test that needs either sets it itself. Patching
-    ``DEFAULT_DATA_DIR`` moves the pointer and ``config.toml`` sources, and a
-    pointer at ``home`` then overrides the ``data_dir`` field default, which was
-    bound to the real home when ``Settings`` was defined.
+    ``DEFAULT_DATA_DIR`` moves the pointer and ``config.toml`` sources and the
+    ``data_dir`` default, which is read from it when settings are built (#2533).
+    A pointer at ``home`` records the same directory for code that reads it.
 
-    The pointer is written before ``DEFAULT_DATA_DIR`` moves. A thread an
-    earlier test left running can resolve settings at any moment, and a home
-    without its pointer resolves ``data_dir`` to the real home (#2529). The
-    cached settings and the ``get_registry()`` singleton, which keeps the
-    ``data_dir`` it was built with, are dropped last, so neither a real nor an
-    earlier value is reused.
+    The pointer is written before ``DEFAULT_DATA_DIR`` moves, so a thread an
+    earlier test left running never sees a home without its pointer. While the
+    default was frozen to the real home, such a home resolved ``data_dir``
+    there (#2529). The cached settings and the ``get_registry()`` singleton,
+    which keeps the ``data_dir`` it was built with, are dropped last, so
+    neither a real nor an earlier value is reused.
     """
     from backend import config
     from backend.db.connection import reset_registry

@@ -121,6 +121,19 @@ def test_the_new_home_has_its_pointer_before_default_data_dir_moves(tmp_path: Pa
     assert pointers_seen == [str(home)]
 
 
+def test_a_default_data_dir_without_a_pointer_stays_out_of_the_real_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Tests repoint DEFAULT_DATA_DIR without writing a pointer. While the
+    # data_dir default was frozen to the real home, they resolved into it, and
+    # the first log line bound the registry and its log database there (#2533).
+    monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    get_settings.cache_clear()
+    assert get_settings().data_dir == tmp_path
+    assert get_registry().settings.data_dir == tmp_path
+    assert not _is_within(get_registry().settings.data_dir, _REAL_HOME)
+
+
 def test_ambient_settings_env_is_removed_but_harness_controls_kept(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

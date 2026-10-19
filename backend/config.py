@@ -187,7 +187,11 @@ class Settings(BaseSettings):
 
     # --- Paths ---
     data_dir: Path = Field(
-        default=DEFAULT_DATA_DIR,
+        # Read DEFAULT_DATA_DIR when settings are built, not when the class is
+        # defined. Production never reassigns it, so this is the same
+        # ~/.yeliztli. But a test that repoints DEFAULT_DATA_DIR without a
+        # pointer now resolves into that directory, not the real home (#2533).
+        default_factory=lambda: DEFAULT_DATA_DIR,
         description="Root directory for all Yeliztli data (DBs, samples, logs).",
     )
     download_staging_dir: Path | None = Field(
