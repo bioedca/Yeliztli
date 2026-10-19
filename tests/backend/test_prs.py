@@ -1096,6 +1096,41 @@ class TestStorePRSFindings:
         count = store_prs_findings([result], sample_with_prs_variants, module="cancer")
         assert count == 1
 
+    def test_extra_detail_is_recorded_in_every_stored_finding(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        result = run_prs(weight_set, sample_with_prs_variants, n_bootstrap=100, rng_seed=42)
+        store_prs_findings(
+            [result],
+            sample_with_prs_variants,
+            module="cancer",
+            extra_detail={"scored_sex_context": "XX"},
+        )
+
+        with sample_with_prs_variants.connect() as conn:
+            details = [
+                json.loads(row.detail_json)
+                for row in conn.execute(sa.select(findings.c.detail_json))
+            ]
+        assert details
+        assert all(detail["scored_sex_context"] == "XX" for detail in details)
+        assert all(detail["trait"] == result.trait for detail in details)
+
+    def test_extra_detail_cannot_overwrite_a_result_field(
+        self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
+    ) -> None:
+        result = run_prs(weight_set, sample_with_prs_variants, n_bootstrap=100, rng_seed=42)
+
+        with pytest.raises(ValueError, match="trait"):
+            store_prs_findings(
+                [result],
+                sample_with_prs_variants,
+                module="cancer",
+                extra_detail={"trait": "something_else"},
+            )
+        with sample_with_prs_variants.connect() as conn:
+            assert conn.execute(sa.select(sa.func.count()).select_from(findings)).scalar() == 0
+
     def test_findings_have_prs_category(
         self, weight_set: PRSWeightSet, sample_with_prs_variants: sa.Engine
     ) -> None:

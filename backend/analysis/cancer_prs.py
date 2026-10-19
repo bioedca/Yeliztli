@@ -62,6 +62,11 @@ SEX_SPECIFIC_PRS_TRAITS = {
     PROSTATE_CANCER_TRAIT: "XY",
 }
 
+# Recorded in every stored cancer PRS finding: the sex context the run was gated
+# on. A later read compares it with the current context to tell "skipped for the
+# sex recorded back then" apart from "never computed" (#2509).
+SCORED_SEX_CONTEXT_KEY = "scored_sex_context"
+
 
 # ── Data classes ──────────────────────────────────────────────────────────
 
@@ -72,11 +77,15 @@ class CancerPRSResult:
 
     Attributes:
         results: Per-trait PRS results (one per weight set).
+        scored_sex_context: The resolved biological-sex context the sex gate was
+            applied with (``"XX"``, ``"XY"``, ``"manual_review"``, ``"unknown"``
+            or ``None``).
         sufficient_count: Number of traits with ≥50% SNP coverage.
         insufficient_traits: Traits that lacked coverage.
     """
 
     results: list[PRSResult] = field(default_factory=list)
+    scored_sex_context: str | None = None
 
     @property
     def sufficient_count(self) -> int:
@@ -376,7 +385,7 @@ def run_cancer_prs(
             snps_total=result.snps_total,
         )
 
-    cancer_result = CancerPRSResult(results=results)
+    cancer_result = CancerPRSResult(results=results, scored_sex_context=inferred_sex)
 
     logger.info(
         "cancer_prs_complete",
@@ -401,6 +410,7 @@ def store_cancer_prs_findings(
     this final persistence boundary; this prevents a manually constructed result
     or same-trait alternate model from bypassing a non-reporting gate. Among
     eligible results, only those with sufficient coverage (≥50%) are stored.
+    Each stored finding records the run's ``scored_sex_context`` (#2509).
 
     Args:
         cancer_result: CancerPRSResult from run_cancer_prs.
@@ -430,4 +440,9 @@ def store_cancer_prs_findings(
             continue
         eligible_results.append(result)
 
-    return store_prs_findings(eligible_results, sample_engine, module="cancer")
+    return store_prs_findings(
+        eligible_results,
+        sample_engine,
+        module="cancer",
+        extra_detail={SCORED_SEX_CONTEXT_KEY: cancer_result.scored_sex_context},
+    )

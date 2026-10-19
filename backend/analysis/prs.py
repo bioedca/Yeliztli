@@ -1305,6 +1305,7 @@ def store_prs_findings(
     module: str,
     *,
     store_insufficient: bool = False,
+    extra_detail: dict[str, object] | None = None,
 ) -> int:
     """Store PRS findings in the sample database.
 
@@ -1322,6 +1323,9 @@ def store_prs_findings(
             on an un-imputed array routinely fall below 50% coverage (SW-B5); a
             module may still want to surface them transparently rather than emit
             nothing. Curated modules (cancer/traits) keep the default skip.
+        extra_detail: Run-level facts to record in every stored finding's
+            ``detail_json``, such as the sex context a run was gated on. A key
+            that collides with a per-result field raises rather than overwriting it.
 
     Returns:
         Number of findings inserted.
@@ -1426,6 +1430,11 @@ def store_prs_findings(
             "model_fingerprint": r.model_fingerprint,
         }
         detail["return_framing"] = prs_return_framing(detail)
+        if extra_detail:
+            collisions = detail.keys() & extra_detail.keys()
+            if collisions:
+                raise ValueError(f"extra_detail would overwrite {sorted(collisions)}")
+            detail.update(extra_detail)
 
         pmids = list(dict.fromkeys([r.source_pmid, *r.calibration_pmids]))
         rows.append(

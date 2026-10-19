@@ -115,14 +115,18 @@ class CancerPRSWithheldResponse(BaseModel):
     ``reason`` is ``sex_mismatch`` when the sample confidently resolves to the
     other sex, so the model does not apply, and ``sex_unresolved`` when the sex
     is ambiguous (``manual_review``) or undetermined, so a score that might
-    apply is withheld rather than guessed.
+    apply is withheld rather than guessed. ``sex_changed_since_scoring`` means
+    the current sex passes the gate but the stored analysis ran under
+    ``scored_sex``, which did not, so the score has not been computed yet and a
+    re-run will compute it (#2509).
     """
 
     trait: str
     name: str
     required_sex: str
     resolved_sex: str | None = None
-    reason: Literal["sex_mismatch", "sex_unresolved"]
+    reason: Literal["sex_mismatch", "sex_unresolved", "sex_changed_since_scoring"]
+    scored_sex: str | None = None
 
 
 class CancerPRSListResponse(BaseModel):
@@ -358,10 +362,14 @@ def list_cancer_prs(
             .order_by(findings.c.id)
         ).fetchall()
 
+    from backend.analysis.cancer_prs import SCORED_SEX_CONTEXT_KEY
+
     items: list[CancerPRSResponse] = []
     # Every stored model, including one the presentation filter hides: a hidden
     # score was still computed, so the sex gate did not withhold it (#2498).
     stored_traits: set[str] = set()
+    # The sex context(s) the stored run was gated on, from rows that record it.
+    scored_contexts: set[str | None] = set()
     for row in rows:
         parsed: Any = None
         if row.detail_json:
@@ -374,6 +382,9 @@ def list_cancer_prs(
         detail: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
         if isinstance(detail.get("trait"), str):
             stored_traits.add(detail["trait"])
+        if SCORED_SEX_CONTEXT_KEY in detail:
+            scored = detail[SCORED_SEX_CONTEXT_KEY]
+            scored_contexts.add(scored if isinstance(scored, str) else None)
         if not is_patient_presentable_finding_payload(row._mapping):
             continue
 
@@ -418,7 +429,11 @@ def list_cancer_prs(
     # sample's sex is only resolved for one that can actually be served.
     if is_patient_presentable_response_payload(response.model_dump(mode="json")):
         items, withheld = _apply_sex_gate(
-            sample_engine, sample_id, items, stored_traits=stored_traits
+            sample_engine,
+            sample_id,
+            items,
+            stored_traits=stored_traits,
+            scored_contexts=scored_contexts,
         )
         response = _prs_list_response(items, withheld)
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
@@ -445,6 +460,7 @@ def _apply_sex_gate(
     items: list[CancerPRSResponse],
     *,
     stored_traits: set[str],
+    scored_contexts: set[str | None],
 ) -> tuple[list[CancerPRSResponse], list[CancerPRSWithheldResponse]]:
     """Hold sex-specific cancer PRS to the sample's current sex context.
 
@@ -456,7 +472,11 @@ def _apply_sex_gate(
       change after the score was stored. A score that now fails the gate is
       withheld rather than served as current (#2505);
     * a runtime-scored sex-specific model with no stored finding, so its absence
-      is explained. A model that cannot run is not a sex-gate result.
+      is explained. A model that cannot run is not a sex-gate result. When the
+      current sex passes its gate but the stored run recorded a sex context
+      that failed it, the model was skipped for the sex recorded back then and
+      is reported as needing a re-run (#2509). Without a single recorded
+      context (no stored rows, or rows from before #2509) nothing is inferred.
 
     A score the presentation filter already hid is neither: it was computed, so
     the sex gate did not withhold it, and no notice is raised for it.
@@ -486,10 +506,27 @@ def _apply_sex_gate(
         reference_engine=get_registry().reference_engine,
         sample_id=sample_id,
     )
+    scored_known = len(scored_contexts) == 1
+    scored_context = next(iter(scored_contexts)) if scored_known else None
     withheld: list[CancerPRSWithheldResponse] = []
     for weight_set in candidates:
         required_sex = sex_gate_required_sex(weight_set.trait, sex_context)
         if required_sex is None:
+            if (
+                scored_known
+                and weight_set.trait not in stored_traits
+                and sex_gate_required_sex(weight_set.trait, scored_context) is not None
+            ):
+                withheld.append(
+                    CancerPRSWithheldResponse(
+                        trait=weight_set.trait,
+                        name=weight_set.name,
+                        required_sex=SEX_SPECIFIC_PRS_TRAITS[weight_set.trait],
+                        resolved_sex=sex_context,
+                        reason="sex_changed_since_scoring",
+                        scored_sex=scored_context,
+                    )
+                )
             continue
         withheld.append(
             CancerPRSWithheldResponse(
