@@ -1,0 +1,9 @@
+{
+  "accessed": "2026-10-19",
+  "kind": "derived_record",
+  "tool": "Scite MCP search_literature",
+  "query": "\"reduced folate carrier\" AND rs1051266 AND folate",
+  "outcome": "unavailable",
+  "error": "You have reached your monthly MCP usage limit (250 calls). [...] or wait until usage resets on 2026-11-03 (UTC).",
+  "fallback": "Correction and retraction screening used PubMed efetch: the CommentsCorrections elements of all six PMIDs are recorded in raw/pubmed-efetch-6-pmids-2026-10-19.xml. Only PMID:10993718 has one, a CommentIn link, which is a published comment and not a correction or retraction. Pay-as-you-go was not enabled."
+}
