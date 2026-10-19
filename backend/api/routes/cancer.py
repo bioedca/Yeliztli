@@ -362,12 +362,15 @@ def list_cancer_prs(
     # score was still computed, so the sex gate did not withhold it (#2498).
     stored_traits: set[str] = set()
     for row in rows:
-        detail: dict[str, Any] = {}
+        parsed: Any = None
         if row.detail_json:
             try:
-                detail = json.loads(row.detail_json)
+                parsed = json.loads(row.detail_json)
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Failed to parse detail_json for PRS finding id=%s", row.id)
+        # Only an object payload names a trait; the presentation filter below
+        # rejects anything else, but this runs before it.
+        detail: dict[str, Any] = parsed if isinstance(parsed, dict) else {}
         if isinstance(detail.get("trait"), str):
             stored_traits.add(detail["trait"])
         if not is_patient_presentable_finding_payload(row._mapping):

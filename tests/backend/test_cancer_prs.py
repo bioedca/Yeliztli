@@ -1577,6 +1577,30 @@ class TestCancerPRSWithheldBySexGate:
         assert response.withheld_traits == []
         assert resolved_for == []
 
+    @pytest.mark.parametrize("payload", ["null", "[]", '"prostate_cancer"', "{not json"])
+    def test_non_object_stored_payload_does_not_break_the_route(
+        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine, payload: str
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex="XX")
+        with sample_with_prs_snps.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 1,
+                        "finding_text": "Malformed cancer PRS payload",
+                        "detail_json": payload,
+                    }
+                ],
+            )
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+
+        assert {item.trait for item in response.items} == XX_CANCER_PRS_TRAITS
+        assert [w.trait for w in response.withheld_traits] == ["prostate_cancer"]
+
     def test_runtime_blocked_model_is_not_reported_as_sex_gated(
         self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
     ) -> None:
