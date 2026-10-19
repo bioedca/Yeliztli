@@ -72,6 +72,13 @@ function GaugeSVG({ percentile }: { percentile: number }) {
 
 export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
+  const insufficientNote = (
+    <div className="flex items-center justify-center py-6 mb-3" data-testid="traits-prs-insufficient">
+      <p className="text-sm text-muted-foreground italic">
+        Insufficient SNP coverage ({coveragePct}%)
+      </p>
+    </div>
+  )
   const hasAncestryWarning = Boolean(prs.ancestry_warning_text)
 
   return (
@@ -113,6 +120,11 @@ export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
             </p>
           </div>
         </div>
+      ) : !prs.is_sufficient ? (
+        /* Coverage is checked before calibration: below the threshold the
+           percentile is withheld whatever the calibration, so naming the
+           missing calibration would blame the wrong cause (#2517). */
+        insufficientNote
       ) : !prs.calibrated ? (
         <div
           className="flex items-center justify-center py-6 mb-3"
@@ -124,11 +136,7 @@ export default function TraitsPRSGaugeCard({ prs }: TraitsPRSGaugeCardProps) {
           </p>
         </div>
       ) : (
-        <div className="flex items-center justify-center py-6 mb-3">
-          <p className="text-sm text-muted-foreground italic">
-            Insufficient SNP coverage ({coveragePct}%)
-          </p>
-        </div>
+        insufficientNote
       )}
 
       {/* Ancestry warning: mismatch or inference not yet run. */}

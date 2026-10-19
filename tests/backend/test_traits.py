@@ -829,6 +829,36 @@ class TestStoreFindingsIntegration:
             ).scalar()
         assert stale == 0
 
+    def test_low_coverage_prs_is_stored_with_score_withheld(
+        self,
+        panel: TraitsPanel,
+        sample_engine: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """A model below 50% coverage is stored as an explanation, never a score (#2517)."""
+        result = score_traits_pathways(panel, sample_engine, reference_engine)
+        assert result.prs_results
+        assert not any(r.is_sufficient for r in result.prs_results)
+
+        store_traits_findings(result, sample_engine)
+
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == MODULE_NAME, findings.c.category == "prs"
+                )
+            ).fetchall()
+        assert {json.loads(row.detail_json)["trait"] for row in rows} == {
+            r.trait for r in result.prs_results
+        }
+        for row in rows:
+            detail = json.loads(row.detail_json)
+            assert detail["is_sufficient"] is False
+            assert detail["percentile"] is None
+            assert row.prs_percentile is None
+            assert row.prs_score is None
+            assert "coverage too low" in row.finding_text
+
     def test_pathway_summaries_created(
         self,
         panel: TraitsPanel,
