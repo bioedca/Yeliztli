@@ -1893,6 +1893,26 @@ class TestFindingsSummary:
         assert "pharmacogenomics" in modules
         assert "nutrigenomics" in modules
 
+    def test_refused_summary_is_marked_withheld(self, findings_client, monkeypatch):
+        """A summary the presentability guard refuses says so (#2522)."""
+        from backend.api.routes import findings as findings_routes
+
+        monkeypatch.setattr(
+            findings_routes, "is_patient_presentable_response_payload", lambda _payload: False
+        )
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+
+        assert data["withheld"] is True
+        assert data["total_findings"] == 0
+        assert data["modules"] == []
+
+    def test_presentable_summary_is_not_marked_withheld(self, findings_client):
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+
+        assert data["withheld"] is False
+        assert data["total_findings"] == 8
+
     def test_summary_high_confidence(self, findings_client):
         resp = findings_client.get("/api/analysis/findings/summary?sample_id=1")
         data = resp.json()

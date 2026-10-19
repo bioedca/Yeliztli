@@ -164,6 +164,21 @@ export default function FindingsPreview({ sampleId }: { sampleId: number | null 
   }
 
   if (listIsEmpty) {
+    // A withheld summary is empty too, but it is neither "no findings" nor a
+    // reason to run annotation (#2522).
+    if (summary?.withheld) {
+      return (
+        <PreviewShell>
+          <p className="text-sm text-muted-foreground" data-testid="findings-summary-withheld">
+            Findings are withheld for this sample.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Part of these results could not be shown safely, so none are shown here. This is not
+            the same as having no findings.
+          </p>
+        </PreviewShell>
+      )
+    }
     // An annotated sample can have findings without any high-confidence ones;
     // telling it to run annotation would be wrong (#2106).
     if ((summary?.total_findings ?? 0) > 0) {

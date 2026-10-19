@@ -9,12 +9,21 @@
 import { AlertTriangle } from "lucide-react"
 import PageEmpty from "@/components/ui/PageEmpty"
 
-export default function WithheldResults({ label }: { label: string }) {
+export default function WithheldResults({
+  label,
+  detail,
+}: {
+  label: string
+  /** An extra sentence where "no results" would be read as reassurance (#2522). */
+  detail?: string
+}) {
+  const base =
+    "Part of these results could not be shown safely, so none are shown here. This is not the same as having no results."
   return (
     <PageEmpty
       icon={AlertTriangle}
       title={`${label} results are withheld for this sample.`}
-      description="Part of these results could not be shown safely, so none are shown here. This is not the same as having no results."
+      description={detail ? `${base} ${detail}` : base}
     />
   )
 }

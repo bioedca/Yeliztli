@@ -47,4 +47,7 @@ export interface FindingsSummaryResponse {
   /** True server totals, independent of the bounded findings window. */
   evidence_level_counts?: FindingEvidenceLevelCount[]
   high_confidence_findings: Finding[]
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2522). */
+  withheld?: boolean
 }

@@ -1282,3 +1282,48 @@ class TestMedicationSafetyReport:
         with engine.connect() as conn:
             after = conn.execute(sa.select(sa.func.count()).select_from(findings)).scalar()
         assert before == after
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Guard-withheld responses say so (#2522)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+class TestWithheldPharmaResponses:
+    """A response the presentability guard refuses is marked withheld, never
+    served as an empty one that reads as "no interactions" (#2522)."""
+
+    ENDPOINTS = [
+        ("/api/analysis/pharma/drug/clopidogrel", "gene_effects"),
+        ("/api/analysis/pharma/genes", "items"),
+        ("/api/analysis/pharma/report", "drugs"),
+    ]
+
+    @pytest.mark.parametrize(("path", "content"), ENDPOINTS)
+    def test_refused_response_is_marked_withheld(
+        self,
+        client: tuple[TestClient, int],
+        monkeypatch: pytest.MonkeyPatch,
+        path: str,
+        content: str,
+    ) -> None:
+        from backend.api.routes import pharma
+
+        monkeypatch.setattr(pharma, "is_patient_presentable_response_payload", lambda _p: False)
+        tc, sample_id = client
+
+        data = tc.get(f"{path}?sample_id={sample_id}").json()
+
+        assert data["withheld"] is True
+        assert data[content] == []
+
+    @pytest.mark.parametrize(("path", "content"), ENDPOINTS)
+    def test_presentable_response_is_not_marked_withheld(
+        self, client: tuple[TestClient, int], path: str, content: str
+    ) -> None:
+        tc, sample_id = client
+
+        data = tc.get(f"{path}?sample_id={sample_id}").json()
+
+        assert data["withheld"] is False
+        assert data[content]
