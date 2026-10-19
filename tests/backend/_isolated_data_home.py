@@ -76,18 +76,27 @@ def isolate_data_home(monkeypatch: pytest.MonkeyPatch, home: Path) -> None:
     ``.env`` are masked; a test that needs either sets it itself. Patching
     ``DEFAULT_DATA_DIR`` moves the pointer and ``config.toml`` sources, and a
     pointer at ``home`` then overrides the ``data_dir`` field default, which was
-    bound to the real home when ``Settings`` was defined. The cached settings
-    are cleared so neither a real nor an earlier value is reused.
+    bound to the real home when ``Settings`` was defined.
+
+    The pointer is written before ``DEFAULT_DATA_DIR`` moves. A thread an
+    earlier test left running can resolve settings at any moment, and a home
+    without its pointer resolves ``data_dir`` to the real home (#2529). The
+    cached settings and the ``get_registry()`` singleton, which keeps the
+    ``data_dir`` it was built with, are dropped last, so neither a real nor an
+    earlier value is reused.
     """
     from backend import config
+    from backend.db.connection import reset_registry
 
     names = settings_env_names()
     for key in [key for key in os.environ if key.upper() in names]:
         monkeypatch.delenv(key)
     monkeypatch.setitem(config.Settings.model_config, "env_file", None)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / config.DATA_DIR_POINTER_NAME).write_text(str(home), encoding="utf-8")
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", home)
-    config.write_data_dir_pointer(home)
     config.get_settings.cache_clear()
+    reset_registry()
 
 
 def session_root() -> Path:
@@ -142,3 +151,6 @@ def restore_real_data_home(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(config.Settings.model_config, "env_file", real["env_file"])
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", real["home"])
     config.get_settings.cache_clear()
+    from backend.db.connection import reset_registry
+
+    reset_registry()

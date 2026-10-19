@@ -114,8 +114,15 @@ def _isolated_data_home(request: pytest.FixtureRequest, monkeypatch: pytest.Monk
     Without it, any path a test leaves unpatched reads the real ``~/.yeliztli``,
     so a populated one broke API tests (#2079). ``requires_real_bundle`` tests
     keep the real home: the nightly stages the production bundles there.
+
+    Every test also starts without a ``get_registry()`` singleton, real-home
+    tests included. The singleton keeps the ``data_dir`` of whichever test built
+    it, so an inherited one put this test's files in another test's home, or in
+    the real home when its builder ran without a pointer (#2529).
+    :func:`isolate_data_home` drops it once this test's home is in place.
     """
     if uses_real_data_home(request.node):
+        reset_registry()
         yield
         return
     isolate_data_home(monkeypatch, new_test_home())

@@ -101,6 +101,10 @@ def test_writers_hold_the_lock_during_write(
     the lock would not be held when write_config_toml runs and this fails.
     """
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path)
+    # Without a pointer, data_dir would fall back to the real ~/.yeliztli, and
+    # set_theme's log line would bind the DB registry, and with it the log
+    # database, there (#2529).
+    config.write_data_dir_pointer(tmp_path)
 
     cases = [
         (
