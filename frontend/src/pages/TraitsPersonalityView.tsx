@@ -29,6 +29,7 @@ import CrossModuleCard from "@/components/CrossModuleCard"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import SectionError from "@/components/ui/SectionError"
 
 /** Inner component to load Big Five radar data conditionally. */
@@ -157,6 +158,7 @@ export default function TraitsPersonalityView() {
               below (#642). Hidden entirely only when it resolved with no items. */}
           {(prsQuery.isError ||
             prsQuery.isLoading ||
+            prsQuery.data?.withheld ||
             (prsQuery.data && prsQuery.data.items.length > 0)) && (
             <section className="mb-6" aria-label="Polygenic risk scores">
               <h2 className="text-lg font-semibold mb-3">Polygenic Risk Scores</h2>
@@ -170,6 +172,8 @@ export default function TraitsPersonalityView() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" role="status" aria-label="Loading" />
                 </div>
+              ) : prsQuery.data?.withheld && prsQuery.data.items.length === 0 ? (
+                <WithheldResults label="Polygenic risk score" />
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -185,6 +189,13 @@ export default function TraitsPersonalityView() {
 
           {/* Big Five radar chart */}
           <BigFiveSection sampleId={sampleId} />
+
+          {/* Withheld pathways are empty too, but not "no results" (#2519). */}
+          {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && pathwaysQuery.data.withheld && (
+            <section aria-label="Trait pathway results">
+              <WithheldResults label="Trait pathway" />
+            </section>
+          )}
 
           {/* Pathway cards */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length > 0 && (
@@ -232,8 +243,10 @@ export default function TraitsPersonalityView() {
           {/* Empty state */}
           {pathwaysQuery.data &&
             pathwaysQuery.data.items.length === 0 &&
+            !pathwaysQuery.data.withheld &&
             prsQuery.data &&
-            prsQuery.data.items.length === 0 && (
+            prsQuery.data.items.length === 0 &&
+            !prsQuery.data.withheld && (
               <PageEmpty icon={Fingerprint} title="No traits results yet." description="Run annotation to generate trait associations." />
             )}
         </>

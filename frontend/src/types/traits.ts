@@ -63,6 +63,9 @@ export interface PathwaysResponse {
   total: number
   cross_module: CrossModuleItem[]
   module_disclaimer: string
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2519). */
+  withheld?: boolean
 }
 
 /** Full pathway detail with per-SNP breakdown. */
@@ -123,6 +126,9 @@ export interface PRSResponse {
   items: TraitsPRS[]
   total: number
   module_disclaimer: string
+  /** True only on the empty response the server sends instead of results it
+   *  refused to present, so it is not "no results" (#2519). */
+  withheld?: boolean
 }
 
 /** Module disclaimer. */

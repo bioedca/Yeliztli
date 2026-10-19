@@ -15,6 +15,7 @@ import { Dumbbell, ArrowRight } from "lucide-react"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { cn } from "@/lib/utils"
 import { parseSampleId } from "@/lib/format"
 import { getModuleMeta } from "@/lib/modules"
@@ -139,11 +140,15 @@ export default function FitnessView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty
-              icon={Dumbbell}
-              title="No fitness results yet."
-              description="Run annotation to generate pathway scores."
-            />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Fitness" />
+            ) : (
+              <PageEmpty
+                icon={Dumbbell}
+                title="No fitness results yet."
+                description="Run annotation to generate pathway scores."
+              />
+            )
           )}
         </>
       )}

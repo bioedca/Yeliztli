@@ -32,6 +32,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.sleep import MODULE_NAME, load_sleep_panel
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -99,7 +100,7 @@ class MetabolizerState(BaseModel):
     rsid: str = "rs762551"
 
 
-class PathwaysResponse(BaseModel):
+class PathwaysResponse(WithheldMarker):
     """All pathway results for a sample."""
 
     items: list[PathwaySummary]
@@ -272,7 +273,7 @@ def list_pathways(
         items=items, total=len(items), cross_module=cross_items, metabolizer=metabolizer
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        return PathwaysResponse(items=[], total=0)
+        return PathwaysResponse(items=[], total=0, withheld=True)
     return response
 
 

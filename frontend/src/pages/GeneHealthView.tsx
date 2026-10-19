@@ -24,6 +24,7 @@ import CrossModuleCard from "@/components/CrossModuleCard"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 
 export default function GeneHealthView() {
   const [searchParams] = useSearchParams()
@@ -139,7 +140,11 @@ export default function GeneHealthView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty icon={Activity} title="No gene health results yet." description="Run annotation to generate disease risk assessments." />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Gene health" />
+            ) : (
+              <PageEmpty icon={Activity} title="No gene health results yet." description="Run annotation to generate disease risk assessments." />
+            )
           )}
         </>
       )}

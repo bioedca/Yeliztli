@@ -18,6 +18,7 @@ import { parseSampleId } from "@/lib/format"
 import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { useNutrigenomicsPathways } from "@/api/nutrigenomics"
 import PathwayCard from "@/components/nutrigenomics/PathwayCard"
 import PathwayDetailPanel from "@/components/nutrigenomics/PathwayDetailPanel"
@@ -106,11 +107,15 @@ export default function NutrigenomicsView() {
 
           {/* Empty state */}
           {pathwaysQuery.data && pathwaysQuery.data.items.length === 0 && (
-            <PageEmpty
-              icon={Apple}
-              title="No nutrigenomics results yet."
-              description="Run annotation to generate pathway scores."
-            />
+            pathwaysQuery.data.withheld ? (
+              <WithheldResults label="Nutrigenomics" />
+            ) : (
+              <PageEmpty
+                icon={Apple}
+                title="No nutrigenomics results yet."
+                description="Run annotation to generate pathway scores."
+              />
+            )
           )}
         </>
       )}
