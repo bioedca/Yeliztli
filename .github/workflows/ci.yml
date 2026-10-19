@@ -609,15 +609,21 @@ jobs:
       - test-e2e
       - actionlint
     runs-on: ubuntu-latest
+    # The verdict comes only from `needs`. These read scopes let the summary name
+    # the failed or cancelled matrix leg and say whether a cancellation was a
+    # time-limit kill or a superseding run, from the job's own annotations (#2289).
+    permissions:
+      contents: read
+      actions: read
+      checks: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci_required_summary.py
+          sparse-checkout-cone-mode: false
       - name: Verify no required job failed
-        run: |
-          results='${{ join(needs.*.result, ' ') }}'
-          echo "Aggregated job results: $results"
-          for r in $results; do
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
-              echo "::error::A required CI job reported '$r'."
-              exit 1
-            fi
-          done
-          echo "All required jobs passed or were skipped."
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci_required_summary.py
