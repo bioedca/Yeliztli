@@ -83,6 +83,17 @@ export interface CancerPRSWithheld {
   scored_sex: string | null
 }
 
+/** A bundled cancer PRS model that is not scored for anyone (#2504).
+ *
+ * `runtime_blocked`: the source is verified, but its runtime representation is
+ * not yet safe to score. `scoring_disabled`: switched off by the curator.
+ */
+export interface CancerPRSUnavailable {
+  trait: string
+  name: string
+  reason: "runtime_blocked" | "scoring_disabled"
+}
+
 /** All cancer PRS results for a sample. */
 export interface CancerPRSListResponse {
   items: CancerPRS[]
@@ -90,6 +101,7 @@ export interface CancerPRSListResponse {
   sufficient_count: number
   insufficient_traits: string[]
   withheld_traits: CancerPRSWithheld[]
+  unavailable_models: CancerPRSUnavailable[]
 }
 
 /** Cancer module disclaimer text (P3-17). */

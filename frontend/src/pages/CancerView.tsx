@@ -210,7 +210,12 @@ export default function CancerView() {
                       Insufficient SNP coverage for: {prsQuery.data.insufficient_traits.join(", ")}
                     </p>
                   )}
-                  {prsQuery.data && <PRSWithheldNotice withheld={prsQuery.data.withheld_traits} />}
+                  {prsQuery.data && (
+                    <PRSWithheldNotice
+                      withheld={prsQuery.data.withheld_traits}
+                      unavailable={prsQuery.data.unavailable_models}
+                    />
+                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {prsQuery.data?.items.map((prs) => (
@@ -230,7 +235,10 @@ export default function CancerView() {
           {prsQuery.data && prsQuery.data.items.length === 0 && (
             <section aria-label="Cancer polygenic risk scores">
               <h2 className="text-lg font-semibold mb-3">Polygenic Risk Scores</h2>
-              <PRSWithheldNotice withheld={prsQuery.data.withheld_traits} />
+              <PRSWithheldNotice
+                withheld={prsQuery.data.withheld_traits}
+                unavailable={prsQuery.data.unavailable_models}
+              />
               <PageEmpty
                 icon={ShieldAlert}
                 title="No PRS results yet."
