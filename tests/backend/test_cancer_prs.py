@@ -1531,8 +1531,8 @@ class TestCancerPRSWithheldBySexGate:
 
         assert "prostate_cancer" in {item.trait for item in response.items}
         assert response.withheld_traits == []
-        # Every sex-gated model already has a score, so sex is never resolved.
-        assert resolved_for == []
+        # A shown sex-specific score is re-checked against the current sex (#2505).
+        assert resolved_for == [42]
 
     def test_xy_context_without_a_stored_score_is_not_a_sex_gate_notice(
         self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
@@ -1543,16 +1543,76 @@ class TestCancerPRSWithheldBySexGate:
         assert response.withheld_traits == []
         assert resolved_for == [42]
 
-    def test_stored_score_is_never_contradicted_by_a_notice(
-        self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine
+    @pytest.mark.parametrize(
+        ("current_sex", "reason"),
+        [
+            ("XX", "sex_mismatch"),
+            ("manual_review", "sex_unresolved"),
+            ("unknown", "sex_unresolved"),
+            (None, "sex_unresolved"),
+        ],
+    )
+    def test_stored_score_is_withheld_when_current_sex_fails_the_gate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_with_prs_snps: sa.Engine,
+        current_sex: str | None,
+        reason: str,
     ) -> None:
+        """A score stored under XY is not served after the recorded sex changes (#2505)."""
         _store_prs(sample_with_prs_snps, inferred_sex="XY")
+        with sample_with_prs_snps.connect() as conn:
+            stored = {
+                json.loads(row.detail_json)["trait"]
+                for row in conn.execute(
+                    sa.select(findings.c.detail_json).where(
+                        findings.c.module == "cancer", findings.c.category == "prs"
+                    )
+                )
+            }
+        assert "prostate_cancer" in stored
 
-        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, "XX")
+        response, resolved_for = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, current_sex)
 
-        assert "prostate_cancer" in {item.trait for item in response.items}
-        assert response.withheld_traits == []
-        assert resolved_for == []
+        shown = {item.trait for item in response.items}
+        assert shown == stored - {"prostate_cancer"}
+        assert response.total == len(shown)
+        assert response.sufficient_count == len(shown)
+        assert [(w.trait, w.resolved_sex, w.reason) for w in response.withheld_traits] == [
+            ("prostate_cancer", current_sex, reason)
+        ]
+        assert resolved_for == [42]
+
+    def test_legacy_stored_sex_specific_row_is_gated_even_when_not_runtime_scored(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        """The sex gate applies to any stored sex-specific score, not only runnable ones."""
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings),
+                [
+                    {
+                        "module": "cancer",
+                        "category": "prs",
+                        "evidence_level": 1,
+                        "finding_text": "Legacy breast cancer PRS",
+                        "detail_json": json.dumps(
+                            {
+                                "trait": "breast_cancer",
+                                "name": "Breast cancer",
+                                "is_sufficient": True,
+                            }
+                        ),
+                    }
+                ],
+            )
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XY")
+
+        assert response.items == []
+        assert [(w.trait, w.required_sex, w.reason) for w in response.withheld_traits] == [
+            ("breast_cancer", "XX", "sex_mismatch")
+        ]
 
     def test_stored_score_hidden_by_presentation_filter_is_not_reported_withheld(
         self, monkeypatch: pytest.MonkeyPatch, sample_with_prs_snps: sa.Engine

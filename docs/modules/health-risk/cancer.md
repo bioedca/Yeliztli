@@ -80,7 +80,9 @@ computed for XX samples, or when sex is ambiguous or cannot be determined, so th
 samples' results show no prostate score. The Cancer page names the missing score and says why:
 for an XX sample the model does not apply, while for an ambiguous or undetermined sex the score
 is withheld. Recording the individual's biological sex and re-running the analysis resolves the
-second case.
+second case. The check uses the biological sex as it stands when the page loads, so if the
+recorded sex changes after the analysis ran, a prostate score computed under the earlier sex is
+withheld in the same way rather than shown as current.
 
 ## References
 
