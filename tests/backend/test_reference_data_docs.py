@@ -3,6 +3,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from backend.annotation.mondo_hpo import (
+    MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT,
+    MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES,
+    MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES,
+    MINIMUM_UNAMBIGUOUS_MONDO_XREFS,
+)
 from backend.db.database_registry import DATABASES
 from backend.db.update_manager import AUTO_UPDATE_DEFAULTS, CHECK_FNS
 
@@ -74,3 +80,16 @@ def test_reference_data_doc_discloses_sources_outside_update_manager() -> None:
     for label in STATIC_MANUAL_LABELS.values():
         assert label in static_section
         assert label in updating_doc
+
+
+def test_reference_data_doc_states_every_mondo_hpo_refresh_floor() -> None:
+    """Each floor the MONDO/HPO refresh enforces is stated at its current value (#2285)."""
+    doc = " ".join(REFERENCE_DATA_DOC.read_text(encoding="utf-8").split())
+
+    for stated in (
+        f"at least {MINIMUM_MONDO_GENE_DISEASE_ARCHIVE_BYTES:,} bytes",
+        f"at least {MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES:,} bytes",
+        f"at least {MINIMUM_UNAMBIGUOUS_MONDO_XREFS:,} unambiguous exact mappings",
+        f"at least {MINIMUM_HPO_DISEASE_SCOPE_MATCH_PERCENT}% of HPO's gene-disease scopes",
+    ):
+        assert stated in doc, stated

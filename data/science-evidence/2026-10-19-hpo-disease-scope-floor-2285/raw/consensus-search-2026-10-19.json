@@ -1,0 +1,15 @@
+{
+  "accessed": "2026-10-19",
+  "kind": "derived_record",
+  "tool": "Consensus MCP search (plugin bio-research), no filters",
+  "observed_version": "not exposed by the MCP surface",
+  "why_derived": "An MCP tool call has no wire payload to retain, so this records the query and what came back rather than standing in for a capture.",
+  "query": "Human Phenotype Ontology disease annotations OMIM Orphanet identifiers and MONDO exact cross-reference mappings SSSOM",
+  "result_count_shown": 3,
+  "results": [
+    {"rank": 1, "title": "The Human Phenotype Ontology in 2024: phenotypes around the world", "first_author": "Gargano", "year": 2023, "journal": "Nucleic Acids Research", "doi_returned": null, "resolved_to": "PMID:37953324 / DOI:10.1093/nar/gkad1005 via PubMed esearch+esummary"},
+    {"rank": 2, "title": "The Human Phenotype Ontology project: linking molecular biology and disease through phenotype data", "first_author": "Köhler", "year": 2013, "journal": "Nucleic Acids Research", "doi_returned": null, "resolved_to": "not used"},
+    {"rank": 3, "title": "The Human Phenotype Ontology in 2021", "first_author": "Köhler", "year": 2020, "journal": "Nucleic Acids Research", "doi_returned": null, "resolved_to": "not used here; already the context citation of data/science-evidence/2026-08-01-hpo-disease-scope-2163"}
+  ],
+  "use": "Discovery only. The SSSOM and Monarch papers were not returned and were located by PubMed esearch directly (raw/pubmed-esearch-*.json). Citations are to the PubMed records, not to Consensus."
+}
