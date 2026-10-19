@@ -16,6 +16,8 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useEbmd, useRunEbmd } from "@/api/ebmd"
 import ScoringStatus from "@/components/ui/ScoringStatus"
+import NotYetScored from "@/components/ui/NotYetScored"
+import WithheldResults from "@/components/ui/WithheldResults"
 import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
@@ -125,6 +127,16 @@ function EBMDPage({ sampleId }: { sampleId: number | null }) {
                   })}
                 />
               </div>
+            </section>
+          ) : data.withheld || data.scoring_state === "never" ? (
+            // `available` is false here too, but "not installed" would be the
+            // wrong reason: the score is withheld, or not computed yet (#2307).
+            <section aria-label="eBMD polygenic score" data-testid="ebmd-prs-pending">
+              {data.withheld ? (
+                <WithheldResults label="eBMD polygenic score" />
+              ) : (
+                <NotYetScored label="eBMD polygenic score" />
+              )}
             </section>
           ) : (
             <section aria-label="eBMD score not installed" data-testid="ebmd-byo">

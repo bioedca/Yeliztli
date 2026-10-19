@@ -15,6 +15,7 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import WithheldResults from "@/components/ui/WithheldResults"
+import NotYetScored from "@/components/ui/NotYetScored"
 import SectionError from "@/components/ui/SectionError"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import TraitArchitectureCard from "@/components/ui/TraitArchitectureCard"
@@ -117,6 +118,10 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
   // the cached results on screen with a warning (#2118).
   const hasError = prsQuery.isError && prsQuery.data === undefined
   const anchorsError = anchorsQuery.isError && anchorsQuery.data === undefined
+  // A never-scored sample has no stored results yet, so an empty section means
+  // "not computed", not "not installed" (#2307). Both GETs read one module's
+  // findings, so the PRS response's state stands for the anchors too.
+  const neverScored = prsQuery.data?.scoring_state === "never"
 
   return (
     <div className="p-6">
@@ -176,6 +181,8 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
               </div>
             ) : prsQuery.data?.withheld ? (
               <WithheldResults label="Polygenic score" />
+            ) : neverScored ? (
+              <NotYetScored label="Polygenic score" />
             ) : (
               <PageEmpty
                 icon={Activity}
@@ -188,10 +195,12 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
           {/* Established anchor SNPs — secondary section: render its own
               error/spinner so an anchors failure or slow load never hides the
               PRS results above (#642). Hidden entirely only when it resolved
-              with no items. */}
+              with no items for a scored sample: before the first score it says
+              the anchors are not computed yet (#2307). */}
           {(anchorsError ||
             anchorsQuery.isLoading ||
             anchorsQuery.data?.withheld ||
+            (neverScored && anchorsQuery.data !== undefined) ||
             (anchorsQuery.data && anchorsQuery.data.items.length > 0)) && (
             <section aria-label="Established anchor SNPs" className="mt-8">
               <h2 className="text-lg font-semibold mb-1">Established variants</h2>
@@ -212,6 +221,8 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
                 </div>
               ) : anchorsQuery.data?.withheld && anchorsQuery.data.items.length === 0 ? (
                 <WithheldResults label="Established variant" />
+              ) : neverScored && anchorsQuery.data?.items.length === 0 ? (
+                <NotYetScored label="Established variant" />
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {anchorsQuery.data?.items.map((a) => (
