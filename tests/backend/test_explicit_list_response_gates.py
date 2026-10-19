@@ -802,3 +802,198 @@ def test_rare_tsv_export_never_iterated_still_releases_the_spill(
     response.background.func()
 
     assert spills[0].closed
+
+
+# ── VCF export: bounded memory (#2336) ───────────────────────────────────
+
+
+def _vcf_data_lines(content: str) -> list[str]:
+    return [line for line in content.splitlines() if line and not line.startswith("#")]
+
+
+def _vcf_rows(coordinates: list[tuple[str | None, int | None]]) -> list[SimpleNamespace]:
+    """Safe synthetic rows, one per (chrom, pos); a None leaves it out of detail."""
+    rows = []
+    for index, (chrom, pos) in enumerate(coordinates, start=1):
+        detail: dict[str, Any] = {"ref": "A", "alt": "G"}
+        if chrom is not None:
+            detail["chrom"] = chrom
+        if pos is not None:
+            detail["pos"] = pos
+        rows.append(
+            _finding_row(
+                id=index,
+                module="rare_variants",
+                rsid=f"rs_{index}",
+                gene_symbol="SAFE1",
+                detail_json=json.dumps(detail),
+            )
+        )
+    _assert_individually_presentable(rows)
+    return rows
+
+
+def test_rare_vcf_export_reads_bounded_batches_never_one_fetchall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The double raises on ``fetchall``, so this fails on the pre-#2336 handler."""
+    rows = _vcf_rows([("1", position) for position in range(11, 0, -1)])
+    engine = _Engine(rows, result_cls=_UnboundedFetchIsFatalRows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: engine)
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    response = rare_variants.export_rare_variants_vcf(sample_id=1)
+
+    assert len(_vcf_data_lines(response.content)) == len(rows)
+    connection = engine.connections[0]
+    result = connection.results[0]
+    assert set(result.fetchmany_sizes) == {rare_variants._RARE_VARIANT_EXPORT_BATCH}
+    assert connection.closed, "the read connection must not outlive the handler"
+
+
+def test_rare_vcf_export_reaches_its_verdict_without_a_whole_response_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fails on the pre-#2336 handler, which gates a list of every projection."""
+    rows = _vcf_rows([("1", 200), ("1", 100)])
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    def _refuse(_value: object) -> bool:
+        raise AssertionError("the export must not assemble the whole response as a list")
+
+    monkeypatch.setattr(rare_variants, "is_patient_presentable_response_payload", _refuse)
+
+    response = rare_variants.export_rare_variants_vcf(sample_id=1)
+
+    assert [line.split("\t")[1] for line in _vcf_data_lines(response.content)] == ["100", "200"]
+
+
+def test_rare_vcf_export_withholds_a_cross_row_pair_through_the_spill_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cross-record verdict survives the disk path, and the withheld event is kept."""
+    from structlog.testing import capture_logs
+
+    rows = [
+        _finding_row(
+            id=1,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="CYP2D6",
+            detail_json=json.dumps({"chrom": "1", "pos": 100, "ref": "A", "alt": "G"}),
+        ),
+        _finding_row(
+            id=2,
+            module="rare_variants",
+            category="clinvar_pathogenic",
+            gene_symbol="SAFE1",
+            detail_json=json.dumps(
+                {"chrom": "1", "pos": 200, "ref": "A", "alt": "T", "consequence": "tamoxifen"}
+            ),
+        ),
+    ]
+    _assert_individually_presentable(rows)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    with capture_logs() as logs:
+        response = rare_variants.export_rare_variants_vcf(sample_id=1)
+
+    assert spills, "the forced threshold must actually exercise the disk path"
+    assert all(spill.closed for spill in spills)
+    assert _vcf_data_lines(response.content) == []
+    assert "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n" in response.content
+    assert "CYP2D6" not in response.content
+    assert "tamoxifen" not in response.content
+    assert [
+        log["caller"] for log in logs if log["event"] == "patient_response_payload_withheld"
+    ] == ["backend.api.routes.rare_variants.export_rare_variants_vcf"]
+
+
+def test_rare_vcf_spilled_and_merged_runs_reproduce_the_in_memory_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every line its own run, compacted every two runs: same bytes as the RAM sort.
+
+    The order is genomic, records missing a chrom and then a pos last, and fetch
+    order breaks ties, which is what the stable in-memory sort always produced.
+    """
+    coordinates: list[tuple[str | None, int | None]] = [
+        ("2", 50),
+        (None, 10),
+        ("1", 300),
+        ("10", 5),
+        ("1", None),
+        ("1", 300),
+        (None, None),
+        ("1", 20),
+        ("X", 1),
+        ("2", 50),
+    ]
+    rows = _vcf_rows(coordinates)
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _CapturedStreamingResponse)
+
+    in_memory = rare_variants.export_rare_variants_vcf(sample_id=1).content
+
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_MAX_SPILLED_RUNS", 2)
+    spills = _record_spill_files(monkeypatch)
+    spilled = rare_variants.export_rare_variants_vcf(sample_id=1).content
+
+    assert len(spills) > 2, "compaction must have run, not only single-run spills"
+    assert all(spill.closed for spill in spills)
+    assert spilled == in_memory
+
+    expected = sorted(
+        range(len(coordinates)),
+        key=lambda i: (
+            coordinates[i][0] is None,
+            coordinates[i][0] or "",
+            coordinates[i][1] is None,
+            coordinates[i][1] or 0,
+        ),
+    )
+    assert [line.split("\t")[2] for line in _vcf_data_lines(spilled)] == [
+        f"rs_{i + 1}" for i in expected
+    ]
+
+
+def test_rare_vcf_export_closing_the_body_releases_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _vcf_rows([("1", 4), ("1", 3), ("1", 2), ("1", 1)])
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_vcf(sample_id=1)
+    body = response.content_iterator
+
+    assert next(body).startswith("##fileformat=VCFv4.2\n")
+    assert spills and not any(spill.closed for spill in spills), "still streaming"
+
+    body.close()
+
+    assert all(spill.closed for spill in spills)
+
+
+def test_rare_vcf_export_never_iterated_still_releases_the_spill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _vcf_rows([("1", 2), ("1", 1)])
+    monkeypatch.setattr(rare_variants, "_get_sample_engine", lambda _sample_id: _Engine(rows))
+    monkeypatch.setattr(rare_variants, "StreamingResponse", _RetainedStreamingResponse)
+    monkeypatch.setattr(rare_variants, "_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS", 0)
+    spills = _record_spill_files(monkeypatch)
+
+    response = rare_variants.export_rare_variants_vcf(sample_id=1)
+
+    assert spills and not any(spill.closed for spill in spills)
+    assert response.background is not None
+    response.background.func()
+    assert all(spill.closed for spill in spills)

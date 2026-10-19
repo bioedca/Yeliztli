@@ -10,7 +10,7 @@ GET  /api/analysis/rare-variants/export/vcf?sample_id=N  — Export as VCF
 
 from __future__ import annotations
 
-import io
+import heapq
 import json
 import logging
 import tempfile
@@ -19,6 +19,7 @@ from datetime import date
 from typing import IO, Any
 
 import sqlalchemy as sa
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 from starlette.background import BackgroundTask
@@ -51,6 +52,8 @@ from backend.services.sex_inference import (
 )
 
 logger = logging.getLogger(__name__)
+# The #2297 withheld-response event is structlog-native, as the generic gate emits it.
+_structured_logger = structlog.get_logger(__name__)
 
 router = APIRouter(
     prefix="/analysis/rare-variants",
@@ -334,6 +337,170 @@ def _iter_rare_variant_tsv_data_lines(
             continue
         values = ["" if value is None else str(value) for value in raw_values]
         yield "\t".join(values) + "\n"
+
+
+# Rendered VCF characters sorted in RAM as one run before the run is written to
+# a temporary file (#2336). The same size as the TSV spool threshold, so an
+# ordinary export never touches disk; past it, peak memory is a function of
+# these two constants, not of the result count.
+_RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS = 4_000_000
+# Spilled runs kept before they are merged into one, which bounds the number of
+# spill files open at once however large the export grows.
+_RARE_VARIANT_VCF_MAX_SPILLED_RUNS = 16
+
+_VcfSortKey = tuple[Any, ...]
+
+
+def _vcf_sort_key(record: dict[str, Any], sequence: int) -> _VcfSortKey:
+    """Genomic order, records missing a coordinate last, then fetch order.
+
+    The coordinate part is exactly the ordering the export has always used. The
+    trailing fetch sequence makes it total, which is what a stable in-memory
+    sort over the fetched rows gave, so a spilled export orders identically.
+    """
+    return (
+        record["chrom"] is None,
+        record["chrom"] or "",
+        record["pos"] is None,
+        record["pos"] or 0,
+        sequence,
+    )
+
+
+class _VcfSortSpool:
+    """Sort rendered VCF lines for one replay with bounded memory (#2336).
+
+    VCF records are emitted in genomic order, and that order is a property of
+    the whole result, so lines cannot simply be retained as they arrive, the way
+    the TSV export does with :class:`_TsvReplaySpool`. This is an external merge
+    sort: lines accumulate in one in-memory run up to a fixed size, a full run
+    is sorted and spilled, and the replay merges the spilled runs.
+
+    The sort key is computed in Python from the decoded record, so the order is
+    the one the export always produced. Pushing it into SQL would mean
+    re-implementing ``detail_json`` decoding and the legacy coordinate backfill
+    in SQLite's JSON functions, which accept and reject a different set of
+    documents than ``json.loads``.
+
+    Spill files are :func:`tempfile.TemporaryFile` handles inside the configured
+    data directory, for the trust-boundary reason :class:`_TsvReplaySpool`
+    gives. Each entry is one JSON array per line, so a value containing a
+    newline cannot split an entry.
+    """
+
+    def __init__(self) -> None:
+        self._run: list[tuple[_VcfSortKey, str]] = []
+        self._chars = 0
+        self._spilled: list[IO[str]] = []
+
+    def append(self, key: _VcfSortKey, line: str) -> None:
+        """Retain one rendered data line under its sort key."""
+        self._run.append((key, line))
+        self._chars += len(line)
+        if self._chars > _RARE_VARIANT_VCF_SORT_RUN_MAX_CHARS:
+            self._spill_run()
+
+    def _new_spill(self) -> IO[str]:
+        return tempfile.TemporaryFile(
+            mode="w+",
+            encoding="utf-8",
+            newline="",
+            dir=get_registry().settings.data_dir,
+        )
+
+    @staticmethod
+    def _write(spill: IO[str], entries: Iterator[tuple[_VcfSortKey, str]]) -> None:
+        for key, line in entries:
+            spill.write(json.dumps([*key, line]) + "\n")
+
+    @staticmethod
+    def _read(spill: IO[str]) -> Iterator[tuple[_VcfSortKey, str]]:
+        spill.flush()
+        spill.seek(0)
+        for raw in spill:
+            entry = json.loads(raw)
+            yield tuple(entry[:-1]), entry[-1]
+
+    def _spill_run(self) -> None:
+        self._run.sort(key=lambda entry: entry[0])
+        spill = self._new_spill()
+        self._write(spill, iter(self._run))
+        self._run.clear()
+        self._chars = 0
+        self._spilled.append(spill)
+        if len(self._spilled) >= _RARE_VARIANT_VCF_MAX_SPILLED_RUNS:
+            merged = self._new_spill()
+            self._write(merged, self._merge(self._spilled))
+            for old in self._spilled:
+                old.close()
+            self._spilled = [merged]
+
+    def _merge(self, spills: list[IO[str]]) -> Iterator[tuple[_VcfSortKey, str]]:
+        return heapq.merge(*(self._read(spill) for spill in spills), key=lambda entry: entry[0])
+
+    def sorted_lines(self) -> Iterator[str]:
+        """Yield every retained line once, in sort-key order."""
+        if not self._spilled:
+            self._run.sort(key=lambda entry: entry[0])
+            for _, line in self._run:
+                yield line
+            return
+        if self._run:
+            self._spill_run()
+        for _, line in self._merge(self._spilled):
+            yield line
+
+    def close(self) -> None:
+        """Release the run and every spill file. Safe to call repeatedly."""
+        self._run.clear()
+        self._chars = 0
+        for spill in self._spilled:
+            spill.close()
+        self._spilled = []
+
+
+def _render_vcf_header(file_date: str) -> str:
+    return (
+        "##fileformat=VCFv4.2\n"
+        f"##fileDate={file_date}\n"
+        "##source=Yeliztli-RareVariantFinder\n"
+        "##reference=GRCh37\n"
+        '##INFO=<ID=GENE,Number=1,Type=String,Description="Gene symbol">\n'
+        '##INFO=<ID=CSQ,Number=1,Type=String,Description="Consequence type">\n'
+        '##INFO=<ID=CLNSIG,Number=1,Type=String,Description="ClinVar significance">\n'
+        '##INFO=<ID=AF,Number=1,Type=Float,Description="gnomAD global allele frequency">\n'
+        '##INFO=<ID=EVLVL,Number=1,Type=Integer,Description="Evidence level (1-4 stars)">\n'
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+    )
+
+
+def _render_vcf_data_line(row: dict[str, Any]) -> str:
+    chrom = row["chrom"] or "."
+    pos = str(row["pos"]) if row["pos"] else "0"
+    rsid = row["rsid"] or "."
+    ref = row["ref"] or "."
+    alt = row["alt"] or "."
+    gene = row["gene_symbol"] or "."
+    csq = row["consequence"] or "."
+    clnsig = (row["clinvar_significance"] or ".").replace(" ", "_")
+    af_val = row["gnomad_af_global"]
+    af_str = f"{af_val:.6f}" if af_val is not None else "."
+    evlvl = str(row["evidence_level"] or 1)
+    info_str = ";".join(
+        [f"GENE={gene}", f"CSQ={csq}", f"CLNSIG={clnsig}", f"AF={af_str}", f"EVLVL={evlvl}"]
+    )
+    return f"{chrom}\t{pos}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t{info_str}\n"
+
+
+# The annotated_variants columns joined onto each finding for the pre-#1575
+# coordinate backfill. Kept out of the per-row gate, which sees exactly the
+# finding row it always did.
+_VCF_LEGACY_COLUMNS = {
+    "legacy_chrom": "chrom",
+    "legacy_pos": "pos",
+    "legacy_ref": "ref",
+    "legacy_alt": "alt",
+}
 
 
 def _get_sample_engine(sample_id: int) -> sa.Engine:
@@ -774,115 +941,111 @@ def export_rare_variants_vcf(
     Example: ``GET /api/analysis/rare-variants/export/vcf?sample_id=1``
     """
     sample_engine = _get_sample_engine(sample_id)
+    response_headers = {
+        "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.vcf"
+    }
+    header = _render_vcf_header(date.today().isoformat())
 
-    with sample_engine.connect() as conn:
-        finding_rows = conn.execute(
-            sa.select(findings).where(findings.c.module == "rare_variants")
-        ).fetchall()
+    # Server memory is bounded independently of the result count (#2336): rows
+    # arrive in fixed batches, the response-wide gate folds one record at a
+    # time in constant space, and only the rendered lines are retained, in a
+    # spool that sorts them with bounded memory.
+    payload_scanner = ResponsePayloadHeldPairScanner()
+    spool = _VcfSortSpool()
 
-    # Rebuild each record from the finding's own stored locus/allele identity,
-    # then order by genomic coordinate (mirrors the previous ORDER BY chrom, pos;
-    # records whose stored chrom/pos is missing sort last).
-    records: list[dict[str, Any]] = []
-    for row in finding_rows:
-        if not is_patient_presentable_finding_payload(row._mapping):
-            continue
-        detail = _parse_detail_json(row.id, row.detail_json)
-        records.append(
-            {
-                "chrom": detail.get("chrom"),
-                "pos": detail.get("pos"),
-                "rsid": row.rsid,
-                "ref": detail.get("ref"),
-                "alt": detail.get("alt"),
-                "gene_symbol": row.gene_symbol,
-                "consequence": detail.get("consequence"),
-                "clinvar_significance": row.clinvar_significance,
-                "gnomad_af_global": detail.get("af_global"),
-                "evidence_level": row.evidence_level,
-            }
+    av = annotated_variants
+    statement = (
+        sa.select(
+            findings, *(av.c[column].label(label) for label, column in _VCF_LEGACY_COLUMNS.items())
         )
-    # The VCF body is derived from these decoded records. Gate the complete
-    # collection before legacy coordinate backfill or serialization so an
-    # unsafe aggregate produces the established header-only export.
-    if not is_patient_presentable_response_payload(
-        [_payload_gate_projection(record) for record in records]
-    ):
-        records = []
-    # Backward-compat backfill: findings stored before #1575 have no chrom/pos in
-    # detail_json. For those (only), fall back to the annotated_variants row for
-    # the finding's rsid so an already-analysed sample that has not been re-run
-    # still exports real coordinates rather than placeholders. av.rsid is the
-    # primary key, so this resolves to exactly one row; the finding's own stored
-    # identity is always preferred whenever present.
-    legacy = [r for r in records if r["chrom"] is None or r["pos"] is None]
-    legacy_rsids = {r["rsid"] for r in legacy if r["rsid"]}
-    if legacy_rsids:
-        av = annotated_variants
-        with sample_engine.connect() as conn:
-            av_by_rsid = {
-                row.rsid: row
-                for row in conn.execute(
-                    sa.select(av.c.rsid, av.c.chrom, av.c.pos, av.c.ref, av.c.alt).where(
-                        av.c.rsid.in_(legacy_rsids)
-                    )
-                ).fetchall()
-            }
-        for r in legacy:
-            av_row = av_by_rsid.get(r["rsid"])
-            if av_row is None:
-                continue
-            for field in ("chrom", "pos", "ref", "alt"):
-                if r[field] is None:
-                    r[field] = getattr(av_row, field)
-
-    records.sort(
-        key=lambda r: (r["chrom"] is None, r["chrom"] or "", r["pos"] is None, r["pos"] or 0)
+        .select_from(
+            findings.outerjoin(
+                av,
+                # av.rsid is the primary key, so this adds at most one row per
+                # finding. An empty rsid never backfilled, so it never joins.
+                sa.and_(findings.c.rsid != "", av.c.rsid == findings.c.rsid),
+            )
+        )
+        .where(findings.c.module == "rare_variants")
+        # A total fetch order, which the sort key's trailing sequence preserves.
+        .order_by(findings.c.id)
     )
 
-    buf = io.StringIO()
+    try:
+        with sample_engine.connect() as conn:
+            result = conn.execute(statement)
+            sequence = 0
+            while True:
+                batch = result.fetchmany(_RARE_VARIANT_EXPORT_BATCH)
+                if not batch:
+                    break
+                for row in batch:
+                    mapping = row._mapping
+                    finding = {
+                        key: value
+                        for key, value in mapping.items()
+                        if key not in _VCF_LEGACY_COLUMNS
+                    }
+                    if not is_patient_presentable_finding_payload(finding):
+                        continue
+                    detail = _parse_detail_json(row.id, row.detail_json)
+                    record = {
+                        "chrom": detail.get("chrom"),
+                        "pos": detail.get("pos"),
+                        "rsid": row.rsid,
+                        "ref": detail.get("ref"),
+                        "alt": detail.get("alt"),
+                        "gene_symbol": row.gene_symbol,
+                        "consequence": detail.get("consequence"),
+                        "clinvar_significance": row.clinvar_significance,
+                        "gnomad_af_global": detail.get("af_global"),
+                        "evidence_level": row.evidence_level,
+                    }
+                    # The VCF body is derived from these decoded records, so the
+                    # response-wide gate sees each one before the legacy
+                    # backfill: safe fragments must not reassemble a held
+                    # prescribing pair across separate source records, and an
+                    # unsafe aggregate produces the established header-only export.
+                    payload_scanner.feed(_payload_gate_projection(record))
+                    # Backward-compat backfill: a finding stored before #1575
+                    # has no chrom/pos in detail_json, so it takes the
+                    # annotated_variants row for its rsid instead of
+                    # placeholders. The finding's own stored identity is always
+                    # preferred whenever present.
+                    if (record["chrom"] is None or record["pos"] is None) and record["rsid"]:
+                        for label, field in _VCF_LEGACY_COLUMNS.items():
+                            if record[field] is None:
+                                record[field] = mapping.get(label)
+                    spool.append(_vcf_sort_key(record, sequence), _render_vcf_data_line(record))
+                    sequence += 1
+    except BaseException:
+        spool.close()
+        raise
 
-    # VCF header
-    today = date.today().isoformat()
-    buf.write("##fileformat=VCFv4.2\n")
-    buf.write(f"##fileDate={today}\n")
-    buf.write("##source=Yeliztli-RareVariantFinder\n")
-    buf.write("##reference=GRCh37\n")
-    buf.write('##INFO=<ID=GENE,Number=1,Type=String,Description="Gene symbol">\n')
-    buf.write('##INFO=<ID=CSQ,Number=1,Type=String,Description="Consequence type">\n')
-    buf.write('##INFO=<ID=CLNSIG,Number=1,Type=String,Description="ClinVar significance">\n')
-    buf.write('##INFO=<ID=AF,Number=1,Type=Float,Description="gnomAD global allele frequency">\n')
-    buf.write('##INFO=<ID=EVLVL,Number=1,Type=Integer,Description="Evidence level (1-4 stars)">\n')
-    buf.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    if not payload_scanner.is_presentable():
+        spool.close()
+        # The same event the list gate this replaces emitted (#2297).
+        _structured_logger.warning(
+            "patient_response_payload_withheld",
+            caller=f"{__name__}.export_rare_variants_vcf",
+        )
+        return StreamingResponse(
+            iter((header,)), media_type="text/plain", headers=response_headers
+        )
 
-    for row in records:
-        chrom = row["chrom"] or "."
-        pos = str(row["pos"]) if row["pos"] else "0"
-        rsid = row["rsid"] or "."
-        ref = row["ref"] or "."
-        alt = row["alt"] or "."
-        gene = row["gene_symbol"] or "."
-        csq = row["consequence"] or "."
-        clnsig = (row["clinvar_significance"] or ".").replace(" ", "_")
-        af_val = row["gnomad_af_global"]
-        af_str = f"{af_val:.6f}" if af_val is not None else "."
-        evlvl = str(row["evidence_level"] or 1)
-
-        info_parts = [
-            f"GENE={gene}",
-            f"CSQ={csq}",
-            f"CLNSIG={clnsig}",
-            f"AF={af_str}",
-            f"EVLVL={evlvl}",
-        ]
-        info_str = ";".join(info_parts)
-
-        buf.write(f"{chrom}\t{pos}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t{info_str}\n")
+    def _emit() -> Iterator[str]:
+        # Yielded from this generator rather than chained in front of it, so a
+        # client disconnect closes the generator and therefore the spill files;
+        # see the same note in export_rare_variants_tsv.
+        try:
+            yield header
+            yield from spool.sorted_lines()
+        finally:
+            spool.close()
 
     return StreamingResponse(
-        iter([buf.getvalue()]),
+        _emit(),
         media_type="text/plain",
-        headers={
-            "Content-Disposition": f"attachment; filename=rare_variants_sample_{sample_id}.vcf"
-        },
+        headers=response_headers,
+        background=BackgroundTask(spool.close),
     )
