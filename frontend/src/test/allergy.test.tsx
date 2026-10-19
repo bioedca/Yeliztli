@@ -610,3 +610,48 @@ describe("DrugHypersensitivityAlert PGx handoff", () => {
     expect(screen.getByText(/Confirmatory HLA typing recommended/i)).toBeInTheDocument()
   })
 })
+
+// ── Withheld vs empty (#2297) ─────────────────────────────────────────
+
+describe("a withheld response is not shown as 'no results' (#2297)", () => {
+  beforeEach(() => {
+    routerMock.search = "sample_id=1"
+    mockUsePathways.mockReset()
+  })
+
+  function emptyPathways(withheld?: boolean) {
+    mockUsePathways.mockReturnValue({
+      data: {
+        items: [],
+        total: 0,
+        celiac_combined: null,
+        histamine_combined: null,
+        cross_module: [],
+        ...(withheld === undefined ? {} : { withheld }),
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useAllergyPathways>)
+  }
+
+  it("says the results are withheld, without the futile 'run annotation' advice", () => {
+    emptyPathways(true)
+    render(<AllergyView />)
+
+    expect(screen.getByText("Allergy results are withheld for this sample.")).toBeInTheDocument()
+    expect(screen.getByText(/This is not the same as having no results\./)).toBeInTheDocument()
+    expect(screen.queryByText("No allergy results yet.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Run annotation to generate pathway scores/)).not.toBeInTheDocument()
+  })
+
+  it.each([false, undefined])("keeps the ordinary empty state when withheld is %s", (withheld) => {
+    emptyPathways(withheld)
+    render(<AllergyView />)
+
+    expect(screen.getByText("No allergy results yet.")).toBeInTheDocument()
+    expect(screen.getByText("Run annotation to generate pathway scores.")).toBeInTheDocument()
+    expect(screen.queryByText("Allergy results are withheld for this sample.")).not.toBeInTheDocument()
+  })
+})
