@@ -26,7 +26,9 @@ BACKEND_LEG = "Backend Tests (Linux x86_64, py3.12)"
 MAIN_JOBS_URL = (
     "https://api.example/repos/owner/repo/actions/runs/7/attempts/1/jobs?per_page=100&page=1"
 )
-MAIN_ANNOTATIONS_URL = "https://api.example/repos/owner/repo/check-runs/9/annotations?per_page=100"
+MAIN_ANNOTATIONS_URL = (
+    "https://api.example/repos/owner/repo/check-runs/9/annotations?per_page=100&page=1"
+)
 
 
 def _needs(**results: str) -> dict[str, dict[str, object]]:
@@ -144,7 +146,7 @@ def test_fetch_reads_annotations_only_for_failed_or_cancelled_jobs() -> None:
                     {"id": 3, "name": "CI Required", "conclusion": None},
                 ]
             },
-            f"{api}/repos/{repo}/check-runs/2/annotations?per_page=100": [
+            f"{api}/repos/{repo}/check-runs/2/annotations?per_page=100&page=1": [
                 {"message": TIMEOUT},
                 {"message": CANCELED},
             ],
@@ -156,7 +158,10 @@ def test_fetch_reads_annotations_only_for_failed_or_cancelled_jobs() -> None:
     assert legs == [
         {"name": BACKEND_LEG, "conclusion": "cancelled", "annotations": [TIMEOUT, CANCELED]}
     ]
-    assert requested == [jobs_url, f"{api}/repos/{repo}/check-runs/2/annotations?per_page=100"]
+    assert requested == [
+        jobs_url,
+        f"{api}/repos/{repo}/check-runs/2/annotations?per_page=100&page=1",
+    ]
 
 
 def test_fetch_follows_a_full_page_of_jobs() -> None:
@@ -171,7 +176,7 @@ def test_fetch_follows_a_full_page_of_jobs() -> None:
             f"{api}/repos/{repo}/actions/runs/7/attempts/1/jobs?per_page=100&page=2": {
                 "jobs": second
             },
-            f"{api}/repos/{repo}/check-runs/500/annotations?per_page=100": [],
+            f"{api}/repos/{repo}/check-runs/500/annotations?per_page=100&page=1": [],
         }
     )
 
@@ -245,3 +250,24 @@ def test_main_fails_closed_on_unreadable_needs(
         "::error title=CI Required::Cannot read the required job results"
         in capsys.readouterr().out
     )
+
+
+def test_fetch_follows_a_full_page_of_annotations() -> None:
+    """A timeout annotation after the first 100 is still found."""
+    api, repo = "https://api.example", "owner/repo"
+    annotations = f"{api}/repos/{repo}/check-runs/2/annotations?per_page=100"
+    first = [{"message": f"step warning {n}"} for n in range(100)]
+    requested, fetch = _fake_api(
+        {
+            f"{api}/repos/{repo}/actions/runs/7/attempts/1/jobs?per_page=100&page=1": {
+                "jobs": [{"id": 2, "name": BACKEND_LEG, "conclusion": "cancelled"}]
+            },
+            f"{annotations}&page=1": first,
+            f"{annotations}&page=2": [{"message": TIMEOUT}],
+        }
+    )
+
+    [leg] = fetch_failed_legs(api, repo, "7", "1", fetch)
+
+    assert requested[-2:] == [f"{annotations}&page=1", f"{annotations}&page=2"]
+    assert describe_leg(leg).startswith(f"{BACKEND_LEG}: timed out ({TIMEOUT})")

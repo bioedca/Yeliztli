@@ -122,41 +122,48 @@ def _api_get(url: str, token: str) -> object:
         return json.load(response)
 
 
+def _all_pages(fetch: Fetch, url: str, items: Callable[[object], list]) -> list:
+    """Follow ``page=`` until a short page, so nothing past the first page is missed."""
+    collected: list = []
+    page = 1
+    while True:
+        batch = items(fetch(f"{url}?per_page={_PAGE_SIZE}&page={page}"))
+        collected += batch
+        if len(batch) < _PAGE_SIZE:
+            return collected
+        page += 1
+
+
 def fetch_failed_legs(
     api: str, repository: str, run_id: str, attempt: str, fetch: Fetch
 ) -> list[Leg]:
     """List this run attempt's failed or cancelled jobs with their annotation messages."""
+    jobs = _all_pages(
+        fetch,
+        f"{api}/repos/{repository}/actions/runs/{run_id}/attempts/{attempt}/jobs",
+        lambda payload: payload["jobs"] if isinstance(payload, dict) else [],
+    )
     legs: list[Leg] = []
-    page = 1
-    while True:
-        payload = fetch(
-            f"{api}/repos/{repository}/actions/runs/{run_id}/attempts/{attempt}/jobs"
-            f"?per_page={_PAGE_SIZE}&page={page}"
+    for job in jobs:
+        if job.get("conclusion") not in FAILED_CONCLUSIONS:
+            continue
+        annotations = _all_pages(
+            fetch,
+            f"{api}/repos/{repository}/check-runs/{job['id']}/annotations",
+            lambda payload: payload if isinstance(payload, list) else [],
         )
-        jobs = payload["jobs"] if isinstance(payload, dict) else []
-        for job in jobs:
-            if job.get("conclusion") not in FAILED_CONCLUSIONS:
-                continue
-            annotations = fetch(
-                f"{api}/repos/{repository}/check-runs/{job['id']}/annotations"
-                f"?per_page={_PAGE_SIZE}"
-            )
-            legs.append(
-                {
-                    "name": job.get("name"),
-                    "conclusion": job.get("conclusion"),
-                    "annotations": [
-                        annotation.get("message", "")
-                        for annotation in annotations
-                        if isinstance(annotation, dict)
-                    ]
-                    if isinstance(annotations, list)
-                    else [],
-                }
-            )
-        if len(jobs) < _PAGE_SIZE:
-            return legs
-        page += 1
+        legs.append(
+            {
+                "name": job.get("name"),
+                "conclusion": job.get("conclusion"),
+                "annotations": [
+                    annotation.get("message", "")
+                    for annotation in annotations
+                    if isinstance(annotation, dict)
+                ],
+            }
+        )
+    return legs
 
 
 def main(environ: Mapping[str, str] = os.environ, fetch: Fetch | None = None) -> int:
