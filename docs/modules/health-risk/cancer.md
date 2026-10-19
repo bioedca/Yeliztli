@@ -45,7 +45,9 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your
     inferred ancestry. When it isn't, Yeliztli withholds the percentile rather than show a
-    misleading number.
+    misleading number. A score is also withheld when your array typed fewer than half of its
+    variants; the page still lists that model and shows how many of its variants were typed,
+    so a low-coverage score is not mistaken for a missing one.
 
 ## Good to know
 

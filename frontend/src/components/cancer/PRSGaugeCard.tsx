@@ -79,6 +79,13 @@ function formatInteger(value: number): string {
 
 export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
   const coveragePct = Math.round(prs.coverage_fraction * 100)
+  const insufficientNote = (
+    <div className="flex items-center justify-center py-6 mb-3" data-testid="prs-insufficient">
+      <p className="text-sm text-muted-foreground italic">
+        Insufficient SNP coverage ({coveragePct}%)
+      </p>
+    </div>
+  )
   const hasAncestryWarning = Boolean(prs.ancestry_warning_text)
   const snpsUsedImputed = Math.max(0, prs.snps_used_imputed ?? 0)
   const snpsUsedTyped = Math.max(0, prs.snps_used - snpsUsedImputed)
@@ -127,6 +134,11 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
             </p>
           </div>
         </div>
+      ) : !prs.is_sufficient ? (
+        /* Coverage is checked before calibration: below the threshold the
+           percentile is withheld whatever the calibration, so naming the
+           missing calibration would blame the wrong cause (#2503). */
+        insufficientNote
       ) : !prs.calibrated ? (
         <div
           className="flex items-center justify-center py-6 mb-3"
@@ -138,11 +150,7 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
           </p>
         </div>
       ) : (
-        <div className="flex items-center justify-center py-6 mb-3">
-          <p className="text-sm text-muted-foreground italic">
-            Insufficient SNP coverage ({coveragePct}%)
-          </p>
-        </div>
+        insufficientNote
       )}
 
       {/* Ancestry warning (P3-16): mismatch or inference not yet run. */}

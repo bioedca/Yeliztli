@@ -206,8 +206,12 @@ export default function CancerView() {
               ) : (
                 <>
                   {prsQuery.data && prsQuery.data.insufficient_traits.length > 0 && (
-                    <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
-                      Insufficient SNP coverage for: {prsQuery.data.insufficient_traits.join(", ")}
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mb-3" data-testid="prs-insufficient-line">
+                      Insufficient SNP coverage for:{" "}
+                      {prsQuery.data.items
+                        .filter((prs) => !prs.is_sufficient)
+                        .map((prs) => prs.name || prs.trait)
+                        .join(", ")}
                     </p>
                   )}
                   {prsQuery.data && (
