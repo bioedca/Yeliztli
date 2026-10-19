@@ -118,3 +118,29 @@ def test_backend_job_keeps_the_bounded_startup_witness() -> None:
     assert re.search(r"run:\s*timeout\s+\d+\s+python scripts/ci_startup_witness\.py", block), (
         "the startup witness must stay bounded by its own `timeout`"
     )
+
+
+def test_ci_required_names_the_job_and_cause_behind_its_verdict() -> None:
+    """The single required check explains a red result instead of a bare 'cancelled' (#2289).
+
+    ``join(needs.*.result, ' ')`` dropped the job name, so a time-limit kill, a
+    superseding push and a broken test all read the same. The summary script
+    keeps the verdict on ``needs`` and reads only the run's jobs and annotations.
+    """
+    block = _job_block("ci-required")
+
+    assert re.search(r"^    if: always\(\)$", block, re.MULTILINE)
+    assert "join(needs.*.result" not in block
+    assert "NEEDS_JSON: ${{ toJSON(needs) }}" in block
+    assert "run: python3 scripts/ci_required_summary.py" in block
+    assert "sparse-checkout: scripts/ci_required_summary.py" in block
+    assert "persist-credentials: false" in block
+
+    permissions = re.search(r"^    permissions:\n((?:      .*\n)+)", block, re.MULTILINE)
+    assert permissions is not None, "ci-required must scope its own token"
+    scopes = dict(
+        line.strip().split(": ", 1)
+        for line in permissions.group(1).splitlines()
+        if not line.strip().startswith("#")
+    )
+    assert scopes == {"contents": "read", "actions": "read", "checks": "read"}
