@@ -16,6 +16,7 @@ import PageEmpty from "@/components/ui/PageEmpty"
 import PRSGaugeCard from "@/components/cancer/PRSGaugeCard"
 import { useFhAssessment, useRunFh } from "@/api/fh"
 import ScoringStatus from "@/components/ui/ScoringStatus"
+import NotYetScored from "@/components/ui/NotYetScored"
 import { useAutoScore } from "@/hooks/useAutoScore"
 import { toGaugePrs } from "@/types/metabolic"
 
@@ -186,6 +187,9 @@ function FHPage({ sampleId }: { sampleId: number | null }) {
                       })}
                     />
                   </div>
+                ) : a.scoring_state === "never" ? (
+                  // Stored by the run, so absent until the first score (#2307).
+                  <NotYetScored label="LDL-C polygenic score" />
                 ) : (
                   <PageEmpty
                     icon={HeartPulse}

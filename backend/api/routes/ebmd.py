@@ -21,6 +21,7 @@ from backend.analysis.ebmd_prs import EBMD_CONTEXT, EBMD_PGS_ID, MODULE_NAME
 from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.prs import PRS_HIGHER_IS_PROTECTIVE
 from backend.api.dependencies import require_fresh_sample
+from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.services.route_scoring_state import (
@@ -62,10 +63,16 @@ class EbmdPrsResponse(BaseModel):
     evidence_level: int = 1
 
 
-class EbmdResponse(BaseModel):
-    """eBMD view: PRS (when installed) + framing + availability."""
+class EbmdResponse(WithheldMarker):
+    """eBMD view: PRS (when installed) + framing + availability.
 
-    available: bool  # the BYO gSOS score is installed + scored
+    ``available`` is False for three different reasons the page must tell
+    apart (#2307): the BYO score is not installed (``scoring_state`` current),
+    the sample has not been scored yet (``scoring_state`` "never"), or a stored
+    score exists but was withheld (``withheld``).
+    """
+
+    available: bool  # the BYO gSOS score is installed + scored + presentable
     recommended_pgs_id: str = EBMD_PGS_ID
     prs: EbmdPrsResponse | None = None
     context: dict[str, str] = {}
@@ -120,7 +127,8 @@ def get_ebmd_prs(
         ).fetchone()
 
     prs = None
-    if row is not None and is_patient_presentable_finding_payload(row._mapping):
+    withheld = row is not None and not is_patient_presentable_finding_payload(row._mapping)
+    if row is not None and not withheld:
         d = _parse_detail(row)
         prs = EbmdPrsResponse(
             name=d.get("name", ""),
@@ -151,6 +159,7 @@ def get_ebmd_prs(
         prs=prs,
         context=EBMD_CONTEXT,
         scoring_state=scoring_state,
+        withheld=withheld,
     )
 
 

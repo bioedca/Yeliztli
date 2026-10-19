@@ -30,4 +30,7 @@ export interface EbmdResponse {
   context: Record<string, string>
   research_use_only: boolean
   scoring_state: ScoringState
+  /** True when a stored score exists but the server refused to present it, so
+   *  `available: false` does not mean "not installed" (#2307). */
+  withheld?: boolean
 }
