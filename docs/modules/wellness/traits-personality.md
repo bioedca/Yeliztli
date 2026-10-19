@@ -19,7 +19,9 @@ accordingly.
 **Categorical levels** (no numeric scores) and per-SNP findings, using deliberately
 associative language ("associated with", never "predicts" or "causes"). Polygenic outputs are
 labelled **research-use-only**, and percentiles are **withheld** when the score isn't
-calibrated.
+calibrated, or when your array typed fewer than half of a score's variants. A low-coverage
+score is still listed, with how many of its variants were typed, so it is not mistaken for a
+missing one.
 
 !!! warning "Research use only — and capped"
     Every finding here is capped at a moderate (2-star) evidence rating. The personality SNPs

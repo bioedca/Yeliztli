@@ -426,6 +426,19 @@ describe("TraitsPRSGaugeCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("blames coverage, not calibration, for a low-coverage uncalibrated score (#2517)", () => {
+    render(
+      <TraitsPRSGaugeCard
+        prs={{ ...UNCALIBRATED_PRS, is_sufficient: false, coverage_fraction: 0.12 }}
+      />,
+    );
+    expect(screen.getByTestId("traits-prs-insufficient")).toHaveTextContent(
+      "Insufficient SNP coverage (12%)",
+    );
+    expect(screen.queryByTestId("traits-prs-uncalibrated")).not.toBeInTheDocument();
+    expect(screen.queryByText(/reference distribution unavailable/)).not.toBeInTheDocument();
+  });
+
   it("shows ancestry mismatch warning when applicable", () => {
     render(<TraitsPRSGaugeCard prs={MISMATCH_PRS} />);
     expect(

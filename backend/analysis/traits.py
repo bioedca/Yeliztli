@@ -955,7 +955,11 @@ def store_traits_findings(
     # computed percentile is not surfaced with broken provenance (#245). The
     # non-PRS clear above deletes only category != "prs", so skipping this call
     # on an empty pass would leave the stale traits/prs finding behind.
-    prs_count = store_prs_findings(result.prs_results, sample_engine, module=MODULE_NAME)
+    # Low-coverage models are stored with the percentile withheld so the page
+    # explains them rather than silently dropping them (#2517, as #2503 did for cancer).
+    prs_count = store_prs_findings(
+        result.prs_results, sample_engine, module=MODULE_NAME, store_insufficient=True
+    )
 
     total = snp_count + prs_count
     logger.info(
