@@ -17,6 +17,33 @@ from functools import cache
 from importlib import import_module
 from typing import Any
 
+# The two category labels every module scorer shares; each module defines the
+# same strings as its own STANDARD / INDETERMINATE.
+STANDARD_CATEGORY = "Standard"
+INDETERMINATE_CATEGORY = "Indeterminate"
+
+
+def emits_cross_module_card(category: str, *, drug_safety_handoff: bool = False) -> bool:
+    """Whether a called SNP's category may produce a cross-module card (#2310).
+
+    A ``Standard`` call is a non-carrier, and an ``Indeterminate`` one is a call
+    the scorer withheld as uninterpretable (a strand-ambiguous palindromic
+    homozygote, or an unmodelled allele). Neither may be handed a carrier-specific
+    destination: the card would assert the very call the module refused to make.
+    ``called_snps`` filters on ``present_in_sample`` only, so every builder has to
+    apply this itself, and all of them do through this one predicate.
+
+    The exception is a drug-safety handoff. An unresolved call cannot exclude the
+    risk allele, and treating it as a no-risk result is the error #1455 corrected
+    for G6PD, so an ``Indeterminate`` drug-safety card is kept and its builder
+    states that the call can neither confirm nor exclude the allele.
+    """
+    if category == STANDARD_CATEGORY:
+        return False
+    if category == INDETERMINATE_CATEGORY:
+        return drug_safety_handoff
+    return True
+
 
 def panel_cross_module_links(panel: Any) -> dict[str, dict]:
     """Map rsid -> the ``cross_module`` block the panel currently declares."""

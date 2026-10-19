@@ -45,6 +45,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
+from backend.analysis.cross_module_links import emits_cross_module_card
 from backend.analysis.evidence import TRAITS_EVIDENCE_CAP, cap_evidence_level
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
@@ -576,14 +577,15 @@ def _generate_cross_module_findings(
     """Generate cross-module link findings from panel cross_module_links.
 
     Currently handles DRD4 VNTR → Gene Health ADHD cross-link.
-    Only generates if the relevant SNP is genotyped and non-Standard.
+    Only generates if the relevant SNP is genotyped, non-Standard and not
+    withheld as Indeterminate (#2310).
     """
     cross_findings: list[CrossModuleFinding] = []
 
     # Find SNPs with cross_module metadata
     for pr in pathway_results:
         for snp in pr.called_snps:
-            if snp.cross_module is None or snp.category == STANDARD:
+            if snp.cross_module is None or not emits_cross_module_card(snp.category):
                 continue
 
             to_module = snp.cross_module.get("module", "")
