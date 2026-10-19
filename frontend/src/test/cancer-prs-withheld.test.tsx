@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, within } from "./test-utils"
 import PRSWithheldNotice from "@/components/cancer/PRSWithheldNotice"
-import type { CancerPRS, CancerPRSWithheld } from "@/types/cancer"
+import type { CancerPRS, CancerPRSUnavailable, CancerPRSWithheld } from "@/types/cancer"
 import { PRS_PROV_DEFAULTS } from "./fixtures/prs"
 
 const routerMock = vi.hoisted(() => ({ search: "sample_id=1" }))
@@ -79,7 +79,11 @@ function q(over: Record<string, unknown> = {}) {
   return { data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn(), ...over }
 }
 
-function prsData(items: CancerPRS[], withheldTraits: CancerPRSWithheld[]) {
+function prsData(
+  items: CancerPRS[],
+  withheldTraits: CancerPRSWithheld[],
+  unavailableModels: CancerPRSUnavailable[] = [],
+) {
   return q({
     data: {
       items,
@@ -87,8 +91,15 @@ function prsData(items: CancerPRS[], withheldTraits: CancerPRSWithheld[]) {
       sufficient_count: items.length,
       insufficient_traits: [],
       withheld_traits: withheldTraits,
+      unavailable_models: unavailableModels,
     },
   })
+}
+
+const BREAST_UNAVAILABLE: CancerPRSUnavailable = {
+  trait: "breast_cancer",
+  name: "Breast cancer (Mavaddat PRS77; runtime blocked)",
+  reason: "runtime_blocked",
 }
 
 beforeEach(() => {
@@ -173,6 +184,47 @@ describe("CancerView sex-gated PRS notice (#2498)", () => {
 
     expect(screen.getByText("Colorectal cancer (CRC)")).toBeInTheDocument()
     expect(screen.queryByTestId("prs-withheld-notice")).not.toBeInTheDocument()
+  })
+})
+
+describe("CancerView unavailable PRS models (#2504)", () => {
+  it("names a runtime-blocked model beside the computed scores", () => {
+    mockPRS.mockReturnValue(prsData([COLORECTAL_PRS], [], [BREAST_UNAVAILABLE]))
+    render(<CancerView />)
+
+    const note = within(screen.getByTestId("prs-tier")).getByTestId("prs-withheld-notice")
+    expect(note).toHaveTextContent(
+      "Breast cancer (Mavaddat PRS77; runtime blocked) is not shown: this model is not currently " +
+        "scored or reported. Its source is verified, but it cannot yet be scored safely.",
+    )
+    expect(screen.getByText("Colorectal cancer (CRC)")).toBeInTheDocument()
+  })
+
+  it("names a curator-disabled model without claiming a runtime block", () => {
+    mockPRS.mockReturnValue(
+      prsData([COLORECTAL_PRS], [], [{ trait: "melanoma", name: "Melanoma (GenoMEL)", reason: "scoring_disabled" }]),
+    )
+    render(<CancerView />)
+
+    const note = screen.getByTestId("prs-withheld-notice")
+    expect(note).toHaveTextContent(
+      "Melanoma (GenoMEL) is not shown: this model is not currently scored or reported.",
+    )
+    expect(note).not.toHaveTextContent("verified")
+  })
+
+  it("names it in the empty state too, alongside a sex-gate notice", () => {
+    mockPRS.mockReturnValue(
+      prsData([], [withheld({ resolved_sex: "unknown", reason: "sex_unresolved" })], [BREAST_UNAVAILABLE]),
+    )
+    render(<CancerView />)
+
+    expect(screen.getByText("No PRS results yet.")).toBeInTheDocument()
+    const items = within(screen.getByTestId("prs-withheld-notice")).getAllByRole("listitem")
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringContaining(PROSTATE_NAME),
+      expect.stringContaining("Breast cancer (Mavaddat PRS77; runtime blocked)"),
+    ])
   })
 })
 

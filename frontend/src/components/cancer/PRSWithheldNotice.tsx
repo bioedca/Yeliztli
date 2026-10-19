@@ -6,11 +6,12 @@
  * read differently on purpose: a confident other-sex result means the model
  * does not apply, an ambiguous or undetermined sex means a score that might
  * apply is being withheld, and a sex recorded after the analysis ran means the
- * score simply has not been computed yet (#2509).
+ * score simply has not been computed yet (#2509). A bundled model that is not
+ * scored for anyone is named here too, so it does not vanish either (#2504).
  */
 
 import { Info } from "lucide-react"
-import type { CancerPRSWithheld } from "@/types/cancer"
+import type { CancerPRSUnavailable, CancerPRSWithheld } from "@/types/cancer"
 
 /** How a resolved sex context reads in a sentence. */
 function sexState(sex: string | null): string {
@@ -37,13 +38,26 @@ function withheldReason(item: CancerPRSWithheld): string {
   )
 }
 
+function unavailableReason(item: CancerPRSUnavailable): string {
+  if (item.reason === "runtime_blocked") {
+    return "this model is not currently scored or reported. Its source is verified, but it cannot yet be scored safely."
+  }
+  return "this model is not currently scored or reported."
+}
+
 export default function PRSWithheldNotice({
   withheld = [],
+  unavailable = [],
 }: {
   /** Optional so a response without the field degrades to no notice, never a crash. */
   withheld?: CancerPRSWithheld[]
+  unavailable?: CancerPRSUnavailable[]
 }) {
-  if (withheld.length === 0) return null
+  const lines = [
+    ...withheld.map((item) => ({ key: item.trait, name: item.name, text: withheldReason(item) })),
+    ...unavailable.map((item) => ({ key: item.trait, name: item.name, text: unavailableReason(item) })),
+  ]
+  if (lines.length === 0) return null
   return (
     <div
       role="note"
@@ -52,14 +66,14 @@ export default function PRSWithheldNotice({
       className="mb-3 rounded-md bg-sky-50 p-2 dark:bg-sky-950/30"
     >
       <ul className="space-y-1">
-        {withheld.map((item) => (
-          <li key={item.trait} className="flex gap-1.5">
+        {lines.map((item) => (
+          <li key={item.key} className="flex gap-1.5">
             <Info
               className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-700 dark:text-sky-300"
               aria-hidden="true"
             />
             <p className="text-xs text-sky-800 dark:text-sky-200">
-              <span className="font-medium">{item.name}</span> is not shown: {withheldReason(item)}
+              <span className="font-medium">{item.name}</span> is not shown: {item.text}
             </p>
           </li>
         ))}

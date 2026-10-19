@@ -1822,3 +1822,99 @@ class TestCancerPRSRerunAfterSexChange:
 
         assert "prostate_cancer" in {item.trait for item in response.items}
         assert response.withheld_traits == []
+
+
+# ── Models not scored for anyone (#2504) ──────────────────────────────────
+
+
+def _insert_legacy_breast_row(engine: sa.Engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(findings),
+            [
+                {
+                    "module": "cancer",
+                    "category": "prs",
+                    "evidence_level": 1,
+                    "finding_text": "Legacy breast cancer PRS",
+                    "detail_json": json.dumps(
+                        {"trait": "breast_cancer", "name": "Breast cancer", "is_sufficient": True}
+                    ),
+                }
+            ],
+        )
+
+
+class TestCancerPRSUnavailableModels:
+    """A bundled model nobody is scored for is named, with why (#2504)."""
+
+    @pytest.mark.parametrize("sex_context", ["XX", "XY", "manual_review", "unknown", None])
+    def test_runtime_blocked_breast_model_is_named_for_every_sex(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        sample_with_prs_snps: sa.Engine,
+        sex_context: str | None,
+    ) -> None:
+        _store_prs(sample_with_prs_snps, inferred_sex=sex_context or "unknown")
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_with_prs_snps, sex_context)
+
+        assert response.items
+        assert [m.model_dump() for m in response.unavailable_models] == [
+            {
+                "trait": "breast_cancer",
+                "name": "Breast cancer (Mavaddat PRS77; runtime blocked)",
+                "reason": "runtime_blocked",
+            }
+        ]
+        named = {m.trait for m in response.unavailable_models}
+        assert not named & ACTIVE_CANCER_PRS_TRAITS
+
+    def test_curator_disabled_model_reads_as_scoring_disabled(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        weight_sets = [
+            replace(ws, scoring_enabled=False) if ws.trait == "melanoma" else ws
+            for ws in load_cancer_prs_weights(WEIGHTS_PATH)
+        ]
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XY", weight_sets=weight_sets)
+
+        assert {(m.trait, m.reason) for m in response.unavailable_models} == {
+            ("breast_cancer", "runtime_blocked"),
+            ("melanoma", "scoring_disabled"),
+        }
+
+    def test_runtime_scored_model_is_not_named(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        weight_sets = [
+            replace(ws, scoring_enabled=True, runtime_scoring_blocked=False)
+            if ws.trait == "breast_cancer"
+            else ws
+            for ws in load_cancer_prs_weights(WEIGHTS_PATH)
+        ]
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XX", weight_sets=weight_sets)
+
+        assert response.unavailable_models == []
+
+    def test_a_shown_legacy_score_is_not_contradicted(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        _insert_legacy_breast_row(sample_engine)
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XX")
+
+        assert [item.trait for item in response.items] == ["breast_cancer"]
+        assert response.unavailable_models == []
+
+    def test_a_model_the_sex_gate_names_is_not_named_twice(
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+    ) -> None:
+        _insert_legacy_breast_row(sample_engine)
+
+        response, _ = _list_prs_with_sex(monkeypatch, sample_engine, "XY")
+
+        assert [w.trait for w in response.withheld_traits] == ["breast_cancer"]
+        assert response.unavailable_models == []

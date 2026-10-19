@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import lru_cache
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -35,6 +35,9 @@ from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 from backend.disclaimers import CANCER_DISCLAIMER_TEXT, CANCER_DISCLAIMER_TITLE
+
+if TYPE_CHECKING:
+    from backend.analysis.prs import PRSWeightSet
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +132,19 @@ class CancerPRSWithheldResponse(BaseModel):
     scored_sex: str | None = None
 
 
+class CancerPRSUnavailableResponse(BaseModel):
+    """A bundled cancer PRS model that is not currently scored for anyone (#2504).
+
+    ``runtime_blocked`` is a model whose source is verified but whose runtime
+    representation is not yet safe to score (``PRSWeightSet.runtime_scoring_blocked``);
+    ``scoring_disabled`` is one the curator has switched off.
+    """
+
+    trait: str
+    name: str
+    reason: Literal["runtime_blocked", "scoring_disabled"]
+
+
 class CancerPRSListResponse(BaseModel):
     """All cancer PRS results for a sample."""
 
@@ -137,6 +153,7 @@ class CancerPRSListResponse(BaseModel):
     sufficient_count: int
     insufficient_traits: list[str]
     withheld_traits: list[CancerPRSWithheldResponse] = []
+    unavailable_models: list[CancerPRSUnavailableResponse] = []
 
 
 class CancerDisclaimerResponse(BaseModel):
@@ -347,6 +364,7 @@ def list_cancer_prs(
     Results are in the "Research Use Only" tier. ``withheld_traits`` names each
     sex-specific model the biological-sex gate keeps off the sample, with why --
     including a stored score that the sample's current sex no longer allows.
+    ``unavailable_models`` names each bundled model that is not scored at all.
 
     Example: ``GET /api/analysis/cancer/prs?sample_id=1``
     """
@@ -362,7 +380,7 @@ def list_cancer_prs(
             .order_by(findings.c.id)
         ).fetchall()
 
-    from backend.analysis.cancer_prs import SCORED_SEX_CONTEXT_KEY
+    from backend.analysis.cancer_prs import SCORED_SEX_CONTEXT_KEY, load_cancer_prs_weights
 
     items: list[CancerPRSResponse] = []
     # Every stored model, including one the presentation filter hides: a hidden
@@ -428,14 +446,18 @@ def list_cancer_prs(
     # A response the gate below would blank needs no sex context, so the
     # sample's sex is only resolved for one that can actually be served.
     if is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        weight_sets = load_cancer_prs_weights()
         items, withheld = _apply_sex_gate(
             sample_engine,
             sample_id,
             items,
+            weight_sets=weight_sets,
             stored_traits=stored_traits,
             scored_contexts=scored_contexts,
         )
-        response = _prs_list_response(items, withheld)
+        response = _prs_list_response(
+            items, withheld, _unavailable_models(weight_sets, items, withheld)
+        )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
         return _prs_list_response([])
     return response
@@ -444,6 +466,7 @@ def list_cancer_prs(
 def _prs_list_response(
     items: list[CancerPRSResponse],
     withheld: list[CancerPRSWithheldResponse] | None = None,
+    unavailable: list[CancerPRSUnavailableResponse] | None = None,
 ) -> CancerPRSListResponse:
     return CancerPRSListResponse(
         items=items,
@@ -451,7 +474,32 @@ def _prs_list_response(
         sufficient_count=sum(1 for item in items if item.is_sufficient),
         insufficient_traits=[item.trait for item in items if not item.is_sufficient],
         withheld_traits=withheld or [],
+        unavailable_models=unavailable or [],
     )
+
+
+def _unavailable_models(
+    weight_sets: list[PRSWeightSet],
+    items: list[CancerPRSResponse],
+    withheld: list[CancerPRSWithheldResponse],
+) -> list[CancerPRSUnavailableResponse]:
+    """Name each bundled model that is not scored for anyone (#2504).
+
+    Otherwise a blocked model such as breast PRS77 is simply absent from the
+    page while the documentation explains it. A model already shown (a legacy
+    stored row) or already named by the sex gate is left out, so a score is
+    never contradicted and a model is never explained twice.
+    """
+    explained = {item.trait for item in items} | {entry.trait for entry in withheld}
+    return [
+        CancerPRSUnavailableResponse(
+            trait=weight_set.trait,
+            name=weight_set.name,
+            reason="runtime_blocked" if weight_set.runtime_scoring_blocked else "scoring_disabled",
+        )
+        for weight_set in weight_sets
+        if not weight_set.is_runtime_scored and weight_set.trait not in explained
+    ]
 
 
 def _apply_sex_gate(
@@ -459,6 +507,7 @@ def _apply_sex_gate(
     sample_id: int,
     items: list[CancerPRSResponse],
     *,
+    weight_sets: list[PRSWeightSet],
     stored_traits: set[str],
     scored_contexts: set[str | None],
 ) -> tuple[list[CancerPRSResponse], list[CancerPRSWithheldResponse]]:
@@ -483,7 +532,6 @@ def _apply_sex_gate(
     """
     from backend.analysis.cancer_prs import (
         SEX_SPECIFIC_PRS_TRAITS,
-        load_cancer_prs_weights,
         resolve_cancer_prs_sex_context,
         sex_gate_required_sex,
     )
@@ -491,7 +539,7 @@ def _apply_sex_gate(
     shown_traits = {item.trait for item in items}
     candidates = [
         weight_set
-        for weight_set in load_cancer_prs_weights()
+        for weight_set in weight_sets
         if weight_set.trait in SEX_SPECIFIC_PRS_TRAITS
         and (
             weight_set.trait in shown_traits

@@ -38,7 +38,9 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
     are palindromic without trusted effect-allele strand provenance. The current sample schema
     does not preserve enough allele context to harmonize those loci safely. This is a runtime
     limitation, not an ancestry-calibration result; the percentile note below applies only to
-    models that are scored.
+    models that are scored. The Cancer page names this model beside the polygenic risk scores
+    and says it is not currently scored or reported, so its absence is not mistaken for a
+    missing result.
 
 !!! note "Percentiles can be withheld"
     A polygenic percentile is only shown when the score is properly calibrated for your
