@@ -311,6 +311,22 @@ def mondo_sssom_file(tmp_path: Path) -> Path:
 # ── CSV seed loading tests ──────────────────────────────────────────────
 
 
+class _SteppingGzipClock:
+    """Stand-in for ``gzip``'s ``time`` module whose every reading is a new second.
+
+    ``gzip`` stamps an archive's header with ``time.time()`` unless it is given
+    an ``mtime``, so two writes of the same bytes differ whenever they land in
+    different seconds. Installing this makes that happen on every write.
+    """
+
+    def __init__(self) -> None:
+        self._seconds = 1_700_000_000
+
+    def time(self) -> int:
+        self._seconds += 1
+        return self._seconds
+
+
 class TestLoadFromCSV:
     """Test CSV seed loading."""
 
@@ -1226,6 +1242,13 @@ class TestDownloadAndLoad:
     ) -> None:
         """A self-reported matching manifest cannot reuse altered source bytes."""
         monkeypatch.setattr("backend.annotation.mondo_hpo.MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        # The retry is only "identical" if the fake download writes identical
+        # bytes. A gzip header stamps the current second, so the source bundle
+        # id used to change whenever the failed run and the retry straddled a
+        # second, and the retry then succeeded on a fresh bundle (#2338). Every
+        # gzip write in this test sees a new second, so a timestamped archive
+        # fails here every time rather than one run in ten.
+        monkeypatch.setattr(gzip, "time", _SteppingGzipClock())
         source_files = {
             "gene_disease.9606.tsv.gz": mondo_tsv_file,
             "genes_to_phenotype.txt": hpo_phenotype_file,
@@ -1237,8 +1260,9 @@ class TestDownloadAndLoad:
             target = dest_dir / filename
             target.parent.mkdir(parents=True, exist_ok=True)
             if filename.endswith(".gz"):
-                with gzip.open(target, "wb") as fh:
-                    fh.write(source_files[filename].read_bytes())
+                with target.open("wb") as raw_file:
+                    with gzip.GzipFile(fileobj=raw_file, mode="wb", mtime=0) as fh:
+                        fh.write(source_files[filename].read_bytes())
             else:
                 target.write_bytes(source_files[filename].read_bytes())
             meta = kwargs.get("meta")
