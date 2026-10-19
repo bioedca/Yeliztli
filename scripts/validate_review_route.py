@@ -389,6 +389,21 @@ COPILOT_V3_CLEAN_VERDICT = "no comments"
 # a low-confidence finding can be recorded as clean route evidence. What the
 # envelope asserts is that Copilot posted nothing actionable -- not that it found
 # nothing, and not that every file was read.
+
+# What Copilot posts in place of a review when the requester's quota is spent: a
+# COMMENTED review from the authenticated app, unedited and exact-head, with no
+# attached comments and this sentence as its whole body. All 51 such
+# submissions this repository received between 2026-07-26 and 2026-10-18 were
+# byte-identical. v3 rejects it already, since it carries no coverage sentence,
+# but v2 never reads a Copilot body, so the refusal used to satisfy the v2 gate
+# (#2496).
+#
+# This is a deny-list, so it fails in the safe direction: a reworded refusal
+# falls back to the old v2 behaviour, and a genuine review cannot match because
+# it opens with its own heading, never with this sentence. It matches the
+# prefix of the whitespace-normalised body, so the same refusal giving another
+# reason is refused too.
+COPILOT_REFUSAL_PREFIX = "Copilot was unable to review this pull request"
 CODEX_CLEAN_COMPLETION_PREFIX = "Codex Review: Didn't find any major issues."
 CODEX_CLEAN_COMPLETION_MARKER = f"{CODEX_CLEAN_COMPLETION_PREFIX} What shall we delve into next?"
 # The trailing flourish is unbounded on purpose. Nothing downstream reads it:
@@ -1488,6 +1503,11 @@ def _connection_truncated_since(
     return oldest >= since if inclusive else oldest > since
 
 
+def _is_copilot_refusal(body: object) -> bool:
+    """Whether a Copilot review body says it never reviewed the pull request."""
+    return isinstance(body, str) and " ".join(body.split()).startswith(COPILOT_REFUSAL_PREFIX)
+
+
 def _v3_formal_review_is_clean(
     review: dict[str, Any],
     gate: str,
@@ -2041,6 +2061,7 @@ def _bot_activity(
             "lastEditedAt" in review
             and review["lastEditedAt"] is None
             and review.get("state") in TERMINAL_REVIEW_STATES
+            and not (gate == COPILOT_GATE and _is_copilot_refusal(review.get("body")))
             and (
                 _v3_formal_review_is_clean(
                     review,
