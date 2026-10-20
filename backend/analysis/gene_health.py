@@ -41,7 +41,10 @@ from typing import Any
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.cross_module_links import emits_cross_module_card
+from backend.analysis.cross_module_links import (
+    cross_module_block,
+    emits_cross_module_card,
+)
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
     is_strand_ambiguous,
@@ -255,7 +258,9 @@ def load_gene_health_panel(panel_path: Path | None = None) -> GeneHealthPanel:
                     evidence_level=snp_data["evidence_level"],
                     pmids=snp_data.get("pmids", []),
                     recommendation_text=snp_data.get("recommendation_text", ""),
-                    cross_module=snp_data.get("cross_module"),
+                    cross_module=cross_module_block(
+                        snp_data.get("cross_module"), panel="gene_health", rsid=snp_data["rsid"]
+                    ),
                     coverage_note=snp_data.get("coverage_note"),
                     ancestry_caveat=snp_data.get("ancestry_caveat"),
                     indel_genotype_map=snp_data.get("indel_genotype_map"),

@@ -104,11 +104,10 @@ def _cross_module_links() -> list[tuple[str, str, str, dict]]:
             for snp in pathway.get("snps", []):
                 cross = snp.get("cross_module")
                 # ``is not None`` on purpose: an empty ``{}`` is malformed, not
-                # absent. Production loaders preserve it and the Skin, Allergy
-                # and Gene Health generators treat anything non-None as a
-                # declaration before indexing ``cross_module["module"]``, so a
-                # non-Standard call at that SNP would crash scoring. Skipping it
-                # here would hide exactly that from every check below.
+                # absent. The loaders drop such a block with a warning (#2350),
+                # so the link it meant to declare would silently disappear.
+                # Skipping it here would hide exactly that from every check
+                # below.
                 if cross is not None:
                     links.append((module, snp["rsid"], snp.get("gene") or "", cross))
     return links
@@ -134,10 +133,10 @@ class TestEveryLinkDeclaresItsTarget:
     def test_every_block_is_well_formed(self) -> None:
         """A ``cross_module`` key must be a usable declaration or absent.
 
-        ``{}`` is the dangerous shape: production loaders keep it, and the Skin,
-        Allergy and Gene Health generators treat any non-None value as a
-        declaration before reading ``cross_module["module"]`` — so a
-        non-Standard call at that SNP raises ``KeyError`` mid-scoring.
+        The loaders treat a block without a ``module`` and a ``note`` (``{}``,
+        say) as absent and only warn (#2350), so a malformed declaration would
+        silently drop the link it was written for. This keeps every shipped one
+        usable.
         """
         for source, rsid, _gene, cross in _cross_module_links():
             assert isinstance(cross, dict) and cross, (

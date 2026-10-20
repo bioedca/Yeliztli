@@ -17,6 +17,10 @@ from functools import cache
 from importlib import import_module
 from typing import Any
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 # The two category labels every module scorer shares; each module defines the
 # same strings as its own STANDARD / INDETERMINATE.
 STANDARD_CATEGORY = "Standard"
@@ -57,6 +61,26 @@ def is_withheld_call(category: str) -> bool:
 def withheld_call_caveat(subject: str) -> str:
     """The words a kept drug-safety card for a withheld call puts before its note."""
     return f"indeterminate call: it can neither confirm nor exclude {subject}. "
+
+
+def cross_module_block(raw: Any, *, panel: str, rsid: str) -> dict | None:
+    """A SNP's ``cross_module`` block as loaded, or ``None`` when it is unusable (#2350).
+
+    Every scorer and read path takes a declared block's ``module`` and ``note``
+    as given, so a block without both (``{}``, a missing key, a blank value, or
+    not a mapping at all) would raise ``KeyError`` mid-scoring, or build a card
+    that points nowhere. The panel loaders pass every block through here, so it
+    is treated as absent and named in a warning instead. The shipped panels
+    cannot carry one: test_every_block_is_well_formed fails on it.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, dict) and all(
+        isinstance(raw.get(key), str) and raw[key].strip() for key in ("module", "note")
+    ):
+        return raw
+    logger.warning("cross_module_block_malformed", panel=panel, rsid=rsid, block=raw)
+    return None
 
 
 def panel_cross_module_links(panel: Any) -> dict[str, dict]:

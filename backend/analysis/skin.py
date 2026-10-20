@@ -40,7 +40,10 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.cross_module_links import emits_cross_module_card
+from backend.analysis.cross_module_links import (
+    cross_module_block,
+    emits_cross_module_card,
+)
 from backend.analysis.genotype_lookup import (
     SCORABLE_PANEL_INDELS,
     genotype_candidates,
@@ -255,7 +258,9 @@ def load_skin_panel(panel_path: Path | None = None) -> SkinPanel:
                     pmids=snp_data.get("pmids", []),
                     recommendation_text=snp_data.get("recommendation_text", ""),
                     mc1r_allele_class=snp_data.get("mc1r_allele_class"),
-                    cross_module=snp_data.get("cross_module"),
+                    cross_module=cross_module_block(
+                        snp_data.get("cross_module"), panel="skin", rsid=snp_data["rsid"]
+                    ),
                     coverage_note=snp_data.get("coverage_note"),
                     insufficient_data_flag=snp_data.get("insufficient_data_flag", False),
                 )
