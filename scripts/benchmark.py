@@ -37,6 +37,7 @@ from backend.db.tables import (
     raw_variants,
     reference_metadata,
 )
+from scripts.build_vep_bundle import INDEXES as VEP_BUNDLE_INDEXES
 
 
 def create_shared_memory_engine() -> sa.Engine:
@@ -153,7 +154,11 @@ def seed_vep_bundle(
             )
         """)
         )
-        conn.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_vep_rsid ON vep_annotations (rsid)"))
+        # The production bundle's own indexes (#2270). Without (chrom, pos), every
+        # coordinate-fallback batch scanned the whole table, which made the 600k
+        # benchmark quadratic: about 99 min locally instead of about 9.
+        for statement in VEP_BUNDLE_INDEXES:
+            conn.execute(sa.text(statement))
         conn.commit()
 
     matched = rng.sample(rsids, int(len(rsids) * match_rate))

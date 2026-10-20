@@ -200,11 +200,13 @@ jobs:
           exit "$status"
 
   # ── 600k annotation benchmark ─────────────────────────────────────────
-  # Synthetic, in-memory data only, so no bundles are staged. It runs alone
-  # because it is slow enough to take the whole slow-tier budget: 77 min on
-  # 2026-10-13, and still running at the 120-minute cap on most other nights
-  # (#2270). Its own CI ceiling is 60 min of annotation (test_benchmark.py), so
-  # 75 min of pytest covers that plus generating and seeding the 600k rows.
+  # Synthetic, in-memory data only, so no bundles are staged. It took 77 min on
+  # 2026-10-13 and was still running at the shared job's 120-minute cap on most
+  # other nights, because its synthetic VEP table lacked the bundle's (chrom, pos)
+  # index and grew quadratically (#2270; fixed in scripts/benchmark.py). It runs
+  # alone anyway, so a slow benchmark can never again use up the budget of the
+  # tests collected after it. Its own CI ceiling is 60 min of annotation
+  # (test_benchmark.py), so 75 min of pytest covers that plus seeding 600k rows.
   slow-benchmark:
     name: Slow-tier benchmark (600k annotation)
     runs-on: ubuntu-latest
