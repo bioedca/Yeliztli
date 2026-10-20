@@ -17,7 +17,7 @@ manually before tagging a release.
 - [ ] WSL2 kernel is 5.15+ (`uname -r`)
 - [ ] systemd is enabled (`systemctl --user is-system-running` returns running/degraded)
 - [ ] Python 3.12+ available (`python3 --version`)
-- [ ] Node 20+ available (`node --version`)
+- [ ] Node 22+ available (`node --version`)
 - [ ] npm available (`npm --version`)
 - [ ] curl available (`curl --version`)
 

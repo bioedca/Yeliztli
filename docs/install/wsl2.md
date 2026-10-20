@@ -6,7 +6,7 @@ directly on native Windows.
 ## Set up
 
 1. Install WSL2 with a Linux distribution (Ubuntu is a good default).
-2. Inside WSL2, install **Python 3.12+** and **Node 20+**.
+2. Inside WSL2, install **Python 3.12+** and **Node 22+**.
 3. Follow the [native install](native-install.md) steps inside your WSL2 shell.
 4. Open **[http://localhost:8000](http://localhost:8000)** in your Windows browser.
    `localhost` is normally shared between Windows and WSL2; if the page doesn't load, see

@@ -20,7 +20,7 @@ For help, see [SUPPORT.md](SUPPORT.md); to report a vulnerability, see
 ## Contribution workflow
 
 1. **Set up** — see the [development setup guide](https://bioedca.github.io/Yeliztli/develop/development-setup/)
-   (Python 3.12+, Node 20+; `pip install -e ".[dev]"`, `make dev`).
+   (Python 3.12+, Node 22+; `pip install -e ".[dev]"`, `make dev`).
 2. **Branch** — fork the repo and create a topic branch; never commit to `main`
    directly. Keep each pull request to **one cohesive change** — if it does more
    than one thing, split it, so it can be reviewed and reverted independently.

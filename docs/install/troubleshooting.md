@@ -4,7 +4,7 @@
 |---------|--------------|-----|
 | `ImportError: cannot import name 'UTC'` | Python older than 3.12 | Install Python 3.12+. |
 | `ModuleNotFoundError: No module named 'backend'` | Package not installed | Run `pip install -e .` (or `".[dev]"` for development) from the repo root. |
-| Node version errors during `npm install` | Node older than 20 | Install Node 20+ (e.g. `nvm install 20`). |
+| Node version errors during `npm install` | Node older than 22 | Install Node 22+ (e.g. `nvm install 22`). |
 | `database is locked` / SQLite WAL errors | Concurrent writes without WAL mode | Ensure `wal_mode = true` in your [config](configuration.md) (it is the default). |
 | Annotation never finishes | Background worker not running | Run `yeliztli-setup status`. On macOS native installs, confirm `com.yeliztli.huey` is running and check `~/Library/Logs/yeliztli-huey.log`; after updating, rerun `yeliztli-setup install` to rewrite and reload the launchd agents. In development, start it with `make run-huey` or `make dev`. |
 | You need to stop or re-run annotation for one sample | A long, stuck, failed, or stale annotation job | Open the sample's dashboard. Use **Cancel annotation** in the **Annotation Pipeline** panel while a job is active. If the panel shows a completed, failed, or cancelled status, dismiss it; then use **Run Annotation** in the same panel. |
