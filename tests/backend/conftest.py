@@ -25,6 +25,9 @@ from _logging_state import (
     restore_logging_state,
     snapshot_logging_state,
 )
+from _no_network import begin as begin_no_network
+from _no_network import end as end_no_network
+from _no_network import install as install_no_network
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
@@ -75,6 +78,37 @@ def _detach_backend_log_handler():
 # Before any test module is imported: importing backend.main binds the global
 # Huey to get_settings().data_dir at import time (backend/tasks/huey_tasks.py).
 start_session()
+install_no_network()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_network(request: pytest.FixtureRequest):
+    """Fail a test that reaches a non-loopback host (#2538).
+
+    Its lookups and connects are refused while it runs. The test then fails
+    even when the code under test swallowed the error and fell back to an
+    offline path. ``slow`` and ``requires_real_bundle`` tests are exempt: the
+    nightly tier works with production data and may need the network.
+    """
+    exempt = uses_real_data_home(request.node) or request.node.get_closest_marker("slow")
+    begin_no_network(enforce=not exempt)
+    yield
+    reached = end_no_network()
+    assert not reached, f"test reached the real network: {reached}"
+
+
+@pytest.fixture(autouse=True)
+def _no_cached_manifest():
+    """Start every test without a cached bundle manifest (#2538).
+
+    The session pins YELIZTLI_MANIFEST_PATH, and a file override is never
+    cached. But a test that removes the pin to exercise the remote fetch
+    caches what its mock returned for an hour, and the next such test would
+    get it.
+    """
+    from backend.db import manifest
+
+    manifest.reset_cache()
 
 
 @pytest.fixture(autouse=True, scope="session")

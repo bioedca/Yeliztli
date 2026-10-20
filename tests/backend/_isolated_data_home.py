@@ -46,6 +46,13 @@ import pytest
 # missing" instead of running.
 REAL_DATA_MARKERS = frozenset({"requires_real_bundle"})
 
+# The committed bundle manifest. Without YELIZTLI_MANIFEST_PATH, every
+# get_bundle_info() call downloaded the live one from GitHub's main branch, so
+# results depended on the network and on what was published there (#2538). This
+# is the same file the live URL serves from main, and a branch is now tested
+# against its own copy.
+REPO_MANIFEST = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
+
 _session: dict[str, Any] = {}
 _test_numbers = itertools.count()
 
@@ -124,6 +131,9 @@ def start_session() -> None:
     _session["root"] = Path(tempfile.mkdtemp(prefix="yeliztli-test-homes-"))
     _session["monkeypatch"] = monkeypatch = pytest.MonkeyPatch()
     isolate_data_home(monkeypatch, session_root() / "session" / ".yeliztli")
+    from backend.db import manifest
+
+    monkeypatch.setenv(manifest.MANIFEST_PATH_ENV, str(REPO_MANIFEST))
 
 
 def finish_session() -> None:
