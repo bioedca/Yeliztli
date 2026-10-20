@@ -1,0 +1,11 @@
+{
+  "tool": "Consensus search",
+  "accessed": "2026-10-20",
+  "query": "Genome Reference Consortium human reference genome assembly GRCh37 model and maintenance",
+  "returned_titles": [
+    "Clinical Validation of Genome Reference Consortium Human Build 38 in a Laboratory Utilizing Next-Generation Sequencing Technologies.",
+    "Evaluation of Liftover Tools for the Conversion of Genome Reference Consortium Human Build 37 to Build 38 Using ClinVar Variants",
+    "Single haplotype assembly of the human genome from a hydatidiform mole"
+  ],
+  "outcome": "No defining GRCh37 assembly publication surfaced; none of the three is cited."
+}
