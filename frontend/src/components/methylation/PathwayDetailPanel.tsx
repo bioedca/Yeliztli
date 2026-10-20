@@ -23,6 +23,8 @@ import {
   ChevronUp,
   TrendingUp,
 } from "lucide-react"
+import { isPatientResponseWithheldError } from "@/api/errors"
+import WithheldResults from "@/components/ui/WithheldResults"
 
 /** Whether a genotype is a nucleotide call whose letters can be compared with
  * a variant name. Vendor insertion/deletion tokens ("ID") cannot (#2103). */
@@ -184,7 +186,10 @@ export default function PathwayDetailPanel({
         )}
 
         {/* Error */}
-        {detailQuery.isError && (
+        {detailQuery.isError && isPatientResponseWithheldError(detailQuery.error) && (
+          <WithheldResults label="This pathway's" />
+        )}
+        {detailQuery.isError && !isPatientResponseWithheldError(detailQuery.error) && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />

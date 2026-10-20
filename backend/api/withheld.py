@@ -9,7 +9,13 @@ no results -- and to run annotation, which cannot help.
 
 from __future__ import annotations
 
+from fastapi import HTTPException
 from pydantic import BaseModel
+
+# The ``detail.code`` a refused single-item response carries. The page can then
+# say the item is withheld instead of missing, without offering a retry that
+# cannot succeed. It never says what was held.
+PATIENT_RESPONSE_WITHHELD_CODE = "patient_response_withheld"
 
 
 class WithheldMarker(BaseModel):
@@ -20,3 +26,16 @@ class WithheldMarker(BaseModel):
     """
 
     withheld: bool = False
+
+
+def withheld_not_found(message: str) -> HTTPException:
+    """The 404 for a single assembled item the guard refused (#2520).
+
+    The status stays 404, as before, so nothing that already treats it as
+    absent changes. ``detail`` becomes ``{"code": "patient_response_withheld",
+    "message": message}``, which a page can tell from a plain not-found.
+    """
+    return HTTPException(
+        status_code=404,
+        detail={"code": PATIENT_RESPONSE_WITHHELD_CODE, "message": message},
+    )
