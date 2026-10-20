@@ -3,7 +3,7 @@
 The fastest way to get Yeliztli running. For full options (Docker, services, WSL2,
 configuration), see **[Install & self-host](../install/index.md)**.
 
-You need **Python 3.12+**, **Node 20+**, and enough disk for the reference databases
+You need **Python 3.12+**, **Node 22+**, and enough disk for the reference databases
 (~60 GB minimum; ~80 GB recommended) — see
 [system requirements](../install/system-requirements.md).
 
