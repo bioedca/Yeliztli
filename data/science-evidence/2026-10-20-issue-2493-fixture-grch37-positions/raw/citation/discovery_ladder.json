@@ -1,0 +1,37 @@
+{
+ "kind": "DERIVED: MCP tool results have no wire payload; this records the query and what came back.",
+ "accessed": "2026-10-20",
+ "consensus": {
+  "tool": "Consensus search (MCP)",
+  "query": "Ensembl assembly mapping between GRCh37 and GRCh38 coordinates REST API",
+  "observed_version": "not exposed",
+  "result_count": 3,
+  "results": [
+   {
+    "title": "Ensembl 2015",
+    "authors": "F. Cunningham et al.",
+    "year": 2014,
+    "journal": "Nucleic Acids Research"
+   },
+   {
+    "title": "Ensembl 2016",
+    "authors": "Andrew D. Yates et al.",
+    "year": 2015,
+    "journal": "Nucleic Acids Research"
+   },
+   {
+    "title": "ensembldb: an R package to create and use Ensembl-based annotation resources",
+    "authors": "Johannes Rainer et al.",
+    "year": 2019,
+    "journal": "Bioinformatics"
+   }
+  ],
+  "use": "Ensembl 2015 was taken forward and verified through PubMed (PMID:25352552). Ensembl 2016 and ensembldb were not cited: the claims rest on the REST API and the 2015 GRCh37/REST description."
+ },
+ "scite": {
+  "tool": "Scite search_literature (MCP)",
+  "query": "\"Ensembl REST API\" AND GRCh37",
+  "result": "unavailable: monthly MCP usage limit (250 calls) reached; resets 2026-11-03 (UTC). Pay-as-you-go was not enabled."
+ },
+ "specialist": "PubMed E-utilities (esearch, esummary, efetch) verified the three cited publications; NCBI Assembly E-utilities verified both assembly accessions."
+}

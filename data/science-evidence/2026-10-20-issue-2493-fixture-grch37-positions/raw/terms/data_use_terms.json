@@ -1,0 +1,23 @@
+{
+ "kind": "DERIVED: sentences extracted from fetched terms pages; the HTML pages are not retained (they carry inline scripts).",
+ "accessed": "2026-10-20",
+ "pages": [
+  {
+   "source": "Ensembl",
+   "url": "https://grch37.ensembl.org/info/about/legal/disclaimer.html",
+   "note": "www.ensembl.org redirected to an archive host that answered 403; the GRCh37 mirror served the same disclaimer page.",
+   "page_sha256": "dc8084871376680e966ace0cd5d13dd78f27d8ef5c9f5a9c6fb05e77512d5282",
+   "sentences": [
+    "Ensembl imposes no restrictions on access to, or use of, the data provided and the software used to analyse and present it."
+   ]
+  },
+  {
+   "source": "NCBI (dbSNP, PubMed, Assembly E-utilities)",
+   "url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+   "page_sha256": "8ad8f6f186ca51ec73a5fb8935ecfa17b8cbaad300b7025b381898ab72621869",
+   "sentences": [
+    "Therefore, NCBI itself places no restrictions on the use or distribution of the data contained therein."
+   ]
+  }
+ ]
+}

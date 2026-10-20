@@ -1014,6 +1014,173 @@ class TestSyntheticAncestryDNAFixture:
         assert first == second
 
 
+# ── GRCh37 coordinates for the synthetic EUR pair (#2493) ─────────────────
+
+SYNTHETIC_EUR_ANCESTRYDNA = FIXTURES_DIR / "synthetic_eur_ancestrydna.txt"
+SYNTHETIC_EUR_AIM_COORDINATES = FIXTURES_DIR / "synthetic_eur_aim_coordinates.tsv"
+PCA_BUNDLE = SCRIPT.parent.parent / "backend" / "data" / "panels" / "ancestry_pca_bundle.npz"
+
+# Recorded in the evidence packet. A GRCh38 table passed off as the oracle would
+# move no row and reverse no locus.
+SYNTHETIC_EUR_ROWS_THAT_MOVE = 4_949
+SYNTHETIC_EUR_REVERSED_LOCI = 6
+
+_COMPLEMENT = str.maketrans("ACGT", "TGCA")
+
+# chromosome, GRCh38 position, GRCh37 position, strand, alleles on the GRCh37 plus strand
+SyntheticAim = tuple[str, int, int, str, frozenset[str]]
+
+
+def _synthetic_eur_oracle() -> dict[str, SyntheticAim]:
+    oracle: dict[str, SyntheticAim] = {}
+    for line in SYNTHETIC_EUR_AIM_COORDINATES.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        aim_id, chrom, grch38, grch37, _basis, strand, alleles = line.split("\t")
+        assert aim_id not in oracle, f"{aim_id} appears twice in the oracle"
+        assert strand in {"+", "-"}, f"{aim_id} has strand {strand!r}"
+        oracle[aim_id] = (chrom, int(grch38), int(grch37), strand, frozenset(alleles.split("/")))
+    return oracle
+
+
+def _pca_bundle_grch38_aims() -> dict[str, tuple[str, int, frozenset[str]]]:
+    import numpy as np
+
+    with np.load(PCA_BUNDLE) as bundle:
+        ids = [str(aim_id) for aim_id in bundle["aim_rsids_23andme"]]
+        chroms = [str(chrom) for chrom in bundle["aim_chroms"]]
+        positions = [int(pos) for pos in bundle["aim_positions_grch38"]]
+        pairs = [
+            frozenset({str(ref), str(alt)})
+            for ref, alt in zip(bundle["aim_a2"], bundle["aim_a1"], strict=True)
+        ]
+    return {
+        aim_id: (chrom, pos, pair)
+        for aim_id, chrom, pos, pair in zip(ids, chroms, positions, pairs, strict=True)
+    }
+
+
+def _assert_at_synthetic_grch37(
+    rows: list[tuple[str, str, int, str]], oracle: dict[str, SyntheticAim], source: str
+) -> None:
+    assert len(rows) == len(oracle), f"{source} has {len(rows)} rows; the oracle has {len(oracle)}"
+    for rsid, chrom, pos, genotype in rows:
+        assert rsid in oracle, f"{source} carries {rsid}, which the oracle does not record"
+        expected_chrom, grch38, grch37, _strand, alleles = oracle[rsid]
+        assert (chrom, pos) == (expected_chrom, grch37), (
+            f"{source} places {rsid} at {chrom}:{pos}; its GRCh37 position is "
+            f"{expected_chrom}:{grch37} (GRCh38 {expected_chrom}:{grch38})"
+        )
+        assert set(genotype) <= alleles, (
+            f"{source} calls {rsid} {genotype}; on the GRCh37 plus strand its "
+            f"alleles are {'/'.join(sorted(alleles))}"
+        )
+
+
+def _variant_rows(variants: object) -> list[tuple[str, str, int, str]]:
+    return [(v.rsid, v.chrom, int(v.pos), v.genotype) for v in variants]  # type: ignore[attr-defined]
+
+
+class TestSyntheticEurFixtureCoordinates:
+    """The synthetic EUR pair sits at GRCh37, the build its parsers report (#2493).
+
+    Both files carry no APOE rows, so ``TestVendorFixtureBuildCoordinates``
+    never reached them. Their positions had been copied from the PCA bundle's
+    GRCh38 AIM coordinates, and their calls sampled on the GRCh38 strand. The
+    oracle keys each GRCh38 AIM to its GRCh37 position and strand, each
+    recorded only where two routes agree, and every fixture call must draw
+    from the AIM's alleles on the GRCh37 plus strand.
+    """
+
+    def test_oracle_records_every_pca_bundle_aim_and_its_alleles(self) -> None:
+        oracle = _synthetic_eur_oracle()
+        bundle = _pca_bundle_grch38_aims()
+        assert set(oracle) == set(bundle)
+        for aim_id, (chrom, grch38, _grch37, strand, alleles) in oracle.items():
+            bundle_chrom, bundle_pos, pair = bundle[aim_id]
+            assert (chrom, grch38) == (bundle_chrom, bundle_pos), (
+                f"oracle keys {aim_id} to GRCh38 {chrom}:{grch38}; the PCA bundle "
+                f"has {bundle_chrom}:{bundle_pos}"
+            )
+            oriented = pair if strand == "+" else frozenset(a.translate(_COMPLEMENT) for a in pair)
+            assert alleles == oriented, (
+                f"oracle gives {aim_id} alleles {sorted(alleles)} on strand {strand}; "
+                f"the PCA bundle's GRCh38 pair is {sorted(pair)}"
+            )
+
+    def test_oracle_is_not_the_grch38_table(self) -> None:
+        oracle = _synthetic_eur_oracle().values()
+        assert sum(1 for aim in oracle if aim[2] != aim[1]) == SYNTHETIC_EUR_ROWS_THAT_MOVE
+        assert sum(1 for aim in oracle if aim[3] == "-") == SYNTHETIC_EUR_REVERSED_LOCI
+
+    def test_template_sits_at_grch37_under_a_grch37_header(self) -> None:
+        from backend.ingestion.parser_23andme import parse_23andme
+
+        result = parse_23andme(_TEMPLATE_PATH)
+        assert result.build == "GRCh37", f"template reports build {result.build!r}"
+        _assert_at_synthetic_grch37(
+            _variant_rows(result.variants), _synthetic_eur_oracle(), _TEMPLATE_PATH.name
+        )
+
+    def test_ancestrydna_fixture_sits_at_grch37(self) -> None:
+        from backend.ingestion.parser_ancestrydna import parse_ancestrydna
+
+        result = parse_ancestrydna(SYNTHETIC_EUR_ANCESTRYDNA)
+        assert result.build == "GRCh37", f"fixture reports build {result.build!r}"
+        _assert_at_synthetic_grch37(
+            _variant_rows(result.variants), _synthetic_eur_oracle(), SYNTHETIC_EUR_ANCESTRYDNA.name
+        )
+
+    def test_committed_ancestrydna_fixture_is_a_fresh_regeneration(self, tmp_path: Path) -> None:
+        _run_vendor_script(tmp_path)
+        regenerated = (tmp_path / "synthetic_eur_ancestrydna.txt").read_bytes()
+        assert SYNTHETIC_EUR_ANCESTRYDNA.read_bytes() == regenerated, (
+            "synthetic_eur_ancestrydna.txt is stale; rerun "
+            "`python scripts/regenerate_fixtures.py --vendor=ancestrydna`"
+        )
+
+    def test_rows_the_panel_oracle_knows_agree_with_it(self) -> None:
+        expected = _expected_grch37_mappings()
+        overlap = {rsid: aim for rsid, aim in _synthetic_eur_oracle().items() if rsid in expected}
+        _assert_grch37_coordinates(
+            [(rsid, aim[0], aim[2]) for rsid, aim in overlap.items()],
+            expected,
+            SYNTHETIC_EUR_AIM_COORDINATES.name,
+        )
+        for rsid, aim in overlap.items():
+            assert aim[4] <= expected[rsid][2], (
+                f"oracle gives {rsid} alleles {sorted(aim[4])}; the panel oracle's "
+                f"GRCh37 plus-strand alleles are {sorted(expected[rsid][2])}"
+            )
+
+    def test_a_template_at_the_pca_bundle_grch38_coordinates_fails(self) -> None:
+        oracle = _synthetic_eur_oracle()
+        rows = [
+            (aim_id, chrom, grch38, min(alleles) * 2)
+            for aim_id, (chrom, grch38, _grch37, _strand, alleles) in oracle.items()
+        ]
+        with pytest.raises(AssertionError, match="its GRCh37 position is"):
+            _assert_at_synthetic_grch37(rows, oracle, "probe")
+
+    def test_a_call_left_on_the_grch38_strand_fails(self) -> None:
+        from backend.ingestion.parser_23andme import parse_23andme
+
+        oracle = _synthetic_eur_oracle()
+        rows = _variant_rows(parse_23andme(_TEMPLATE_PATH).variants)
+        reversed_ids = {aim_id for aim_id, aim in oracle.items() if aim[3] == "-"}
+        probe = [
+            (
+                rsid,
+                chrom,
+                pos,
+                genotype.translate(_COMPLEMENT) if rsid in reversed_ids else genotype,
+            )
+            for rsid, chrom, pos, genotype in rows
+        ]
+        with pytest.raises(AssertionError, match="on the GRCh37 plus strand its alleles"):
+            _assert_at_synthetic_grch37(probe, oracle, "probe")
+
+
 # ── REF orientation for every oracle-covered seed row (#2344) ─────────────
 
 

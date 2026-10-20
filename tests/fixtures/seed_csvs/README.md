@@ -78,6 +78,34 @@ read back from `parse_23andme` / `parse_ancestrydna` (or from `##reference=` for
 lift onto the GRCh37 oracle through `lift_build36_to_grch37`, so the exception
 stays deliberate rather than becoming a hole.
 
+The synthetic EUR pair (`synthetic_eur_23andme.txt` and the
+`synthetic_eur_ancestrydna.txt` generated from it) carried no APOE rows, so the
+APOE guard never reached them. Their positions had been copied from the PCA
+bundle's `aim_positions_grch38`, and their calls sampled on the GRCh38 strand,
+so the AncestryDNA file presented a GRCh37 vendor format with GRCh38 data in
+every row (#2493):
+- 4,949 of the 5,000 positions differ from GRCh37;
+- six loci are reversed between builds, so their calls need complementing.
+
+Both files now take their GRCh37 position and strand from
+`synthetic_eur_aim_coordinates.tsv`, which keys each AIM's GRCh38 coordinate in
+the PCA bundle to its GRCh37 position, strand and plus-strand alleles. Each value
+is recorded only where two routes agree:
+- **4,979 rows:** the rsID's own GRCh37 placement and Ensembl's assembly-map
+  projection of the GRCh38 coordinate.
+- **21 rows:** for vendor `i` probes, which have no public identity record, and
+  for rsIDs in regions restructured between builds, ±25 bp of GRCh37 assembly
+  sequence matching the GRCh38 flank stands in for the missing route.
+
+The guard checks four things:
+- the oracle still matches the PCA bundle;
+- both files sit at the oracle's GRCh37 positions, with calls drawn from its
+  plus-strand alleles, under a build their parsers report as GRCh37;
+- the committed AncestryDNA file is byte-identical to a fresh regeneration;
+- rows the panel oracle also knows agree with it.
+
+Evidence: `data/science-evidence/2026-10-20-issue-2493-fixture-grch37-positions/`.
+
 Records consulted: the committed `panel_rsid_coordinates.json` oracle records
 per-record Ensembl GRCh37 Variation REST URLs (accessed 2026-07-16), and
 `../clinvar_seed_snapshot.json` records NLM Clinical Tables ClinVar identities
