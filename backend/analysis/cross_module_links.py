@@ -79,6 +79,33 @@ def current_link(links: dict[str, dict], finding: dict[str, Any]) -> dict | None
     return links.get(finding.get("rsid") or "")
 
 
+def generic_cross_module_pointer(module: str) -> str:
+    """The sentence a Traits card ended with before it carried the panel note."""
+    return f"See {module.replace('_', ' ').title()} module for related findings."
+
+
+def refreshed_legacy_pointer(
+    module: str | None, finding: dict[str, Any], link: dict, text: str
+) -> str:
+    """Give a Traits card stored with the generic pointer the panel's note (#2347).
+
+    Until #2347 a Traits card ended with ``generic_cross_module_pointer`` and kept
+    its note only in ``detail``, so it never said what the destination holds. Only
+    Traits ever stored that sentence, so only its cards are rewritten. The pointer
+    is rebuilt from the module the card recorded, and only an exact trailing match
+    is replaced, so an existing sample gets the note without a re-score and any
+    other text is left alone.
+    """
+    detail = finding.get("detail") or {}
+    note = link.get("note")
+    if module != "traits" or detail.get("cross_module_note") or not note:
+        return text
+    pointer = generic_cross_module_pointer(str(detail.get("to_module") or ""))
+    if not text.endswith(pointer):
+        return text
+    return text[: -len(pointer)] + str(note)
+
+
 def refreshed_finding_text(finding: dict[str, Any], link: dict) -> str:
     """Swap the stored trailing note for the one the panel gives now.
 
@@ -102,10 +129,9 @@ def refreshed_finding_text(finding: dict[str, Any], link: dict) -> str:
 # Source module -> its panel loader, as "module.path:callable". Lazy so importing
 # this module does not pull in every analysis module, and cached because the
 # generic findings endpoint resolves one row at a time.
-# Only modules whose links are keyed per SNP belong here. Traits builds its
-# cross-module findings from the panel-level ``cross_module_links`` list instead,
-# keyed on ``to_module`` rather than on an rsid, so resolving its rows this way
-# would drop every one of them.
+# Only modules whose links are keyed per SNP belong here. Every card these
+# modules store is built from the source SNP's own ``cross_module`` block, which
+# is what ``panel_cross_module_links`` keys on rsid.
 _PANEL_LOADERS: dict[str, str] = {
     "allergy": "backend.analysis.allergy:load_allergy_panel",
     "gene_health": "backend.analysis.gene_health:load_gene_health_panel",
@@ -114,7 +140,15 @@ _PANEL_LOADERS: dict[str, str] = {
     # Pharmacogenomics handoff. Registering it is what retires the rows that
     # were already stored: an unregistered module is passed through untouched.
     "sleep": "backend.analysis.sleep:load_sleep_panel",
+    # Traits' card is built from its SNP's block too (rs747302 -> Gene Health,
+    # declared per SNP since #2346), so it resolves the same way (#2347).
+    "traits": "backend.analysis.traits:load_traits_panel",
 }
+
+# Modules whose stored per-SNP recommendation is refreshed at read time. Traits'
+# own page serves the recommendation it stored, so refreshing it only in the
+# generic findings aggregator would make the two disagree.
+_RECOMMENDATION_MODULES = frozenset(_PANEL_LOADERS) - {"traits"}
 
 CROSS_MODULE_CATEGORY = "cross_module"
 
@@ -143,9 +177,6 @@ _SNP_SCORERS: dict[str, tuple[str, bool]] = {
     "sleep": ("backend.analysis.sleep:_score_snp", True),
     "traits": ("backend.analysis.traits:_score_snp", False),
 }
-# Traits is left out of _PANEL_LOADERS for link resolution, but its scorer
-# still needs its panel.
-_SCORING_PANEL_LOADERS = {**_PANEL_LOADERS, "traits": "backend.analysis.traits:load_traits_panel"}
 
 
 def _resolve_callable(target: str) -> Any:
@@ -155,7 +186,7 @@ def _resolve_callable(target: str) -> Any:
 
 @cache
 def _scoring_panel(module: str) -> Any:
-    return _resolve_callable(_SCORING_PANEL_LOADERS[module])()
+    return _resolve_callable(_PANEL_LOADERS[module])()
 
 
 def _panel_snp(module: str, rsid: str) -> Any:
@@ -229,7 +260,7 @@ def resolve_stored_card(
     link = current_link(links, finding)
     if link is None or stored_card_is_withheld(module, finding, link):
         return None
-    text = refreshed_finding_text(finding, link)
+    text = refreshed_legacy_pointer(module, finding, link, refreshed_finding_text(finding, link))
     call = stored_card_call(module, finding)
     if call is not None and is_withheld_call(call):
         text = _with_withheld_caveat(module, finding, link, text)
@@ -257,8 +288,8 @@ def normalize_cross_module_row(
     if category != CROSS_MODULE_CATEGORY:
         return finding_text, detail
     finding = {"rsid": rsid, "finding_text": finding_text, "detail": detail}
-    # The withheld-call rule (#2310) covers Traits too, whose links are not
-    # resolved here.
+    # The withheld-call rule (#2310) still applies to a module whose links are
+    # not resolved here.
     if (module or "") not in _PANEL_LOADERS:
         if stored_card_is_withheld(module, finding):
             return None
@@ -281,7 +312,7 @@ def normalize_cross_module_row(
 def _recommendations_for_module(module: str) -> dict[str, str]:
     """Map rsid -> the per-SNP recommendation the panel currently gives."""
     target = _PANEL_LOADERS.get(module)
-    if target is None:
+    if target is None or module not in _RECOMMENDATION_MODULES:
         return {}
     module_path, _, loader_name = target.partition(":")
     panel = getattr(import_module(module_path), loader_name)()

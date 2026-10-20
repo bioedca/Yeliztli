@@ -45,7 +45,10 @@ import sqlalchemy as sa
 import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
-from backend.analysis.cross_module_links import emits_cross_module_card
+from backend.analysis.cross_module_links import (
+    emits_cross_module_card,
+    generic_cross_module_pointer,
+)
 from backend.analysis.evidence import TRAITS_EVIDENCE_CAP, cap_evidence_level
 from backend.analysis.genotype_lookup import (
     is_acgt_genotype,
@@ -598,10 +601,14 @@ def _generate_cross_module_findings(
                     link_type = link.get("link_type", "")
                     break
 
+            # End with the panel note, which names what the destination holds,
+            # as the other modules' cards do. It is recorded as
+            # ``cross_module_note`` so the read path can swap in a corrected one
+            # (#2347). A link with no note keeps the generic pointer.
             finding_text = (
                 f"{variant_label(snp.gene, snp.variant_name)} ({snp.genotype}) — "
                 f"{snp.effect_summary} "
-                f"See {to_module.replace('_', ' ').title()} module for related findings."
+                f"{note or generic_cross_module_pointer(to_module)}"
             )
 
             cross_findings.append(
@@ -621,6 +628,7 @@ def _generate_cross_module_findings(
                         "to_module": to_module,
                         "link_type": link_type,
                         "note": note,
+                        "cross_module_note": note,
                         "coverage_note": snp.coverage_note,
                     },
                 )

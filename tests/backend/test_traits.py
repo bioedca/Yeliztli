@@ -627,7 +627,9 @@ class TestCrossModuleFindings:
         assert len(cross) == 1
         assert cross[0].to_module == "gene_health"
         assert cross[0].link_type == "ADHD"
-        assert "Gene Health" in cross[0].finding_text
+        # The card ends with the SNP's note and records it for read-time refresh.
+        assert cross[0].finding_text.endswith("One copy of proxy allele. ADHD")
+        assert cross[0].detail["cross_module_note"] == "ADHD"
 
     def test_no_cross_module_for_standard(self, panel: TraitsPanel) -> None:
         """Standard DRD4 does not generate cross-module finding."""

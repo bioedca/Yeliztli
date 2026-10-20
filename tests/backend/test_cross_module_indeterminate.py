@@ -297,13 +297,17 @@ def test_a_stored_hla_card_for_a_carrier_call_is_unchanged() -> None:
 def test_the_generic_path_drops_a_stored_traits_card_for_a_withheld_call(
     genotype: str, kept: bool
 ) -> None:
-    """Traits is not link-resolved there, but the withheld-call rule still applies."""
+    """Traits is link-resolved there too since #2347, and the withheld-call rule applies."""
     text = f"DRD4 ({genotype}) — probe"
     detail = {"genotype": genotype, "to_module": "gene_health"}
     resolved = normalize_cross_module_row("traits", "cross_module", "rs747302", text, detail)
     assert (resolved is not None) is kept
     if kept:
-        assert resolved == (text, detail)
+        link = _links("traits")["rs747302"]
+        assert resolved == (
+            text,
+            {**detail, "target_module": "gene_health", "cross_module_note": link["note"]},
+        )
 
 
 def test_the_generic_path_drops_a_stored_gene_health_card_for_a_withheld_call() -> None:

@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from backend.analysis.cross_module_links import stored_card_is_withheld
+from backend.analysis.cross_module_links import panel_cross_module_links, resolve_stored_card
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -305,32 +305,36 @@ def list_pathways(
             )
         )
 
-    # Cross-module findings
+    from backend.analysis.traits import load_traits_panel
+
+    panel = load_traits_panel()
+
+    # Cross-module findings. Target and note are panel data frozen at scoring
+    # time, so resolve them against the panel that is loaded, as the other
+    # modules do (#2021, #2347): a retired link is dropped, a card stored with
+    # the generic pointer gets the panel's note, and a card for a call no card
+    # is shown for, such as the DRD4 C/G homozygote, is dropped (#2310).
+    links = panel_cross_module_links(panel)
     cross_module_findings = [f for f in all_findings if f["category"] == "cross_module"]
     cross_items: list[CrossModuleItem] = []
     for cf in cross_module_findings:
-        # A card stored for a call no card is shown for, such as the DRD4 C/G
-        # homozygote the scorer withholds, is dropped at read time (#2310).
-        if stored_card_is_withheld("traits", cf):
+        resolved = resolve_stored_card("traits", cf, links)
+        if resolved is None:
             continue
+        link, finding_text = resolved
         detail = cf["detail"]
         cross_items.append(
             CrossModuleItem(
                 rsid=cf["rsid"] or "",
                 gene=cf["gene_symbol"] or "",
                 from_trait=detail.get("trait_domain", ""),
-                to_module=detail.get("to_module", ""),
+                to_module=link["module"],
                 link_type=detail.get("link_type", ""),
-                finding_text=cf["finding_text"] or "",
+                finding_text=finding_text,
                 evidence_level=cf["evidence_level"] if cf["evidence_level"] is not None else 1,
                 pmids=cf["pmids"],
             )
         )
-
-    # Load disclaimer from panel
-    from backend.analysis.traits import load_traits_panel
-
-    panel = load_traits_panel()
 
     response = PathwaysResponse(
         items=items,

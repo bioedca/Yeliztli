@@ -68,7 +68,8 @@ def test_list_pathways_withholds_pair_assembled_from_separate_safe_rows(
     if route_module is traits:
         monkeypatch.setattr(
             "backend.analysis.traits.load_traits_panel",
-            lambda: SimpleNamespace(module_disclaimer="Reference panel disclaimer."),
+            # No SNPs, so no cross-module links to resolve (#2347).
+            lambda: SimpleNamespace(module_disclaimer="Reference panel disclaimer.", pathways=[]),
         )
 
     response = route_module.list_pathways(sample_id=1)
@@ -92,7 +93,7 @@ def test_traits_list_keeps_dynamic_results_when_static_disclaimer_names_held_pai
     )
     monkeypatch.setattr(
         "backend.analysis.traits.load_traits_panel",
-        lambda: SimpleNamespace(module_disclaimer=disclaimer),
+        lambda: SimpleNamespace(module_disclaimer=disclaimer, pathways=[]),
     )
 
     response = traits.list_pathways(sample_id=1)
