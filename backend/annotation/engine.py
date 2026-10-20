@@ -1298,6 +1298,17 @@ def _vep_coord_fallback(
 # ── Timed lookup wrapper (P4-22) ────────────────────────────────────────
 
 
+def _same_call(row: sa.Row | None, evaluated: sa.Row | None) -> bool:
+    """True when ``row`` carries the call a source lookup evaluated for its query id."""
+    if row is None or evaluated is None:
+        return False
+    return (row.genotype, row.chrom, row.pos) == (
+        evaluated.genotype,
+        evaluated.chrom,
+        evaluated.pos,
+    )
+
+
 def _timed_lookup(
     fn: Callable,
     *args: object,
@@ -1809,10 +1820,16 @@ def run_annotation(
                     for original, query in lookup_key.items()
                     if query in gnomad_allele_ambiguous
                 }
+                # Per ORIGINAL, and only for the alias whose own call the lookup
+                # evaluated. `raw_by_query` keeps one row per queried id, so an
+                # alias with a different call (or locus) was never tied to an
+                # allele at all: it stays a miss instead of leaving the hit-rate
+                # denominator (#2494 review).
                 vep_allele_ambiguous = {
                     original
                     for original, query in lookup_key.items()
                     if query in vep_allele_ambiguous
+                    and _same_call(raw_by_rsid.get(original), raw_by_query.get(query))
                 }
                 # Split per ORIGINAL, not per query. Aliases can straddle two
                 # coordinates where gnomAD holds only one of them: the alias that
