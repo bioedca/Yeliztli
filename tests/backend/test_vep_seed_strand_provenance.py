@@ -308,14 +308,15 @@ def test_generator_accepts_accessed_only_when_replaying(tmp_path: Path) -> None:
 _FUTURE_DATE = "future"
 
 
-def _future_access_date() -> str:
+def _future_access_date(now: dt.datetime | None = None) -> str:
     """A date the generator must refuse, computed now rather than at collection.
 
     Two days ahead, so a run that crosses midnight between here and the
     generator's own clock read still hands it a future date. The exact
     today/tomorrow boundary is pinned separately, without a clock.
     """
-    return (dt.datetime.now(dt.UTC).date() + dt.timedelta(days=2)).isoformat()
+    current = now if now is not None else dt.datetime.now(dt.UTC)
+    return (current.date() + dt.timedelta(days=2)).isoformat()
 
 
 @pytest.mark.parametrize(
@@ -360,8 +361,10 @@ def test_a_run_that_crosses_midnight_still_refuses_the_future_date(
     """
     import scripts.build_vep_strand_snapshot as generator
 
-    future = _future_access_date()
-    crossed_midnight = dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
+    # One clock read for both, so the test itself cannot straddle midnight.
+    now = dt.datetime.now(dt.UTC)
+    future = _future_access_date(now)
+    crossed_midnight = now + dt.timedelta(days=1)
 
     class _ClockAfterMidnight(dt.datetime):
         @classmethod
