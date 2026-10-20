@@ -1820,17 +1820,42 @@ def run_annotation(
                     for original, query in lookup_key.items()
                     if query in gnomad_allele_ambiguous
                 }
-                # Per ORIGINAL, and only for the alias whose own call the lookup
-                # evaluated. `raw_by_query` keeps one row per queried id, so an
-                # alias with a different call (or locus) was never tied to an
-                # allele at all: it stays a miss instead of leaving the hit-rate
-                # denominator (#2494 review).
+                # Per ORIGINAL. The query's result describes only the call it was
+                # evaluated with (`raw_by_query` keeps one row per queried id), so
+                # it re-keys to the aliases sharing that call (#2494 review). An
+                # alias with another call or locus is re-evaluated below.
                 vep_allele_ambiguous = {
                     original
                     for original, query in lookup_key.items()
                     if query in vep_allele_ambiguous
                     and _same_call(raw_by_rsid.get(original), raw_by_query.get(query))
                 }
+                # An alias whose own call differs gets a VEP lookup of its own,
+                # not the evaluated call's annotation. Fanning that out handed an
+                # alias carrying another ALT the other allele's consequence, so a
+                # stop_gained call could read synonymous_variant (#2551). Its own
+                # lookup gives its allele, or nothing when its call is ambiguous.
+                if vep_engine is not None:
+                    for original, query in lookup_key.items():
+                        own_row = raw_by_rsid.get(original)
+                        if own_row is None or _same_call(own_row, raw_by_query.get(query)):
+                            continue
+                        own_ambiguous: set[str] = set()
+                        try:
+                            own_vep = _lookup_vep(
+                                [query], {query: own_row}, vep_engine, own_ambiguous
+                            )
+                        except Exception as exc:
+                            # Withhold rather than keep the other call's annotation.
+                            vep_data.pop(original, None)
+                            result.errors.append(f"vep alias lookup failed: {exc}")
+                            continue
+                        if query in own_vep:
+                            vep_data[original] = own_vep[query]
+                        else:
+                            vep_data.pop(original, None)
+                        if query in own_ambiguous:
+                            vep_allele_ambiguous.add(original)
                 # Split per ORIGINAL, not per query. Aliases can straddle two
                 # coordinates where gnomAD holds only one of them: the alias that
                 # matched hit the shared-rsID limitation, while the one that did

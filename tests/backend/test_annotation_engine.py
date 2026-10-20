@@ -1578,6 +1578,127 @@ class TestCoverageStatsPayload:
         assert result.coverage_stats == {}
 
 
+class TestVepAliasOwnCall:
+    """A deprecated rsID is annotated from its own call, not its replacement's (#2551).
+
+    Source lookups run once per *current* rsID (F18), and ``raw_by_query`` keeps
+    one sample row per query. When a deprecated rsID and its replacement are
+    both genotyped with different calls, the chosen VEP annotation used to be
+    fanned out to every alias. An alias whose own call carries another ALT then
+    got that other allele's consequence, so a ``stop_gained`` call could read
+    ``synonymous_variant``.
+    """
+
+    @staticmethod
+    def _seed(reference_engine, sample_engine, vep_engine, calls, alleles) -> None:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_al_old", current_rsid="rs_al_cur", build_id=155
+                )
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": rsid, "chrom": "1", "pos": 700, "genotype": genotype}
+                    for rsid, genotype in calls.items()
+                ],
+            )
+        with vep_engine.begin() as conn:
+            for alt, consequence in alleles.items():
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                        "transcript_id, consequence, hgvs_coding, hgvs_protein, strand, "
+                        "exon_number, intron_number, mane_select) VALUES ('rs_al_cur', '1', "
+                        "700, 'A', :alt, 'GENE', :tx, :csq, NULL, NULL, '+', 1, NULL, 0)"
+                    ),
+                    {"alt": alt, "tx": f"ENST_{alt}", "csq": consequence},
+                )
+
+    @staticmethod
+    def _annotations(sample_engine) -> dict[str, tuple[str | None, str | None]]:
+        with sample_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.consequence,
+                    annotated_variants.c.transcript_id,
+                ).where(annotated_variants.c.rsid.in_(["rs_al_cur", "rs_al_old"]))
+            ).fetchall()
+        return {row.rsid: (row.consequence, row.transcript_id) for row in rows}
+
+    def test_an_alias_carrying_another_alt_gets_its_own_allele(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_inmemory: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        self._seed(
+            reference_engine,
+            sample_with_variants,
+            vep_engine_inmemory,
+            {"rs_al_cur": "AC", "rs_al_old": "AG"},
+            {"C": "synonymous_variant", "G": "stop_gained"},
+        )
+
+        run_annotation(sample_with_variants, mock_registry)
+
+        assert self._annotations(sample_with_variants) == {
+            "rs_al_cur": ("synonymous_variant", "ENST_C"),
+            "rs_al_old": ("stop_gained", "ENST_G"),
+        }
+
+    def test_a_hom_ref_alias_is_withheld_not_handed_the_other_call(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_inmemory: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Hom-ref at a multi-ALT rsID carries no ALT, so its own lookup withholds."""
+        _stamp_sample_metadata(sample_with_variants, file_format="ancestrydna_v2.0")
+        self._seed(
+            reference_engine,
+            sample_with_variants,
+            vep_engine_inmemory,
+            {"rs_al_cur": "AC", "rs_al_old": "AA"},
+            {"C": "synonymous_variant", "G": "stop_gained"},
+        )
+
+        result = run_annotation(sample_with_variants, mock_registry)
+
+        annotations = self._annotations(sample_with_variants)
+        assert annotations["rs_al_cur"] == ("synonymous_variant", "ENST_C")
+        assert annotations["rs_al_old"] == (None, None)
+        assert result.coverage_stats["vep_bundle_allele_ambiguous"] == 1
+
+    def test_a_single_allele_rsid_still_annotates_both_aliases(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_inmemory: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Discriminating control: zygosity alone is not a conflict when one allele exists."""
+        self._seed(
+            reference_engine,
+            sample_with_variants,
+            vep_engine_inmemory,
+            {"rs_al_cur": "AG", "rs_al_old": "AA"},
+            {"G": "missense_variant"},
+        )
+
+        run_annotation(sample_with_variants, mock_registry)
+
+        assert self._annotations(sample_with_variants) == {
+            "rs_al_cur": ("missense_variant", "ENST_G"),
+            "rs_al_old": ("missense_variant", "ENST_G"),
+        }
+
+
 class TestCoverageStatsSideEffects:
     """Phase 0 closure (Step 18) / Plan §5.6 + §16.6 negative-side assertions.
 
