@@ -1014,6 +1014,122 @@ class TestSyntheticAncestryDNAFixture:
         assert first == second
 
 
+# ── GRCh37 coordinates for the synthetic EUR pair (#2493) ─────────────────
+
+SYNTHETIC_EUR_ANCESTRYDNA = FIXTURES_DIR / "synthetic_eur_ancestrydna.txt"
+SYNTHETIC_EUR_AIM_COORDINATES = FIXTURES_DIR / "synthetic_eur_aim_coordinates.tsv"
+PCA_BUNDLE = SCRIPT.parent.parent / "backend" / "data" / "panels" / "ancestry_pca_bundle.npz"
+
+# Rows of the oracle whose GRCh37 and GRCh38 coordinates differ. Recorded in the
+# evidence packet; a GRCh38 table passed off as the oracle would move none.
+SYNTHETIC_EUR_ROWS_THAT_MOVE = 4_949
+
+SyntheticAim = tuple[str, int, int]  # chromosome, GRCh38 position, GRCh37 position
+
+
+def _synthetic_eur_oracle() -> dict[str, SyntheticAim]:
+    oracle: dict[str, SyntheticAim] = {}
+    for line in SYNTHETIC_EUR_AIM_COORDINATES.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        aim_id, chrom, grch38, grch37, _basis = line.split("\t")
+        assert aim_id not in oracle, f"{aim_id} appears twice in the oracle"
+        oracle[aim_id] = (chrom, int(grch38), int(grch37))
+    return oracle
+
+
+def _pca_bundle_grch38_aims() -> dict[str, tuple[str, int]]:
+    import numpy as np
+
+    with np.load(PCA_BUNDLE) as bundle:
+        ids = [str(aim_id) for aim_id in bundle["aim_rsids_23andme"]]
+        chroms = [str(chrom) for chrom in bundle["aim_chroms"]]
+        positions = [int(pos) for pos in bundle["aim_positions_grch38"]]
+    return {
+        aim_id: (chrom, pos) for aim_id, chrom, pos in zip(ids, chroms, positions, strict=True)
+    }
+
+
+def _assert_at_synthetic_grch37(
+    rows: list[tuple[str, str, int]], oracle: dict[str, SyntheticAim], source: str
+) -> None:
+    assert len(rows) == len(oracle), f"{source} has {len(rows)} rows; the oracle has {len(oracle)}"
+    for rsid, chrom, pos in rows:
+        assert rsid in oracle, f"{source} carries {rsid}, which the oracle does not record"
+        expected_chrom, grch38, grch37 = oracle[rsid]
+        assert (chrom, pos) == (expected_chrom, grch37), (
+            f"{source} places {rsid} at {chrom}:{pos}; its GRCh37 position is "
+            f"{expected_chrom}:{grch37} (GRCh38 {expected_chrom}:{grch38})"
+        )
+
+
+class TestSyntheticEurFixtureCoordinates:
+    """The synthetic EUR pair sits at GRCh37, the build its parsers report (#2493).
+
+    Both files carry no APOE rows, so ``TestVendorFixtureBuildCoordinates``
+    never reached them, and their positions had been copied from the PCA
+    bundle's GRCh38 AIM coordinates. The oracle keys each GRCh38 AIM to its
+    GRCh37 position, recorded only where the rsID's own placement and Ensembl's
+    assembly-map projection agree.
+    """
+
+    def test_oracle_records_every_pca_bundle_aim_at_its_grch38_coordinate(self) -> None:
+        oracle = _synthetic_eur_oracle()
+        bundle = _pca_bundle_grch38_aims()
+        assert set(oracle) == set(bundle)
+        for aim_id, (chrom, grch38, _grch37) in oracle.items():
+            assert (chrom, grch38) == bundle[aim_id], (
+                f"oracle keys {aim_id} to GRCh38 {chrom}:{grch38}; the PCA bundle "
+                f"has {bundle[aim_id][0]}:{bundle[aim_id][1]}"
+            )
+
+    def test_oracle_is_not_the_grch38_table(self) -> None:
+        oracle = _synthetic_eur_oracle()
+        moved = sum(1 for _chrom, grch38, grch37 in oracle.values() if grch37 != grch38)
+        assert moved == SYNTHETIC_EUR_ROWS_THAT_MOVE
+
+    def test_template_sits_at_grch37_under_a_grch37_header(self) -> None:
+        from backend.ingestion.parser_23andme import parse_23andme
+
+        result = parse_23andme(_TEMPLATE_PATH)
+        assert result.build == "GRCh37", f"template reports build {result.build!r}"
+        rows = [(v.rsid, v.chrom, int(v.pos)) for v in result.variants]
+        _assert_at_synthetic_grch37(rows, _synthetic_eur_oracle(), _TEMPLATE_PATH.name)
+
+    def test_ancestrydna_fixture_sits_at_grch37(self) -> None:
+        from backend.ingestion.parser_ancestrydna import parse_ancestrydna
+
+        result = parse_ancestrydna(SYNTHETIC_EUR_ANCESTRYDNA)
+        assert result.build == "GRCh37", f"fixture reports build {result.build!r}"
+        rows = [(v.rsid, v.chrom, int(v.pos)) for v in result.variants]
+        _assert_at_synthetic_grch37(rows, _synthetic_eur_oracle(), SYNTHETIC_EUR_ANCESTRYDNA.name)
+
+    def test_committed_ancestrydna_fixture_is_a_fresh_regeneration(self, tmp_path: Path) -> None:
+        _run_vendor_script(tmp_path)
+        regenerated = (tmp_path / "synthetic_eur_ancestrydna.txt").read_bytes()
+        assert SYNTHETIC_EUR_ANCESTRYDNA.read_bytes() == regenerated, (
+            "synthetic_eur_ancestrydna.txt is stale; rerun "
+            "`python scripts/regenerate_fixtures.py --vendor=ancestrydna`"
+        )
+
+    def test_rows_the_panel_oracle_knows_agree_with_it(self) -> None:
+        expected = _expected_grch37_mappings()
+        rows = [
+            (rsid, chrom, grch37)
+            for rsid, (chrom, _grch38, grch37) in _synthetic_eur_oracle().items()
+            if rsid in expected
+        ]
+        _assert_grch37_coordinates(rows, expected, SYNTHETIC_EUR_AIM_COORDINATES.name)
+
+    def test_a_template_at_the_pca_bundle_grch38_coordinates_fails(self) -> None:
+        oracle = _synthetic_eur_oracle()
+        grch38_rows = [
+            (aim_id, chrom, pos) for aim_id, (chrom, pos) in _pca_bundle_grch38_aims().items()
+        ]
+        with pytest.raises(AssertionError, match="its GRCh37 position is"):
+            _assert_at_synthetic_grch37(grch38_rows, oracle, "probe")
+
+
 # ── REF orientation for every oracle-covered seed row (#2344) ─────────────
 
 

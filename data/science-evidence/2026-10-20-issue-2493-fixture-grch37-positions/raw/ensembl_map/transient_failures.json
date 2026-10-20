@@ -1,0 +1,32 @@
+[
+ {
+  "id": "rs2206138",
+  "attempt": 0,
+  "status": 503
+ },
+ {
+  "id": "rs9404641",
+  "attempt": 0,
+  "status": 500
+ },
+ {
+  "id": "rs9404641",
+  "attempt": 1,
+  "status": 500
+ },
+ {
+  "id": "rs2419061",
+  "attempt": 0,
+  "status": 503
+ },
+ {
+  "id": "rs6024836",
+  "attempt": 0,
+  "status": 503
+ },
+ {
+  "id": "rs2018794",
+  "attempt": 0,
+  "status": 503
+ }
+]

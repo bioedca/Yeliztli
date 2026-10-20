@@ -1,0 +1,259 @@
+{
+ "issue": 2493,
+ "accessed": "2026-10-20",
+ "purpose": "Establish which assembly the synthetic EUR fixture pair's coordinates belong to, and record each row's GRCh37 position from two agreeing routes where they exist.",
+ "claims": [
+  {
+   "id": "C1",
+   "kind": "reference-assembly fact",
+   "claim": "The template's coordinates are the PCA bundle's GRCh38 AIM positions: 5,000/5,000 rows equal aim_positions_grch38; 4,795/4,795 rsIDs with one primary Ensembl GRCh38 mapping sit at it (190 have no GRCh38 record under that ID); 100/100 dbSNP sample rows sit at GRCh38, 3 of them where both builds coincide.",
+   "result": "holds"
+  },
+  {
+   "id": "C2",
+   "kind": "coordinate correspondence",
+   "claim": "For 4,979 rows the rsID's GRCh37 placement (Ensembl GRCh37 Variation for 4,974; dbSNP GRCh37 for 5) equals the Ensembl assembly-map projection of the row's GRCh38 coordinate.",
+   "result": "4,979 agree"
+  },
+  {
+   "id": "C3",
+   "kind": "coordinate correspondence (single route)",
+   "claim": "The 15 vendor i probes take the assembly-map projection alone; 13 of 15 land on a GRCh37 VEP bundle variant whose alleles include the AIM's alleles.",
+   "result": "15 projected; control 13/15"
+  },
+  {
+   "id": "C4",
+   "kind": "coordinate correspondence (single lineage)",
+   "claim": "Six rsIDs in regions restructured between builds take the rsID's Ensembl GRCh37 placement, which dbSNP's GRCh37 placement matches; the projection has no single base (4) or lands on another copy (2).",
+   "result": "6 placed by identity"
+  },
+  {
+   "id": "C5",
+   "kind": "control",
+   "claim": "Ensembl GRCh37 Variation (release 116) equals the v4.0.0 VEP bundle (Ensembl 112) for all 4,980 rsIDs both carry; dbSNP GRCh37 equals Ensembl GRCh37 for the 100-rsID sample.",
+   "result": "holds"
+  }
+ ],
+ "sources": [
+  {
+   "name": "Ensembl GRCh37 REST, POST variation/homo_sapiens",
+   "url": "https://grch37.rest.ensembl.org/variation/homo_sapiens",
+   "observed_version": "release 116 (raw/ensembl_grch37/info_data.json), GRCh37.p13 (info_assembly.json)",
+   "payloads": "raw/ensembl_grch37/variation_batch_*.json.gz",
+   "license_reference": "raw/terms/data_use_terms.json (Ensembl)"
+  },
+  {
+   "name": "Ensembl REST, POST variation/homo_sapiens (GRCh38)",
+   "url": "https://rest.ensembl.org/variation/homo_sapiens",
+   "observed_version": "release 116 (raw/ensembl_grch38/info_data.json), GRCh38.p14 (info_assembly.json)",
+   "payloads": "raw/ensembl_grch38/variation_batch_*.json.gz, variation_sample_100.json",
+   "license_reference": "raw/terms/data_use_terms.json (Ensembl)"
+  },
+  {
+   "name": "Ensembl REST, GET map/human/GRCh38/{chrom}:{pos}..{pos}:1/GRCh37",
+   "url_pattern": "https://rest.ensembl.org/map/human/GRCh38/{chrom}:{pos}..{pos}:1/GRCh37?content-type=application/json",
+   "observed_version": "release 116",
+   "payloads": "raw/ensembl_map/map_batch_*.jsonl.gz (each line keeps the request URL, HTTP status and the verbatim response body); transient retries in raw/ensembl_map/transient_failures.json",
+   "license_reference": "raw/terms/data_use_terms.json (Ensembl)"
+  },
+  {
+   "name": "NCBI dbSNP E-utilities esummary db=snp",
+   "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
+   "observed_version": "dbbuild Build250306-1408.1 (raw/dbsnp/einfo_snp.json)",
+   "payloads": "raw/dbsnp/esummary_*.json",
+   "license_reference": "raw/terms/data_use_terms.json (NCBI)"
+  },
+  {
+   "name": "PubMed and NCBI Assembly E-utilities",
+   "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+   "observed_version": "not exposed per request",
+   "payloads": "raw/citation/*",
+   "license_reference": "raw/terms/data_use_terms.json (NCBI)"
+  },
+  {
+   "name": "backend/data/panels/ancestry_pca_bundle.npz (committed)",
+   "role": "GRCh38 AIM coordinates and their 23andMe IDs (C1)"
+  },
+  {
+   "name": "VEP bundle v4.0.0 (~/.yeliztli/vep_bundle.db, sha256 c8e5f162...c4d3, bundles/manifest.json pin)",
+   "role": "C3 allele control and C5 comparison; not redistributed here"
+  },
+  {
+   "name": "UCSC hg38ToHg19.over.chain.gz",
+   "role": "downloaded, not used, not retained: its README restricts use to non-commercial independent researchers and nonprofits and conditions redistribution"
+  }
+ ],
+ "independence": "Ensembl Variation imports rsID placements from dbSNP, so Ensembl GRCh37 Variation, dbSNP and the VEP bundle are one identity lineage. The assembly-map projection aligns assemblies without reading variant records, so it is independent of the identity route in method, though both are served by Ensembl. 4,979 rows rest on both; 15 on the projection alone; 6 on the identity lineage alone.",
+ "claim_mapping": {
+  "tests/fixtures/synthetic_eur_aim_coordinates.tsv grch37_position, basis variation+map / dbsnp+map": "C2",
+  "tests/fixtures/synthetic_eur_aim_coordinates.tsv grch37_position, basis map": "C3",
+  "tests/fixtures/synthetic_eur_aim_coordinates.tsv grch37_position, basis variation": "C4",
+  "tests/fixtures/synthetic_eur_aim_coordinates.tsv grch38_position": "C1",
+  "tests/fixtures/synthetic_eur_23andme.txt position column and build header": "C1, C2, C3, C4",
+  "tests/fixtures/synthetic_eur_ancestrydna.txt": "regenerated from the template by scripts/regenerate_fixtures.py --vendor=ancestrydna",
+  "tests/backend/test_regenerate_fixtures.py::SYNTHETIC_EUR_ROWS_THAT_MOVE (4,949)": "derived/grch37_positions.json.gz",
+  "tests/fixtures/seed_csvs/README.md synthetic EUR paragraph": "C1, C2, C3, C4"
+ },
+ "derived": {
+  "file": "derived/grch37_positions.json.gz",
+  "produced_by": "scripts/derive_grch37_positions.py",
+  "written_out_by": "scripts/write_oracle_and_template.py",
+  "oracle_sha256": "21f6b2a892496b5a5015131f629186bd82337cbb6c08672649899a04dc661d92"
+ },
+ "assembly_records": [
+  {
+   "assembly": "GRCh37.p13",
+   "accession": "GCF_000001405.25",
+   "submitter": "Genome Reference Consortium",
+   "payloads": [
+    "raw/citation/ncbi_assembly_esearch_GCF_000001405.25.json",
+    "raw/citation/ncbi_assembly_esummary_GCF_000001405.25.json"
+   ]
+  },
+  {
+   "assembly": "GRCh38.p14",
+   "accession": "GCF_000001405.40",
+   "submitter": "Genome Reference Consortium",
+   "payloads": [
+    "raw/citation/ncbi_assembly_esearch_GCF_000001405.40.json",
+    "raw/citation/ncbi_assembly_esummary_GCF_000001405.40.json"
+   ]
+  }
+ ],
+ "citations": [
+  {
+   "id": "PMID:25236461",
+   "doi": "DOI:10.1093/bioinformatics/btu613",
+   "accessed": "2026-10-20",
+   "reference": "Yates A, et al. The Ensembl REST API: Ensembl Data for Any Language. Bioinformatics. 2015.",
+   "role": "Publication of the REST API serving the variation and assembly-map endpoints."
+  },
+  {
+   "id": "PMID:25352552",
+   "doi": "DOI:10.1093/nar/gku1010",
+   "accessed": "2026-10-20",
+   "reference": "Cunningham F, et al. Ensembl 2015. Nucleic Acids Res. 2015.",
+   "role": "Describes Ensembl's dedicated GRCh37 site and REST server."
+  },
+  {
+   "id": "PMID:11125122",
+   "doi": "DOI:10.1093/nar/29.1.308",
+   "accessed": "2026-10-20",
+   "reference": "Sherry ST, et al. dbSNP: the NCBI database of genetic variation. Nucleic Acids Res. 2001.",
+   "role": "Publication of dbSNP, the identity source for five rsIDs and the sample cross-check."
+  }
+ ],
+ "excluded_search_results": {
+  "PMID:25300481": "SMART 2015; returned by the Ensembl 2015 title search, unrelated, not cited"
+ },
+ "retraction_check": "PubMed efetch for the three cited PMIDs (raw/citation/pubmed_efetch.xml, accessed 2026-10-20) carries no CommentsCorrections entries, so no correction, erratum or retraction is linked.",
+ "discovery_ladder": "Consensus first (raw/citation/discovery_ladder.json, derived); Scite unavailable, monthly MCP quota exhausted until 2026-11-03; PubMed and NCBI Assembly E-utilities verified citations and accessions.",
+ "privacy": "Only public rsIDs, vendor probe IDs and reference coordinates were sent. No sample, genotype or patient-derived data.",
+ "payload_count": 104,
+ "payloads": {
+  "derived/grch37_positions.json.gz": "b76245c9644a4fa26bad30f3c7e3402a0edd5a32cdc3d6324313914e9fe66555",
+  "raw/citation/discovery_ladder.json": "43217be792f733d7960c83a2180df322bccafaf4e2b65647ee13b43d17c7b809",
+  "raw/citation/ncbi_assembly_esearch_GCF_000001405.25.json": "4c591b7bda14382876ad3e30c8b581812c7c4c3a86aa8d07eda52296b471c45f",
+  "raw/citation/ncbi_assembly_esearch_GCF_000001405.40.json": "d5540189a7427212b5387fe5f60ab8411e55836d3ccb589368d9560d02a4867f",
+  "raw/citation/ncbi_assembly_esummary_GCF_000001405.25.json": "c6cf6d226680db5039335dda45673fc3ccfe3c05d070d8b1d797d81740fec085",
+  "raw/citation/ncbi_assembly_esummary_GCF_000001405.40.json": "737072cd03eb806a7f3e0e4b377687189b01dbb1d9a3143c1a1f31378a15ca1a",
+  "raw/citation/pubmed_efetch.xml": "dfeac6acb1e86a546865647b31928bd40c5d1bdfcba8d3b0eaec779a54134102",
+  "raw/citation/pubmed_esearch_dbsnp2001.json": "4e2fb056de8219179108f214d7d61714aa44823bc8c71380236931c069f67df5",
+  "raw/citation/pubmed_esearch_ensembl2015.json": "ebb2bb5c9299bfcac42daf977c149cb70bd7ec6b6d3ff3de10c510549923d16c",
+  "raw/citation/pubmed_esummary.json": "d835dbe48588f23d26ab197e93f6ba8297289951027d7fb6b967e35f87fd242d",
+  "raw/dbsnp/einfo_snp.json": "0c2fc212396c1423fdd00170bd6efd74e6248b9baa91d600e113dd4870b5dfa0",
+  "raw/dbsnp/esummary_ensembl_unknown_5.json": "732efef15cb8f85778be1cd46d3d602d5756028f2bae4294d75502b907837f50",
+  "raw/dbsnp/esummary_sample_100.json.gz": "7c73e4088de10bc501dd03fc507c3b183ba7c1d2f84fc32676ead90d18369068",
+  "raw/dbsnp/esummary_single_route_6.json": "2292065e95f8dc97dfb6542ba421201225515e3b0938900ce55acc66ead00eab",
+  "raw/ensembl_grch37/info_assembly.json": "d348877852c939715c93e02685c1ff1ee29dbb3b7a306800fe1d7cd982e19151",
+  "raw/ensembl_grch37/info_data.json": "86e87c46ae1a424702676493d024d0508ce60f6c951b0b2803ce10269e09c20c",
+  "raw/ensembl_grch37/variation_batch_00.json.gz": "c6ad42e1f7700e62740f507437033f73e11c9eecbad64aa8091169a2a5885f10",
+  "raw/ensembl_grch37/variation_batch_01.json.gz": "eda6ef27df35797c50521558350a076de1271bd6148f57374964179ba59e8700",
+  "raw/ensembl_grch37/variation_batch_02.json.gz": "572c28827a461d6827735f0ca63ce4eeed318314ba498af49f79a1cc17c177c8",
+  "raw/ensembl_grch37/variation_batch_03.json.gz": "b1f382b1c9b7f35da0ceed1b8e9c5b93ab7e0b96ba3482720df4c9f7061758ab",
+  "raw/ensembl_grch37/variation_batch_04.json.gz": "102a8c0964cad245ab997445f7636416079e3aa784c282e93499647de03392be",
+  "raw/ensembl_grch37/variation_batch_05.json.gz": "3ee0a6273fa572ba9b514e6475b95b0115194a23303c37b224ad53c907864433",
+  "raw/ensembl_grch37/variation_batch_06.json.gz": "6d9b25fec2fc4f943eea5da1d078040b6df0f2d7de8a1198cc938a49ec8fbff5",
+  "raw/ensembl_grch37/variation_batch_07.json.gz": "e9b23342e9628b4db42b72e8ef8906f67429e97e6d66a35f3084f30fbcddad8f",
+  "raw/ensembl_grch37/variation_batch_08.json.gz": "d4dfb1da52d9feab88f097d947054484b8bd76b5697b558e55e85438b7c866b3",
+  "raw/ensembl_grch37/variation_batch_09.json.gz": "484aa623401f79fac49dfb2915d3c9b2ab7b9999b482ac5b42de4ca35182e5ae",
+  "raw/ensembl_grch37/variation_batch_10.json.gz": "ae8ca3d01c50c3eaff13bc68a3bc45a65c9092031d9ac9187f2ec54b88ebb366",
+  "raw/ensembl_grch37/variation_batch_11.json.gz": "a8b51085b34fd3dff397261d242c31a5c9af3182f6cf05e3731b6c880d418608",
+  "raw/ensembl_grch37/variation_batch_12.json.gz": "d5947c991c274238e0f47b270b2cc11a5f87fe549212fbbb3e327f2a2f6c1d36",
+  "raw/ensembl_grch37/variation_batch_13.json.gz": "805f5d75a526789570249e318f579faaf0269ccf066d4921b52fb775346226f5",
+  "raw/ensembl_grch37/variation_batch_14.json.gz": "66231aa92e2ec707950f7f1bf76f72bddc2796d32947af4a31408703b82a92c3",
+  "raw/ensembl_grch37/variation_batch_15.json.gz": "ee0398b3d19bbc4e0ee60f0b17115dac81d0011d06fb82c0440548d3c5a9ae65",
+  "raw/ensembl_grch37/variation_batch_16.json.gz": "97147db0cc59fb8ce2ff952f54a991e4b17d9ca52361de58f1605c1528d08fec",
+  "raw/ensembl_grch37/variation_batch_17.json.gz": "65be06c4ed3186ba4e79d5b0b861dd85627853380708b9dfba90d8410791d330",
+  "raw/ensembl_grch37/variation_batch_18.json.gz": "825eeec8a097c280ce6a059b2c28375f18e7efdc375ab384e2c426befe4fea06",
+  "raw/ensembl_grch37/variation_batch_19.json.gz": "64257c5c61f0f45eb92ccb60e66e97c978d55eb01e7b8f1fc3cfb902cd51eaa7",
+  "raw/ensembl_grch37/variation_batch_20.json.gz": "6776b7f4c466abaf4662e765bff05c86f742f620e78e275cebc67d105978c998",
+  "raw/ensembl_grch37/variation_batch_21.json.gz": "3626b08843c751aa0b389d9d914e1d887fb7246272e82d1554ce0126b9316da2",
+  "raw/ensembl_grch37/variation_batch_22.json.gz": "cc826042138510667e1a57445f8db7b8d53f92f0e09eec98fd2adbd509b30c2f",
+  "raw/ensembl_grch37/variation_batch_23.json.gz": "667cc37e79ccde73d624014858e0c076a864bbd7d472b4f48656aba14fcfb824",
+  "raw/ensembl_grch37/variation_batch_24.json.gz": "eec3e8317cadd0b95fe107f4a31153aa8c32794cffc57020bb4f81c6409e1720",
+  "raw/ensembl_grch38/info_assembly.json": "e77d31049393a13683cb834ec3b4ab541801bd021a5a03f2a991478cc76d50aa",
+  "raw/ensembl_grch38/info_data.json": "86e87c46ae1a424702676493d024d0508ce60f6c951b0b2803ce10269e09c20c",
+  "raw/ensembl_grch38/variation_batch_00.json.gz": "0e63096a98ce5ae59ecf4ebc1aa794196f062551afa582598f18d9304515791e",
+  "raw/ensembl_grch38/variation_batch_01.json.gz": "6cc4aac29aa15e3497717b248be41c5f5095935633505fc07cbd25938a5b4581",
+  "raw/ensembl_grch38/variation_batch_02.json.gz": "b7714a88954240626afba0e98e53fd4044f9ee2c534d6c167177f841f05acd79",
+  "raw/ensembl_grch38/variation_batch_03.json.gz": "cb332d218bd6da9d97a268b498065cab719cb8b802578e69809470c555281e74",
+  "raw/ensembl_grch38/variation_batch_04.json.gz": "41461456faa6d18da4beef89aeaa8dd6c24237487e958fe113060e347aaed188",
+  "raw/ensembl_grch38/variation_batch_05.json.gz": "d39339375c62f661e9f14f6d32aba9b2cd166b8d4dd2b7490965b6018308e20f",
+  "raw/ensembl_grch38/variation_batch_06.json.gz": "588b0df1b58b2401dd86f7e1358ef72bdc420b3e0e7009afc9d9a7dacb83ab8d",
+  "raw/ensembl_grch38/variation_batch_07.json.gz": "fa2a9fd4bdf66b300653cbcab0a3a6be8100973d9a618335213711728012a1e0",
+  "raw/ensembl_grch38/variation_batch_08.json.gz": "4c521b81803e4229c3e609b6bdbc13d2b02d697c65a26a9be511386fd20a6d5d",
+  "raw/ensembl_grch38/variation_batch_09.json.gz": "b1e3cfbb1e440893a4ef8f66de7e27f0c91764d3787e099818c8ce45f80e2767",
+  "raw/ensembl_grch38/variation_batch_10.json.gz": "424316133a3135107d14c050a2c17f35a4c8d26c59b003483770c8a22a851b15",
+  "raw/ensembl_grch38/variation_batch_11.json.gz": "ea43317c56f6f4f8029f5e1aec18c118c88a2c22d9e423612ecfd79309a7410b",
+  "raw/ensembl_grch38/variation_batch_12.json.gz": "10a2fd793cb3f16ee6b83681249adc88665f7c3c4e38ccc9405eef9213826020",
+  "raw/ensembl_grch38/variation_batch_13.json.gz": "400404eb50de84dddd96fc12e09c0d3065726251c03a9ab64d991ad56cd07099",
+  "raw/ensembl_grch38/variation_batch_14.json.gz": "5877bfcad4254a7cc36b45e6c58a8f588e07f534bb924f968b80e88bb1e173e0",
+  "raw/ensembl_grch38/variation_batch_15.json.gz": "70724ecfd6f809f486ce5772bf517355ec59196be1989fd132a757d6dadc40e6",
+  "raw/ensembl_grch38/variation_batch_16.json.gz": "656a4582b870dbb195166e5a23232dab7176e245642b35613f4b353cc60368dc",
+  "raw/ensembl_grch38/variation_batch_17.json.gz": "75d94a00ef252a71412761674cf8e323056a9e99eb5decaf20994515ab01e8f9",
+  "raw/ensembl_grch38/variation_batch_18.json.gz": "ffb2f9946911ae778450b401c59959b669cdc0ec3e8fc5f958ce8c70084c632d",
+  "raw/ensembl_grch38/variation_batch_19.json.gz": "6d8640dd405286373a5affd3b74ff8099ef1a6bb48dbcbc01118e5063d1183b0",
+  "raw/ensembl_grch38/variation_batch_20.json.gz": "a56a92558d3e2338df92c942bd9280cbb3e6cd23381c956bcfef380803251d5d",
+  "raw/ensembl_grch38/variation_batch_21.json.gz": "3a2b90ffe917f877bb78da4f16bb61818110a8adf6430899be29b538e22c10ac",
+  "raw/ensembl_grch38/variation_batch_22.json.gz": "2e5ddddd25b50b04ff2254f1a96326e4635daf1911bb473762d82e1711b83956",
+  "raw/ensembl_grch38/variation_batch_23.json.gz": "bbb43299d0514e77cdb2005c0d70e787e4cf92de7d38b929da017f04ce2d1b34",
+  "raw/ensembl_grch38/variation_batch_24.json.gz": "03f500d5c26b85cb28e89d6bdeb859630c55116ee0dc6a54c379c9ac321cf2a2",
+  "raw/ensembl_grch38/variation_sample_100.json": "47283d1b6ef7456888d0a111d8914276887cd6889c3092cd97d9517c0719d847",
+  "raw/ensembl_map/map_batch_00.jsonl.gz": "d1ce0650ebaf24af6c4750bc585aeae60265356f817260ce15ba288df990713a",
+  "raw/ensembl_map/map_batch_01.jsonl.gz": "e1b42c62f479d9508f88aaef320f32e9ebb910d178b85c10e19458b6c5e4dcfa",
+  "raw/ensembl_map/map_batch_02.jsonl.gz": "51b162977f8aae9075cf958242b6eeb0874a33b0fb1cd1bc2b3d58d226bdb2f6",
+  "raw/ensembl_map/map_batch_03.jsonl.gz": "9a592cd7bb8b3fda7d742841fc14677d57fdd1c4898c18c397bfd54fbdba45ad",
+  "raw/ensembl_map/map_batch_04.jsonl.gz": "f4e354e25767f0d7bce07f6a857f091a3fb3018035cc9ca6228a6ad5bf199a91",
+  "raw/ensembl_map/map_batch_05.jsonl.gz": "f9b6a0d5b73bacfa989d6c7e22ca8a9f20b991ed83e69be96bc557a9ae35f718",
+  "raw/ensembl_map/map_batch_06.jsonl.gz": "8fd221eea42b3d4cb56349c6c7b74a4024d8d1e767ff25000b5d7088c18a4fdb",
+  "raw/ensembl_map/map_batch_07.jsonl.gz": "67598b323dcd15a873064a134c65ea7301ea6a07f93ead38c42e23e8e09623cc",
+  "raw/ensembl_map/map_batch_08.jsonl.gz": "50cf86853ae2f6f345066620cb1c18a5fc1fbcc5256dafbc8171723d6b6fc0de",
+  "raw/ensembl_map/map_batch_09.jsonl.gz": "f3409a6c1c50fc4d38f88087cfd0ff13bfbe853acba768818c3bf5a5284fef1e",
+  "raw/ensembl_map/map_batch_10.jsonl.gz": "96eb5d601d5b4b1a677ee3f4d744af749c038d9ebc7e4f0f6db0feea4db4ef32",
+  "raw/ensembl_map/map_batch_11.jsonl.gz": "d183da3057ad7cde8fbdb25794e305a25bd547c580da3dc2bf8ef71fd09d2c9c",
+  "raw/ensembl_map/map_batch_12.jsonl.gz": "280b870901f4e9b00719a6e49293470f7f111b36598022aa2952893d51dbe73e",
+  "raw/ensembl_map/map_batch_13.jsonl.gz": "0329d432df6084f8ad32f8420cd8fa9a70153ccf5a5ea6f076a46cd7581900dd",
+  "raw/ensembl_map/map_batch_14.jsonl.gz": "b10753e6d6bfc7925d2f468d1f9f83f323db7f82843ba795746484714ce380b9",
+  "raw/ensembl_map/map_batch_15.jsonl.gz": "f2c1e9b0a8ac54caf363ce7c43c092d46b349add290c9e81cbbb397c1fc98397",
+  "raw/ensembl_map/map_batch_16.jsonl.gz": "8a4b2f8ddd4af1d831e87274dcabc232d9d9b5a7a4c4d94460e9698d0853caa4",
+  "raw/ensembl_map/map_batch_17.jsonl.gz": "ad40f0035713540c5cff2c5aba5b0a11d16d328ec685dc6da532cd41ef9292e4",
+  "raw/ensembl_map/map_batch_18.jsonl.gz": "5935686d6349e856b16a477152a7f9d9223a179803a488582d06e3125b8a25b9",
+  "raw/ensembl_map/map_batch_19.jsonl.gz": "5d04ffc58e7db18de7395a7b17cf9a92ace70a8aad7723a82e52eeea409f0e80",
+  "raw/ensembl_map/map_batch_20.jsonl.gz": "31f3f2944420ebef92b9d23a028ab12cbbf438fd24b73a371fbd957e483a603a",
+  "raw/ensembl_map/map_batch_21.jsonl.gz": "808156da0638afa7523b3f3f47cd10328bbbaeb63072abccd3f9b6455733516d",
+  "raw/ensembl_map/map_batch_22.jsonl.gz": "c39a9f0d761a584ae238b983a451d03f9acd2921c75406e802ac2371e2f5f684",
+  "raw/ensembl_map/map_batch_23.jsonl.gz": "bab0bfa2bc85faa7922d8d0486882a80160213386ff9fce6c0338854bef4d7b6",
+  "raw/ensembl_map/map_batch_24.jsonl.gz": "81d9e875d80694155a46650b0e7d57e75cd2caff02be285dcc4634948e7247f2",
+  "raw/ensembl_map/transient_failures.json": "73d60e020c72ea561458330949c0802503f43952b47de9d7d72e26d544965516",
+  "raw/sample_rsids.json": "f9b3b385549903c02860e2fce1ea9bea167e57881123a5c77b16e1ca66e6723a",
+  "raw/terms/data_use_terms.json": "0912206156527b455edf9dc67992e2c8e0845e1400b98648fe7f7b9a6e24b3b8",
+  "scripts/derive_grch37_positions.py": "266d577124267eeb4141df04818fcecd7d92f22f48412544d6acf3311c6cce58",
+  "scripts/fetch_assembly_map.py": "56c22b5cf8021df4a0157eabde03053490f1e6fe72205152096e2dd6459b78c3",
+  "scripts/fetch_citations.py": "f413a51afa419226822aecc8941fffa4a2195da696fa0783ddeff5cff9712ee5",
+  "scripts/fetch_dbsnp.py": "e4a8d7262faca959c98c7b3d903f052f58d357bf3ef758ebbbbd4e36096a0815",
+  "scripts/fetch_grch37_variation_and_dbsnp_sample.py": "d21a4cd052f62482ce95da44149e08b566962a5d417a4c211b524effce310fb3",
+  "scripts/fetch_grch38_variation.py": "7cb8da10f2860132ebed6205eada8263fae61a10c1f6b2e7dabe9be16c9963fb",
+  "scripts/write_oracle_and_template.py": "3a7858e907c297638820bb4c665b0644cab31281a7751a04b9c8e380c6accd53"
+ }
+}
