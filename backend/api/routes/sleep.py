@@ -31,7 +31,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.sleep import MODULE_NAME, load_sleep_panel
 from backend.api.dependencies import require_fresh_sample
-from backend.api.withheld import WithheldMarker
+from backend.api.withheld import WithheldMarker, withheld_not_found
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -375,7 +375,7 @@ def pathway_detail(
         snp_details=snp_details,
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        raise HTTPException(status_code=404, detail="Pathway not found for sample.")
+        raise withheld_not_found("This pathway's details are withheld for this sample.")
     return response
 
 

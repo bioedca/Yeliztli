@@ -473,6 +473,47 @@ class TestWithheldPathways:
             }
         ]
 
+    @pytest.mark.parametrize("refuse", [True, False])
+    def test_a_refused_pathway_detail_answers_a_withheld_404_body(
+        self, _env: tuple[sa.Engine, sa.Engine], monkeypatch: pytest.MonkeyPatch, refuse: bool
+    ) -> None:
+        """The HTTP body a page reads: ``detail.code`` marks a withheld detail (#2520).
+
+        Before, a refused detail answered the same 404 text as a missing one, so
+        the panel offered a retry that could never succeed. The control serves
+        the same pathway through the real guard.
+        """
+        from fastapi import FastAPI
+
+        from backend.api.routes import allergy
+        from backend.api.routes.allergy import router
+
+        if refuse:
+            monkeypatch.setattr(
+                allergy, "is_patient_presentable_response_payload", lambda _p: False
+            )
+        sample_engine, _ = _env
+        with sample_engine.begin() as conn:
+            conn.execute(
+                sa.insert(findings), [_pathway_with_proxy_lookup("pathway_a", "Pathway A", {})]
+            )
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+
+        resp = TestClient(app).get("/api/analysis/allergy/pathway/pathway_a?sample_id=1")
+
+        if refuse:
+            assert resp.status_code == 404
+            assert resp.json() == {
+                "detail": {
+                    "code": "patient_response_withheld",
+                    "message": "This pathway's details are withheld for this sample.",
+                }
+            }
+        else:
+            assert resp.status_code == 200
+            assert resp.json()["pathway_id"] == "pathway_a"
+
     def test_a_presentable_response_is_not_marked_withheld(
         self, seeded_client: TestClient
     ) -> None:
