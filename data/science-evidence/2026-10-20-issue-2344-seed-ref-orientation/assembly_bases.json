@@ -1,0 +1,907 @@
+{
+  "rs1051266": {
+    "chrom": "21",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/C/G",
+    "oracle_first_allele": "T",
+    "pos": 46957794,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs10741657": {
+    "chrom": "11",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/C/G",
+    "oracle_first_allele": "A",
+    "pos": 14914878,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs121908757": {
+    "chrom": "7",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/C",
+    "oracle_first_allele": "A",
+    "pos": 117227853,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs121909224": {
+    "chrom": "10",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A/G/T",
+    "oracle_first_allele": "C",
+    "pos": 89692904,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs12794714": {
+    "chrom": "11",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A",
+    "oracle_first_allele": "G",
+    "pos": 14913575,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs12913832": {
+    "chrom": "15",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/C/G",
+    "oracle_first_allele": "A",
+    "pos": 28365618,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs13266634": {
+    "chrom": "8",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A/T",
+    "oracle_first_allele": "C",
+    "pos": 118184783,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs1535": {
+    "chrom": "11",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/G/T",
+    "oracle_first_allele": "A",
+    "pos": 61597972,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs174547": {
+    "chrom": "11",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/C",
+    "oracle_first_allele": "T",
+    "pos": 61570783,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs1799963": {
+    "chrom": "11",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A",
+    "oracle_first_allele": "G",
+    "pos": 46761055,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs1800012": {
+    "chrom": "17",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A",
+    "oracle_first_allele": "C",
+    "pos": 48277749,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs1801131": {
+    "chrom": "1",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/G",
+    "oracle_first_allele": "T",
+    "pos": 11854476,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs1801133": {
+    "chrom": "1",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A/C",
+    "oracle_first_allele": "G",
+    "pos": 11856378,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs1801282": {
+    "chrom": "3",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/G/T",
+    "oracle_first_allele": "C",
+    "pos": 12393125,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs1801394": {
+    "chrom": "5",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/G",
+    "oracle_first_allele": "A",
+    "pos": 7870973,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs1805007": {
+    "chrom": "16",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A/G/T",
+    "oracle_first_allele": "C",
+    "pos": 89986117,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs1805008": {
+    "chrom": "16",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/T",
+    "oracle_first_allele": "C",
+    "pos": 89986144,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs1805009": {
+    "chrom": "16",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A/C",
+    "oracle_first_allele": "G",
+    "pos": 89986546,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs182549": {
+    "chrom": "2",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/T",
+    "oracle_first_allele": "C",
+    "pos": 136616754,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs2282679": {
+    "chrom": "4",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/G",
+    "oracle_first_allele": "T",
+    "pos": 72608383,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs2476601": {
+    "chrom": "1",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/G/T",
+    "oracle_first_allele": "A",
+    "pos": 114377568,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs28399504": {
+    "chrom": "10",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": null,
+    "oracle_first_allele": null,
+    "pos": 96522463,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "clinvar_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs28897696": {
+    "chrom": "17",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A/C/T",
+    "oracle_first_allele": "G",
+    "pos": 41215920,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs3135388": {
+    "chrom": "6",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/C/G/T",
+    "oracle_first_allele": "A",
+    "pos": 32413051,
+    "seed_rows": [
+      {
+        "alt": "G",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "G",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs334": {
+    "chrom": "11",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/A/C/G",
+    "oracle_first_allele": "T",
+    "pos": 5248232,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs429358": {
+    "chrom": "19",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": null,
+    "oracle_first_allele": null,
+    "pos": 45411941,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs4654748": {
+    "chrom": "1",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A/G/T",
+    "oracle_first_allele": "C",
+    "pos": 21786068,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs4680": {
+    "chrom": "22",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A",
+    "oracle_first_allele": "G",
+    "pos": 19951271,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs4988235": {
+    "chrom": "2",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A/C/T",
+    "oracle_first_allele": "G",
+    "pos": 136608646,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs5219": {
+    "chrom": "11",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/A/C/G",
+    "oracle_first_allele": "T",
+    "pos": 17409572,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs6025": {
+    "chrom": "1",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/C/A",
+    "oracle_first_allele": "T",
+    "pos": 169519049,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs662": {
+    "chrom": "7",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": null,
+    "oracle_first_allele": null,
+    "pos": 94937446,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  },
+  "rs7041": {
+    "chrom": "4",
+    "ensembl_grch37_base": "A",
+    "oracle_allele_string": "A/C/G/T",
+    "oracle_first_allele": "A",
+    "pos": 72618334,
+    "seed_rows": [
+      {
+        "alt": "C",
+        "csv": "clinvar_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "C",
+        "csv": "gnomad_seed.csv",
+        "ref": "A"
+      },
+      {
+        "alt": "C",
+        "csv": "vep_seed.csv",
+        "ref": "A"
+      }
+    ],
+    "ucsc_hg19_base": "A"
+  },
+  "rs7412": {
+    "chrom": "19",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": null,
+    "oracle_first_allele": null,
+    "pos": 45412079,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs75039782": {
+    "chrom": "7",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/A/G/T",
+    "oracle_first_allele": "C",
+    "pos": 117280015,
+    "seed_rows": [
+      {
+        "alt": "A",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "A",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "A",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs78655421": {
+    "chrom": "7",
+    "ensembl_grch37_base": "G",
+    "oracle_allele_string": "G/A/C/T",
+    "oracle_first_allele": "G",
+    "pos": 117171029,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "G"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "G"
+      }
+    ],
+    "ucsc_hg19_base": "G"
+  },
+  "rs7903146": {
+    "chrom": "10",
+    "ensembl_grch37_base": "C",
+    "oracle_allele_string": "C/G/T",
+    "oracle_first_allele": "C",
+    "pos": 114758349,
+    "seed_rows": [
+      {
+        "alt": "T",
+        "csv": "clinvar_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "gnomad_seed.csv",
+        "ref": "C"
+      },
+      {
+        "alt": "T",
+        "csv": "vep_seed.csv",
+        "ref": "C"
+      }
+    ],
+    "ucsc_hg19_base": "C"
+  },
+  "rs80359550": {
+    "chrom": "13",
+    "ensembl_grch37_base": "T",
+    "oracle_allele_string": "T/-",
+    "oracle_first_allele": "T",
+    "pos": 32914438,
+    "seed_rows": [
+      {
+        "alt": "-",
+        "csv": "clinvar_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "-",
+        "csv": "gnomad_seed.csv",
+        "ref": "T"
+      },
+      {
+        "alt": "-",
+        "csv": "vep_seed.csv",
+        "ref": "T"
+      }
+    ],
+    "ucsc_hg19_base": "T"
+  }
+}
