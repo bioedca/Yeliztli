@@ -362,6 +362,22 @@ def _filter_rows_for_sample_allele(
     return [], False
 
 
+def _has_several_allele_pairs(rows: list[sa.Row]) -> bool:
+    """True when ``rows`` list more than one distinct ref/alt pair."""
+    return (
+        len(
+            {
+                (
+                    _normal_allele(getattr(row, "ref", None)),
+                    _normal_allele(getattr(row, "alt", None)),
+                )
+                for row in rows
+            }
+        )
+        > 1
+    )
+
+
 # ── VEP bundle SQL fragments ─────────────────────────────────────────────
 # The vep_annotations table lives in the separate VEP bundle SQLite DB and
 # is NOT defined in SQLAlchemy Core metadata, so we use sa.text() queries.
@@ -383,6 +399,7 @@ def lookup_vep_by_rsids(
     genotype_by_rsid: Mapping[str, str] | None = None,
     allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
     coordinate_by_rsid: Mapping[str, CoordinateIdentity] | None = None,
+    allele_ambiguous_out: set[str] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Look up VEP annotations for a batch of rsids.
 
@@ -402,6 +419,11 @@ def lookup_vep_by_rsids(
         coordinate_by_rsid: Optional map of rsid → ``(chrom, pos)`` for callers
             that need selected VEP alleles exposed only when they are at the
             sample coordinate.
+        allele_ambiguous_out: Optional set that receives each rsid the bundle
+            does list, under more than one ref/alt pair, where the sample's
+            genotype could not be tied to exactly one of them. A hom-ref call
+            at a multi-ALT rsid is the usual case: it carries no ALT. Those are
+            withheld on purpose, not missing from the bundle (#2494).
 
     Returns:
         Dict mapping rsid to the best :class:`VEPAnnotation`.
@@ -440,12 +462,20 @@ def lookup_vep_by_rsids(
                     if coordinate_by_rsid
                     else None
                 )
+                listed_rows = candidate_rows
                 candidate_rows, allele_unambiguous = _filter_rows_for_sample_allele(
                     candidate_rows,
                     allele_identity=allele_identity,
                     sample_coordinate=sample_coordinate,
                     genotype=genotype_by_rsid.get(rsid) if genotype_by_rsid else None,
                 )
+                if (
+                    allele_ambiguous_out is not None
+                    and not candidate_rows
+                    and allele_identity is None
+                    and _has_several_allele_pairs(listed_rows)
+                ):
+                    allele_ambiguous_out.add(rsid)
                 filtered_rows.extend(candidate_rows)
                 allele_unambiguous_by_rsid[rsid] = allele_unambiguous
 
