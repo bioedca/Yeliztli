@@ -28,7 +28,12 @@ Plan §13.1 ADNA-09a thresholds:
   ``clinvar_significance`` value in ``annotated_variants``. Skipped when the
   reference DB has no ClinVar rows (the nightly workflow may not always
   rehydrate the full 250 MB ClinVar pipeline DB), or when no fixture call
-  qualifies.
+  qualifies, which on this fixture is always (#2493).
+- **ClinVar carrier control ≥ 85% per lookup route.** Synthetic heterozygous
+  carriers at single-base P/LP records that stand alone at their site, drawn
+  from the local ClinVar at run time. Half keep the record's rsID and half take
+  a vendor-style probe ID, so that only the ``(chrom, pos)`` fallback can
+  resolve them. Skipped when the reference DB has no ClinVar rows.
 
 Both thresholds are bio-validator calibration targets — on the first
 successful nightly run against the release ``bundles/manifest.json`` pins, the validator
@@ -129,6 +134,27 @@ def synthetic_parsed(real_vep_bundle_path: Path):  # noqa: ARG001 — gate dep
     return result
 
 
+def _primed_sample_engine(rows: list[dict], *, name: str, file_format: str) -> sa.Engine:
+    """In-memory per-sample DB holding ``rows`` as raw variants."""
+    engine = sa.create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    create_sample_tables(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            sample_metadata_table.insert().values(
+                id=1,
+                name=name,
+                file_format=file_format,
+                file_hash=f"{name}-real-bundle-fixture",
+            )
+        )
+        conn.execute(raw_variants.insert(), rows)
+    return engine
+
+
 @pytest.fixture(scope="module")
 def synthetic_sample_engine(synthetic_parsed) -> sa.Engine:
     """In-memory per-sample DB primed with parsed synthetic AncestryDNA variants.
@@ -136,28 +162,15 @@ def synthetic_sample_engine(synthetic_parsed) -> sa.Engine:
     Named distinctly from :func:`tests.backend.conftest.sample_engine` so the
     function-scoped conftest fixture isn't accidentally shadowed.
     """
-    engine = sa.create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    create_sample_tables(engine)
-    file_format = f"{synthetic_parsed.vendor.value}_{synthetic_parsed.version}"
     rows = [
         {"rsid": v.rsid, "chrom": v.chrom, "pos": v.pos, "genotype": v.genotype}
         for v in synthetic_parsed.variants
     ]
-    with engine.begin() as conn:
-        conn.execute(
-            sample_metadata_table.insert().values(
-                id=1,
-                name="synthetic-eur-ancestrydna",
-                file_format=file_format,
-                file_hash="synthetic-real-bundle-fixture",
-            )
-        )
-        conn.execute(raw_variants.insert(), rows)
-    return engine
+    return _primed_sample_engine(
+        rows,
+        name="synthetic-eur-ancestrydna",
+        file_format=f"{synthetic_parsed.vendor.value}_{synthetic_parsed.version}",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -294,6 +307,60 @@ def _plp_keys_in_clinvar(
                 (row.alt or "").upper()
             )
     return plp_rsids, plp_alts_by_coord
+
+
+# Carrier calls per lookup route in the ClinVar control below.
+CLINVAR_CONTROL_PER_ROUTE = 20
+
+
+def _clinvar_carrier_controls(reference_engine: sa.Engine) -> list[dict]:
+    """Synthetic heterozygous carrier calls at P/LP records drawn from the local ClinVar.
+
+    Taken from the provisioned reference DB at run time, so no clinical claim
+    is encoded here. Only single-base P/LP records that stand alone at their
+    site are used, spread evenly in ``(chrom, pos)`` order: at such a site a
+    carrier must be annotated with that record. Alternate controls keep the
+    record's rsID, and the rest take a vendor-style probe ID, so that only the
+    ``(chrom, pos)`` fallback can resolve them (#2493).
+    """
+    with reference_engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(
+                clinvar_variants.c.rsid,
+                clinvar_variants.c.chrom,
+                clinvar_variants.c.pos,
+                clinvar_variants.c.ref,
+                clinvar_variants.c.alt,
+                clinvar_variants.c.significance,
+            ).where(clinvar_variants.c.pos.is_not(None))
+        ).fetchall()
+    by_site: dict[tuple[str, int], list] = {}
+    for row in rows:
+        by_site.setdefault((str(row.chrom), int(row.pos)), []).append(row)
+    candidates = sorted(
+        (
+            site_rows[0]
+            for site_rows in by_site.values()
+            if len(site_rows) == 1
+            and site_rows[0].rsid
+            and is_pathogenic_primary(site_rows[0].significance)
+            and (site_rows[0].ref or "") in {"A", "C", "G", "T"}
+            and (site_rows[0].alt or "") in {"A", "C", "G", "T"}
+        ),
+        key=lambda row: (str(row.chrom), int(row.pos)),
+    )
+    wanted = 2 * CLINVAR_CONTROL_PER_ROUTE
+    picked = candidates[:: max(1, len(candidates) // wanted)][:wanted]
+    return [
+        {
+            "rsid": row.rsid if i % 2 == 0 else f"i_clinvar_control_{i}",
+            "chrom": str(row.chrom),
+            "pos": int(row.pos),
+            "genotype": f"{row.ref}{row.alt}",
+            "route": "rsid" if i % 2 == 0 else "coordinate",
+        }
+        for i, row in enumerate(picked)
+    ]
 
 
 def test_plp_keys_follow_shared_pathogenicity_boundary() -> None:
@@ -448,6 +515,51 @@ class TestAncestryDNARealBundle:
         # nightly downloads and sha256-checks. This used to compare a v2.0.0 the
         # fixture stamped itself, so a stale bundle could never fail it (#2552).
         assert stats["bundle_version"] == _manifest_vep_bundle_version()
+
+    def test_clinvar_carrier_controls_are_annotated_pathogenic(
+        self,
+        real_vep_bundle_path: Path,  # noqa: ARG002 — gate first
+        synthetic_parsed,
+        reference_engine_with_clinvar: sa.Engine,
+        registry: MagicMock,
+    ) -> None:
+        """Carriers at P/LP records resolve by rsID and by coordinate, each ≥ 85% (#2493).
+
+        The fixture's own calls no longer overlap a P/LP record they carry, so
+        the hit-rate test above can skip even with ClinVar provisioned. This
+        control keeps the annotation path measured on both lookup routes.
+        """
+        controls = _clinvar_carrier_controls(reference_engine_with_clinvar)
+        if not controls:
+            pytest.skip(
+                "Reference DB has no ClinVar P/LP rows; ClinVar pipeline DB "
+                "is not provisioned in the nightly workflow yet."
+            )
+        assert len(controls) == 2 * CLINVAR_CONTROL_PER_ROUTE, (
+            f"only {len(controls)} single-record P/LP SNV sites in the local ClinVar"
+        )
+        engine = _primed_sample_engine(
+            [{k: c[k] for k in ("rsid", "chrom", "pos", "genotype")} for c in controls],
+            name="clinvar-carrier-control",
+            file_format=f"{synthetic_parsed.vendor.value}_{synthetic_parsed.version}",
+        )
+        run_annotation(engine, registry)
+        with engine.connect() as conn:
+            significance = {
+                row.rsid: row.clinvar_significance
+                for row in conn.execute(
+                    sa.select(annotated_variants.c.rsid, annotated_variants.c.clinvar_significance)
+                )
+            }
+        for route in ("rsid", "coordinate"):
+            ids = [c["rsid"] for c in controls if c["route"] == route]
+            hits = [i for i in ids if is_pathogenic_primary(significance.get(i))]
+            hit_rate = len(hits) / len(ids)
+            assert hit_rate >= CLINVAR_PLP_HIT_RATE_FLOOR, (
+                f"ClinVar P/LP {route} control hit-rate {hit_rate:.4f} below floor "
+                f"{CLINVAR_PLP_HIT_RATE_FLOOR:.2f} ({len(hits)}/{len(ids)}); missed "
+                f"{sorted(set(ids) - set(hits))[:5]}"
+            )
 
     def test_fixture_sits_at_the_bundles_grch37_coordinates(
         self,
