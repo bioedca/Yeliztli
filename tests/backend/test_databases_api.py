@@ -13,7 +13,6 @@ from __future__ import annotations
 import gzip
 import itertools
 import json
-import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -23,6 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy as sa
+from _downloads import wait_for_downloads
 from fastapi.testclient import TestClient
 
 from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
@@ -85,18 +85,8 @@ def fake_db_server():
     thread.start()
     with patch("backend.api.routes.databases._apply_manifest_overrides", side_effect=lambda d: d):
         yield server
-        _wait_for_downloads()
+        wait_for_downloads()
     server.shutdown()
-
-
-def _wait_for_downloads() -> None:
-    """Let every download on the module-level executor finish, then drop it."""
-    from backend.api.routes import databases
-
-    executor = databases._download_executor
-    if executor is not None:
-        executor.shutdown(wait=True)
-        databases._download_executor = None
 
 
 def server_url(server: HTTPServer) -> str:
@@ -162,36 +152,6 @@ def clear_sessions():
     _active_sessions.clear()
     yield
     _active_sessions.clear()
-
-
-def _threads_running_downloads() -> list[str]:
-    """Names of the live threads currently inside ``databases._run_download``."""
-    frames = sys._current_frames()
-    names = []
-    for thread in threading.enumerate():
-        frame = frames.get(thread.ident) if thread.ident is not None else None
-        while frame is not None:
-            code = frame.f_code
-            if code.co_name == "_run_download" and code.co_filename.endswith(
-                str(Path("routes") / "databases.py")
-            ):
-                names.append(thread.name)
-                break
-            frame = frame.f_back
-    return names
-
-
-@pytest.fixture(autouse=True)
-def _no_download_outlives_its_test():
-    """Fail a test that leaves a download running into the tests after it.
-
-    Autouse, so it is torn down after every fixture the test requested. A
-    download still running then would retry against a closed fake server and
-    log into a later test's databases (#2534).
-    """
-    yield
-    leaked = _threads_running_downloads()
-    assert not leaked, f"download threads outlived the test: {leaked}"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1101,7 +1061,7 @@ class TestTriggerDownload:
 
         # Every selected download reached this server, including gnomAD, whose
         # manifest entry once redirected it to the real release asset (#2534).
-        _wait_for_downloads()
+        wait_for_downloads()
         assert sorted(fake_db_server.requested_paths) == sorted(  # type: ignore[attr-defined]
             f"/{db.filename}" for db in test_dbs.values() if db.required
         )
