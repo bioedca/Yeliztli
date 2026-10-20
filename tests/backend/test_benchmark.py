@@ -16,6 +16,7 @@ Marked ``slow`` so they can be excluded from fast CI runs::
 from __future__ import annotations
 
 import os
+import re
 import time
 
 import pytest
@@ -34,6 +35,7 @@ from scripts.benchmark import (
     seed_gnomad,
     seed_vep_bundle,
 )
+from scripts.build_vep_bundle import INDEXES as VEP_BUNDLE_INDEXES
 
 # ── Performance budgets ──────────────────────────────────────────────────
 #
@@ -62,10 +64,22 @@ from scripts.benchmark import (
 # variance. Raised the CI ceiling to 60 min — still orders of magnitude below an O(n²)
 # reintroduction (which would run for hours), and still leaves ~half the 120-min job
 # budget as margin against a genuine hang.
+#
+# 2026-10-20 (#2270): this test had grown to 77 min on CI by 2026-10-13, and on most
+# nights it was still running at the slow tier's 120-min cap, which also stopped
+# every slow test collected after it. The cause was the fixture, not the engine:
+# the synthetic VEP table lacked the bundle's (chrom, pos) index, so every
+# coordinate-fallback batch scanned the whole table and the run grew quadratically
+# (60k/120k/240k took 106/320/1023 s locally; about 99 min projected at 600k).
+# With the index it is linear again, 0.85 s per 1k variants locally.
+# test_synthetic_vep_bundle_searches_positions_by_index guards that. The module
+# also runs in its own nightly job now (`slow-benchmark`: 75 min of pytest, 90 for
+# the job), so a slow benchmark can never again use up the others' budget. The
+# 60-min ceiling below is unchanged.
 _ANNOTATION_TARGET_SECONDS = 120.0  # PRD ideal (< 2 min) — informational only
 _ANNOTATION_PRD_HARD_LIMIT_SECONDS = 300.0  # PRD hard limit (< 5 min) — informational only
 _ANNOTATION_HARD_LIMIT_SECONDS = 1800.0  # 30 min — local/reference regression ceiling
-_ANNOTATION_CI_HARD_LIMIT_SECONDS = 3600.0  # 60 min — CI ceiling, < 120-min job timeout
+_ANNOTATION_CI_HARD_LIMIT_SECONDS = 3600.0  # 60 min — CI ceiling, < 75-min nightly pytest budget
 
 
 def _running_on_ci() -> bool:
@@ -116,6 +130,51 @@ def benchmark_engines_600k(
         "gnomad": gnomad_engine,
         "dbnsfp": dbnsfp_engine,
     }
+
+
+# ── Fixture fidelity (fast, runs on every PR) ────────────────────────────
+
+
+def test_synthetic_vep_bundle_searches_positions_by_index() -> None:
+    """The benchmark's VEP table has the real bundle's indexes (#2270).
+
+    The coordinate fallback looks variants up by ``(chrom, pos)``. The synthetic
+    table had only the rsID index, so each fallback batch scanned the whole table
+    and the 600k benchmark grew quadratically (about 99 min locally instead of
+    about 9, and past the nightly's 120-min cap on CI). It was timing its own
+    fixture, not the engine, whose bundle has always had this index.
+    """
+    engine = create_shared_memory_engine()
+    seed_vep_bundle(engine, [f"rs{i}" for i in range(1, 201)], match_rate=0.5)
+    with engine.connect() as conn:
+        names = {
+            row.name
+            for row in conn.execute(
+                sa.text(
+                    "SELECT name FROM sqlite_master "
+                    "WHERE type = 'index' AND tbl_name = 'vep_annotations'"
+                )
+            )
+        }
+        # The shape lookup_vep_by_positions sends: OR-ed (chrom, pos) pairs.
+        plan = [
+            row[3]
+            for row in conn.execute(
+                sa.text(
+                    "EXPLAIN QUERY PLAN SELECT rsid FROM vep_annotations "
+                    "WHERE (chrom = :c0 AND pos = :p0) OR (chrom = :c1 AND pos = :p1)"
+                ),
+                {"c0": "1", "p0": 1_000, "c1": "2", "p1": 2_000},
+            )
+        ]
+
+    production = {
+        re.search(r"INDEX IF NOT EXISTS (\w+)", sql).group(1) for sql in VEP_BUNDLE_INDEXES
+    }
+    assert production == {"idx_vep_rsid", "idx_vep_chrom_pos"}
+    assert production <= names
+    assert any("idx_vep_chrom_pos" in step for step in plan), plan
+    assert not any(step.startswith("SCAN") for step in plan), plan
 
 
 # ── Benchmark: ingest timing ────────────────────────────────────────────

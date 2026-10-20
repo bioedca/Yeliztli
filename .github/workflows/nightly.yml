@@ -14,6 +14,13 @@ name: Nightly slow-tier tests
 # nightly run reuses them until a new bundle ships; on test failure, file
 # a GitHub Issue labeled `slow-tier-regression` so bio-validator can triage
 # without watching the Actions UI.
+#
+# Reporting lives in its own `report` job (#2270). A job that reaches its
+# `timeout-minutes` is recorded as `cancelled`, not `failed`, so a reporter gated
+# on `failure()` never fired, and the slow tier ran into its cap unreported from
+# 2026-06-28. The report job runs `always()` after every test job and counts a
+# cancelled job as a regression. The 600k benchmark runs in its own job, so a
+# slow benchmark can no longer use up the budget of the tests collected after it.
 
 on:
   schedule:
@@ -28,19 +35,18 @@ concurrency:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   slow-tests:
     name: Slow-tier pytest
-    # The slow-tier runs the 600k ingest/annotation benchmarks (~40 min) PLUS two
-    # real-bundle LAI accuracy tests that each do a full 22-chromosome Beagle phase
-    # (~18 min each: held-out EUR HG01502 + held-out MID HGDP01282). That total
-    # (~75 min) exceeds the old 60-min ceiling — which the suite was already
-    # brushing against before the MID guard landed. 120 min gives headroom for a
-    # slow GitHub-hosted runner without masking a genuine hang.
+    # Everything marked slow except the 600k benchmark, which has its own job
+    # below. The largest items are two real-bundle LAI accuracy tests, each a full
+    # 22-chromosome Beagle phase (held-out EUR HG01502 and held-out MID
+    # HGDP01282, 10-18 min each). The whole selection took 26 min on 2026-10-13.
+    # pytest gets 65 min and the job 80, which leaves room to stage the bundles
+    # and to print pytest's summary if the budget runs out.
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 80
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -177,42 +183,61 @@ jobs:
             find "$HOME/.yeliztli/lai_bundle/" -maxdepth 1 -printf '%f\n' | head
           fi
 
+      # `timeout` interrupts pytest inside the job's budget, so it prints the
+      # traceback of the test that was running and its summary, instead of the
+      # runner killing it without a word. 124 is timeout's exit code.
       - name: Run slow-tier pytest
         id: pytest
-        run: python -m pytest tests/backend/ -v --tb=short -m slow
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=2m 65m \
+            python -m pytest tests/backend/ -v --tb=short -m slow --durations=25 \
+              --ignore=tests/backend/test_benchmark.py
+          status=$?
+          if [ "$status" -eq 124 ]; then
+            echo "::error::Slow-tier pytest ran past its 65-minute budget and was interrupted. The traceback above shows the test that was running."
+          fi
+          exit "$status"
 
-      # ── Failure → file slow-tier-regression issue ──────────────────────
-      - name: File slow-tier-regression issue
-        if: failure() && steps.pytest.outcome == 'failure'
-        uses: actions/github-script@v9
+  # ── 600k annotation benchmark ─────────────────────────────────────────
+  # Synthetic, in-memory data only, so no bundles are staged. It took 77 min on
+  # 2026-10-13 and was still running at the shared job's 120-minute cap on most
+  # other nights, because its synthetic VEP table lacked the bundle's (chrom, pos)
+  # index and grew quadratically (#2270; fixed in scripts/benchmark.py). It runs
+  # alone anyway, so a slow benchmark can never again use up the budget of the
+  # tests collected after it. Its own CI ceiling is 60 min of annotation
+  # (test_benchmark.py), so 75 min of pytest covers that plus seeding 600k rows.
+  slow-benchmark:
+    name: Slow-tier benchmark (600k annotation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
-          script: |
-            const today = new Date().toISOString().slice(0, 10);
-            const title = `[slow-tier-regression] Nightly pytest -m slow failed on ${today}`;
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              `The nightly slow-tier workflow failed on ${today}.`,
-              ``,
-              `**Run:** ${runUrl}`,
-              `**Commit:** ${context.sha}`,
-              ``,
-              `Slow-tier suite covers:`,
-              `- \`tests/backend/test_lai.py::TestRealBundleLAIAccuracy\` (step 25a)`,
-              `- \`tests/backend/test_annotation_engine_ancestrydna_real_bundle.py\` (step 42)`,
-              `- \`tests/backend/test_sample_merge_performance.py\` (step 85)`,
-              ``,
-              `Owner: bio-validator. Triage by re-running the workflow with the`,
-              `\`workflow_dispatch\` button after inspecting the failing assertion;`,
-              `re-tune the calibrated thresholds in the test file only after`,
-              `confirming the underlying bundle change is intentional.`,
-            ].join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-              labels: ['slow-tier-regression'],
-            });
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install Python dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run benchmark pytest
+        id: pytest
+        run: |
+          set +e
+          timeout --signal=INT --kill-after=2m 75m \
+            python -m pytest tests/backend/test_benchmark.py -v --tb=short -m slow --durations=10
+          status=$?
+          if [ "$status" -eq 124 ]; then
+            echo "::error::The 600k benchmark ran past its 75-minute budget and was interrupted. The traceback above shows where it was."
+          fi
+          exit "$status"
 
   # ── Cross-OS backstop (audit §2.3.C) ───────────────────────────────────
   # ci.yml runs the backend suite + smoke install on Linux only at PR time;
@@ -254,33 +279,91 @@ jobs:
         id: cli_check
         run: yeliztli-setup --help
 
-      - name: File cross-os-regression issue
-        if: failure() && (steps.pytest.outcome == 'failure' || steps.cli_check.outcome == 'failure')
+
+  # ── Report → one issue per label, whether a job failed or timed out ───
+  # Runs after every test job, whatever their result. A job that hits its
+  # `timeout-minutes` is recorded as `cancelled`, so a cancelled job counts as a
+  # regression too (#2270). Each job reports under the label its id prefix maps
+  # to. While an issue with that label is open, later nights comment on it
+  # instead of opening a new one each night (#2386 and #2426 were duplicates).
+  report:
+    name: Report nightly regressions
+    needs: [slow-tests, slow-benchmark, cross-os-backstop]
+    if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+    steps:
+      - name: File or update the regression issue
         uses: actions/github-script@v9
         env:
-          LEG: ${{ matrix.name }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
         with:
           script: |
+            const needs = JSON.parse(process.env.NEEDS_JSON);
+            const { owner, repo } = context.repo;
             const today = new Date().toISOString().slice(0, 10);
-            const leg = process.env.LEG;
-            const title = `[cross-os-regression] Nightly ${leg} backend suite failed on ${today}`;
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = [
-              `The nightly cross-OS backstop failed on ${today} (leg: ${leg}).`,
-              ``,
-              `**Run:** ${runUrl}`,
-              `**Commit:** ${context.sha}`,
-              ``,
-              "This job runs the PR-tier backend suite (`-m \"not slow\"`) on the",
-              `macOS legs that ci.yml only exercises on push/merge. A failure here`,
-              `is platform drift that PR CI no longer catches.`,
-              ``,
-              "Owner: bio-validator. Re-run via `workflow_dispatch` after triage.",
-            ].join('\n');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body,
-              labels: ['cross-os-regression'],
-            });
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const groups = [
+              {
+                prefix: 'slow-',
+                label: 'slow-tier-regression',
+                title: `[slow-tier-regression] Nightly pytest -m slow failed on ${today}`,
+                about: [
+                  'Slow-tier suite covers:',
+                  '- `tests/backend/test_lai.py::TestRealBundleLAIAccuracy` (step 25a)',
+                  '- `tests/backend/test_annotation_engine_ancestrydna_real_bundle.py` (step 42)',
+                  '- `tests/backend/test_sample_merge_performance.py` (step 85)',
+                  '- `tests/backend/test_benchmark.py` (600k annotation, own job)',
+                  '',
+                  'Owner: bio-validator. Triage by re-running the workflow with the',
+                  '`workflow_dispatch` button after inspecting the failing assertion;',
+                  're-tune the calibrated thresholds in the test file only after',
+                  'confirming the underlying bundle change is intentional.',
+                ],
+              },
+              {
+                prefix: 'cross-os-',
+                label: 'cross-os-regression',
+                title: `[cross-os-regression] Nightly cross-OS backstop failed on ${today}`,
+                about: [
+                  'This job runs the PR-tier backend suite (`-m "not slow"`) on the',
+                  'macOS legs that ci.yml only exercises on push/merge. A failure here',
+                  'is platform drift that PR CI no longer catches.',
+                  '',
+                  'Owner: bio-validator. Re-run via `workflow_dispatch` after triage.',
+                ],
+              },
+            ];
+            const regressed = (result) => result === 'failure' || result === 'cancelled';
+            for (const group of groups) {
+              const jobs = Object.entries(needs).filter(([id]) => id.startsWith(group.prefix));
+              if (!jobs.some(([, job]) => regressed(job.result))) continue;
+              const body = [
+                `The nightly workflow found a regression on ${today}.`,
+                '',
+                `**Run:** ${runUrl}`,
+                `**Commit:** ${context.sha}`,
+                '',
+                ...jobs.map(([id, job]) =>
+                  job.result === 'cancelled'
+                    ? `- \`${id}\`: **cancelled**, which is how a job that reaches its \`timeout-minutes\` is recorded`
+                    : `- \`${id}\`: **${job.result}**`),
+                '',
+                ...group.about,
+              ].join('\n');
+              const open = (await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: 'open', labels: group.label, per_page: 100,
+              })).filter((issue) => !issue.pull_request);
+              if (open.length > 0) {
+                const target = open.reduce((a, b) => (a.number < b.number ? a : b));
+                await github.rest.issues.createComment({ owner, repo, issue_number: target.number, body });
+                core.info(`Commented on #${target.number} (${group.label} already open).`);
+              } else {
+                const { data } = await github.rest.issues.create({
+                  owner, repo, title: group.title, body, labels: [group.label],
+                });
+                core.info(`Opened #${data.number} (${group.label}).`);
+              }
+            }
