@@ -25,6 +25,7 @@ None of these touches the network at test time.
 
 from __future__ import annotations
 
+import argparse
 import collections
 import csv
 import datetime as dt
@@ -33,10 +34,16 @@ import json
 import re
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from scripts.build_vep_strand_snapshot import SYNTHETIC_GENES, reduce_response, validate_response
+from scripts.build_vep_strand_snapshot import (
+    SYNTHETIC_GENES,
+    _validated_accessed,
+    reduce_response,
+    validate_response,
+)
 from scripts.build_vep_strand_snapshot import _genes as _generator_genes
 from scripts.build_vep_strand_snapshot import main as _generator_main
 
@@ -294,18 +301,38 @@ def test_generator_accepts_accessed_only_when_replaying(tmp_path: Path) -> None:
     assert code == 2
 
 
+# Stands in for a future date, which is computed when the test runs (#2403).
+# Building it in ``parametrize`` evaluated it at collection time, so a shard
+# collected before 00:00 UTC and run after it handed the generator a date that
+# had become today, which it rightly accepts.
+_FUTURE_DATE = "future"
+
+
+def _future_access_date(now: dt.datetime | None = None) -> str:
+    """A date the generator must refuse, computed now rather than at collection.
+
+    Two days ahead, so a run that crosses midnight between here and the
+    generator's own clock read still hands it a future date. The exact
+    today/tomorrow boundary is pinned separately, without a clock.
+    """
+    current = now if now is not None else dt.datetime.now(dt.UTC)
+    return (current.date() + dt.timedelta(days=2)).isoformat()
+
+
 @pytest.mark.parametrize(
     "accessed",
     [
         "1900-02-31",  # not a calendar date
         "2026-9-5",  # not YYYY-MM-DD
         "20260905",  # ISO basic form, which date.fromisoformat alone would accept
-        (dt.datetime.now(dt.UTC).date() + dt.timedelta(days=1)).isoformat(),  # future
+        _FUTURE_DATE,
     ],
 )
 def test_generator_refuses_impossible_or_future_access_dates(
     tmp_path: Path, accessed: str
 ) -> None:
+    if accessed == _FUTURE_DATE:
+        accessed = _future_access_date()
     retained = _retained_file(tmp_path)
     code = _run_refused(
         tmp_path,
@@ -321,6 +348,67 @@ def test_generator_refuses_impossible_or_future_access_dates(
         ],
     )
     assert code == 2
+
+
+def test_a_run_that_crosses_midnight_still_refuses_the_future_date(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2403: the generator reads its clock after the test chose its date.
+
+    Freezing the generator's clock one day ahead is what a run that crosses
+    00:00 UTC looks like from inside it. A future date chosen one day ahead, as
+    the collection-time parameter was, would then be today and be accepted.
+    """
+    import scripts.build_vep_strand_snapshot as generator
+
+    # One clock read for both, so the test itself cannot straddle midnight.
+    now = dt.datetime.now(dt.UTC)
+    future = _future_access_date(now)
+    crossed_midnight = now + dt.timedelta(days=1)
+
+    class _ClockAfterMidnight(dt.datetime):
+        @classmethod
+        def now(cls, tz: dt.tzinfo | None = None) -> dt.datetime:  # type: ignore[override]
+            return crossed_midnight
+
+    # Only the generator module's ``dt`` is replaced, not the datetime module.
+    monkeypatch.setattr(
+        generator,
+        "dt",
+        SimpleNamespace(datetime=_ClockAfterMidnight, date=dt.date, UTC=dt.UTC),
+    )
+    retained = _retained_file(tmp_path)
+    code = _run_refused(
+        tmp_path,
+        [
+            "--evidence-out",
+            str(tmp_path / "evidence.json"),
+            "--out",
+            str(tmp_path / "snapshot.json"),
+            "--responses-from",
+            str(retained),
+            "--accessed",
+            future,
+        ],
+    )
+    assert code == 2
+
+
+@pytest.mark.parametrize(
+    ("accessed", "accepted"),
+    [("2026-10-19", True), ("2026-10-20", True), ("2026-10-21", False)],
+    ids=["yesterday", "today", "tomorrow"],
+)
+def test_the_access_date_boundary_is_today_utc(accessed: str, accepted: bool) -> None:
+    """Today is the latest acceptable date, checked against a fixed ``today`` (#2403)."""
+    parser = argparse.ArgumentParser()
+    today = dt.date(2026, 10, 20)
+    if accepted:
+        assert _validated_accessed(parser, accessed, today) == accessed
+    else:
+        with pytest.raises(SystemExit) as refused:
+            _validated_accessed(parser, accessed, today)
+        assert refused.value.code == 2
 
 
 def test_generator_dates_a_live_fetch_with_todays_utc_date(tmp_path: Path) -> None:
