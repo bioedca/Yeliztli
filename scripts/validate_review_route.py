@@ -2036,17 +2036,45 @@ def _bot_activity(
     codex_head_safe: bool = False,
     schema_version: int | None = None,
 ) -> datetime | None:
+    return _bot_activity_verdict(
+        pull_request, gate, actor_id, head_sha, head_epoch, codex_head_safe, schema_version
+    )[0]
+
+
+# Why a provider gate declined (#2356). Only the message changes with the reason;
+# `_bot_activity` returns exactly what it did before.
+NO_ACTIVITY = "no-activity"
+EARLIER_HEAD = "earlier-head"
+NOT_CLEAN = "not-clean"
+NOT_AN_ENVELOPE = "not-an-envelope"
+
+
+def _bot_activity_verdict(
+    pull_request: dict[str, Any],
+    gate: str,
+    actor_id: int,
+    head_sha: str,
+    head_epoch: datetime,
+    codex_head_safe: bool = False,
+    schema_version: int | None = None,
+) -> tuple[datetime | None, tuple[str, str] | None]:
+    """The accepted activity time, or ``None`` with why it was declined.
+
+    Declining used to read as "no activity" whatever the cause, which sent a
+    reader to wait or re-trigger when the provider had already answered (#2356).
+    The reason is ``(kind, detail)`` and is derived from the same candidates and
+    signals the verdict is, so it cannot change what is accepted.
+    """
+    earlier_head = False
     candidates: list[tuple[datetime, dict[str, Any]]] = []
     for review in pull_request["reviews"].get("nodes") or []:
         commit = review.get("commit") or {}
         submitted = review.get("submittedAt")
         author = review.get("author") or {}
-        if (
-            author.get("__typename") == "Bot"
-            and _actor_id(review) == actor_id
-            and commit.get("oid") == head_sha
-            and submitted
-        ):
+        if author.get("__typename") == "Bot" and _actor_id(review) == actor_id and submitted:
+            if commit.get("oid") != head_sha:
+                earlier_head = True
+                continue
             submitted_at = _parse_utc(submitted)
             edited_raw = review.get("lastEditedAt")
             effective_at = max(
@@ -2055,13 +2083,30 @@ def _bot_activity(
             )
             if effective_at > head_epoch:
                 candidates.append((effective_at, review))
-    signals: list[tuple[datetime, bool]] = [
-        (
-            when,
-            "lastEditedAt" in review
-            and review["lastEditedAt"] is None
+            else:
+                earlier_head = True
+    signals: list[tuple[datetime, bool, tuple[str, str] | None]] = []
+    for when, review in candidates:
+        if (
+            schema_version != 3
+            and gate == CODERABBIT_GATE
             and review.get("state") in TERMINAL_REVIEW_STATES
-            and not (gate == COPILOT_GATE and _is_copilot_refusal(review.get("body")))
+            and not (review.get("body") or "").strip()
+        ):
+            continue
+        # Same conditions, in the same short-circuit order, as the verdict always had.
+        unedited = "lastEditedAt" in review and review["lastEditedAt"] is None
+        terminal = review.get("state") in TERMINAL_REVIEW_STATES
+        refusal = (
+            unedited
+            and terminal
+            and gate == COPILOT_GATE
+            and _is_copilot_refusal(review.get("body"))
+        )
+        valid = (
+            unedited
+            and terminal
+            and not refusal
             and (
                 _v3_formal_review_is_clean(
                     review,
@@ -2073,16 +2118,27 @@ def _bot_activity(
                     gate != CODERABBIT_GATE
                     or CODERABBIT_COMPLETION_MARKER.lower() in (review.get("body") or "").lower()
                 )
-            ),
+            )
         )
-        for when, review in candidates
-        if not (
-            schema_version != 3
-            and gate == CODERABBIT_GATE
-            and review.get("state") in TERMINAL_REVIEW_STATES
-            and not (review.get("body") or "").strip()
-        )
-    ]
+        reason: tuple[str, str] | None = None
+        if not valid:
+            state = str(review.get("state") or "pending").lower().replace("_", " ")
+            article = "an" if state[:1] in "aeiou" else "a"
+            if "lastEditedAt" not in review:
+                detail = "a review whose edit history could not be confirmed"
+            elif not unedited:
+                detail = "an edited review"
+            elif not terminal:
+                detail = f"{article} {state} review"
+            elif refusal:
+                detail = "a review refusing for quota"
+            else:
+                detail = f"{article} {state} review that is not a clean verdict"
+            reason = (NOT_CLEAN, detail)
+        signals.append((when, valid, reason))
+    # Codex comments v2 declines without counting them as signals, so the message
+    # can still say what Codex answered instead of reporting no activity.
+    comment_declines: list[tuple[datetime, tuple[str, str]]] = []
     if gate == CODEX_GATE:
         comments = pull_request.get("comments") or {}
         for comment in comments.get("nodes") or []:
@@ -2096,6 +2152,7 @@ def _bot_activity(
             created = _parse_utc(created_raw)
             updated = _parse_utc(updated_raw)
             if updated <= head_epoch:
+                earlier_head = True
                 continue
             database_id = comment.get("databaseId")
             if not isinstance(database_id, int):
@@ -2107,15 +2164,39 @@ def _bot_activity(
             )
             commit_lines = CODEX_REVIEWED_COMMIT_LINE.findall(body)
             verdict_line = _codex_verdict_line(body)
+            reads_clean = (
+                verdict_line is not None
+                and CODEX_CLEAN_COMPLETION_LINE.fullmatch(verdict_line) is not None
+            )
             clean_completion = (
                 immutable
                 and created > head_epoch
-                and verdict_line is not None
-                and CODEX_CLEAN_COMPLETION_LINE.fullmatch(verdict_line) is not None
+                and reads_clean
                 and len(commit_lines) == 1
                 and commit_lines[0] == head_sha[:10].lower()
                 and codex_head_safe
             )
+            reason = None
+            if not clean_completion:
+                if reads_clean:
+                    failed = [
+                        label
+                        for label, ok in (
+                            ("it was edited", immutable),
+                            ("it was created before the current head", created > head_epoch),
+                            (
+                                "its Reviewed commit line does not name the current head",
+                                len(commit_lines) == 1
+                                and commit_lines[0] == head_sha[:10].lower(),
+                            ),
+                            ("the head commit could not be confirmed", codex_head_safe),
+                        )
+                        if not ok
+                    ]
+                    reason = (NOT_AN_ENVELOPE, "; ".join(failed))
+                else:
+                    reason = (NOT_CLEAN, "a comment that is not its clean verdict")
+                comment_declines.append((created, reason))
             if schema_version == 3:
                 # Key the signal on creation, not on the last edit. Codex keeps
                 # one summary comment per pull request and rewrites it in place
@@ -2133,13 +2214,36 @@ def _bot_activity(
                 # updated) was always just `created`. Findings arrive as formal
                 # reviews, which are collected above and keep their own
                 # max(submittedAt, lastEditedAt) handling.
-                signals.append((created, clean_completion))
+                signals.append((created, clean_completion, reason))
             elif clean_completion:
-                signals.append((created, True))
+                signals.append((created, True, None))
     if not signals:
-        return None
-    latest_at = max(when for when, _ in signals)
-    return latest_at if all(valid for when, valid in signals if when == latest_at) else None
+        if comment_declines:
+            return None, max(comment_declines, key=lambda decline: decline[0])[1]
+        return None, (EARLIER_HEAD, "") if earlier_head else (NO_ACTIVITY, "")
+    latest_at = max(when for when, _, _ in signals)
+    latest = [(valid, reason) for when, valid, reason in signals if when == latest_at]
+    if all(valid for valid, _ in latest):
+        return latest_at, None
+    return None, next(
+        (reason for valid, reason in latest if not valid and reason is not None),
+        (NOT_CLEAN, "a signal that is not a clean verdict"),
+    )
+
+
+def _declined_gate_message(gate: str, reason: tuple[str, str] | None) -> str:
+    """The error for a provider gate that declined, naming why (#2356)."""
+    kind, detail = reason or (NO_ACTIVITY, "")
+    if kind == EARLIER_HEAD:
+        return f"every {gate} artifact predates the current head; request a review of it"
+    if kind == NOT_CLEAN:
+        return f"the newest {gate} signal on the current head is not a clean verdict: {detail}"
+    if kind == NOT_AN_ENVELOPE:
+        return (
+            f"the newest {gate} verdict on the current head reads clean but is not an "
+            f"accepted envelope: {detail}"
+        )
+    return f"no verified current-head GitHub activity for: {gate}"
 
 
 def _current_human_approval(
@@ -2818,8 +2922,9 @@ def validate_context(
                 )
                 continue
             activity = _greptile_activity(repository, head_epoch)
+            declined = None
         else:
-            activity = _bot_activity(
+            activity, declined = _bot_activity_verdict(
                 pull_request,
                 gate,
                 actor_id,
@@ -2829,7 +2934,7 @@ def validate_context(
                 schema_version,
             )
         if activity is None:
-            errors.append(f"no verified current-head GitHub activity for: {gate}")
+            errors.append(_declined_gate_message(gate, declined))
         else:
             observed[gate] = activity
     approval, active_change_request = _current_human_approval(pull_request, head_sha, head_epoch)
