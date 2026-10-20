@@ -239,8 +239,8 @@ def _expected_grch37_reference_bases() -> dict[str, str]:
 
     For a panel rsID it is the first allele of the snapshot's Ensembl GRCh37
     ``allele_string``, which lists the reference allele first. For every guarded
-    seed rsID that first allele equals the assembly base, checked against
-    Ensembl GRCh37 sequence and UCSC hg19 in
+    seed rsID that first allele equals the assembly base of GRCh37 (NCBI Assembly
+    GCF_000001405.13), checked against Ensembl GRCh37 sequence and UCSC hg19 in
     data/science-evidence/2026-10-20-issue-2344-seed-ref-orientation/ (accessed
     2026-10-20). Non-panel rsIDs take ``SEED_GRCH37_REFERENCE_BASE``.
     """

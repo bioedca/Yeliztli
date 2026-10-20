@@ -41,6 +41,8 @@
   "discovery_ladder": "No literature claim is involved: the facts are reference-assembly bases, read directly from the assembly. Consensus and Scite were not consulted, because they index literature, not assembly sequence.",
   "privacy": "Only public reference-assembly coordinates were sent. No sample, genotype or patient-derived data.",
   "payloads": {
+    "citation/ncbi_assembly_esearch.json": "9c729eae1661a350531f9d9681f2e408859c5e97548af0386c76d097803b24de",
+    "citation/ncbi_assembly_esummary.json": "554065588963a08da605a0ff2d296a2304af53adc636056128b6f84da7045ca4",
     "rs1051266.ensembl_grch37_sequence.json": "6615a675442cf77e899f0b7685b68b5547010d32d92a2030b864b9606b26e8e3",
     "rs1051266.ucsc_hg19_sequence.json": "9d109de3f058b7f49b6b97882523fa711d01c3a84c2ed521a07a441a106be9cc",
     "rs10741657.ensembl_grch37_sequence.json": "de664a2dc1a132a806a4e1b9e93a1b7fbb18f94e4a813fbcbe163a6f0bd9bdcb",
@@ -119,5 +121,16 @@
     "rs80359550.ucsc_hg19_sequence.json": "5f11568e69ce0b04c4fa747bd95e8762811c1e202ccc0814b308cdb92421567e"
   },
   "summary_file": "assembly_bases.json",
-  "summary_sha256": "2ed54dd12604bce9a50c4b9e70e039d7953ff58298f14d493941350b4418b11f"
+  "summary_sha256": "2ed54dd12604bce9a50c4b9e70e039d7953ff58298f14d493941350b4418b11f",
+  "assembly_record": {
+    "assembly": "GRCh37",
+    "accession": "GCF_000001405.13",
+    "submitter": "Genome Reference Consortium",
+    "registry": "NCBI Assembly, E-utilities esearch/esummary db=assembly (accessed 2026-10-20)",
+    "payloads": [
+      "raw/citation/ncbi_assembly_esearch.json",
+      "raw/citation/ncbi_assembly_esummary.json"
+    ],
+    "note": "The assembly is the defining source for which base it carries, so it is cited by its registry accession. No PMID or DOI is attached: a PubMed search for a GRCh37 assembly publication returned none that could be verified, and no paper is cited from memory."
+  }
 }

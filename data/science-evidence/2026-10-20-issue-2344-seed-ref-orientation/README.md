@@ -16,4 +16,6 @@ Accessed 2026-10-20.
 
 **Rows disagreeing with the assembly:** rs6025.
 
+**Assembly.** GRCh37 is NCBI Assembly `GCF_000001405.13` (Genome Reference Consortium), verified through E-utilities and accessed 2026-10-20 (`raw/citation/`). The assembly is the defining source for which base it carries, so it is cited by that accession. No PMID or DOI is attached, because no GRCh37 assembly publication could be verified in PubMed, and none is cited from memory.
+
 See `queries.json` for sources, licenses, the claim mapping and payload hashes.
