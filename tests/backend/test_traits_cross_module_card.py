@@ -133,18 +133,34 @@ def test_the_legacy_pointer_is_replaced_only_on_an_exact_match() -> None:
     pointer = generic_cross_module_pointer("gene_health")
     row = {"detail": {"to_module": "gene_health"}}
 
-    assert refreshed_legacy_pointer(row, link, "Prefix. " + pointer) == "Prefix. New note."
+    assert refreshed_legacy_pointer("traits", row, link, "Prefix. " + pointer) == (
+        "Prefix. New note."
+    )
     # Text that does not end with the pointer it would have recorded is left alone.
-    assert (
-        refreshed_legacy_pointer(row, link, "Prefix. Something else.") == "Prefix. Something else."
+    assert refreshed_legacy_pointer("traits", row, link, "Prefix. Something else.") == (
+        "Prefix. Something else."
     )
     other = {"detail": {"to_module": "sleep"}}
-    assert refreshed_legacy_pointer(other, link, "Prefix. " + pointer) == "Prefix. " + pointer
+    assert refreshed_legacy_pointer("traits", other, link, "Prefix. " + pointer) == (
+        "Prefix. " + pointer
+    )
     # A card that already records its note is refreshed by the note swap instead.
     noted = {"detail": {"to_module": "gene_health", "cross_module_note": "Old."}}
-    assert refreshed_legacy_pointer(noted, link, "Prefix. " + pointer) == "Prefix. " + pointer
+    assert refreshed_legacy_pointer("traits", noted, link, "Prefix. " + pointer) == (
+        "Prefix. " + pointer
+    )
     # Without a note there is nothing better to say than the pointer.
-    assert refreshed_legacy_pointer(row, {"module": "gene_health"}, pointer) == pointer
+    assert refreshed_legacy_pointer("traits", row, {"module": "gene_health"}, pointer) == pointer
+
+
+def test_only_a_traits_card_is_rewritten() -> None:
+    """Another module's text that happens to end with the same sentence is untouched."""
+    link = {"module": "gene_health", "note": "New note."}
+    pointer = generic_cross_module_pointer("gene_health")
+    row = {"detail": {"to_module": "gene_health"}}
+    assert refreshed_legacy_pointer("skin", row, link, "Prefix. " + pointer) == (
+        "Prefix. " + pointer
+    )
 
 
 def test_traits_recommendations_are_not_refreshed_at_read_time() -> None:

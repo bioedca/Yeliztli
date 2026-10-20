@@ -84,18 +84,21 @@ def generic_cross_module_pointer(module: str) -> str:
     return f"See {module.replace('_', ' ').title()} module for related findings."
 
 
-def refreshed_legacy_pointer(finding: dict[str, Any], link: dict, text: str) -> str:
-    """Give a card stored with the generic pointer the panel's note instead (#2347).
+def refreshed_legacy_pointer(
+    module: str | None, finding: dict[str, Any], link: dict, text: str
+) -> str:
+    """Give a Traits card stored with the generic pointer the panel's note (#2347).
 
     Until #2347 a Traits card ended with ``generic_cross_module_pointer`` and kept
-    its note only in ``detail``, so it never said what the destination holds. The
-    pointer is rebuilt from the module the card recorded, and only an exact
-    trailing match is replaced, so an existing sample gets the note without a
-    re-score and any other text is left alone.
+    its note only in ``detail``, so it never said what the destination holds. Only
+    Traits ever stored that sentence, so only its cards are rewritten. The pointer
+    is rebuilt from the module the card recorded, and only an exact trailing match
+    is replaced, so an existing sample gets the note without a re-score and any
+    other text is left alone.
     """
     detail = finding.get("detail") or {}
     note = link.get("note")
-    if detail.get("cross_module_note") or not note:
+    if module != "traits" or detail.get("cross_module_note") or not note:
         return text
     pointer = generic_cross_module_pointer(str(detail.get("to_module") or ""))
     if not text.endswith(pointer):
@@ -257,7 +260,7 @@ def resolve_stored_card(
     link = current_link(links, finding)
     if link is None or stored_card_is_withheld(module, finding, link):
         return None
-    text = refreshed_legacy_pointer(finding, link, refreshed_finding_text(finding, link))
+    text = refreshed_legacy_pointer(module, finding, link, refreshed_finding_text(finding, link))
     call = stored_card_call(module, finding)
     if call is not None and is_withheld_call(call):
         text = _with_withheld_caveat(module, finding, link, text)
