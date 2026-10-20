@@ -27,6 +27,18 @@ offline contract test rejects real dbSNP identifiers, unreviewed scenarios, or
 incoherent SIFT/PolyPhen score-category pairs. Neither the CSV nor
 `mini_dbnsfp.db` is a scientific score oracle.
 
+`gene_phenotype_seed.csv` is a behavior fixture, not a reference table. Every
+row is labelled `source=mondo_hpo`, and its `inheritance` values date from the
+initial commit and have not been independently verified. Of the two ever checked
+(#2359), IL10's value is withheld for want of evidence, and VKORC1's two
+sources agree but their independence was not established, so neither is a
+verified claim (#2360). The `inheritance_pattern` users see comes from the
+production `gene_phenotype` table, which `backend/annotation/mondo_hpo.py` and
+`backend/annotation/omim.py` build from the MONDO/HPO and OMIM downloads. This
+seed only builds `../mini_reference.db` for tests, so do not cite it as a
+source of inheritance. `tests/backend/test_seed_fixtures_stay_test_only.py`
+fails if production code starts reading it.
+
 ## Coordinate oracle
 
 `../panel_rsid_coordinates.json` is the committed offline oracle for seed rsIDs
