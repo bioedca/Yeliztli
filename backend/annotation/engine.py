@@ -167,6 +167,10 @@ class AnnotationEngineResult:
     # rather than rsid lookup. Populated by Plan §5.1's defense-in-depth path
     # for AncestryDNA-style `kgp*` / internal IDs without rsid mapping.
     vep_coord_fallback_matched: int = 0
+    # Rows the bundle lists under several ref/alt pairs where the call could not
+    # be tied to one, such as a hom-ref call at a multi-ALT rsid. Withheld on
+    # purpose, so counted apart from ``vep_misses`` (#2494).
+    vep_allele_ambiguous: int = 0
     clinvar_matched: int = 0
     gnomad_matched: int = 0
     dbnsfp_matched: int = 0
@@ -263,8 +267,13 @@ def _lookup_vep(
     rsids: list[str],
     raw_by_rsid: dict[str, sa.Row],
     vep_engine: sa.Engine,
+    allele_ambiguous_out: set[str] | None = None,
 ) -> dict[str, dict]:
-    """Look up VEP annotations for a batch of rsids."""
+    """Look up VEP annotations for a batch of rsids.
+
+    ``allele_ambiguous_out`` receives the rsids the bundle lists under several
+    ref/alt pairs where the call could not be tied to one (#2494).
+    """
     from backend.annotation.vep_bundle import lookup_vep_by_rsids
 
     genotype_by_rsid, allele_by_rsid, coordinate_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
@@ -274,6 +283,7 @@ def _lookup_vep(
         genotype_by_rsid=genotype_by_rsid,
         allele_by_rsid=allele_by_rsid,
         coordinate_by_rsid=coordinate_by_rsid,
+        allele_ambiguous_out=allele_ambiguous_out,
     )
 
     results: dict[str, dict] = {}
@@ -1288,6 +1298,17 @@ def _vep_coord_fallback(
 # ── Timed lookup wrapper (P4-22) ────────────────────────────────────────
 
 
+def _same_call(row: sa.Row | None, evaluated: sa.Row | None) -> bool:
+    """True when ``row`` carries the call a source lookup evaluated for its query id."""
+    if row is None or evaluated is None:
+        return False
+    return (row.genotype, row.chrom, row.pos) == (
+        evaluated.genotype,
+        evaluated.chrom,
+        evaluated.pos,
+    )
+
+
 def _timed_lookup(
     fn: Callable,
     *args: object,
@@ -1362,6 +1383,7 @@ def _zero_source_bucket() -> dict[str, int]:
     return {
         "vep_bundle_rsid_hits": 0,
         "vep_bundle_coord_fallback_hits": 0,
+        "vep_bundle_allele_ambiguous": 0,
         "vep_misses": 0,
     }
 
@@ -1373,6 +1395,7 @@ def _build_coverage_stats(
     total_variants: int,
     vep_rsid_hits: int,
     vep_coord_fallback_hits: int,
+    vep_allele_ambiguous: int = 0,
     source_counters: dict[str, dict[str, int]] | None = None,
     bundle_version: str | None = None,
 ) -> dict[str, Any]:
@@ -1395,7 +1418,12 @@ def _build_coverage_stats(
       ``merge_provenance.concordance_summary.unique_S1`` / ``unique_S2``
       (Plan §15.1 MRG-09b).
     """
-    vep_misses = max(total_variants - vep_rsid_hits - vep_coord_fallback_hits, 0)
+    # A row the bundle lists under several alleles, where the call could not be
+    # tied to one, is withheld on purpose. It is reported in its own bucket, not
+    # as a miss (#2494).
+    vep_misses = max(
+        total_variants - vep_rsid_hits - vep_coord_fallback_hits - vep_allele_ambiguous, 0
+    )
 
     # Prefer the version pinned by the caller at the moment the VEP engine was
     # resolved, so telemetry reflects the bundle generation actually queried
@@ -1414,6 +1442,7 @@ def _build_coverage_stats(
             vendor: {
                 "vep_bundle_rsid_hits": vep_rsid_hits,
                 "vep_bundle_coord_fallback_hits": vep_coord_fallback_hits,
+                "vep_bundle_allele_ambiguous": vep_allele_ambiguous,
                 "vep_misses": vep_misses,
             }
         }
@@ -1423,6 +1452,7 @@ def _build_coverage_stats(
         "total_variants": total_variants,
         "vep_bundle_rsid_hits": vep_rsid_hits,
         "vep_bundle_coord_fallback_hits": vep_coord_fallback_hits,
+        "vep_bundle_allele_ambiguous": vep_allele_ambiguous,
         "vep_misses": vep_misses,
         "by_source": by_source,
     }
@@ -1667,6 +1697,10 @@ def run_annotation(
             # `gnomad_data` deliberately: an entry there would set GNOMAD_BIT and
             # claim coverage this row does not have.
             gnomad_allele_ambiguous: set[str] = set()
+            # Filled by the VEP worker the same way (#2494): the bundle lists the
+            # rsID under several ref/alt pairs and the call could not be tied to
+            # one, so it is withheld rather than missing.
+            vep_allele_ambiguous: set[str] = set()
             # Rows exist for this rsID but at other coordinates only. Distinct
             # from allele ambiguity: the alleles may be identical and it is the
             # COORDINATE that failed to agree, so the "several alternate alleles"
@@ -1696,6 +1730,7 @@ def run_annotation(
                         query_rsids,
                         raw_by_query,
                         vep_engine,
+                        vep_allele_ambiguous,
                         source_timings=source_timings,
                         source_name="vep",
                     )
@@ -1784,6 +1819,17 @@ def run_annotation(
                     original
                     for original, query in lookup_key.items()
                     if query in gnomad_allele_ambiguous
+                }
+                # Per ORIGINAL, and only for the alias whose own call the lookup
+                # evaluated. `raw_by_query` keeps one row per queried id, so an
+                # alias with a different call (or locus) was never tied to an
+                # allele at all: it stays a miss instead of leaving the hit-rate
+                # denominator (#2494 review).
+                vep_allele_ambiguous = {
+                    original
+                    for original, query in lookup_key.items()
+                    if query in vep_allele_ambiguous
+                    and _same_call(raw_by_rsid.get(original), raw_by_query.get(query))
                 }
                 # Split per ORIGINAL, not per query. Aliases can straddle two
                 # coordinates where gnomAD holds only one of them: the alias that
@@ -1891,6 +1937,9 @@ def run_annotation(
                     _bump_source(source_value, "vep_bundle_rsid_hits")
                 elif rsid in vep_data:
                     _bump_source(source_value, "vep_bundle_coord_fallback_hits")
+                elif rsid in vep_allele_ambiguous:
+                    _bump_source(source_value, "vep_bundle_allele_ambiguous")
+                    result.vep_allele_ambiguous += 1
                 else:
                     _bump_source(source_value, "vep_misses")
 
@@ -1971,6 +2020,7 @@ def run_annotation(
         total_variants=result.total_variants,
         vep_rsid_hits=result.vep_matched - result.vep_coord_fallback_matched,
         vep_coord_fallback_hits=result.vep_coord_fallback_matched,
+        vep_allele_ambiguous=result.vep_allele_ambiguous,
         source_counters=source_counters,
         bundle_version=pinned_vep_bundle_version,
     )

@@ -61,7 +61,12 @@ _MERGED_SOURCE_KEYS: tuple[str, ...] = ("S1", "S2", "both")
 
 # Per-source bucket value-keys (Plan §5.6).
 _PER_SOURCE_KEYS = frozenset(
-    {"vep_bundle_rsid_hits", "vep_bundle_coord_fallback_hits", "vep_misses"}
+    {
+        "vep_bundle_rsid_hits",
+        "vep_bundle_coord_fallback_hits",
+        "vep_bundle_allele_ambiguous",
+        "vep_misses",
+    }
 )
 
 
@@ -400,6 +405,7 @@ class TestMergedSampleTelemetryShape:
             total_rows_across_sources += (
                 per_source["vep_bundle_rsid_hits"]
                 + per_source["vep_bundle_coord_fallback_hits"]
+                + per_source["vep_bundle_allele_ambiguous"]
                 + per_source["vep_misses"]
             )
         assert total_rows_across_sources == stats["total_variants"]
@@ -426,6 +432,7 @@ class TestMergedSampleTelemetryShape:
         assert (
             stats["vep_bundle_rsid_hits"]
             + stats["vep_bundle_coord_fallback_hits"]
+            + stats["vep_bundle_allele_ambiguous"]
             + stats["vep_misses"]
             == stats["total_variants"]
         )
@@ -509,18 +516,21 @@ class TestMergedSampleTelemetryShape:
         assert by_source["S1"] == {
             "vep_bundle_rsid_hits": 2,
             "vep_bundle_coord_fallback_hits": 0,
+            "vep_bundle_allele_ambiguous": 0,
             "vep_misses": 0,
         }
         # S2: two rsid hits, no fallback, no misses.
         assert by_source["S2"] == {
             "vep_bundle_rsid_hits": 2,
             "vep_bundle_coord_fallback_hits": 0,
+            "vep_bundle_allele_ambiguous": 0,
             "vep_misses": 0,
         }
         # both: two rsid hits, no fallback, one miss (rs_unknown_locus).
         assert by_source["both"] == {
             "vep_bundle_rsid_hits": 2,
             "vep_bundle_coord_fallback_hits": 0,
+            "vep_bundle_allele_ambiguous": 0,
             "vep_misses": 1,
         }
 

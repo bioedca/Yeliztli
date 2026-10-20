@@ -394,6 +394,86 @@ class TestLookupByRsids:
         assert result == {}
 
 
+def _vep_row(rsid: str, pos: int, ref: str, alt: str) -> dict:
+    return {
+        "rsid": rsid,
+        "chrom": "1",
+        "pos": pos,
+        "ref": ref,
+        "alt": alt,
+        "gene_symbol": "GENE",
+        "transcript_id": f"ENST_{rsid}_{alt}",
+        "consequence": "missense_variant",
+        "hgvs_coding": f"c.{pos}{ref}>{alt}",
+        "hgvs_protein": None,
+        "strand": "+",
+        "exon_number": 1,
+        "intron_number": None,
+        "mane_select": 0,
+    }
+
+
+class TestAlleleAmbiguousOut:
+    """Withheld multi-ALT lookups are reported apart from misses (#2494).
+
+    The real-bundle hit-rate guard counted every hom-ref call at a multi-ALT
+    rsID as a miss. Since #1458 the lookup withholds those on purpose, because
+    a call carrying no ALT cannot be tied to one allele. They are not absent
+    from the bundle, so ``allele_ambiguous_out`` names them, and only them.
+    """
+
+    @pytest.fixture
+    def bundle(self, vep_engine_inmemory: sa.Engine) -> sa.Engine:
+        _insert_vep_rows(
+            vep_engine_inmemory,
+            [
+                _vep_row("rs_multi", 110, "A", "C"),
+                _vep_row("rs_multi", 110, "A", "G"),
+                _vep_row("rs_single", 111, "A", "G"),
+            ],
+        )
+        return vep_engine_inmemory
+
+    def _lookup(self, engine: sa.Engine, rsid: str, **kwargs: object) -> tuple[dict, set[str]]:
+        ambiguous: set[str] = set()
+        result = lookup_vep_by_rsids([rsid], engine, allele_ambiguous_out=ambiguous, **kwargs)
+        return result, ambiguous
+
+    def test_a_hom_ref_call_at_a_multi_alt_rsid_is_ambiguous(self, bundle: sa.Engine) -> None:
+        result, ambiguous = self._lookup(bundle, "rs_multi", genotype_by_rsid={"rs_multi": "AA"})
+
+        assert result == {}
+        assert ambiguous == {"rs_multi"}
+
+    def test_a_call_carrying_one_alt_is_answered_not_ambiguous(self, bundle: sa.Engine) -> None:
+        result, ambiguous = self._lookup(bundle, "rs_multi", genotype_by_rsid={"rs_multi": "AC"})
+
+        assert result["rs_multi"].alt == "C"
+        assert ambiguous == set()
+
+    def test_a_single_allele_rsid_is_never_ambiguous(self, bundle: sa.Engine) -> None:
+        result, ambiguous = self._lookup(bundle, "rs_single", genotype_by_rsid={"rs_single": "AA"})
+
+        assert "rs_single" in result
+        assert ambiguous == set()
+
+    def test_an_absent_rsid_is_a_miss_not_ambiguous(self, bundle: sa.Engine) -> None:
+        result, ambiguous = self._lookup(bundle, "rs_absent", genotype_by_rsid={"rs_absent": "AA"})
+
+        assert result == {}
+        assert ambiguous == set()
+
+    def test_an_exact_allele_the_bundle_lacks_is_a_miss_not_ambiguous(
+        self, bundle: sa.Engine
+    ) -> None:
+        result, ambiguous = self._lookup(
+            bundle, "rs_multi", allele_by_rsid={"rs_multi": ("1", 110, "A", "T")}
+        )
+
+        assert result == {}
+        assert ambiguous == set()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # lookup_vep_by_positions
 # ═══════════════════════════════════════════════════════════════════════
