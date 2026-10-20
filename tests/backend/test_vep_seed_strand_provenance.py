@@ -33,11 +33,18 @@ import hashlib
 import json
 import re
 import shutil
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from scripts.build_vep_seed_bundle_snapshot import (
+    MIRRORED_FIELDS,
+    annotated_rsids,
+    apply_bundle,
+    bundle_identity,
+)
 from scripts.build_vep_strand_snapshot import (
     SYNTHETIC_GENES,
     _validated_accessed,
@@ -732,3 +739,181 @@ def test_cyp2c19_star4_stays_a_start_loss() -> None:
     assert row["consequence"] == "start_lost"
     assert row["hgvs_protein"] == "p.Met1?"
     assert row["strand"] == "+"
+
+
+# ── The annotated rows mirror the production bundle (#2363) ──────────────
+# mini_vep_bundle.db stands in for the production VEP bundle, so its annotated
+# rows say what production says: gene, transcript, consequence, HGVS, exon or
+# intron, strand and the canonical flag. On GRCh37 the bundle's mane_select is
+# Ensembl's canonical transcript, the one users see. The bundle is not in CI, so
+# vep_seed_bundle_snapshot.json records its rows for every annotated rsID.
+
+_BUNDLE_SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_seed_bundle_snapshot.json"
+_MANIFEST = _ROOT / "bundles" / "manifest.json"
+
+_ANOTHER_POSITION = "#2375: not at its rsID's GRCh37 position"
+_ANOTHER_ALLELE = "#2375: at the position with another allele"
+_REVERSED = "REF and ALT reversed relative to GRCh37 (rs6025 is #2541)"
+_ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
+
+# Annotated rows with no bundle row at their position and alleles, so nothing to
+# mirror yet. Each still fails the match today; once a fix moves one onto a
+# bundle locus, the guard below holds its annotation to the bundle and it must
+# leave this map, which can therefore only shrink.
+_NOT_AT_A_BUNDLE_LOCUS = {
+    "rs104894396": _ANOTHER_POSITION,
+    "rs1057910": _ANOTHER_POSITION,
+    "rs10811661": _ANOTHER_POSITION,
+    "rs1111875": _ANOTHER_POSITION,
+    "rs1142345": _ANOTHER_POSITION,
+    "rs1143634": _ANOTHER_POSITION,
+    "rs121434569": _ANOTHER_POSITION,
+    "rs121912443": _ANOTHER_POSITION,
+    "rs121913529": _ANOTHER_POSITION,
+    "rs12248560": _ANOTHER_POSITION,
+    "rs12979860": _ANOTHER_POSITION,
+    "rs16947": _ANOTHER_POSITION,
+    "rs1799853": _ANOTHER_POSITION,
+    "rs1799950": _ANOTHER_POSITION,
+    "rs1799971": _ANOTHER_POSITION,
+    "rs1800460": _ANOTHER_POSITION,
+    "rs1800462": _ANOTHER_POSITION,
+    "rs1800497": _ANOTHER_POSITION,
+    "rs1800544": _ANOTHER_POSITION,
+    "rs1800629": _ANOTHER_POSITION,
+    "rs1800872": _ANOTHER_POSITION,
+    "rs1800896": _ANOTHER_POSITION,
+    "rs2060793": _ANOTHER_POSITION,
+    "rs213950": _ANOTHER_POSITION,
+    "rs2228479": _ANOTHER_POSITION,
+    "rs2306283": _ANOTHER_POSITION,
+    "rs25531": _ANOTHER_POSITION,
+    "rs28897727": _ANOTHER_POSITION,
+    "rs3918290": _ANOTHER_POSITION,
+    "rs4149015": _ANOTHER_POSITION,
+    "rs4149056": _ANOTHER_POSITION,
+    "rs4244285": _ANOTHER_POSITION,
+    "rs4570625": _ANOTHER_POSITION,
+    "rs4986893": _ANOTHER_POSITION,
+    "rs5030862": _ANOTHER_POSITION,
+    "rs5882": _ANOTHER_POSITION,
+    "rs6311": _ANOTHER_POSITION,
+    "rs6313": _ANOTHER_POSITION,
+    "rs63750066": _ANOTHER_POSITION,
+    "rs708272": _ANOTHER_POSITION,
+    "rs72552267": _ANOTHER_POSITION,
+    "rs7294": _ANOTHER_POSITION,
+    "rs757210": _ANOTHER_POSITION,
+    "rs76151636": _ANOTHER_POSITION,
+    "rs776746": _ANOTHER_POSITION,
+    "rs80358981": _ANOTHER_POSITION,
+    "rs8099917": _ANOTHER_POSITION,
+    "rs854560": _ANOTHER_POSITION,
+    "rs1065852": _ANOTHER_ALLELE,
+    "rs2032582": _ANOTHER_ALLELE,
+    "rs1800795": _REVERSED,
+    "rs6025": _REVERSED,
+    "rs113993960": _ABSENT,
+    "rs121909224": _ABSENT,
+    "rs5030655": _ABSENT,
+    "rs80357906": _ABSENT,
+    "rs80359550": _ABSENT,
+}
+
+
+def _bundle_snapshot() -> dict:
+    return json.loads(_BUNDLE_SNAPSHOT.read_text(encoding="utf-8"))
+
+
+def _bundle_matches(row: dict[str, str], snapshot: dict) -> list[dict[str, str]]:
+    return [
+        candidate
+        for candidate in snapshot["rows"].get(row["rsid"], [])
+        if all(candidate[key] == row[key] for key in ("chrom", "pos", "ref", "alt"))
+    ]
+
+
+def test_bundle_snapshot_is_the_bundle_the_manifest_pins() -> None:
+    provenance = _bundle_snapshot()["_provenance"]
+    pinned = json.loads(_MANIFEST.read_text(encoding="utf-8"))["bundles"]["vep_bundle"]
+    assert (provenance["bundle_version"], provenance["sha256"]) == (
+        pinned["version"],
+        pinned["sha256"],
+    ), "the manifest moved to another VEP bundle; regenerate the snapshot from it"
+
+
+def test_bundle_snapshot_covers_every_annotated_rsid() -> None:
+    assert sorted(_bundle_snapshot()["rows"]) == annotated_rsids(_rows())
+
+
+def test_annotated_rows_at_a_bundle_locus_mirror_the_bundle() -> None:
+    snapshot = _bundle_snapshot()
+    unmatched: set[str] = set()
+    differing = []
+    for row in _rows():
+        if not row["gene_symbol"] or row["gene_symbol"] in _SYNTHETIC_GENES:
+            continue
+        matches = _bundle_matches(row, snapshot)
+        if len(matches) != 1:
+            unmatched.add(row["rsid"])
+            continue
+        diff = {
+            field: (row[field], matches[0][field])
+            for field in MIRRORED_FIELDS
+            if row[field] != matches[0][field]
+        }
+        if diff:
+            differing.append((row["rsid"], diff))
+    assert not differing, f"rows that no longer say what the bundle says: {differing}"
+    assert unmatched == set(_NOT_AT_A_BUNDLE_LOCUS), (
+        f"newly unmatched: {sorted(unmatched - set(_NOT_AT_A_BUNDLE_LOCUS))}; "
+        f"now matched, drop from the map: {sorted(set(_NOT_AT_A_BUNDLE_LOCUS) - unmatched)}"
+    )
+
+
+def test_the_flagged_pgx_alleles_wait_on_their_coordinates() -> None:
+    """#2363's DPYD*2A and CYP2C19*2 candidates resolve once #2375 moves them."""
+    snapshot = _bundle_snapshot()["rows"]
+    assert _NOT_AT_A_BUNDLE_LOCUS["rs3918290"] == _ANOTHER_POSITION
+    assert _NOT_AT_A_BUNDLE_LOCUS["rs4244285"] == _ANOTHER_POSITION
+    assert {row["consequence"] for row in snapshot["rs3918290"]} == {"splice_donor_variant"}
+    assert {row["consequence"] for row in snapshot["rs4244285"]} == {"synonymous_variant"}
+
+
+def _tiny_bundle(path: Path, *, version: str = "v9.9.9") -> None:
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE bundle_metadata (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO bundle_metadata VALUES ('bundle_version', ?)", (version,))
+    conn.commit()
+    conn.close()
+
+
+def test_the_snapshot_generator_refuses_a_bundle_the_manifest_does_not_pin(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "vep_bundle.db"
+    _tiny_bundle(bundle)
+    manifest = tmp_path / "manifest.json"
+    pinned = {"version": "v9.9.9", "sha256": "0" * 64}
+    manifest.write_text(json.dumps({"bundles": {"vep_bundle": pinned}}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="not the v9.9.9 bundle the manifest pins"):
+        bundle_identity(bundle, manifest)
+    pinned["sha256"] = hashlib.sha256(bundle.read_bytes()).hexdigest()
+    pinned["version"] = "v1.0.0"
+    manifest.write_text(json.dumps({"bundles": {"vep_bundle": pinned}}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="the manifest pins 'v1.0.0'"):
+        bundle_identity(bundle, manifest)
+
+
+def test_apply_mirrors_only_a_row_at_exactly_one_bundle_locus() -> None:
+    locus = {"chrom": "1", "pos": "100", "ref": "A", "alt": "G"}
+    annotation = dict.fromkeys(MIRRORED_FIELDS, "")
+    bundle_row = {**locus, **annotation, "gene_symbol": "GENE9", "consequence": "missense_variant"}
+    at_locus = {"rsid": "rs1", **locus, **annotation, "gene_symbol": "OLD", "consequence": "x"}
+    elsewhere = {"rsid": "rs1", **locus, **annotation, "gene_symbol": "OLD", "pos": "200"}
+    unannotated = {"rsid": "rs1", **locus, **annotation}
+    changed = apply_bundle([at_locus, elsewhere, unannotated], {"rs1": [bundle_row]})
+    assert changed == ["rs1"]
+    assert (at_locus["gene_symbol"], at_locus["consequence"]) == ("GENE9", "missense_variant")
+    assert elsewhere["gene_symbol"] == "OLD"
+    assert unannotated["gene_symbol"] == ""

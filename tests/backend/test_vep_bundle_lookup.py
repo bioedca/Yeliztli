@@ -251,7 +251,9 @@ class TestLookupByRsids:
         assert annot.hgvs_coding == "c.665C>T"
         assert annot.hgvs_protein == "p.Ala222Val"
         assert annot.strand == "-"
-        assert annot.exon_number == 5
+        # The production bundle (v4.0.0) numbers this exon 4 on ENST00000376592;
+        # the seed mirrors it (#2363, vep_seed_bundle_snapshot.json).
+        assert annot.exon_number == 4
         assert annot.mane_select is True
 
     def test_apoe_rs429358(self, vep_engine_inmemory: sa.Engine) -> None:
@@ -280,7 +282,10 @@ class TestLookupByRsids:
         assert "rs12913832" in result
         annot = result["rs12913832"]
         assert annot.consequence == "intron_variant"
-        assert annot.intron_number == 15
+        # HERC2 intron 86 on the bundle's canonical ENST00000261609; the seed
+        # used to cite intron 15 of another transcript (#2363).
+        assert annot.transcript_id == "ENST00000261609"
+        assert annot.intron_number == 86
         assert annot.exon_number is None
 
     def test_large_batch_exceeding_sqlite_limit(self, vep_engine_inmemory: sa.Engine) -> None:
