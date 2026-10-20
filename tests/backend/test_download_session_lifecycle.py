@@ -10,11 +10,13 @@ Covers:
 
 from __future__ import annotations
 
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import sqlalchemy as sa
+from _downloads import wait_for_downloads
 from fastapi.testclient import TestClient
 
 from backend.api.routes.databases import (
@@ -75,60 +77,75 @@ class TestSessionPersistence:
         engine = _make_engine(tmp_data_dir)
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
 
+        # The trigger persists the session before the download runs, so this
+        # test needs no download at all. It holds the submitted download in
+        # flight until the assertions are done, so the session is still
+        # in_progress, then waits for it. The real download, against a refused
+        # port, retried for ~10 s into later tests (#2543).
+        release = threading.Event()
+
+        def _held_download(**_kwargs: object) -> None:
+            release.wait(timeout=30)
+
         with (
             patch("backend.main.get_settings", return_value=settings),
             patch("backend.db.connection.get_settings", return_value=settings),
             patch("backend.api.routes.databases.get_settings", return_value=settings),
+            patch("backend.api.routes.databases._run_download", new=_held_download),
         ):
             reset_registry()
             from backend.main import create_app
 
             app = create_app()
             with TestClient(app) as client:
-                # Create a fake DB to download
-                from backend.db.database_registry import DATABASES, DatabaseInfo
+                try:
+                    # Create a fake DB to download
+                    from backend.db.database_registry import DATABASES, DatabaseInfo
 
-                test_db = DatabaseInfo(
-                    name="testdb",
-                    display_name="Test DB",
-                    description="Test",
-                    url="http://127.0.0.1:1/nonexistent",
-                    filename="testdb.db",
-                    expected_size_bytes=100,
-                    required=False,
-                    build_mode="download",
-                    target_db="standalone",
-                )
-
-                with patch.dict(DATABASES, {"testdb": test_db}):
-                    resp = client.post(
-                        "/api/databases/download",
-                        json={"databases": ["testdb"]},
+                    test_db = DatabaseInfo(
+                        name="testdb",
+                        display_name="Test DB",
+                        description="Test",
+                        url="http://127.0.0.1:1/nonexistent",
+                        filename="testdb.db",
+                        expected_size_bytes=100,
+                        required=False,
+                        build_mode="download",
+                        target_db="standalone",
                     )
 
-                assert resp.status_code == 202
-                session_id = resp.json()["session_id"]
-
-                # Verify session is in the database
-                ref_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
-                with ref_engine.connect() as conn:
-                    row = conn.execute(
-                        sa.select(download_sessions).where(
-                            download_sessions.c.session_id == session_id
+                    with patch.dict(DATABASES, {"testdb": test_db}):
+                        resp = client.post(
+                            "/api/databases/download",
+                            json={"databases": ["testdb"]},
                         )
-                    ).fetchone()
-                    assert row is not None
-                    assert row.status == "in_progress"
 
-                    # Check session jobs
-                    job_rows = conn.execute(
-                        sa.select(download_session_jobs).where(
-                            download_session_jobs.c.session_id == session_id
-                        )
-                    ).fetchall()
-                    assert len(job_rows) == 1
-                    assert job_rows[0].db_name == "testdb"
-                ref_engine.dispose()
+                    assert resp.status_code == 202
+                    session_id = resp.json()["session_id"]
+
+                    # Verify session is in the database
+                    ref_engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+                    with ref_engine.connect() as conn:
+                        row = conn.execute(
+                            sa.select(download_sessions).where(
+                                download_sessions.c.session_id == session_id
+                            )
+                        ).fetchone()
+                        assert row is not None
+                        assert row.status == "in_progress"
+
+                        # Check session jobs
+                        job_rows = conn.execute(
+                            sa.select(download_session_jobs).where(
+                                download_session_jobs.c.session_id == session_id
+                            )
+                        ).fetchall()
+                        assert len(job_rows) == 1
+                        assert job_rows[0].db_name == "testdb"
+                    ref_engine.dispose()
+                finally:
+                    release.set()
+                    wait_for_downloads()
             reset_registry()
         _active_sessions.clear()
         engine.dispose()

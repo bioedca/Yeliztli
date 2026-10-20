@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from _downloads import threads_running_downloads
 from _isolated_data_home import (
     finish_session,
     isolate_data_home,
@@ -95,6 +96,20 @@ def _no_real_network(request: pytest.FixtureRequest):
     yield
     reached = end_no_network()
     assert not reached, f"test reached the real network: {reached}"
+
+
+@pytest.fixture(autouse=True)
+def _no_download_outlives_its_test():
+    """Fail a test that leaves a database download running (#2534, #2543).
+
+    Autouse, so it is torn down after every fixture the test requested. A
+    download still running then would retry into later tests and log into
+    their databases. A test that starts downloads calls
+    ``_downloads.wait_for_downloads()`` first.
+    """
+    yield
+    leaked = threads_running_downloads()
+    assert not leaked, f"download threads outlived the test: {leaked}"
 
 
 @pytest.fixture(autouse=True)
