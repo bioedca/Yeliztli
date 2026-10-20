@@ -11,11 +11,16 @@ at which point this class executes.
 
 Plan §13.1 ADNA-09a thresholds:
 
-- **VEP bundle hit-rate ≥ 95%.** Of all variants in the synthetic AncestryDNA
-  fixture, at least 95% must resolve via the bundle's rsid index or the
-  ``(chrom, pos)`` coordinate-fallback path. Combined hit-rate is what the
-  downstream analysis modules see; the threshold guards against bundle
-  drift that would silently suppress findings.
+- **VEP bundle hit-rate ≥ 95%** of the rows where an allele-specific answer
+  is possible. Those rows must resolve via the bundle's rsid index or the
+  ``(chrom, pos)`` coordinate-fallback path. Since #1458 the lookup is
+  allele-specific, so a call that cannot be tied to one of a multi-ALT rsID's
+  alleles is withheld on purpose; a hom-ref call carries no ALT at all. The
+  engine reports those rows as ``vep_bundle_allele_ambiguous``. They are left
+  out of the denominator, and checked independently against the bundle so a
+  regression cannot hide among them (#2494). On v4.0.0 with this fixture,
+  1,147 rows were withheld this way, 20 rsIDs were absent and 3,833 hit, so
+  the old all-rows rate read 0.77.
 - **ClinVar P/LP hit-rate ≥ 85%.** Of the *intersection* between the
   fixture's variants and ClinVar positions classified as Pathogenic or
   Likely_pathogenic in the local reference DB, at least 85% must receive a
@@ -321,6 +326,41 @@ def test_plp_keys_follow_shared_pathogenicity_boundary() -> None:
 # ── Tests ────────────────────────────────────────────────────────────────
 
 
+def _rows_that_could_be_allele_ambiguous(vep_engine: sa.Engine, variants) -> int:
+    """Count fixture rows at a multi-ALT rsID whose call carries no unique listed ALT.
+
+    Read straight from the bundle, independent of the engine's allele logic:
+    an rsID listed under more than one ref/alt pair, where the genotype contains
+    zero or several of the listed ALT alleles. This is an upper bound on what
+    the lookup may withhold as allele-ambiguous (#2494).
+    """
+    rsids = sorted({v.rsid for v in variants})
+    pairs: dict[str, set[tuple[str, str]]] = {}
+    with vep_engine.connect() as conn:
+        for i in range(0, len(rsids), 500):
+            chunk = rsids[i : i + 500]
+            params = {f"r{j}": rsid for j, rsid in enumerate(chunk)}
+            placeholders = ", ".join(f":r{j}" for j in range(len(chunk)))
+            for rsid, ref, alt in conn.execute(
+                sa.text(
+                    "SELECT rsid, ref, alt FROM vep_annotations "  # noqa: S608
+                    f"WHERE rsid IN ({placeholders})"
+                ),
+                params,
+            ):
+                pairs.setdefault(rsid, set()).add(((ref or "").upper(), (alt or "").upper()))
+    count = 0
+    for variant in variants:
+        listed = pairs.get(variant.rsid, set())
+        if len(listed) <= 1:
+            continue
+        genotype = (variant.genotype or "").upper()
+        carried_alts = {alt for _ref, alt in listed if alt and alt in genotype}
+        if len(carried_alts) != 1:
+            count += 1
+    return count
+
+
 @pytest.mark.slow
 @pytest.mark.requires_real_bundle
 class TestAncestryDNARealBundle:
@@ -331,26 +371,46 @@ class TestAncestryDNARealBundle:
         real_vep_bundle_path: Path,  # noqa: ARG002 — gate first
         synthetic_parsed,
         synthetic_sample_engine: sa.Engine,
+        real_vep_engine: sa.Engine,
         registry: MagicMock,
     ) -> None:
-        """Combined rsid + (chrom, pos) coord-fallback coverage ≥ 95%."""
+        """Rsid + coord-fallback hits are ≥ 95% of the allele-answerable rows."""
         result = run_annotation(synthetic_sample_engine, registry)
         stats = result.coverage_stats
 
         total = stats["total_variants"]
         rsid_hits = stats["vep_bundle_rsid_hits"]
         coord_hits = stats["vep_bundle_coord_fallback_hits"]
+        ambiguous = stats["vep_bundle_allele_ambiguous"]
+        misses = stats["vep_misses"]
 
         assert total == len(synthetic_parsed.variants)
         assert total > 0
+        assert rsid_hits + coord_hits + ambiguous + misses == total
 
-        combined_hit_rate = (rsid_hits + coord_hits) / total
-        assert combined_hit_rate >= VEP_HIT_RATE_FLOOR, (
-            f"VEP combined hit-rate {combined_hit_rate:.4f} below floor "
-            f"{VEP_HIT_RATE_FLOOR:.2f} ({rsid_hits} rsid + {coord_hits} coord / "
-            f"{total} variants). Bio-validator: investigate bundle drift or "
-            "re-tune VEP_HIT_RATE_FLOOR in this file if the bundle was "
-            "legitimately re-cut."
+        # The excluded rows must really be allele-ambiguous, judged from the
+        # bundle itself rather than the engine: each sits at an rsID the bundle
+        # lists under several ref/alt pairs, and its call does not carry
+        # exactly one of the listed ALTs. A lookup regression that withheld
+        # anything else would otherwise leave the denominator and hide.
+        could_be_ambiguous = _rows_that_could_be_allele_ambiguous(
+            real_vep_engine, synthetic_parsed.variants
+        )
+        assert ambiguous <= could_be_ambiguous, (
+            f"{ambiguous} rows withheld as allele-ambiguous, but only "
+            f"{could_be_ambiguous} fixture rows sit at a multi-ALT rsID without "
+            "carrying exactly one listed ALT"
+        )
+
+        answerable = total - ambiguous
+        hit_rate = (rsid_hits + coord_hits) / answerable
+        assert hit_rate >= VEP_HIT_RATE_FLOOR, (
+            f"VEP hit-rate {hit_rate:.4f} below floor {VEP_HIT_RATE_FLOOR:.2f} over the "
+            f"{answerable} allele-answerable rows ({rsid_hits} rsid + {coord_hits} coord; "
+            f"{misses} misses; {ambiguous} withheld as allele-ambiguous, of {total}). "
+            "Bio-validator: check for bundle drift (misses are rsIDs or alleles the "
+            "bundle does not list) or a lookup regression before re-tuning "
+            "VEP_HIT_RATE_FLOOR in this file."
         )
 
         # Plan §5.6 telemetry contract — confirm the run we measured really

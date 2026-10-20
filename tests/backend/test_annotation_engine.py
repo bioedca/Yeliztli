@@ -1322,12 +1322,14 @@ class TestCoverageStatsPayload:
         "total_variants",
         "vep_bundle_rsid_hits",
         "vep_bundle_coord_fallback_hits",
+        "vep_bundle_allele_ambiguous",
         "vep_misses",
         "by_source",
     }
     _REQUIRED_PER_SOURCE_KEYS = {
         "vep_bundle_rsid_hits",
         "vep_bundle_coord_fallback_hits",
+        "vep_bundle_allele_ambiguous",
         "vep_misses",
     }
 
@@ -1377,6 +1379,101 @@ class TestCoverageStatsPayload:
         assert per_source["vep_bundle_rsid_hits"] == stats["vep_bundle_rsid_hits"]
         assert per_source["vep_misses"] == stats["vep_misses"]
 
+    def test_a_hom_ref_call_at_a_multi_alt_rsid_is_counted_as_allele_ambiguous(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_inmemory: sa.Engine,
+    ) -> None:
+        """A deliberately withheld lookup is its own bucket, not a miss (#2494).
+
+        The bundle lists ``rs_multi_alt`` under A>C and A>G, and the sample is
+        hom-ref there, so the call carries no ALT and the lookup withholds it.
+        Counting it as a miss is what made the real-bundle hit rate read 0.77.
+        """
+        _stamp_bundle_version(mock_registry.reference_engine, "v2.0.0")
+        _stamp_sample_metadata(sample_with_variants, file_format="ancestrydna_v2.0")
+        with sample_with_variants.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [{"rsid": "rs_multi_alt", "chrom": "1", "pos": 500, "genotype": "AA"}],
+            )
+        with vep_engine_inmemory.begin() as conn:
+            for alt in ("C", "G"):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                        "transcript_id, consequence, hgvs_coding, hgvs_protein, strand, "
+                        "exon_number, intron_number, mane_select) VALUES ('rs_multi_alt', '1', "
+                        "500, 'A', :alt, 'GENE', :tx, 'missense_variant', NULL, NULL, '+', 1, "
+                        "NULL, 0)"
+                    ),
+                    {"alt": alt, "tx": f"ENST_{alt}"},
+                )
+
+        result = run_annotation(sample_with_variants, mock_registry)
+        stats = result.coverage_stats
+
+        assert stats["vep_bundle_allele_ambiguous"] == 1
+        assert result.vep_allele_ambiguous == 1
+        assert stats["vep_misses"] == result.total_variants - result.vep_matched - 1
+        per_source = stats["by_source"]["ancestrydna"]
+        assert per_source["vep_bundle_allele_ambiguous"] == 1
+        assert per_source["vep_misses"] == stats["vep_misses"]
+
+    def test_an_alias_with_another_call_is_not_counted_as_allele_ambiguous(
+        self,
+        sample_with_variants: sa.Engine,
+        mock_registry: MagicMock,
+        vep_engine_inmemory: sa.Engine,
+        reference_engine: sa.Engine,
+    ) -> None:
+        """Ambiguity re-keys only to the alias whose own call was evaluated (#2494).
+
+        ``rs_multi_cur`` is self-mapped, so its hom-ref call is the one the VEP
+        lookup evaluates for the query, and it is ambiguous. Its deprecated alias
+        ``rs_multi_old`` carries C, one listed ALT, but was never evaluated on its
+        own call, and its stale coordinate keeps the fallback from rescuing it.
+        Fanning the query's ambiguity out to it would pull an answerable row out
+        of the hit-rate denominator.
+        """
+        _stamp_bundle_version(mock_registry.reference_engine, "v2.0.0")
+        _stamp_sample_metadata(sample_with_variants, file_format="ancestrydna_v2.0")
+        with reference_engine.begin() as conn:
+            conn.execute(
+                dbsnp_merges.insert().values(
+                    old_rsid="rs_multi_old", current_rsid="rs_multi_cur", build_id=155
+                )
+            )
+        with sample_with_variants.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {"rsid": "rs_multi_cur", "chrom": "1", "pos": 600, "genotype": "AA"},
+                    # A stale coordinate, so the (chrom, pos) fallback cannot
+                    # resolve the alias on its own call either.
+                    {"rsid": "rs_multi_old", "chrom": "1", "pos": 601, "genotype": "AC"},
+                ],
+            )
+        with vep_engine_inmemory.begin() as conn:
+            for alt in ("C", "G"):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                        "transcript_id, consequence, hgvs_coding, hgvs_protein, strand, "
+                        "exon_number, intron_number, mane_select) VALUES ('rs_multi_cur', '1', "
+                        "600, 'A', :alt, 'GENE', :tx, 'missense_variant', NULL, NULL, '+', 1, "
+                        "NULL, 0)"
+                    ),
+                    {"alt": alt, "tx": f"ENST_{alt}"},
+                )
+
+        result = run_annotation(sample_with_variants, mock_registry)
+
+        stats = result.coverage_stats
+        assert stats["vep_bundle_allele_ambiguous"] == 1
+        assert stats["vep_misses"] == result.total_variants - result.vep_matched - 1
+
     def test_rollup_consistency(
         self,
         sample_with_variants: sa.Engine,
@@ -1400,6 +1497,7 @@ class TestCoverageStatsPayload:
         assert (
             stats["vep_bundle_rsid_hits"]
             + stats["vep_bundle_coord_fallback_hits"]
+            + stats["vep_bundle_allele_ambiguous"]
             + stats["vep_misses"]
             == stats["total_variants"]
         )

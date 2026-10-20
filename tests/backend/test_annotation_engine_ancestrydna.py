@@ -323,11 +323,13 @@ class TestAncestryDNAAnnotationPipeline:
         assert set(per_source.keys()) == {
             "vep_bundle_rsid_hits",
             "vep_bundle_coord_fallback_hits",
+            "vep_bundle_allele_ambiguous",
             "vep_misses",
         }
         per_source_sum = (
             per_source["vep_bundle_rsid_hits"]
             + per_source["vep_bundle_coord_fallback_hits"]
+            + per_source["vep_bundle_allele_ambiguous"]
             + per_source["vep_misses"]
         )
         assert per_source_sum == stats["total_variants"]
