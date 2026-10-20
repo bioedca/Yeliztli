@@ -71,6 +71,28 @@ def test_no_block_is_simply_absent() -> None:
     assert _malformed_warnings(logs) == []
 
 
+@pytest.mark.parametrize("module", sorted(_LOADERS))
+def test_every_shipped_block_survives_loading(module: str) -> None:
+    """The check is not stricter than the shipped panels: nothing real is dropped."""
+    raw = json.loads((_PANELS / f"{module}_panel.json").read_text(encoding="utf-8"))
+    declared = {
+        snp["rsid"]: snp["cross_module"]
+        for pathway in raw["pathways"]
+        for snp in pathway["snps"]
+        if snp.get("cross_module") is not None
+    }
+    with capture_logs() as logs:
+        panel = _LOADERS[module]()
+    loaded = {
+        snp.rsid: snp.cross_module
+        for pathway in panel.pathways
+        for snp in pathway.snps
+        if snp.cross_module is not None
+    }
+    assert loaded == declared
+    assert _malformed_warnings(logs) == []
+
+
 def _panel_with_block(module: str, tmp_path: Path, rsid: str | None, block: object) -> Path:
     raw = json.loads((_PANELS / f"{module}_panel.json").read_text(encoding="utf-8"))
     snps = [snp for pathway in raw["pathways"] for snp in pathway["snps"]]
