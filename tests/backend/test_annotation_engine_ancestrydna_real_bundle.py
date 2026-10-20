@@ -29,7 +29,7 @@ Plan §13.1 ADNA-09a thresholds:
   rehydrate the full 250 MB ClinVar pipeline DB).
 
 Both thresholds are bio-validator calibration targets — on the first
-successful nightly run against ``vep_bundle v2.0.0``, the validator
+successful nightly run against the release ``bundles/manifest.json`` pins, the validator
 inspects the observed rates and either accepts them or re-tunes the
 thresholds in this file. Failures auto-file a GitHub Issue labeled
 ``slow-tier-regression`` (workflow side); the test itself never falls back
@@ -38,7 +38,9 @@ to a softer assertion.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -52,7 +54,6 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
     clinvar_variants,
-    database_versions,
     raw_variants,
     reference_metadata,
     sample_metadata_table,
@@ -182,9 +183,10 @@ def reference_engine_with_clinvar(real_vep_bundle_path: Path) -> sa.Engine:  # n
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # No ``database_versions`` stamp: the engine then resolves the version from
+    # the staged bundle's own metadata, so the telemetry check below compares a
+    # real value. A hard-coded stamp was what it used to read back (#2552).
     reference_metadata.create_all(engine)
-    with engine.begin() as conn:
-        conn.execute(database_versions.insert().values(db_name="vep_bundle", version="v2.0.0"))
 
     settings = get_settings()
     real_reference_path = settings.reference_db_path
@@ -227,7 +229,11 @@ def reference_engine_with_clinvar(real_vep_bundle_path: Path) -> sa.Engine:  # n
 
 
 @pytest.fixture(scope="module")
-def registry(real_vep_engine: sa.Engine, reference_engine_with_clinvar: sa.Engine) -> MagicMock:
+def registry(
+    real_vep_bundle_path: Path,
+    real_vep_engine: sa.Engine,
+    reference_engine_with_clinvar: sa.Engine,
+) -> MagicMock:
     """Mock :class:`DBRegistry` exposing real VEP + (optional) ClinVar references.
 
     gnomAD and dbNSFP intentionally stay unavailable: the slow-tier
@@ -238,6 +244,9 @@ def registry(real_vep_engine: sa.Engine, reference_engine_with_clinvar: sa.Engin
     """
     reg = MagicMock()
     reg.reference_engine = reference_engine_with_clinvar
+    # The real path, so version telemetry reads the bundle actually queried. A bare
+    # MagicMock path always claimed to be a file and never reached the bundle.
+    reg.settings = SimpleNamespace(vep_bundle_db_path=real_vep_bundle_path)
     type(reg).vep_engine = property(lambda self: real_vep_engine)
 
     def _unavailable(self):
@@ -249,6 +258,12 @@ def registry(real_vep_engine: sa.Engine, reference_engine_with_clinvar: sa.Engin
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
+
+
+def _manifest_vep_bundle_version() -> str:
+    """The VEP bundle release ``bundles/manifest.json`` pins."""
+    manifest = Path(__file__).resolve().parents[2] / "bundles" / "manifest.json"
+    return json.loads(manifest.read_text(encoding="utf-8"))["bundles"]["vep_bundle"]["version"]
 
 
 def _plp_keys_in_clinvar(reference_engine: sa.Engine) -> tuple[set[str], set[tuple[str, int]]]:
@@ -413,9 +428,11 @@ class TestAncestryDNARealBundle:
             "VEP_HIT_RATE_FLOOR in this file."
         )
 
-        # Plan §5.6 telemetry contract — confirm the run we measured really
-        # came from a v2.0.0-tagged bundle, not a stale reference DB row.
-        assert stats["bundle_version"] == "v2.0.0"
+        # Plan §5.6 telemetry contract: the reported version is the staged
+        # bundle's own, and it must be the release the manifest pins, which the
+        # nightly downloads and sha256-checks. This used to compare a v2.0.0 the
+        # fixture stamped itself, so a stale bundle could never fail it (#2552).
+        assert stats["bundle_version"] == _manifest_vep_bundle_version()
 
     def test_clinvar_pathogenic_hit_rate_at_least_85_percent(
         self,
