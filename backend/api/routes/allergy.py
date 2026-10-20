@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from backend.analysis.allergy import load_allergy_panel, pgx_covered_gene_drugs
 from backend.analysis.cross_module_links import (
+    current_recommendation,
     panel_cross_module_links,
     resolve_stored_card,
 )
@@ -477,7 +478,12 @@ def pathway_detail(
         rsid = sd.get("rsid", "")
         snp_finding = snp_findings_map.get(rsid, {})
         snp_finding_detail = snp_finding.get("detail", {})
-        recommendation = snp_finding_detail.get("recommendation")
+        # Panel prose persisted at scoring time; serve the panel that is loaded
+        # so a corrected recommendation does not wait for a re-score, and so
+        # this page agrees with All Findings, which already refreshes it (#2557).
+        recommendation = current_recommendation(
+            "allergy", rsid, snp_finding_detail.get("recommendation")
+        )
         pmids = snp_finding.get("pmids", [])
         hla_proxy_lookup = snp_finding_detail.get("hla_proxy_lookup") or sd.get("hla_proxy_lookup")
         hla_proxy_caveat = snp_finding_detail.get("hla_proxy_caveat") or sd.get("hla_proxy_caveat")
