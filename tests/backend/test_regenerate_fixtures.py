@@ -84,6 +84,21 @@ SEED_GRCH37_REFERENCE_BASE: dict[str, str] = {
     "rs429358": APOE_BLOCK_GRCH37_REFERENCE_BASE["rs429358"],
     "rs7412": APOE_BLOCK_GRCH37_REFERENCE_BASE["rs7412"],
     "rs28399504": "A",
+    # The first allele of its Ensembl GRCh37 allele string T/A/C/G (see
+    # ADDITIONAL_VERIFIED_GRCH37_MAPPINGS), and the assembly base at 7:94937446
+    # in Ensembl GRCh37 sequence and UCSC hg19, accessed 2026-10-20 (#2344).
+    "rs662": "T",
+}
+
+# Seed rows whose REF/ALT are known to be reversed relative to the GRCh37
+# assembly, each tracked by an issue rather than silently allowed. The guard
+# asserts each is *still* reversed, so correcting the row fails until its entry
+# is removed here and the general REF pin covers it like every other row.
+KNOWN_REVERSED_SEED_REF: dict[str, tuple[str, str]] = {
+    # Factor V Leiden: the seeds carry C>T at 1:169519049, whose GRCh37 base is
+    # T in Ensembl GRCh37 sequence and UCSC hg19 (accessed 2026-10-20). Fixing
+    # it re-orients allele frequencies and ClinVar data, so it is #2541.
+    "rs6025": ("C", "T"),
 }
 
 GRCh37Mapping = tuple[str, int, frozenset[str]]
@@ -219,26 +234,63 @@ def _guarded_db_alleles(
         ]
 
 
+def _expected_grch37_reference_bases() -> dict[str, str]:
+    """The GRCh37 reference base of every single-base rsID the oracle covers (#2344).
+
+    For a panel rsID it is the first allele of the snapshot's Ensembl GRCh37
+    ``allele_string``, which lists the reference allele first. For every guarded
+    seed rsID that first allele equals the assembly base, checked against
+    Ensembl GRCh37 sequence and UCSC hg19 in
+    data/science-evidence/2026-10-20-issue-2344-seed-ref-orientation/ (accessed
+    2026-10-20). Non-panel rsIDs take ``SEED_GRCH37_REFERENCE_BASE``.
+    """
+    snapshot = json.loads(PANEL_RSID_COORDINATES.read_text(encoding="utf-8"))["rsids"]
+    bases: dict[str, str] = {}
+    for rsid, record in snapshot.items():
+        alleles = str(record.get("allele_string") or "").split("/")
+        if record.get("variant_class") == "SNP" and all(len(allele) == 1 for allele in alleles):
+            bases[rsid] = alleles[0]
+    for rsid, base in SEED_GRCH37_REFERENCE_BASE.items():
+        assert bases.get(rsid, base) == base, (
+            f"{rsid}: the pinned REF {base} disagrees with the snapshot's reference "
+            f"allele {bases[rsid]}"
+        )
+        bases[rsid] = base
+    return bases
+
+
 def _assert_grch37_plus_strand_alleles(
     rows: list[tuple[str, str, str]],
     expected: dict[str, GRCh37Mapping],
     source: str,
 ) -> None:
     assert rows, f"{source} has no rows overlapping the GRCh37 mapping oracle"
-    pinned = {rsid for rsid, _ref, _alt in rows} & set(SEED_GRCH37_REFERENCE_BASE)
-    assert pinned, f"{source} carries none of the REF-pinned rsIDs; the swap guard is vacuous"
+    reference_bases = _expected_grch37_reference_bases()
+    pinned = [
+        (rsid, ref, alt)
+        for rsid, ref, alt in rows
+        if len(ref) == 1 and len(alt) == 1 and rsid in reference_bases
+    ]
+    assert pinned, f"{source} carries no REF-pinned single-base row; the swap guard is vacuous"
     for occurrence, (rsid, ref, alt) in enumerate(rows, start=1):
         allowed = expected[rsid][2]
         assert {ref, alt} <= allowed, (
             f"{source} occurrence {occurrence} ({rsid}) uses {ref}>{alt}; "
             f"expected plus-strand alleles from {sorted(allowed)}"
         )
-        if rsid in SEED_GRCH37_REFERENCE_BASE:
+        if rsid in KNOWN_REVERSED_SEED_REF:
+            assert (ref, alt) == KNOWN_REVERSED_SEED_REF[rsid], (
+                f"{source} occurrence {occurrence} ({rsid}) is no longer the known "
+                f"reversed {'>'.join(KNOWN_REVERSED_SEED_REF[rsid])}; remove it from "
+                "KNOWN_REVERSED_SEED_REF so the REF pin below covers it"
+            )
+            continue
+        if len(ref) == 1 and len(alt) == 1 and rsid in reference_bases:
             # Membership alone cannot see a REF/ALT swap: pin REF to the assembly
             # base so a row flipped to ALT>REF fails here instead of passing.
-            assert ref == SEED_GRCH37_REFERENCE_BASE[rsid], (
+            assert ref == reference_bases[rsid], (
                 f"{source} occurrence {occurrence} ({rsid}) declares REF {ref}; "
-                f"the GRCh37 assembly base is {SEED_GRCH37_REFERENCE_BASE[rsid]}"
+                f"the GRCh37 assembly base is {reference_bases[rsid]}"
             )
 
 
@@ -958,3 +1010,52 @@ class TestSyntheticAncestryDNAFixture:
         _run_vendor_script(tmp_path)
         second = (tmp_path / "synthetic_eur_ancestrydna.txt").read_text()
         assert first == second
+
+
+# ── REF orientation for every oracle-covered seed row (#2344) ─────────────
+
+
+def _swappable_seed_rows() -> list[tuple[str, str, str]]:
+    """Every guarded single-base seed row the REF pin covers, once per rsID."""
+    expected = _expected_grch37_mappings()
+    reference_bases = _expected_grch37_reference_bases()
+    rows = {
+        (rsid, ref, alt)
+        for csv_name in ALLELE_SEED_CSVS
+        for rsid, ref, alt in _guarded_seed_alleles(csv_name, expected)
+        if len(ref) == 1
+        and len(alt) == 1
+        and rsid in reference_bases
+        and rsid not in KNOWN_REVERSED_SEED_REF
+    }
+    return sorted(rows)
+
+
+def test_the_ref_pin_covers_every_oracle_covered_seed_row() -> None:
+    """Guards the parametrised swap test below against an empty or shrunken scan."""
+    rows = _swappable_seed_rows()
+    assert len({rsid for rsid, _ref, _alt in rows}) >= 34, rows
+    assert ("rs1801133", "G", "A") in rows
+
+
+def test_a_consistently_reversed_mthfr_row_fails_the_guard() -> None:
+    """The #2344 re-verification's demonstration: rs1801133 swapped to A>G passed."""
+    expected = _expected_grch37_mappings()
+    with pytest.raises(AssertionError, match=r"rs1801133\) declares REF A"):
+        _assert_grch37_plus_strand_alleles([("rs1801133", "A", "G")], expected, "probe")
+
+
+@pytest.mark.parametrize(("rsid", "ref", "alt"), _swappable_seed_rows())
+def test_swapping_any_covered_seed_row_fails_the_guard(rsid: str, ref: str, alt: str) -> None:
+    expected = _expected_grch37_mappings()
+    _assert_grch37_plus_strand_alleles([(rsid, ref, alt)], expected, "probe")
+    with pytest.raises(AssertionError, match=rf"\({rsid}\) declares REF {alt}"):
+        _assert_grch37_plus_strand_alleles([(rsid, alt, ref)], expected, "probe")
+
+
+def test_correcting_a_known_reversed_row_fails_until_its_entry_is_removed() -> None:
+    """rs6025's tracked exception (#2541) cannot outlive the fix."""
+    expected = _expected_grch37_mappings()
+    _assert_grch37_plus_strand_alleles([("rs6025", "C", "T")], expected, "probe")
+    with pytest.raises(AssertionError, match="no longer the known reversed C>T"):
+        _assert_grch37_plus_strand_alleles([("rs6025", "T", "C")], expected, "probe")
