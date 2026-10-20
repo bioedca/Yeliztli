@@ -46,6 +46,7 @@ import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
 from backend.analysis.cross_module_links import (
+    cross_module_block,
     emits_cross_module_card,
     generic_cross_module_pointer,
 )
@@ -273,7 +274,9 @@ def load_traits_panel(panel_path: Path | None = None) -> TraitsPanel:
                     trait_domain=snp_data.get("trait_domain"),
                     associative_language=snp_data.get("associative_language", True),
                     coverage_note=snp_data.get("coverage_note"),
-                    cross_module=snp_data.get("cross_module"),
+                    cross_module=cross_module_block(
+                        snp_data.get("cross_module"), panel="traits", rsid=snp_data["rsid"]
+                    ),
                 )
             )
         pathways.append(

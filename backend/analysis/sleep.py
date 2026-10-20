@@ -43,7 +43,10 @@ from pathlib import Path
 import sqlalchemy as sa
 import structlog
 
-from backend.analysis.cross_module_links import emits_cross_module_card
+from backend.analysis.cross_module_links import (
+    cross_module_block,
+    emits_cross_module_card,
+)
 from backend.analysis.genotype_lookup import (
     genotype_candidates,
     is_acgt_genotype,
@@ -227,7 +230,9 @@ def load_sleep_panel(panel_path: Path | None = None) -> SleepPanel:
                     evidence_level=snp_data["evidence_level"],
                     pmids=snp_data.get("pmids", []),
                     recommendation_text=snp_data.get("recommendation_text", ""),
-                    cross_module=snp_data.get("cross_module"),
+                    cross_module=cross_module_block(
+                        snp_data.get("cross_module"), panel="sleep", rsid=snp_data["rsid"]
+                    ),
                     coverage_note=snp_data.get("coverage_note"),
                 )
             )

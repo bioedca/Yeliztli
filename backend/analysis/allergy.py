@@ -45,6 +45,7 @@ import structlog
 
 from backend.analysis.ancestry import get_inferred_ancestry
 from backend.analysis.cross_module_links import (
+    cross_module_block,
     emits_cross_module_card,
     is_withheld_call,
     withheld_call_caveat,
@@ -317,7 +318,9 @@ def load_allergy_panel(panel_path: Path | None = None) -> AllergyPanel:
                     pmids=snp_data.get("pmids", []),
                     recommendation_text=snp_data.get("recommendation_text", ""),
                     hla_proxy=snp_data.get("hla_proxy"),
-                    cross_module=snp_data.get("cross_module"),
+                    cross_module=cross_module_block(
+                        snp_data.get("cross_module"), panel="allergy", rsid=snp_data["rsid"]
+                    ),
                     coverage_note=snp_data.get("coverage_note"),
                 )
             )
