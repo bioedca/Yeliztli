@@ -23,6 +23,7 @@ from scripts.validate_review_route import (
     CODEX_GATE,
     CODEX_TRIGGER,
     COPILOT_GATE,
+    EARLIER_HEAD,
     GATES,
     GREPTILE_APP_ID,
     GREPTILE_CHECK_RUN_NAME,
@@ -33,10 +34,16 @@ from scripts.validate_review_route import (
     HUMAN_GATE,
     LEGACY_SCHEMA_MARKER,
     LOAD_BEARING_EXACT,
+    NO_ACTIVITY,
+    NOT_AN_ENVELOPE,
+    NOT_CLEAN,
     RENDERED_ROUTE_ERROR,
     SCHEMA_MARKER,
     V3_BOT_GATES,
     ChangedFile,
+    _bot_activity,
+    _bot_activity_verdict,
+    _declined_gate_message,
     _expected_snapshot_body,
     _merge_greptile_ledger_pages,
     _merge_review_pages,
@@ -72,6 +79,11 @@ DEFAULT_AUTOMATED_GATE = {
     "Load-bearing": CODERABBIT_GATE,
 }
 RENDER_NONCE = "review-route-render-bind-" + "b" * 48
+
+
+def _declined(gate: str, kind: str, detail: str = "") -> str:
+    """The error a provider gate gives when it declines for *kind* (#2356)."""
+    return _declined_gate_message(gate, (kind, detail))
 
 
 def _signal_title(
@@ -1101,7 +1113,16 @@ def test_v3_provider_evidence_is_exact_head_immutable_and_nonblocking(mutation: 
         review["comments"]["totalCount"] = 1
     else:
         review["state"] = "CHANGES_REQUESTED"
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in validate_context(
+    expected = {
+        "actor": _declined(CODEX_GATE, NO_ACTIVITY),
+        "head": _declined(CODEX_GATE, EARLIER_HEAD),
+        "edited": _declined(CODEX_GATE, NOT_CLEAN, "an edited review"),
+        "attached-comment": _declined(
+            CODEX_GATE, NOT_CLEAN, "an approved review that is not a clean verdict"
+        ),
+        "blocking-state": _declined(CODEX_GATE, NOT_CLEAN, "a changes requested review"),
+    }[mutation]
+    assert expected in validate_context(
         context,
         files,
         now=NOW,
@@ -1154,7 +1175,12 @@ def test_v3_copilot_rejects_anything_but_a_clean_coverage_verdict(body: str) -> 
         if item["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
     )
     review["body"] = body
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in validate_context(
+    detail = (
+        "a review refusing for quota"
+        if body.startswith("Copilot was unable")
+        else "a commented review that is not a clean verdict"
+    )
+    assert _declined(COPILOT_GATE, NOT_CLEAN, detail) in validate_context(
         context,
         files,
         now=NOW,
@@ -1287,7 +1313,7 @@ def test_copilot_refusal_is_never_review_evidence(schema_version: int, body: str
         schema_version=schema_version,
     )
     _copilot_review_node(context)["body"] = body
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in validate_context(
+    assert _declined(COPILOT_GATE, NOT_CLEAN, "a review refusing for quota") in validate_context(
         context,
         files,
         now=NOW,
@@ -1322,7 +1348,7 @@ def test_v2_later_copilot_refusal_supersedes_an_earlier_review() -> None:
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+    assert _declined(COPILOT_GATE, NOT_CLEAN, "a review refusing for quota") in errors
 
 
 def test_v2_copilot_review_after_a_refusal_restores_the_lane() -> None:
@@ -1383,7 +1409,9 @@ def test_v3_coderabbit_trusts_only_its_clean_structured_counts(body: str) -> Non
         if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODERABBIT_GATE]
     )
     review["body"] = body
-    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in validate_context(
+    assert _declined(
+        CODERABBIT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict"
+    ) in validate_context(
         context,
         files,
         now=NOW,
@@ -1488,6 +1516,126 @@ def test_v3_codex_comment_created_after_the_verdict_still_invalidates_it() -> No
     )
     errors = validate_context(context, files, now=NOW)
     assert any("Codex" in error for error in errors), errors
+
+
+# ── Why a provider gate declined (#2356) ─────────────────────────────────
+# Every decline used to read "no verified current-head GitHub activity", which
+# says the provider has not answered. When it had answered, that sent readers to
+# wait or re-trigger: eight clean Codex reviews on three pull requests went
+# unaccepted that way (#2352). Each decline now names its cause.
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected"),
+    [
+        (None, "no verified current-head GitHub activity for: Codex @codex review"),
+        (
+            (NO_ACTIVITY, ""),
+            "no verified current-head GitHub activity for: Codex @codex review",
+        ),
+        (
+            (EARLIER_HEAD, ""),
+            "every Codex @codex review artifact predates the current head; request a review of it",
+        ),
+        (
+            (NOT_CLEAN, "an edited review"),
+            "the newest Codex @codex review signal on the current head is not a "
+            "clean verdict: an edited review",
+        ),
+        (
+            (NOT_AN_ENVELOPE, "it was edited"),
+            "the newest Codex @codex review verdict on the current head reads clean "
+            "but is not an accepted envelope: it was edited",
+        ),
+    ],
+)
+def test_a_declined_gate_names_its_cause(reason: tuple[str, str] | None, expected: str) -> None:
+    assert _declined_gate_message(CODEX_GATE, reason) == expected
+
+
+def test_a_later_codex_comment_is_reported_as_an_answer_not_as_silence() -> None:
+    """#2352's shape: Codex answered cleanly, then spoke again without a verdict."""
+    context, files = _codex_clean_context()
+    comments = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    comments.append(
+        _comment(
+            BOT_ACTOR_IDS[CODEX_GATE],
+            "### Summary\n\nWorked through the diff.\n",
+            GATE_TIMES[CODEX_GATE].replace(":00Z", ":30Z"),
+            association="NONE",
+            comment_id=910_000_003,
+            typename="Bot",
+        )
+    )
+    assert validate_context(context, files, now=NOW) == [
+        _declined(CODEX_GATE, NOT_CLEAN, "a comment that is not its clean verdict")
+    ]
+
+
+def test_an_edited_codex_verdict_is_reported_as_an_envelope_failure() -> None:
+    context, files = _codex_clean_context()
+    (verdict,) = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    verdict["lastEditedAt"] = verdict["createdAt"]
+    assert validate_context(context, files, now=NOW) == [
+        _declined(CODEX_GATE, NOT_AN_ENVELOPE, "it was edited")
+    ]
+
+
+def test_a_codex_verdict_older_than_the_head_is_reported_as_stale() -> None:
+    context, files = _codex_clean_context()
+    (verdict,) = context["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    verdict["createdAt"] = verdict["updatedAt"] = "2026-07-21T11:55:00Z"
+    assert validate_context(context, files, now=NOW) == [_declined(CODEX_GATE, EARLIER_HEAD)]
+
+
+def test_an_ignored_current_head_review_is_not_blamed_on_an_earlier_head() -> None:
+    """v2 ignores an empty CodeRabbit review; that is still activity on the head."""
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[CODERABBIT_GATE]
+    ] + [
+        _review(BOT_ACTOR_IDS[CODERABBIT_GATE], "2026-07-21T11:30:00Z", head_sha="b" * 40),
+        _review(BOT_ACTOR_IDS[CODERABBIT_GATE], "2026-07-21T12:30:00Z", body=""),
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    errors = validate_context(context, files, now=NOW)
+    assert _declined(CODERABBIT_GATE, NO_ACTIVITY) in errors
+    assert _declined(CODERABBIT_GATE, EARLIER_HEAD) not in errors
+
+
+def test_bot_activity_is_the_verdicts_time_and_only_that() -> None:
+    """The wrapper other tools call returns exactly what the gate accepts."""
+    accepted, files = _codex_clean_context()
+    declined, _ = _codex_clean_context()
+    (verdict,) = declined["data"]["repository"]["pullRequest"]["comments"]["nodes"]
+    verdict["lastEditedAt"] = verdict["createdAt"]
+    for context in (accepted, declined):
+        pull_request = context["data"]["repository"]["pullRequest"]
+        args = (
+            pull_request,
+            CODEX_GATE,
+            BOT_ACTOR_IDS[CODEX_GATE],
+            HEAD_SHA,
+            _parse_utc(COMMITTED_AT),
+            True,
+            3,
+        )
+        when, reason = _bot_activity_verdict(*args)
+        assert _bot_activity(*args) == when
+        assert (when is None) is (reason is not None)
+    assert _bot_activity_verdict(
+        accepted["data"]["repository"]["pullRequest"],
+        CODEX_GATE,
+        BOT_ACTOR_IDS[CODEX_GATE],
+        HEAD_SHA,
+        _parse_utc(COMMITTED_AT),
+        True,
+        3,
+    ) == (_parse_utc(GATE_TIMES[CODEX_GATE]), None)
 
 
 def test_v3_active_human_change_request_blocks_but_approval_is_not_a_gate() -> None:
@@ -1718,7 +1866,9 @@ def test_v2_codex_clean_comment_requires_safe_full_oid_resolution(
     _use_codex_clean_comment(context)
     context["data"]["repository"]["codexHeadObject"] = resolved
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert (
+        _declined(CODEX_GATE, NOT_AN_ENVELOPE, "the head commit could not be confirmed") in errors
+    )
 
 
 def test_formal_codex_review_does_not_depend_on_abbreviated_oid_resolution() -> None:
@@ -1738,7 +1888,7 @@ def test_edited_formal_bot_review_is_not_valid_evidence(gate: str) -> None:
     )
     bot_review["lastEditedAt"] = "2026-07-21T12:21:00Z"
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {gate}" in errors
+    assert _declined(gate, NOT_CLEAN, "an edited review") in errors
 
 
 @pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
@@ -1751,7 +1901,9 @@ def test_formal_bot_review_without_edit_metadata_fails_closed(gate: str) -> None
     )
     del bot_review["lastEditedAt"]
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {gate}" in errors
+    assert (
+        _declined(gate, NOT_CLEAN, "a review whose edit history could not be confirmed") in errors
+    )
 
 
 @pytest.mark.parametrize(
@@ -1862,7 +2014,20 @@ def test_v2_codex_clean_issue_comment_fails_closed_when_untrusted(case: str) -> 
     elif case == "short_commit":
         response["body"] = response["body"].replace(HEAD_SHA[:10], HEAD_SHA[:9])
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    # Each case names why Codex's answer was declined (#2356).
+    if case in ("wrong_actor", "user_actor"):
+        expected = _declined(CODEX_GATE, NO_ACTIVITY)
+    elif case in ("edited", "updated"):
+        expected = _declined(CODEX_GATE, NOT_AN_ENVELOPE, "it was edited")
+    elif case in ("wrong_head", "duplicate_commit", "short_commit"):
+        expected = _declined(
+            CODEX_GATE,
+            NOT_AN_ENVELOPE,
+            "its Reviewed commit line does not name the current head",
+        )
+    else:
+        expected = _declined(CODEX_GATE, NOT_CLEAN, "a comment that is not its clean verdict")
+    assert expected in errors
 
 
 @pytest.mark.parametrize("same_second", [False, True])
@@ -1975,7 +2140,14 @@ def test_codex_invocation_or_error_without_a_valid_outcome_fails(
     reviews["totalCount"] = len(reviews["nodes"])
     pull_request["comments"] = {"totalCount": 1, "nodes": [comment]}
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    # The trigger is not Codex's; the failure notice is Codex answering (#2356).
+    from_codex = comment["author"]["databaseId"] == BOT_ACTOR_IDS[CODEX_GATE]
+    expected = (
+        _declined(CODEX_GATE, NOT_CLEAN, "a comment that is not its clean verdict")
+        if from_codex
+        else _declined(CODEX_GATE, NO_ACTIVITY)
+    )
+    assert expected in errors
 
 
 def test_deleted_codex_clean_evidence_fails_without_a_formal_review() -> None:
@@ -2024,7 +2196,9 @@ def test_codex_canonical_abbreviation_blocks_same_prefix_head_replay() -> None:
     for review in pull_request["reviews"]["nodes"]:
         review["commit"]["oid"] = replacement_head
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert (
+        _declined(CODEX_GATE, NOT_AN_ENVELOPE, "the head commit could not be confirmed") in errors
+    )
 
 
 def test_new_codex_clean_result_supersedes_an_earlier_failed_attempt() -> None:
@@ -3001,7 +3175,7 @@ def test_same_second_extra_review_state_fails_closed(gate: str) -> None:
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {gate}" in errors
+    assert _declined(gate, NOT_CLEAN, "a dismissed review") in errors
 
 
 @pytest.mark.parametrize("gate", [COPILOT_GATE, CODEX_GATE, CODERABBIT_GATE])
@@ -3023,7 +3197,7 @@ def test_later_formal_bot_noncompletion_supersedes_older_completion(
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {gate}" in errors
+    assert _declined(gate, NOT_CLEAN, f"a {state.lower().replace('_', ' ')} review") in errors
 
 
 def test_later_formal_codex_noncompletion_supersedes_clean_comment() -> None:
@@ -3040,7 +3214,7 @@ def test_later_formal_codex_noncompletion_supersedes_clean_comment() -> None:
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert _declined(CODEX_GATE, NOT_CLEAN, "a changes requested review") in errors
 
 
 def test_formal_codex_completion_after_noncompletion_restores_lane() -> None:
@@ -3081,7 +3255,7 @@ def test_later_edited_formal_review_supersedes_older_completion(gate: str) -> No
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {gate}" in errors
+    assert _declined(gate, NOT_CLEAN, "an edited review") in errors
 
 
 def test_bot_completion_is_not_inferred_from_review_body_phrases() -> None:
@@ -3448,7 +3622,10 @@ def test_coderabbit_requires_a_marked_completed_review() -> None:
     )
     coderabbit["body"] = "Review completed."
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in errors
+    assert (
+        _declined(CODERABBIT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict")
+        in errors
+    )
 
 
 def test_empty_coderabbit_inline_review_after_summary_is_ignored() -> None:
@@ -3475,7 +3652,10 @@ def test_later_nonempty_unmarked_coderabbit_review_invalidates_completion() -> N
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in errors
+    assert (
+        _declined(CODERABBIT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict")
+        in errors
+    )
 
 
 def test_same_second_unmarked_coderabbit_review_invalidates_completion() -> None:
@@ -3491,7 +3671,10 @@ def test_same_second_unmarked_coderabbit_review_invalidates_completion() -> None
     )
     reviews["totalCount"] += 1
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODERABBIT_GATE}" in errors
+    assert (
+        _declined(CODERABBIT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict")
+        in errors
+    )
 
 
 def test_coderabbit_completion_marker_allows_quoted_failure_text() -> None:
@@ -3981,7 +4164,7 @@ def test_later_paginated_noncompletion_supersedes_earlier_bot_review() -> None:
     )
     assert len(context["data"]["repository"]["pullRequest"]["reviews"]["nodes"]) == 101
     assert validate_context(context, files, now=NOW) == [
-        "no verified current-head GitHub activity for: Copilot PR review"
+        _declined(COPILOT_GATE, NOT_CLEAN, "a dismissed review")
     ]
 
 
@@ -4701,7 +4884,7 @@ def test_new_head_invalidates_live_bot_reviews() -> None:
     context = deepcopy(_context("Standard", files))
     context["data"]["repository"]["pullRequest"]["headRefOid"] = "c" * 40
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {CODEX_GATE}" in errors
+    assert _declined(CODEX_GATE, EARLIER_HEAD) in errors
 
 
 def test_duplicate_open_pull_request_head_fails_closed() -> None:
@@ -4760,7 +4943,7 @@ def test_force_push_epoch_invalidates_reintroduced_sha_evidence() -> None:
         "nodes": [{"createdAt": "2026-07-21T12:50:00Z"}]
     }
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+    assert _declined(COPILOT_GATE, EARLIER_HEAD) in errors
 
 
 def test_bot_review_equal_to_force_push_epoch_fails_closed() -> None:
@@ -4770,7 +4953,7 @@ def test_bot_review_equal_to_force_push_epoch_fails_closed() -> None:
         "nodes": [{"createdAt": GATE_TIMES[COPILOT_GATE]}]
     }
     errors = validate_context(context, files, now=NOW)
-    assert f"no verified current-head GitHub activity for: {COPILOT_GATE}" in errors
+    assert _declined(COPILOT_GATE, EARLIER_HEAD) in errors
 
 
 def test_human_approval_equal_to_force_push_epoch_fails_closed() -> None:
