@@ -19,14 +19,16 @@ Plan §13.1 ADNA-09a thresholds:
   engine reports those rows as ``vep_bundle_allele_ambiguous``. They are left
   out of the denominator, and checked independently against the bundle so a
   regression cannot hide among them (#2494). On v4.0.0 with this fixture,
-  1,147 rows were withheld this way, 20 rsIDs were absent and 3,833 hit, so
-  the old all-rows rate read 0.77.
-- **ClinVar P/LP hit-rate ≥ 85%.** Of the *intersection* between the
-  fixture's variants and ClinVar positions classified as Pathogenic or
-  Likely_pathogenic in the local reference DB, at least 85% must receive a
+  1,147 rows were withheld this way, 3,833 hit by rsID and 9 by coordinate,
+  and 11 missed. The coordinate path could not match at all until the
+  fixture's positions moved from GRCh38 to GRCh37 (#2493).
+- **ClinVar P/LP hit-rate ≥ 85%.** Of the fixture's calls that sit at a
+  ClinVar Pathogenic or Likely_pathogenic rsID, or that carry a P/LP record's
+  ALT at its position, in the local reference DB, at least 85% must receive a
   ``clinvar_significance`` value in ``annotated_variants``. Skipped when the
   reference DB has no ClinVar rows (the nightly workflow may not always
-  rehydrate the full 250 MB ClinVar pipeline DB).
+  rehydrate the full 250 MB ClinVar pipeline DB), or when no fixture call
+  qualifies.
 
 Both thresholds are bio-validator calibration targets — on the first
 successful nightly run against the release ``bundles/manifest.json`` pins, the validator
@@ -266,16 +268,19 @@ def _manifest_vep_bundle_version() -> str:
     return json.loads(manifest.read_text(encoding="utf-8"))["bundles"]["vep_bundle"]["version"]
 
 
-def _plp_keys_in_clinvar(reference_engine: sa.Engine) -> tuple[set[str], set[tuple[str, int]]]:
-    """Return (rsids, (chrom, pos) pairs) for all ClinVar P/LP rows in scope."""
+def _plp_keys_in_clinvar(
+    reference_engine: sa.Engine,
+) -> tuple[set[str], dict[tuple[str, int], set[str]]]:
+    """Return the P/LP rsIDs, and the P/LP ALTs at each ``(chrom, pos)``, in scope."""
     plp_rsids: set[str] = set()
-    plp_coords: set[tuple[str, int]] = set()
+    plp_alts_by_coord: dict[tuple[str, int], set[str]] = {}
     with reference_engine.connect() as conn:
         rows = conn.execute(
             sa.select(
                 clinvar_variants.c.rsid,
                 clinvar_variants.c.chrom,
                 clinvar_variants.c.pos,
+                clinvar_variants.c.alt,
                 clinvar_variants.c.significance,
             )
         ).fetchall()
@@ -285,8 +290,10 @@ def _plp_keys_in_clinvar(reference_engine: sa.Engine) -> tuple[set[str], set[tup
         if row.rsid:
             plp_rsids.add(row.rsid)
         if row.chrom and row.pos is not None:
-            plp_coords.add((row.chrom, int(row.pos)))
-    return plp_rsids, plp_coords
+            plp_alts_by_coord.setdefault((row.chrom, int(row.pos)), set()).add(
+                (row.alt or "").upper()
+            )
+    return plp_rsids, plp_alts_by_coord
 
 
 def test_plp_keys_follow_shared_pathogenicity_boundary() -> None:
@@ -335,10 +342,30 @@ def test_plp_keys_follow_shared_pathogenicity_boundary() -> None:
     rsids, coords = _plp_keys_in_clinvar(engine)
 
     assert rsids == {"rs-compound", "rs-primary"}
-    assert coords == {("1", 101), ("2", 202)}
+    assert coords == {("1", 101): {"G"}, ("2", 202): {"T"}}
 
 
 # ── Tests ────────────────────────────────────────────────────────────────
+
+
+def _bundle_rows_for(vep_engine: sa.Engine, variants) -> list[tuple[str, str, int, str, str]]:
+    """Every bundle ``(rsid, chrom, pos, ref, alt)`` row at one of the fixture's rsIDs."""
+    rsids = sorted({v.rsid for v in variants})
+    rows: list[tuple[str, str, int, str, str]] = []
+    with vep_engine.connect() as conn:
+        for i in range(0, len(rsids), 500):
+            chunk = rsids[i : i + 500]
+            params = {f"r{j}": rsid for j, rsid in enumerate(chunk)}
+            placeholders = ", ".join(f":r{j}" for j in range(len(chunk)))
+            for rsid, chrom, pos, ref, alt in conn.execute(
+                sa.text(
+                    "SELECT rsid, chrom, pos, ref, alt FROM vep_annotations "  # noqa: S608
+                    f"WHERE rsid IN ({placeholders})"
+                ),
+                params,
+            ):
+                rows.append((rsid, str(chrom), int(pos), ref or "", alt or ""))
+    return rows
 
 
 def _rows_that_could_be_allele_ambiguous(vep_engine: sa.Engine, variants) -> int:
@@ -349,21 +376,9 @@ def _rows_that_could_be_allele_ambiguous(vep_engine: sa.Engine, variants) -> int
     zero or several of the listed ALT alleles. This is an upper bound on what
     the lookup may withhold as allele-ambiguous (#2494).
     """
-    rsids = sorted({v.rsid for v in variants})
     pairs: dict[str, set[tuple[str, str]]] = {}
-    with vep_engine.connect() as conn:
-        for i in range(0, len(rsids), 500):
-            chunk = rsids[i : i + 500]
-            params = {f"r{j}": rsid for j, rsid in enumerate(chunk)}
-            placeholders = ", ".join(f":r{j}" for j in range(len(chunk)))
-            for rsid, ref, alt in conn.execute(
-                sa.text(
-                    "SELECT rsid, ref, alt FROM vep_annotations "  # noqa: S608
-                    f"WHERE rsid IN ({placeholders})"
-                ),
-                params,
-            ):
-                pairs.setdefault(rsid, set()).add(((ref or "").upper(), (alt or "").upper()))
+    for rsid, _chrom, _pos, ref, alt in _bundle_rows_for(vep_engine, variants):
+        pairs.setdefault(rsid, set()).add((ref.upper(), alt.upper()))
     count = 0
     for variant in variants:
         listed = pairs.get(variant.rsid, set())
@@ -434,6 +449,36 @@ class TestAncestryDNARealBundle:
         # fixture stamped itself, so a stale bundle could never fail it (#2552).
         assert stats["bundle_version"] == _manifest_vep_bundle_version()
 
+    def test_fixture_sits_at_the_bundles_grch37_coordinates(
+        self,
+        real_vep_bundle_path: Path,  # noqa: ARG002 — gate first
+        synthetic_parsed,
+        real_vep_engine: sa.Engine,
+    ) -> None:
+        """Every fixture rsID the GRCh37 bundle carries sits at the bundle's locus (#2493).
+
+        The fixture had carried GRCh38 positions under a GRCh37 vendor format, so
+        the coordinate fallback above could never match. This checks the
+        fixture against the join target itself rather than against a copy of
+        its own coordinates.
+        """
+        loci: dict[str, set[tuple[str, int]]] = {}
+        for rsid, chrom, pos, _ref, _alt in _bundle_rows_for(
+            real_vep_engine, synthetic_parsed.variants
+        ):
+            loci.setdefault(rsid, set()).add((chrom, pos))
+        covered = [v for v in synthetic_parsed.variants if v.rsid in loci]
+        assert len(covered) >= 4_900, f"only {len(covered)} fixture rsIDs are in the bundle"
+        misplaced = [
+            (v.rsid, f"{v.chrom}:{v.pos}", sorted(loci[v.rsid]))
+            for v in covered
+            if (str(v.chrom), int(v.pos)) not in loci[v.rsid]
+        ]
+        assert not misplaced, (
+            f"{len(misplaced)} of {len(covered)} fixture rows are off the bundle's "
+            f"GRCh37 locus, e.g. {misplaced[:3]}"
+        )
+
     def test_clinvar_pathogenic_hit_rate_at_least_85_percent(
         self,
         real_vep_bundle_path: Path,  # noqa: ARG002 — gate first
@@ -451,17 +496,27 @@ class TestAncestryDNARealBundle:
             )
 
         # Intersection: fixture variants that *should* receive a ClinVar hit.
+        # An rsID match names the variant itself. A coordinate match says only
+        # that some P/LP record sits at that base, and which record the engine
+        # attaches depends on the allele the call carries (_pick_clinvar_row):
+        # at a multi-record site a non-carrier gets the site's top-starred
+        # record instead. So a coordinate overlap counts only when the call
+        # carries that record's ALT. While the fixture carried GRCh38 positions
+        # its one overlap was a cross-build coincidence (#2493).
         expected_keys: set[str] = set()
         for v in synthetic_parsed.variants:
             if v.rsid in plp_rsids:
                 expected_keys.add(v.rsid)
                 continue
-            if (v.chrom, v.pos) in plp_coords:
+            genotype = (v.genotype or "").upper()
+            plp_alts = plp_coords.get((v.chrom, v.pos), set())
+            if any(len(alt) == 1 and alt in genotype for alt in plp_alts):
                 expected_keys.add(v.rsid)
         if not expected_keys:
             pytest.skip(
-                "Synthetic AncestryDNA fixture has zero overlap with ClinVar P/LP "
-                "positions in the local reference DB; nothing to measure."
+                "Synthetic AncestryDNA fixture has no call at a ClinVar P/LP rsID, "
+                "and none carrying a P/LP ALT at a P/LP position, in the local "
+                "reference DB; nothing to measure."
             )
 
         run_annotation(synthetic_sample_engine, registry)
