@@ -226,7 +226,35 @@ SNP_FINDING = {
     ),
 }
 
+# A DRD4 -> Gene Health card as stored before #2347: the generic pointer at the
+# end, and the panel note only in ``detail``.
 CROSS_MODULE_FINDING = {
+    "module": "traits",
+    "category": "cross_module",
+    "evidence_level": 1,
+    "gene_symbol": "DRD4",
+    "rsid": "rs747302",
+    "finding_text": (
+        "DRD4 exon III VNTR proxy (CG) — One copy of proxy allele. "
+        "See Gene Health module for related findings."
+    ),
+    "pathway": None,
+    "pathway_level": None,
+    "pmid_citations": json.dumps(["12210280"]),
+    "detail_json": json.dumps(
+        {
+            "genotype": "CG",
+            "category": "Moderate",
+            "trait_domain": "novelty_seeking",
+            "to_module": "gene_health",
+            "link_type": "ADHD",
+            "note": "DRD4 VNTR has been associated with ADHD susceptibility.",
+        }
+    ),
+}
+
+# A link the Traits panel has never declared.
+UNDECLARED_CROSS_MODULE_FINDING = {
     "module": "traits",
     "category": "cross_module",
     "evidence_level": 2,
@@ -321,6 +349,7 @@ def seeded_client(
         + [
             SNP_FINDING,
             CROSS_MODULE_FINDING,
+            UNDECLARED_CROSS_MODULE_FINDING,
         ]
     )
     with sample_engine.begin() as conn:
@@ -517,11 +546,29 @@ class TestListPathways:
         assert cog["prs_primary"] is True
 
     def test_cross_module_in_response(self, seeded_client: TestClient) -> None:
+        """A card stored with the generic pointer is served with the panel note (#2347)."""
+        from backend.analysis.traits import load_traits_panel
+
+        note = next(
+            snp.cross_module["note"]
+            for pathway in load_traits_panel().pathways
+            for snp in pathway.snps
+            if snp.rsid == "rs747302"
+        )
         resp = seeded_client.get("/api/analysis/traits/pathways?sample_id=1")
         data = resp.json()
-        assert len(data["cross_module"]) >= 1
-        cross = data["cross_module"][0]
-        assert cross["to_module"] == "sleep"
+        cross = next(c for c in data["cross_module"] if c["rsid"] == "rs747302")
+        assert cross["to_module"] == "gene_health"
+        assert cross["finding_text"] == (
+            f"DRD4 exon III VNTR proxy (CG) — One copy of proxy allele. {note}"
+        )
+        assert "ADHD" in cross["finding_text"]
+        assert "module for related findings" not in cross["finding_text"]
+
+    def test_a_link_the_panel_never_declared_is_dropped(self, seeded_client: TestClient) -> None:
+        """Traits resolves stored cards against the panel like every other module."""
+        resp = seeded_client.get("/api/analysis/traits/pathways?sample_id=1")
+        assert [c["rsid"] for c in resp.json()["cross_module"]] == ["rs747302"]
 
     def test_module_disclaimer_present(self, seeded_client: TestClient) -> None:
         resp = seeded_client.get("/api/analysis/traits/pathways?sample_id=1")
