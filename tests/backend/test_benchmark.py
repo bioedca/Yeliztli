@@ -62,10 +62,17 @@ from scripts.benchmark import (
 # variance. Raised the CI ceiling to 60 min — still orders of magnitude below an O(n²)
 # reintroduction (which would run for hours), and still leaves ~half the 120-min job
 # budget as margin against a genuine hang.
+#
+# 2026-10-20 (#2270): this module now runs in its own nightly job (`slow-benchmark`),
+# with 75 min of pytest and 90 for the job. It had grown to 77 min on CI by
+# 2026-10-13, and on most nights it was still running at the shared job's 120-min
+# cap, which also stopped every slow test collected after it from running. The
+# 60-min ceiling below is unchanged; the extra 15 min covers generating and seeding
+# the 600k rows.
 _ANNOTATION_TARGET_SECONDS = 120.0  # PRD ideal (< 2 min) — informational only
 _ANNOTATION_PRD_HARD_LIMIT_SECONDS = 300.0  # PRD hard limit (< 5 min) — informational only
 _ANNOTATION_HARD_LIMIT_SECONDS = 1800.0  # 30 min — local/reference regression ceiling
-_ANNOTATION_CI_HARD_LIMIT_SECONDS = 3600.0  # 60 min — CI ceiling, < 120-min job timeout
+_ANNOTATION_CI_HARD_LIMIT_SECONDS = 3600.0  # 60 min — CI ceiling, < 75-min nightly pytest budget
 
 
 def _running_on_ci() -> bool:

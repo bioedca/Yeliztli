@@ -81,8 +81,9 @@ more than one.
   (paired with `scientific-validity`).
 - `dependencies` — a dependency update (used by Dependabot).
 - `slow-tier-regression` / `cross-os-regression` — **filed automatically** by the
-  nightly workflow when a slow-tier or cross-OS test regresses. Don't apply these
-  by hand.
+  nightly workflow when a slow-tier or cross-OS job fails or runs past its time
+  budget. While an issue with the label is open, later nights add a comment to it
+  instead of opening another. Don't apply these by hand.
 
 ## The triage flow
 

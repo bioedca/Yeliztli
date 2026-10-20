@@ -40,7 +40,9 @@ everything:
   as pass.
 - **Tier 2 — merge to `main` / merge queue:** the macOS backend + smoke-install legs and the
   three-browser **E2E** suite — portability gates that block the merge rather than every PR.
-- **Nightly:** the slow tier plus a cross-OS backstop; failures auto-file a regression issue.
+- **Nightly:** the slow tier (with the 600k annotation benchmark in a job of its own) plus a
+  cross-OS backstop. A job that fails or runs past its time budget files a regression issue,
+  or comments on the one already open.
 
 !!! tip "Verify UI changes before merging"
     Because the E2E suite is Tier 2 (merge-time), it's worth driving a UI change in a real
