@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import sqlalchemy as sa
@@ -162,3 +163,24 @@ def test_uncheckpointed_wal_metadata_is_treated_as_unreadable(tmp_path: Path) ->
         } == sidecars_before
     finally:
         writer.close()
+
+
+def test_a_path_that_is_not_a_file_is_probed_without_creating_anything(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The read-only probe never writes (#2371).
+
+    A MagicMock path stringifies to something that is not a ``file:`` URI, and
+    SQLite then treats the whole string as a filename and creates it in the
+    working directory. That is what left ``<MagicMock …>`` files behind.
+    """
+    workdir = tmp_path / "cwd"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    for candidate in (MagicMock(), tmp_path / "missing-vep.db", tmp_path):
+        assert (
+            resolve_effective_vep_bundle_version(_reference_engine(), candidate)
+            == VERSIONLESS_VEP_BUNDLE_BASELINE
+        )
+    assert list(workdir.iterdir()) == []
+    assert not (tmp_path / "missing-vep.db").exists()
