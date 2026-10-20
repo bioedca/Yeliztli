@@ -2065,7 +2065,11 @@ def _bot_activity_verdict(
     The reason is ``(kind, detail)`` and is derived from the same candidates and
     signals the verdict is, so it cannot change what is accepted.
     """
+    # Whether anything from this provider predates the head, and whether
+    # anything (even an artifact the gate ignores) is on it, so a stale earlier
+    # review is not blamed when the current head has an answer.
     earlier_head = False
+    current_head_seen = False
     candidates: list[tuple[datetime, dict[str, Any]]] = []
     for review in pull_request["reviews"].get("nodes") or []:
         commit = review.get("commit") or {}
@@ -2083,6 +2087,7 @@ def _bot_activity_verdict(
             )
             if effective_at > head_epoch:
                 candidates.append((effective_at, review))
+                current_head_seen = True
             else:
                 earlier_head = True
     signals: list[tuple[datetime, bool, tuple[str, str] | None]] = []
@@ -2154,6 +2159,7 @@ def _bot_activity_verdict(
             if updated <= head_epoch:
                 earlier_head = True
                 continue
+            current_head_seen = True
             database_id = comment.get("databaseId")
             if not isinstance(database_id, int):
                 continue
@@ -2220,7 +2226,8 @@ def _bot_activity_verdict(
     if not signals:
         if comment_declines:
             return None, max(comment_declines, key=lambda decline: decline[0])[1]
-        return None, (EARLIER_HEAD, "") if earlier_head else (NO_ACTIVITY, "")
+        stale = earlier_head and not current_head_seen
+        return None, (EARLIER_HEAD, "") if stale else (NO_ACTIVITY, "")
     latest_at = max(when for when, _, _ in signals)
     latest = [(valid, reason) for when, valid, reason in signals if when == latest_at]
     if all(valid for valid, _ in latest):

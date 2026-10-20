@@ -1588,6 +1588,25 @@ def test_a_codex_verdict_older_than_the_head_is_reported_as_stale() -> None:
     assert validate_context(context, files, now=NOW) == [_declined(CODEX_GATE, EARLIER_HEAD)]
 
 
+def test_an_ignored_current_head_review_is_not_blamed_on_an_earlier_head() -> None:
+    """v2 ignores an empty CodeRabbit review; that is still activity on the head."""
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    reviews = context["data"]["repository"]["pullRequest"]["reviews"]
+    reviews["nodes"] = [
+        review
+        for review in reviews["nodes"]
+        if review["author"]["databaseId"] != BOT_ACTOR_IDS[CODERABBIT_GATE]
+    ] + [
+        _review(BOT_ACTOR_IDS[CODERABBIT_GATE], "2026-07-21T11:30:00Z", head_sha="b" * 40),
+        _review(BOT_ACTOR_IDS[CODERABBIT_GATE], "2026-07-21T12:30:00Z", body=""),
+    ]
+    reviews["totalCount"] = len(reviews["nodes"])
+    errors = validate_context(context, files, now=NOW)
+    assert _declined(CODERABBIT_GATE, NO_ACTIVITY) in errors
+    assert _declined(CODERABBIT_GATE, EARLIER_HEAD) not in errors
+
+
 def test_bot_activity_is_the_verdicts_time_and_only_that() -> None:
     """The wrapper other tools call returns exactly what the gate accepts."""
     accepted, files = _codex_clean_context()
