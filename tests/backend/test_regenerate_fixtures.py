@@ -242,7 +242,9 @@ def _expected_grch37_reference_bases() -> dict[str, str]:
     seed rsID that first allele equals the assembly base of GRCh37 (NCBI Assembly
     GCF_000001405.13), checked against Ensembl GRCh37 sequence and UCSC hg19 in
     data/science-evidence/2026-10-20-issue-2344-seed-ref-orientation/ (accessed
-    2026-10-20). Non-panel rsIDs take ``SEED_GRCH37_REFERENCE_BASE``.
+    2026-10-20; PMID:25236461 / DOI:10.1093/bioinformatics/btu613 and
+    PMID:41251146 / DOI:10.1093/nar/gkaf1250). Non-panel rsIDs take
+    ``SEED_GRCH37_REFERENCE_BASE``.
     """
     snapshot = json.loads(PANEL_RSID_COORDINATES.read_text(encoding="utf-8"))["rsids"]
     bases: dict[str, str] = {}

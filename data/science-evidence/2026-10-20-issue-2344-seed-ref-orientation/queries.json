@@ -38,11 +38,14 @@
     "tests/backend/test_regenerate_fixtures.py::SEED_GRCH37_REFERENCE_BASE rs662": "C1",
     "tests/backend/test_regenerate_fixtures.py::KNOWN_REVERSED_SEED_REF rs6025": "C2"
   },
-  "discovery_ladder": "No literature claim is involved: the facts are reference-assembly bases, read directly from the assembly. Consensus and Scite were not consulted, because they index literature, not assembly sequence.",
+  "discovery_ladder": "Consensus was searched for a defining GRCh37 assembly publication and surfaced none (raw/citation/consensus_search.json). Scite was unavailable: monthly MCP quota exhausted until 2026-11-03, and pay-as-you-go was not enabled. PubMed E-utilities (esearch, esummary, efetch) verified the two database publications cited, and NCBI Assembly E-utilities verified the GRCh37 accession. The facts themselves are reference-assembly bases, read directly from the assembly.",
   "privacy": "Only public reference-assembly coordinates were sent. No sample, genotype or patient-derived data.",
   "payloads": {
+    "citation/consensus_search.json": "257d432a1738d0e5eeef1d0f131c2e40c826f2e474ea64d833f398b36409834d",
     "citation/ncbi_assembly_esearch.json": "9c729eae1661a350531f9d9681f2e408859c5e97548af0386c76d097803b24de",
     "citation/ncbi_assembly_esummary.json": "554065588963a08da605a0ff2d296a2304af53adc636056128b6f84da7045ca4",
+    "citation/pubmed_efetch.xml": "7c563462a1e33c7a7d7c72be749e497a9006b5d3940b090cdabe433e149384e9",
+    "citation/pubmed_esummary.json": "18f402d8b4dceb15205be011deb6c088dadcc63601ca72e44f12cb6036e05a6e",
     "rs1051266.ensembl_grch37_sequence.json": "6615a675442cf77e899f0b7685b68b5547010d32d92a2030b864b9606b26e8e3",
     "rs1051266.ucsc_hg19_sequence.json": "9d109de3f058b7f49b6b97882523fa711d01c3a84c2ed521a07a441a106be9cc",
     "rs10741657.ensembl_grch37_sequence.json": "de664a2dc1a132a806a4e1b9e93a1b7fbb18f94e4a813fbcbe163a6f0bd9bdcb",
@@ -131,6 +134,23 @@
       "raw/citation/ncbi_assembly_esearch.json",
       "raw/citation/ncbi_assembly_esummary.json"
     ],
-    "note": "The assembly is the defining source for which base it carries, so it is cited by its registry accession. No PMID or DOI is attached: a PubMed search for a GRCh37 assembly publication returned none that could be verified, and no paper is cited from memory."
-  }
+    "note": "The assembly is the defining source for which base it carries, so it is cited by its registry accession. The qualifying citations are the publications of the two databases the bases were read from; no GRCh37 assembly publication could be verified, and none is cited from memory."
+  },
+  "citations": [
+    {
+      "id": "PMID:25236461",
+      "doi": "DOI:10.1093/bioinformatics/btu613",
+      "accessed": "2026-10-20",
+      "reference": "Yates A, et al. The Ensembl REST API: Ensembl Data for Any Language. Bioinformatics. 2015;31(1):143-5.",
+      "role": "Publication of the Ensembl REST API, the source of the GRCh37 sequence/region bases and of the committed Variation snapshot's allele_string."
+    },
+    {
+      "id": "PMID:41251146",
+      "doi": "DOI:10.1093/nar/gkaf1250",
+      "accessed": "2026-10-20",
+      "reference": "Casper J, et al. The UCSC Genome Browser database: 2026 update. Nucleic Acids Res. 2026;54(D1):D1331-D1335.",
+      "role": "Current publication of the UCSC Genome Browser database, the source of the hg19 bases."
+    }
+  ],
+  "retraction_check": "PubMed efetch for both PMIDs (raw/citation/pubmed_efetch.xml, accessed 2026-10-20): no CommentsCorrections entries and no retraction notice."
 }

@@ -16,6 +16,14 @@ Accessed 2026-10-20.
 
 **Rows disagreeing with the assembly:** rs6025.
 
-**Assembly.** GRCh37 is NCBI Assembly `GCF_000001405.13` (Genome Reference Consortium), verified through E-utilities and accessed 2026-10-20 (`raw/citation/`). The assembly is the defining source for which base it carries, so it is cited by that accession. No PMID or DOI is attached, because no GRCh37 assembly publication could be verified in PubMed, and none is cited from memory.
+**Assembly.** GRCh37 is NCBI Assembly `GCF_000001405.13` (Genome Reference Consortium), verified through E-utilities and accessed 2026-10-20 (`raw/citation/`). The assembly is the defining source for which base it carries, so it is cited by that accession.
+
+**Citations** for the two databases the bases were read from:
+- `PMID:25236461 / DOI:10.1093/bioinformatics/btu613 (accessed 2026-10-20)`: Yates et al., *The Ensembl REST API: Ensembl Data for Any Language*, Bioinformatics 2015.
+- `PMID:41251146 / DOI:10.1093/nar/gkaf1250 (accessed 2026-10-20)`: Casper et al., *The UCSC Genome Browser database: 2026 update*, Nucleic Acids Res 2026.
+
+PubMed lists no correction or retraction for either. No GRCh37 assembly publication could be verified, so none is cited.
+
+**Discovery ladder.** Consensus surfaced no defining assembly publication. Scite was unavailable: its monthly quota is exhausted until 2026-11-03. PubMed and NCBI Assembly E-utilities verified the citations and the accession.
 
 See `queries.json` for sources, licenses, the claim mapping and payload hashes.
