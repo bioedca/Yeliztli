@@ -1244,10 +1244,13 @@ class TestRunAnnotation:
         reference_engine: sa.Engine,
         gnomad_engine: sa.Engine,
         dbnsfp_engine: sa.Engine,
+        tmp_path: Path,
     ) -> None:
         """Annotation proceeds when VEP engine is unavailable."""
         registry = MagicMock()
         registry.reference_engine = reference_engine
+        # A real (missing) bundle path, not a MagicMock attribute (#2371).
+        registry.settings.vep_bundle_db_path = tmp_path / "missing-vep.db"
         # VEP engine raises an exception when accessed
         type(registry).vep_engine = property(
             lambda self: (_ for _ in ()).throw(FileNotFoundError("no VEP"))
@@ -3736,6 +3739,7 @@ class TestEnsemblePathogenicIntegration:
         sample_engine: sa.Engine,
         dbnsfp_engine: sa.Engine,
         reference_engine: sa.Engine,
+        tmp_path: Path,
     ) -> None:
         """P2-13: Reviewed synthetic scenario with exactly 3 deleterious axes is flagged."""
         # Reuse rsYELIZTLI0004 from the shared scenario contract instead of
@@ -3749,6 +3753,8 @@ class TestEnsemblePathogenicIntegration:
 
         registry = MagicMock()
         registry.reference_engine = reference_engine
+        # A real (missing) bundle path, not a MagicMock attribute (#2371).
+        registry.settings.vep_bundle_db_path = tmp_path / "missing-vep.db"
         type(registry).vep_engine = property(
             lambda self: (_ for _ in ()).throw(FileNotFoundError("no VEP"))
         )

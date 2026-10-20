@@ -69,8 +69,6 @@ htmlcov/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-# Stringified MagicMock leaks (defense-in-depth — fix the test, but don't commit the artifact)
-<MagicMock*
 
 # Playwright
 test-results/

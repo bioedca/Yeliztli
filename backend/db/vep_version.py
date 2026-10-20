@@ -48,7 +48,12 @@ def resolve_effective_vep_bundle_version(
     if recorded is not None:
         return str(recorded)
 
-    if vep_db_path is not None:
+    # Probe only a real file. The probe must never create one (#2371): given
+    # something that is not a Path (a test's MagicMock, say), the f-string
+    # below is no ``file:`` URI, and SQLite then treats the whole string as a
+    # filename and creates it. A mock's is_file() is truthy, hence isinstance.
+    # A missing or non-file path already fell back to the baseline below.
+    if isinstance(vep_db_path, Path) and vep_db_path.is_file():
         try:
             uri = f"{vep_db_path.resolve().as_uri()}?mode=ro&immutable=1"
             with closing(sqlite3.connect(uri, uri=True)) as conn:
