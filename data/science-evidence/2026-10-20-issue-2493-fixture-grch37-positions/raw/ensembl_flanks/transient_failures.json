@@ -1,0 +1,12 @@
+[
+ {
+  "url": "https://rest.ensembl.org/sequence/region/human/6:36302328..36302378:1?content-type=application/json",
+  "attempt": 0,
+  "status": 500
+ },
+ {
+  "url": "https://rest.ensembl.org/sequence/region/human/6:36302328..36302378:1?content-type=application/json",
+  "attempt": 1,
+  "status": 500
+ }
+]

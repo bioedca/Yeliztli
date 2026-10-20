@@ -19,9 +19,9 @@ Plan §13.1 ADNA-09a thresholds:
   engine reports those rows as ``vep_bundle_allele_ambiguous``. They are left
   out of the denominator, and checked independently against the bundle so a
   regression cannot hide among them (#2494). On v4.0.0 with this fixture,
-  1,147 rows were withheld this way, 3,833 hit by rsID and 9 by coordinate,
+  1,148 rows were withheld this way, 3,832 hit by rsID and 9 by coordinate,
   and 11 missed. The coordinate path could not match at all until the
-  fixture's positions moved from GRCh38 to GRCh37 (#2493).
+  fixture moved from GRCh38 to GRCh37 (#2493).
 - **ClinVar P/LP hit-rate ≥ 85%.** Of the fixture's calls that sit at a
   ClinVar Pathogenic or Likely_pathogenic rsID, or that carry a P/LP record's
   ALT at its position, in the local reference DB, at least 85% must receive a
@@ -455,18 +455,20 @@ class TestAncestryDNARealBundle:
         synthetic_parsed,
         real_vep_engine: sa.Engine,
     ) -> None:
-        """Every fixture rsID the GRCh37 bundle carries sits at the bundle's locus (#2493).
+        """Every fixture rsID the GRCh37 bundle carries sits at its locus and alleles (#2493).
 
-        The fixture had carried GRCh38 positions under a GRCh37 vendor format, so
-        the coordinate fallback above could never match. This checks the
-        fixture against the join target itself rather than against a copy of
-        its own coordinates.
+        The fixture had carried GRCh38 positions, and GRCh38-strand calls, under
+        a GRCh37 vendor format, so the coordinate fallback above could never
+        match. This checks the fixture against the join target itself rather
+        than against a copy of its own coordinates.
         """
         loci: dict[str, set[tuple[str, int]]] = {}
-        for rsid, chrom, pos, _ref, _alt in _bundle_rows_for(
+        alleles: dict[str, set[str]] = {}
+        for rsid, chrom, pos, ref, alt in _bundle_rows_for(
             real_vep_engine, synthetic_parsed.variants
         ):
             loci.setdefault(rsid, set()).add((chrom, pos))
+            alleles.setdefault(rsid, set()).update({ref.upper(), alt.upper()})
         covered = [v for v in synthetic_parsed.variants if v.rsid in loci]
         assert len(covered) >= 4_900, f"only {len(covered)} fixture rsIDs are in the bundle"
         misplaced = [
@@ -477,6 +479,15 @@ class TestAncestryDNARealBundle:
         assert not misplaced, (
             f"{len(misplaced)} of {len(covered)} fixture rows are off the bundle's "
             f"GRCh37 locus, e.g. {misplaced[:3]}"
+        )
+        off_strand = [
+            (v.rsid, v.genotype, sorted(alleles[v.rsid]))
+            for v in covered
+            if not set((v.genotype or "").upper()) <= alleles[v.rsid]
+        ]
+        assert not off_strand, (
+            f"{len(off_strand)} fixture calls draw on alleles the bundle does not list "
+            f"on the GRCh37 plus strand, e.g. {off_strand[:3]}"
         )
 
     def test_clinvar_pathogenic_hit_rate_at_least_85_percent(
