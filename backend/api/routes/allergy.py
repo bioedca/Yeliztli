@@ -32,7 +32,7 @@ from backend.analysis.pharmacogenomics import (
     patient_visible_finding_clause,
 )
 from backend.api.dependencies import require_fresh_sample
-from backend.api.withheld import WithheldMarker
+from backend.api.withheld import WithheldMarker, withheld_not_found
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
 
@@ -522,7 +522,7 @@ def pathway_detail(
         hla_proxy_lookup=detail.get("hla_proxy_lookup"),
     )
     if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
-        raise HTTPException(status_code=404, detail="Pathway not found for sample.")
+        raise withheld_not_found("This pathway's details are withheld for this sample.")
     return response
 
 

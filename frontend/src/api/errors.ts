@@ -58,6 +58,22 @@ export function isUnsupportedGenomeBuildDetail(value: unknown): boolean {
   )
 }
 
+const PATIENT_RESPONSE_WITHHELD_CODE = "patient_response_withheld"
+
+/** True for the 404 a route answers when the presentability guard refused the
+ * assembled item (#2520). That is not "not found", and a retry cannot help, so
+ * a page shows it as withheld. The code is the only part read: the body's
+ * message never reaches the UI. */
+export function isPatientResponseWithheldError(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 404) return false
+  const detail = getApiErrorDetail(error.body)
+  return (
+    !!detail &&
+    typeof detail === "object" &&
+    (detail as Record<string, unknown>).code === PATIENT_RESPONSE_WITHHELD_CODE
+  )
+}
+
 /** Throw a typed response failure with curated, safe display copy. */
 export async function throwApiError(
   response: Response,
