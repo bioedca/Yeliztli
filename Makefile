@@ -37,12 +37,12 @@ run: run-api  ## Start the API server (default)
 
 dev:  ## Start backend + frontend + Huey worker concurrently (API_PORT overrides 8000)
 	@echo "Starting API server (port $(API_PORT)), Vite dev server (port 5173), and Huey worker..."
-	@trap 'kill 0' INT TERM; YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend & $(MAKE) run-huey & wait
+	@trap 'trap - INT TERM; kill 0' INT TERM; YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend & $(MAKE) run-huey & wait
 
 dev-wsl:  ## Like `dev`, but binds servers to 0.0.0.0 so a Windows-host browser can reach WSL2
 	@echo "Starting Yeliztli for WSL2 — backend on 0.0.0.0:$(API_PORT), Vite on 0.0.0.0:5173."
 	@echo "Open http://localhost:5173 in your Windows browser; if localhost is blocked, use http://$$(hostname -I 2>/dev/null | awk '{print $$1}'):5173 (see docs/install/wsl2.md)."
-	@trap 'kill 0' INT TERM; YELIZTLI_HOST=0.0.0.0 YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend VITE_ARGS=--host & $(MAKE) run-huey & wait
+	@trap 'trap - INT TERM; kill 0' INT TERM; YELIZTLI_HOST=0.0.0.0 YELIZTLI_PORT=$(API_PORT) $(MAKE) run-api & VITE_API_PORT=$(API_PORT) $(MAKE) run-frontend VITE_ARGS=--host & $(MAKE) run-huey & wait
 
 run-api:  ## Start FastAPI dev server
 	YELIZTLI_DEBUG=$${YELIZTLI_DEBUG:-true} $(PYTHON) -m backend.main
