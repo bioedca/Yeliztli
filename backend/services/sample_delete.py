@@ -217,17 +217,19 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
     if row is None:
         return None
 
-    # A merge streams its sources for its whole materialisation, so removing
-    # one underneath it would leave the merge reading a deleted database and
-    # could publish a child naming a source that no longer exists (#2329).
-    # Refuse rather than queue: the merge lease can be held for a long time and
-    # a DELETE that silently blocks reads as a hang, matching how annotation
-    # and export already answer "this sample is busy".
+    # A merge, annotation, export, liftover or LAI run holds the sample's
+    # database open for its whole run. Removing it underneath one would leave
+    # that operation reconnecting through its open engine and recreating an
+    # empty sample_<id>.db after the DELETE returned -- a stale file the next
+    # sample allocated that id inherits (#2314, #2329). Refuse rather than
+    # queue, matching how annotation and export already answer "this sample is
+    # busy".
     #
-    # This is a reservation, not a pre-check. Reading "is a merge active?" and
+    # This is a reservation, not a pre-check. Reading "is anything active?" and
     # then unlinking would leave the exact window it is meant to close, because
-    # a merge can acquire its own lease in between; both sides check and insert
-    # inside one BEGIN IMMEDIATE so whichever commits first is seen by the other.
+    # an operation can acquire its own lease in between; both sides check and
+    # insert inside one BEGIN IMMEDIATE so whichever commits first is seen by
+    # the other.
     with sample_delete_lease(registry.reference_engine, [sample_id], operation="Sample delete"):
         return _delete_sample_with_cascade_locked(registry, sample_id, row)
 
@@ -237,7 +239,22 @@ def _delete_sample_with_cascade_locked(
 ) -> DeleteCascadeResult:
     """Body of :func:`delete_sample_with_cascade`, run under the delete lease."""
     children = list_merged_children(registry, sample_id)
+    # The cascade destroys merged children too, so they need the same
+    # reservation before anything is unlinked. Taken under the source's lease,
+    # the child set is stable: a merge cannot start against a source that
+    # deletion already holds, so no new child can be published meanwhile.
+    with sample_delete_lease(
+        registry.reference_engine,
+        [child.id for child in children],
+        operation="Sample delete (merged child)",
+    ):
+        return _delete_reserved_cascade(registry, sample_id, row, children)
 
+
+def _delete_reserved_cascade(
+    registry: DBRegistry, sample_id: int, row: sa.Row, children: list[MergedChild]
+) -> DeleteCascadeResult:
+    """Unlink the reserved children, deepest first, then the source."""
     for child in children:
         with registry.reference_engine.connect() as conn:
             child_row = conn.execute(

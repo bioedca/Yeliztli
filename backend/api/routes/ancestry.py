@@ -693,12 +693,15 @@ def trigger_lai_analysis(sample_id: int) -> LAITriggerResponse:
     # Verify sample exists
     _get_sample_engine(sample_id)
 
+    from backend.services.sample_operation_lock import SampleOperationUnavailableError
     from backend.tasks.huey_tasks import create_lai_job, run_lai_task
 
     try:
         job_id = create_lai_job(sample_id)
     except ValueError as exc:
         raise HTTPException(409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        raise HTTPException(503, detail=str(exc)) from exc
 
     run_lai_task(sample_id, job_id)
 

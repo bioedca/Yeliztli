@@ -947,42 +947,24 @@ def recover_stale_pending_worker_jobs() -> None:
 
 def create_lai_job(sample_id: int) -> str:
     """Create a job record for an LAI analysis run. Returns the job_id."""
-    import sqlalchemy as sa
-
     from backend.db.connection import get_registry
-    from backend.db.tables import jobs
-    from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
+    from backend.services.sample_operation_lock import (
+        SampleOperationConflictError,
+        reserve_lai_job,
+    )
 
     job_id = str(uuid.uuid4())
     now = datetime.now(UTC)
     registry = get_registry()
-
-    with registry.reference_engine.begin() as conn:
-        # Check for already-running LAI job on this sample
-        existing = conn.execute(
-            sa.select(jobs.c.job_id).where(
-                jobs.c.sample_id == sample_id,
-                jobs.c.job_type == "lai_analysis",
-                jobs.c.status.in_(ACTIVE_JOB_STATUSES),
-            )
-        ).fetchone()
-        if existing is not None:
-            raise ValueError(
-                f"LAI analysis already in progress for sample {sample_id} (job {existing.job_id})"
-            )
-
-        conn.execute(
-            jobs.insert().values(
-                job_id=job_id,
-                sample_id=sample_id,
-                job_type="lai_analysis",
-                status="pending",
-                progress_pct=0.0,
-                message="Queued for local ancestry inference",
-                created_at=now,
-                updated_at=now,
-            )
+    try:
+        reserve_lai_job(
+            registry.reference_engine,
+            sample_id=sample_id,
+            job_id=job_id,
+            created_at=now,
         )
+    except SampleOperationConflictError as exc:
+        raise ValueError(str(exc)) from exc
 
     return job_id
 
