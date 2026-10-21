@@ -1,0 +1,440 @@
+{
+ "rs104894396": {
+  "locus": "13:20763650",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1057910": {
+  "locus": "10:96741053",
+  "allele_string": "A/C/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs10811661": {
+  "locus": "9:22134094",
+  "allele_string": "T/A/C",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1111875": {
+  "locus": "10:94462882",
+  "allele_string": "C/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1142345": {
+  "locus": "6:18130918",
+  "allele_string": "T/A/C/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1143634": {
+  "locus": "2:113590390",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs12124819": {
+  "locus": "1:776546",
+  "allele_string": "A/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs121434569": {
+  "locus": "7:55249071",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs121912443": {
+  "locus": "21:33036170",
+  "allele_string": "A/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs121913529": {
+  "locus": "12:25398284",
+  "allele_string": "C/A/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs12248560": {
+  "locus": "10:96521657",
+  "allele_string": "C/A/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs12979860": {
+  "locus": "19:39738787",
+  "allele_string": "C/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs16947": {
+  "locus": "22:42523943",
+  "allele_string": "A/G/C/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs17842875": {
+  "locus": "X:2404855",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1799853": {
+  "locus": "10:96702047",
+  "allele_string": "C/A/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1799950": {
+  "locus": "17:41246481",
+  "allele_string": "T/A/C",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1799971": {
+  "locus": "6:154360797",
+  "allele_string": "A/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800460": {
+  "locus": "6:18139228",
+  "allele_string": "C/A/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800462": {
+  "locus": "6:18143955",
+  "allele_string": "C/G",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800497": {
+  "locus": "11:113270828",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800544": {
+  "locus": "10:112836503",
+  "allele_string": "G/A/C",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800629": {
+  "locus": "6:31543031",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800872": {
+  "locus": "1:206946407",
+  "allele_string": "T/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs1800896": {
+  "locus": "1:206946897",
+  "allele_string": "T/C",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs199474672": {
+  "locus": "MT:5538",
+  "allele_string": "-/T",
+  "assembly_sequence": "",
+  "verdict": "insertion"
+ },
+ "rs2032597": {
+  "locus": "Y:14847792",
+  "allele_string": "A/C",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs2060793": {
+  "locus": "11:14915310",
+  "allele_string": "A/C/G/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs213950": {
+  "locus": "7:117199533",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs2228479": {
+  "locus": "16:89985940",
+  "allele_string": "G/A/C",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs2306283": {
+  "locus": "12:21329738",
+  "allele_string": "A/C/G/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs25531": {
+  "locus": "17:28564346",
+  "allele_string": "T/C/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs28736870": {
+  "locus": "X:220770",
+  "allele_string": "A/G/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs28897727": {
+  "locus": "13:32912750",
+  "allele_string": "G/A/C/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs369202065": {
+  "locus": "MT:8838",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs3918290": {
+  "locus": "1:97915614",
+  "allele_string": "C/A/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs397514462": {
+  "locus": "X:601578",
+  "allele_string": "C/A",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs4149015": {
+  "locus": "12:21283322",
+  "allele_string": "G/A/C/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs4149056": {
+  "locus": "12:21331549",
+  "allele_string": "T/A/C",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs4244285": {
+  "locus": "10:96541616",
+  "allele_string": "G/A/C/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs4570625": {
+  "locus": "12:72331923",
+  "allele_string": "G/A/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs4986893": {
+  "locus": "10:96540410",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs5030655": {
+  "locus": "22:42525086",
+  "allele_string": "A/-",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs5030862": {
+  "locus": "22:42526670",
+  "allele_string": "C/A/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs5882": {
+  "locus": "16:57016092",
+  "allele_string": "G/A/C",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs6311": {
+  "locus": "13:47471478",
+  "allele_string": "C/A/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs6313": {
+  "locus": "13:47469940",
+  "allele_string": "G/A/C",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs63750066": {
+  "locus": "21:27264108",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs6655587": {
+  "locus": "X:75991266",
+  "allele_string": "T/A",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs708272": {
+  "locus": "16:56996288",
+  "allele_string": "G/A/C",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs7205": {
+  "locus": "X:1508324",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs72552267": {
+  "locus": "10:96535210",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs7294": {
+  "locus": "16:31102321",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs757210": {
+  "locus": "17:36096515",
+  "allele_string": "T/C/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs76151636": {
+  "locus": "13:52518281",
+  "allele_string": "G/A/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs776746": {
+  "locus": "7:99270539",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs786203760": {
+  "locus": "5:112175096",
+  "allele_string": "ATAT/AT",
+  "assembly_sequence": "ATAT",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs78907894": {
+  "locus": "MT:514",
+  "allele_string": "CACACACACAC/CACACACAC/CACACACACACAC/CACACACACACACAC",
+  "assembly_sequence": "CACACACACAC",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs794728091": {
+  "locus": "18:29101148",
+  "allele_string": "-/T",
+  "assembly_sequence": "",
+  "verdict": "insertion"
+ },
+ "rs80358981": {
+  "locus": "13:32930687",
+  "allele_string": "C/A/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs8099917": {
+  "locus": "19:39743165",
+  "allele_string": "T/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs8176318": {
+  "locus": "17:41197274",
+  "allele_string": "C/A",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs854560": {
+  "locus": "7:94946084",
+  "allele_string": "A/C/G/N/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999001": {
+  "locus": "4:87838529",
+  "allele_string": "G/A",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999003": {
+  "locus": "4:158775482",
+  "allele_string": "T/A/C/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999004": {
+  "locus": "4:182220613",
+  "allele_string": "G/C/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999005": {
+  "locus": "4:77456093",
+  "allele_string": "C/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999006": {
+  "locus": "4:97274246",
+  "allele_string": "A/G/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999008": {
+  "locus": "4:130064231",
+  "allele_string": "A/C/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999009": {
+  "locus": "4:118157777",
+  "allele_string": "G/A/C/T",
+  "assembly_sequence": "G",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999010": {
+  "locus": "4:6224403",
+  "allele_string": "A/C/T",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999011": {
+  "locus": "4:172177062",
+  "allele_string": "A/G",
+  "assembly_sequence": "A",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999012": {
+  "locus": "4:96926831",
+  "allele_string": "T/A/G",
+  "assembly_sequence": "T",
+  "verdict": "reference_matches_assembly"
+ },
+ "rs9999050": {
+  "locus": "4:40408725",
+  "allele_string": "C/G/T",
+  "assembly_sequence": "C",
+  "verdict": "reference_matches_assembly"
+ }
+}
