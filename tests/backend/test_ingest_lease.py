@@ -23,6 +23,7 @@ import pytest
 import sqlalchemy as sa
 from fastapi import HTTPException
 
+from backend.api import dependencies as dependencies_module
 from backend.api.routes import ingest as ingest_route
 from backend.api.routes import nuclear as nuclear_route
 from backend.api.routes import samples as samples_route
@@ -255,6 +256,98 @@ class TestMetadataUpdateDuringIngest:
         )
 
         assert updated.name == "renamed"
+
+
+class TestReadsDuringIngest:
+    def test_sample_scoped_routes_answer_503_while_importing(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(dependencies_module, "get_registry", lambda: registry)
+
+        def gate(sample_id: int):
+            try:
+                dependencies_module.require_fresh_sample(sample_id)
+            except HTTPException as exc:
+                return exc.status_code, exc.detail, exc.headers
+            return None
+
+        seen = _hook_mid_build(registry, monkeypatch, gate)
+
+        _ingest(registry)
+
+        assert seen["result"] == (503, {"error": "ingest_pending"}, {"Retry-After": "2"})
+
+    def test_get_sample_mid_ingest_serves_the_registry_row_without_opening_the_database(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(samples_route, "get_registry", lambda: registry)
+        opened: list[int] = []
+        real_enrich = samples_route._enrich_with_sample_metadata
+
+        def recording_enrich(response, reg):
+            opened.append(response.id)
+            return real_enrich(response, reg)
+
+        monkeypatch.setattr(samples_route, "_enrich_with_sample_metadata", recording_enrich)
+        seen = _hook_mid_build(
+            registry,
+            monkeypatch,
+            lambda sample_id: asyncio.run(samples_route.get_sample(sample_id)).name,
+        )
+
+        response = _ingest(registry)
+
+        assert seen["result"] == "synthetic.txt"
+        assert opened == []
+        asyncio.run(samples_route.get_sample(response["sample_id"]))
+        assert opened == [response["sample_id"]]
+
+    def test_first_open_schema_setup_runs_once_per_path_under_concurrency(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Two threads opening one new sample must not both run schema setup."""
+        import backend.db.sample_schema as sample_schema
+
+        real_ensure = sample_schema.ensure_sample_schema_current
+        state = {"inside": 0, "max_inside": 0, "calls": 0}
+        state_lock = threading.Lock()
+        both_started = threading.Barrier(2)
+
+        def slow_ensure(engine):
+            with state_lock:
+                state["inside"] += 1
+                state["calls"] += 1
+                state["max_inside"] = max(state["max_inside"], state["inside"])
+            try:
+                threading.Event().wait(0.3)
+                return real_ensure(engine)
+            finally:
+                with state_lock:
+                    state["inside"] -= 1
+
+        monkeypatch.setattr(sample_schema, "ensure_sample_schema_current", slow_ensure)
+        path = registry.settings.data_dir / "samples" / "sample_99.db"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        engines: list[sa.Engine] = []
+        errors: list[BaseException] = []
+
+        def open_engine() -> None:
+            both_started.wait(timeout=5)
+            try:
+                engines.append(registry.get_sample_engine(path))
+            except BaseException as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        threads = [threading.Thread(target=open_engine) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+
+        assert errors == []
+        assert (state["calls"], state["max_inside"]) == (1, 1)
+        assert len(engines) == 2
+        assert engines[0] is engines[1]
 
 
 class TestDataWipeDuringIngest:

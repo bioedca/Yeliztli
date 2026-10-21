@@ -153,9 +153,15 @@ async def get_sample(sample_id: int) -> SampleResponse:
     registry = get_registry()
     with registry.reference_engine.connect() as conn:
         row = conn.execute(sa.select(samples).where(samples.c.id == sample_id)).fetchone()
+        # Still importing (#2574): its database is being built, and the
+        # per-sample metadata it would add is not written yet. Serve the
+        # registry row alone rather than open the partial file.
+        importing = row is not None and ingest_in_progress(conn, sample_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
     response = _row_to_response(row)
+    if importing:
+        return response
     return _enrich_with_sample_metadata(response, registry)
 
 
