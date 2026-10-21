@@ -6,11 +6,17 @@ macOS (ARM/x86), Linux, and WSL2 environments.
 
 from __future__ import annotations
 
+import os
 import platform
+import re
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from backend.installer import (
     LAUNCHD_LABELS,
@@ -107,6 +113,94 @@ class TestRepoStructure:
 
     def test_makefile_exists(self):
         assert (_repo_root() / "Makefile").exists()
+
+
+# ── Dev launcher shutdown (#2569) ─────────────────────────
+
+
+def _dev_recipe_trap(target: str) -> str:
+    """Return the ``trap '…' SIGS`` command that a Makefile dev target installs."""
+    lines = (_repo_root() / "Makefile").read_text().splitlines()
+    start = lines.index(next(line for line in lines if line.startswith(f"{target}:")))
+    for line in lines[start + 1 :]:
+        if not line.startswith("\t"):
+            break
+        match = re.match(r"\t@(trap '[^']*'(?: [A-Z]+)+);", line)
+        if match:
+            return match.group(1)
+    raise AssertionError(f"no trap line in the {target} recipe")
+
+
+def _reset_child_signals() -> None:
+    import resource  # POSIX-only; the class below skips on Windows
+
+    os.setsid()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, signal.SIG_DFL)
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def _is_running(pid: int) -> bool:
+    """True while *pid* exists and is not a zombie awaiting a reaper."""
+    state = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True
+    ).stdout.strip()
+    return bool(state) and not state.startswith("Z")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or not Path("/bin/sh").exists(), reason="needs a POSIX /bin/sh"
+)
+class TestDevLauncherShutdown:
+    """The dev launchers' trap must stop the stack once, not re-enter itself.
+
+    ``kill 0`` also signals the trapping shell, so a trap that is still armed
+    re-runs on its own signal until the stack overflows and the shell dies with
+    SIGSEGV (#2569). Both dash and bash do this.
+    """
+
+    @pytest.mark.parametrize("target", ["dev", "dev-wsl"])
+    @pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["TERM", "INT"])
+    def test_trap_stops_process_group_without_crashing(self, target, sig):
+        trap = _dev_recipe_trap(target)
+        # The child is a fresh shell that reports its own pid before exec'ing
+        # sleep, so it is fully started when signalled and can be tracked by pid.
+        child = "/bin/sh -c 'echo child $$; exec sleep 30'"
+        proc = subprocess.Popen(
+            ["/bin/sh", "-c", f"{trap}; {child} & echo ready; wait"],
+            stdout=subprocess.PIPE,
+            text=True,
+            preexec_fn=_reset_child_signals,
+        )
+        child_pid = None
+        try:
+            # The trap must be armed before the signal arrives, or the shell's
+            # default disposition would pass this test without exercising it.
+            seen_ready = False
+            while not (seen_ready and child_pid):
+                line = proc.stdout.readline().split()
+                assert line, "launcher exited before it was ready"
+                if line == ["ready"]:
+                    seen_ready = True
+                elif line[0] == "child":
+                    child_pid = int(line[1])
+            os.kill(proc.pid, sig)
+            returncode = proc.wait(timeout=10)
+        finally:
+            if proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait()
+            proc.stdout.close()
+
+        assert returncode != -signal.SIGSEGV, f"{target} launcher shell crashed: {trap}"
+        assert returncode == -signal.SIGTERM
+
+        deadline = time.monotonic() + 5
+        while _is_running(child_pid):
+            if time.monotonic() > deadline:
+                os.kill(child_pid, signal.SIGKILL)
+                raise AssertionError(f"{target} trap left its child running")
+            time.sleep(0.05)
 
 
 # ── Service templates ─────────────────────────────────────
