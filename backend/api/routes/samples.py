@@ -519,7 +519,8 @@ async def delete_sample(sample_id: int) -> None:
     Error surface:
 
     * 404 — the sample does not exist.
-    * 409 — a merge is currently holding this sample as a source (#2329).
+    * 409 — a merge, annotation, export, report, liftover or LAI run holds
+      this sample or a merged child the cascade would destroy (#2314, #2329).
       Matches how ``sample_export_guard`` answers "this sample is busy".
     """
     registry = get_registry()

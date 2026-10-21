@@ -38,6 +38,7 @@ from backend.db.sample_schema import (
     create_sample_tables,
 )
 from backend.db.tables import (
+    jobs,
     merge_provenance,
     raw_variants,
     reannotation_prompts,
@@ -45,9 +46,19 @@ from backend.db.tables import (
     sample_metadata_table,
     samples,
 )
+from backend.services import sample_delete as sample_delete_module
 from backend.services.sample_delete import (
     delete_sample_with_cascade,
     list_merged_children,
+)
+from backend.services.sample_operation_lock import (
+    SAMPLE_DELETE_JOB_TYPE,
+    SAMPLE_EXPORT_JOB_TYPE,
+    SampleOperationConflictError,
+    reserve_annotation_job,
+    reserve_lai_job,
+    sample_delete_lease,
+    sample_export_lease,
 )
 
 # ── Test-scoped registry mirroring test_sample_merge.py ──────────────
@@ -521,6 +532,282 @@ class TestDeleteRouteCascade:
         assert resp.status_code == 404
 
 
+# ── #2314: deletion excludes every operation holding a sample open ───
+
+
+def _insert_job(registry: DBRegistry, sample_id: int, job_type: str, status: str) -> str:
+    """Stand in for an operation holding ``sample_id`` with the given status."""
+    now = datetime.now(UTC)
+    job_id = f"{job_type}:{status}:{sample_id}"
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            jobs.insert().values(
+                job_id=job_id,
+                sample_id=sample_id,
+                job_type=job_type,
+                status=status,
+                progress_pct=0.0,
+                message="in flight",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return job_id
+
+
+def _finish_job(registry: DBRegistry, job_id: str) -> None:
+    with registry.reference_engine.begin() as conn:
+        conn.execute(jobs.update().where(jobs.c.job_id == job_id).values(status="complete"))
+
+
+def _sample_ids(registry: DBRegistry) -> list[int]:
+    with registry.reference_engine.connect() as conn:
+        return [int(r.id) for r in conn.execute(sa.select(samples.c.id))]
+
+
+def _reserve_annotation(registry: DBRegistry, sample_id: int) -> None:
+    reserve_annotation_job(
+        registry.reference_engine,
+        sample_id=sample_id,
+        job_id="late-annotation",
+        created_at=datetime.now(UTC),
+    )
+
+
+def _reserve_lai(registry: DBRegistry, sample_id: int) -> None:
+    reserve_lai_job(
+        registry.reference_engine,
+        sample_id=sample_id,
+        job_id="late-lai",
+        created_at=datetime.now(UTC),
+    )
+
+
+def _hold_export(registry: DBRegistry, sample_id: int) -> None:
+    with sample_export_lease(registry.reference_engine, sample_id, operation="grch38_liftover"):
+        pass
+
+
+# Every operation that holds a sample's database for its whole run, at every
+# status in which it may still be touching that database.
+_HOLDING_OPERATIONS = [
+    ("annotation", "pending", "being annotated"),
+    ("annotation", "running", "being annotated"),
+    ("annotation", "cancelling", "being annotated"),
+    (SAMPLE_EXPORT_JOB_TYPE, "running", "export, report or liftover"),
+    ("lai_analysis", "pending", "local ancestry inference"),
+    ("lai_analysis", "running", "local ancestry inference"),
+    ("lai_analysis", "cancelling", "local ancestry inference"),
+]
+
+
+class TestDeleteExcludesSampleOperations:
+    @pytest.mark.parametrize(("job_type", "status", "named"), _HOLDING_OPERATIONS)
+    def test_delete_is_refused_while_an_operation_holds_the_sample(
+        self, cascade_registry: DBRegistry, job_type: str, status: str, named: str
+    ) -> None:
+        sid = _make_source_sample(cascade_registry, name="busy.txt")
+        db_path = _sample_db_path(cascade_registry, sid)
+        job_id = _insert_job(cascade_registry, sid, job_type, status)
+
+        with pytest.raises(SampleOperationConflictError, match=named):
+            delete_sample_with_cascade(cascade_registry, sid)
+
+        # Refused means untouched: the database and the registry row survive.
+        assert db_path.exists()
+        assert sid in _sample_ids(cascade_registry)
+
+        # Once the operation finishes, deletion proceeds and leaves nothing.
+        _finish_job(cascade_registry, job_id)
+        assert delete_sample_with_cascade(cascade_registry, sid) is not None
+        assert not db_path.exists()
+        assert sid not in _sample_ids(cascade_registry)
+
+    def test_finished_operations_do_not_block_deletion(self, cascade_registry: DBRegistry) -> None:
+        """Only active rows hold a sample; history must not make it undeletable."""
+        sid = _make_source_sample(cascade_registry, name="done.txt")
+        for job_type in ("annotation", SAMPLE_EXPORT_JOB_TYPE, "lai_analysis"):
+            for status in ("complete", "failed", "cancelled"):
+                _insert_job(cascade_registry, sid, job_type, status)
+
+        assert delete_sample_with_cascade(cascade_registry, sid) is not None
+        assert not _sample_db_path_for_deleted(cascade_registry, sid).exists()
+
+    @pytest.mark.parametrize(
+        ("acquire", "job_type"),
+        [
+            (_reserve_annotation, "annotation"),
+            (_reserve_lai, "lai_analysis"),
+            (_hold_export, SAMPLE_EXPORT_JOB_TYPE),
+        ],
+    )
+    def test_an_operation_starting_after_the_delete_reservation_is_refused(
+        self, cascade_registry: DBRegistry, acquire, job_type: str
+    ) -> None:
+        """The case a read-only pre-check cannot cover.
+
+        Deletion has already checked and reserved the sample; an operation that
+        tries to start now must lose rather than reopen the database the
+        cascade is about to unlink.
+        """
+        sid = _make_source_sample(cascade_registry, name="racing.txt")
+
+        with sample_delete_lease(
+            cascade_registry.reference_engine, [sid], operation="Sample delete"
+        ):
+            with pytest.raises(SampleOperationConflictError, match="being deleted"):
+                acquire(cascade_registry, sid)
+
+        with cascade_registry.reference_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(jobs.c.job_id)
+                .where(jobs.c.sample_id == sid)
+                .where(jobs.c.job_type == job_type)
+            ).fetchall()
+        assert rows == [], "a refused acquirer must not leave a lease row behind"
+
+        # Released on exit, so the same operation now starts normally.
+        acquire(cascade_registry, sid)
+
+    def test_operation_racing_the_unlink_cannot_recreate_the_database(
+        self, cascade_registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Drive an acquirer at the exact moment the cascade unlinks the file.
+
+        Before #2314 an annotation or export could reserve here and then
+        reconnect, recreating ``sample_<id>.db`` after the DELETE returned.
+        """
+        sid = _make_source_sample(cascade_registry, name="unlinking.txt")
+        db_path = _sample_db_path(cascade_registry, sid)
+        refused: list[str] = []
+        real_delete_files = sample_delete_module._delete_sample_files
+
+        def racing_delete_files(registry: DBRegistry, path: str | None) -> None:
+            for name, acquire in (
+                ("annotation", _reserve_annotation),
+                ("lai", _reserve_lai),
+                ("export", _hold_export),
+            ):
+                try:
+                    acquire(registry, sid)
+                except SampleOperationConflictError:
+                    refused.append(name)
+            real_delete_files(registry, path)
+
+        monkeypatch.setattr(sample_delete_module, "_delete_sample_files", racing_delete_files)
+
+        assert delete_sample_with_cascade(cascade_registry, sid) is not None
+        assert refused == ["annotation", "lai", "export"]
+        assert not db_path.exists()
+        assert not Path(f"{db_path}-wal").exists()
+
+    def test_a_busy_merged_child_blocks_the_whole_cascade(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        """The cascade destroys children, so a child in use refuses the delete.
+
+        Nothing may be unlinked first: refusing after the child is gone but
+        before the source would leave half a cascade behind.
+        """
+        s1 = _make_source_sample(cascade_registry, name="s1.txt")
+        s2 = _make_source_sample(cascade_registry, name="s2.txt")
+        merged = _make_merged_child(cascade_registry, name="m.txt", source_ids=[s1, s2])
+        paths = {sid: _sample_db_path(cascade_registry, sid) for sid in (s1, s2, merged)}
+        job_id = _insert_job(cascade_registry, merged, SAMPLE_EXPORT_JOB_TYPE, "running")
+
+        with pytest.raises(SampleOperationConflictError, match=f"Sample {merged} is busy"):
+            delete_sample_with_cascade(cascade_registry, s1)
+
+        assert all(path.exists() for path in paths.values())
+        assert {s1, s2, merged} <= set(_sample_ids(cascade_registry))
+
+        _finish_job(cascade_registry, job_id)
+        result = delete_sample_with_cascade(cascade_registry, s1)
+        assert result is not None
+        assert [c.id for c in result.deleted_merged_children] == [merged]
+        assert not paths[s1].exists()
+        assert not paths[merged].exists()
+        assert paths[s2].exists()
+
+    def test_merged_children_are_reserved_for_the_whole_cascade(
+        self, cascade_registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        s1 = _make_source_sample(cascade_registry, name="s1.txt")
+        s2 = _make_source_sample(cascade_registry, name="s2.txt")
+        merged = _make_merged_child(cascade_registry, name="m.txt", source_ids=[s1, s2])
+        outcomes: list[str] = []
+        real_delete_files = sample_delete_module._delete_sample_files
+
+        def probing_delete_files(registry: DBRegistry, path: str | None) -> None:
+            try:
+                _hold_export(registry, merged)
+            except SampleOperationConflictError as exc:
+                outcomes.append(str(exc))
+            real_delete_files(registry, path)
+
+        monkeypatch.setattr(sample_delete_module, "_delete_sample_files", probing_delete_files)
+
+        assert delete_sample_with_cascade(cascade_registry, s1) is not None
+        # Once for the child's unlink and once for the source's.
+        assert len(outcomes) == 2
+        assert all("being deleted" in message for message in outcomes)
+
+    def test_a_second_delete_of_the_same_sample_is_refused(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        """Overlapping deletes must not both proceed.
+
+        The later one would otherwise act on a row the earlier already removed,
+        whose reusable id the next upload may by then occupy.
+        """
+        sid = _make_source_sample(cascade_registry, name="twice.txt")
+        db_path = _sample_db_path(cascade_registry, sid)
+
+        with sample_delete_lease(
+            cascade_registry.reference_engine, [sid], operation="Sample delete"
+        ):
+            with pytest.raises(SampleOperationConflictError, match="already being deleted"):
+                delete_sample_with_cascade(cascade_registry, sid)
+            assert db_path.exists()
+            assert sid in _sample_ids(cascade_registry)
+
+        assert delete_sample_with_cascade(cascade_registry, sid) is not None
+        # A delete that arrives after the first finished sees the row gone.
+        assert delete_sample_with_cascade(cascade_registry, sid) is None
+
+    def test_no_delete_lease_rows_survive_a_cascade(self, cascade_registry: DBRegistry) -> None:
+        s1 = _make_source_sample(cascade_registry, name="s1.txt")
+        s2 = _make_source_sample(cascade_registry, name="s2.txt")
+        _make_merged_child(cascade_registry, name="m.txt", source_ids=[s1, s2])
+
+        assert delete_sample_with_cascade(cascade_registry, s1) is not None
+
+        with cascade_registry.reference_engine.connect() as conn:
+            leftover = conn.execute(
+                sa.select(sa.func.count())
+                .select_from(jobs)
+                .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
+            ).scalar_one()
+        assert leftover == 0
+
+    def test_delete_route_answers_409_while_annotation_runs(self, client) -> None:
+        tc, registry = client
+        sid = _make_source_sample(registry, name="annotating.txt")
+        _insert_job(registry, sid, "annotation", "running")
+
+        resp = tc.delete(f"/api/samples/{sid}")
+
+        assert resp.status_code == 409
+        assert "being annotated" in resp.json()["detail"]
+        assert sid in _sample_ids(registry)
+        assert _sample_db_path(registry, sid).exists()
+
+
+def _sample_db_path_for_deleted(registry: DBRegistry, sample_id: int) -> Path:
+    """Where a now-deleted sample's database lived (the helper path recipe)."""
+    return registry.settings.data_dir / f"samples/sample_{sample_id}.db"
+
+
 # ── Step 82 / MRG-08g — end-to-end via real merge_samples ────────────
 
 
@@ -528,7 +815,6 @@ from backend.db.tables import (  # noqa: E402  (positioned alongside Step 82 sur
     annotation_state,
     database_versions,
     individuals,
-    jobs,
 )
 from backend.services.sample_merge import (  # noqa: E402
     MergeStrategy,

@@ -1,4 +1,4 @@
-"""Atomic per-sample exclusion between annotation and export operations.
+"""Atomic per-sample exclusion between annotation, export, LAI, merge and delete.
 
 SQLite does not provide a process-wide named-lock primitive.  The reference
 database's ``jobs`` table therefore acts as a recoverable lease registry:
@@ -32,9 +32,11 @@ SAMPLE_EXPORT_JOB_TYPE = "sample_export"
 # batch uuid, which lets deletion ask "is any merge holding this sample?" with a
 # single indexed lookup on ``sample_id`` rather than parsing a composite key.
 SAMPLE_MERGE_JOB_TYPE = "sample_merge"
-# Deletion's own reservation, so its exclusion with a merge is atomic rather
-# than a read-then-act pre-check.
+# Deletion's own reservation, so its exclusion with every operation that holds
+# a sample's database open is atomic rather than a read-then-act pre-check.
 SAMPLE_DELETE_JOB_TYPE = "sample_delete"
+ANNOTATION_JOB_TYPE = "annotation"
+LAI_JOB_TYPE = "lai_analysis"
 # The one definition of "this job is still doing something". `cancelling` belongs
 # here: the worker has not acknowledged the cancel yet, so the job may still be
 # writing. Every "is anything in flight?" predicate must use this rather than
@@ -47,6 +49,22 @@ ACTIVE_EXPORT_STATUSES = ("pending", "running")
 # Merges are synchronous and API-owned like exports, so they never reach
 # `cancelling` either.
 ACTIVE_MERGE_STATUSES = ("pending", "running")
+# Deletion is synchronous and API-owned as well.
+ACTIVE_DELETE_STATUSES = ("pending", "running")
+# Every operation that holds a sample's database open for its whole run, and so
+# must not have that database unlinked underneath it (#2314). The export lease
+# also covers report renders and the GRCh38 liftover batch, which take it
+# through ``sample_export_guard``. A second delete is refused too: two
+# overlapping deletes of one id would let the later one act on a row the earlier
+# already removed, and that rowid can be reused by the next upload. Each value
+# is the operation's active statuses and how a refused delete names it.
+_DELETE_BLOCKING_OPERATIONS: dict[str, tuple[tuple[str, ...], str]] = {
+    SAMPLE_DELETE_JOB_TYPE: (ACTIVE_DELETE_STATUSES, "already being deleted"),
+    SAMPLE_MERGE_JOB_TYPE: (ACTIVE_MERGE_STATUSES, "being merged"),
+    ANNOTATION_JOB_TYPE: (ACTIVE_ANNOTATION_STATUSES, "being annotated"),
+    SAMPLE_EXPORT_JOB_TYPE: (ACTIVE_EXPORT_STATUSES, "busy with an export, report or liftover"),
+    LAI_JOB_TYPE: (ACTIVE_JOB_STATUSES, "running local ancestry inference"),
+}
 
 
 class SampleOperationConflictError(RuntimeError):
@@ -55,6 +73,25 @@ class SampleOperationConflictError(RuntimeError):
 
 class SampleOperationUnavailableError(RuntimeError):
     """The lease registry could not be read or updated safely."""
+
+
+def _deletion_in_progress(conn: sa.Connection, sample_id: int) -> bool:
+    """Whether a delete holds ``sample_id``, read inside the caller's transaction.
+
+    Every acquirer checks this so the exclusion with deletion is mutual: an
+    operation that starts after deletion reserved the sample must lose, not
+    reopen a database the cascade is about to unlink.
+    """
+    return (
+        conn.execute(
+            sa.select(jobs.c.job_id)
+            .where(jobs.c.sample_id == sample_id)
+            .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
+            .where(jobs.c.status.in_(ACTIVE_DELETE_STATUSES))
+            .limit(1)
+        ).fetchone()
+        is not None
+    )
 
 
 @contextmanager
@@ -80,13 +117,13 @@ def reserve_annotation_job(
     job_id: str,
     created_at: datetime,
 ) -> None:
-    """Atomically reserve annotation when no annotation/export lease is active."""
+    """Atomically reserve annotation when no annotation/export/delete lease is active."""
     try:
         with _immediate_transaction(engine) as conn:
             annotation = conn.execute(
                 sa.select(jobs.c.job_id)
                 .where(jobs.c.sample_id == sample_id)
-                .where(jobs.c.job_type == "annotation")
+                .where(jobs.c.job_type == ANNOTATION_JOB_TYPE)
                 .where(jobs.c.status.in_(ACTIVE_ANNOTATION_STATUSES))
                 .limit(1)
             ).fetchone()
@@ -108,12 +145,16 @@ def reserve_annotation_job(
                     f"An export is in progress for sample {sample_id}; "
                     "retry annotation after it completes."
                 )
+            if _deletion_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is being deleted; annotation was not started."
+                )
 
             conn.execute(
                 jobs.insert().values(
                     job_id=job_id,
                     sample_id=sample_id,
-                    job_type="annotation",
+                    job_type=ANNOTATION_JOB_TYPE,
                     status="pending",
                     progress_pct=0.0,
                     message="Queued for annotation",
@@ -126,6 +167,53 @@ def reserve_annotation_job(
     except sa.exc.SQLAlchemyError as exc:
         raise SampleOperationUnavailableError(
             f"Unable to reserve annotation for sample {sample_id}."
+        ) from exc
+
+
+def reserve_lai_job(
+    engine: sa.Engine,
+    *,
+    sample_id: int,
+    job_id: str,
+    created_at: datetime,
+) -> None:
+    """Atomically reserve LAI when no LAI run or deletion is active."""
+    try:
+        with _immediate_transaction(engine) as conn:
+            existing = conn.execute(
+                sa.select(jobs.c.job_id)
+                .where(jobs.c.sample_id == sample_id)
+                .where(jobs.c.job_type == LAI_JOB_TYPE)
+                .where(jobs.c.status.in_(ACTIVE_JOB_STATUSES))
+                .limit(1)
+            ).fetchone()
+            if existing is not None:
+                raise SampleOperationConflictError(
+                    f"LAI analysis already in progress for sample {sample_id} "
+                    f"(job {existing.job_id})"
+                )
+            if _deletion_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is being deleted; LAI analysis was not started."
+                )
+
+            conn.execute(
+                jobs.insert().values(
+                    job_id=job_id,
+                    sample_id=sample_id,
+                    job_type=LAI_JOB_TYPE,
+                    status="pending",
+                    progress_pct=0.0,
+                    message="Queued for local ancestry inference",
+                    created_at=created_at,
+                    updated_at=created_at,
+                )
+            )
+    except SampleOperationConflictError:
+        raise
+    except sa.exc.SQLAlchemyError as exc:
+        raise SampleOperationUnavailableError(
+            f"Unable to reserve LAI analysis for sample {sample_id}."
         ) from exc
 
 
@@ -176,7 +264,7 @@ def sample_export_lease(
             annotation = conn.execute(
                 sa.select(jobs.c.job_id)
                 .where(jobs.c.sample_id == sample_id)
-                .where(jobs.c.job_type == "annotation")
+                .where(jobs.c.job_type == ANNOTATION_JOB_TYPE)
                 .where(jobs.c.status.in_(ACTIVE_ANNOTATION_STATUSES))
                 .limit(1)
             ).fetchone()
@@ -184,6 +272,10 @@ def sample_export_lease(
                 raise SampleOperationConflictError(
                     f"Annotation is in progress for sample {sample_id}; "
                     "retry the export after it completes."
+                )
+            if _deletion_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is being deleted; the export was not started."
                 )
 
             conn.execute(
@@ -272,6 +364,33 @@ def _active_merge_sources(conn: sa.Connection, sample_ids: list[int]) -> list[in
     return sorted(int(row.sample_id) for row in rows)
 
 
+def _first_delete_blocker(conn: sa.Connection, sample_ids: list[int]) -> tuple[int, str] | None:
+    """The first active operation holding any of ``sample_ids``, or ``None``.
+
+    Read inside the caller's transaction. Returns the sample id and how the
+    refusal should name what is holding it.
+    """
+    if not sample_ids:
+        return None
+    row = conn.execute(
+        sa.select(jobs.c.sample_id, jobs.c.job_type)
+        .where(jobs.c.sample_id.in_(sample_ids))
+        .where(
+            sa.or_(
+                *(
+                    sa.and_(jobs.c.job_type == job_type, jobs.c.status.in_(statuses))
+                    for job_type, (statuses, _) in _DELETE_BLOCKING_OPERATIONS.items()
+                )
+            )
+        )
+        .order_by(jobs.c.sample_id, jobs.c.job_type)
+        .limit(1)
+    ).fetchone()
+    if row is None:
+        return None
+    return int(row.sample_id), _DELETE_BLOCKING_OPERATIONS[row.job_type][1]
+
+
 def merge_sources_in_use(engine: sa.Engine, sample_ids: list[int]) -> list[int]:
     """Report which of ``sample_ids`` a merge holds. Diagnostics only.
 
@@ -291,29 +410,30 @@ def sample_delete_lease(
     *,
     operation: str,
 ) -> Iterator[str]:
-    """Reserve samples for deletion, excluding merges atomically.
+    """Reserve samples for deletion, excluding every operation and other deletes.
 
-    A read-only pre-check cannot close this window: a merge could acquire its
-    own lease between the check and the first ``unlink``, then stream a
-    database that deletion is concurrently removing. Both sides therefore
+    A read-only pre-check cannot close this window: a merge, annotation,
+    export, liftover or LAI run could acquire its own lease between the check
+    and the first ``unlink``, then reopen a database that deletion is
+    concurrently removing -- recreating an empty ``sample_<id>.db`` that the
+    next sample allocated that id would inherit (#2314). Both sides therefore
     check-and-insert inside ``BEGIN IMMEDIATE``, so whichever transaction
     commits first is observed by the other.
 
-    Scoped deliberately to merge-vs-delete exclusion. A broader deletion lease
-    covering annotation, export and LAI is #2314's; this reserves the same
-    ``jobs`` registry under its own job type, so the two compose rather than
-    conflict.
+    Refuses rather than queues, for every operation: a lease can be held for
+    minutes, and a destructive request that silently blocks that long reads as
+    a hang, then fires against data the user last saw minutes earlier.
     """
     lease_id = str(uuid.uuid4())
     now = datetime.now(UTC)
     ordered_ids = sorted(set(sample_ids))
     try:
         with _immediate_transaction(engine) as conn:
-            busy = _active_merge_sources(conn, ordered_ids)
-            if busy:
+            blocker = _first_delete_blocker(conn, ordered_ids)
+            if blocker is not None:
+                busy_id, holding = blocker
                 raise SampleOperationConflictError(
-                    f"Sample {busy[0]} is being merged; "
-                    "retry the delete once that merge completes."
+                    f"Sample {busy_id} is {holding}; retry the delete once that completes."
                 )
             for sample_id in ordered_ids:
                 conn.execute(
@@ -390,14 +510,7 @@ def sample_merge_lease(
                 # Symmetry is what makes the exclusion mutual: without this a
                 # merge could start against a sample whose deletion already
                 # holds a reservation and is midway through unlinking files.
-                deleting = conn.execute(
-                    sa.select(jobs.c.job_id)
-                    .where(jobs.c.sample_id == sample_id)
-                    .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
-                    .where(jobs.c.status.in_(ACTIVE_MERGE_STATUSES))
-                    .limit(1)
-                ).fetchone()
-                if deleting is not None:
+                if _deletion_in_progress(conn, sample_id):
                     raise SampleOperationConflictError(
                         f"Sample {sample_id} is being deleted; the merge was not started."
                     )

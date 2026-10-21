@@ -1207,6 +1207,33 @@ class TestProgressCallback:
             with pytest.raises(ValueError, match="already in progress"):
                 create_lai_job(sample_id=1)
 
+    def test_lai_job_refused_while_sample_is_being_deleted(self):
+        """#2314: LAI must not reopen a database the delete cascade is unlinking."""
+        from unittest.mock import MagicMock
+
+        from backend.db.tables import jobs, reference_metadata
+        from backend.services.sample_operation_lock import sample_delete_lease
+        from backend.tasks.huey_tasks import create_lai_job
+
+        engine = sa.create_engine("sqlite://")
+        reference_metadata.create_all(engine)
+
+        mock_registry = MagicMock()
+        mock_registry.reference_engine = engine
+
+        with patch("backend.db.connection.get_registry", return_value=mock_registry):
+            with sample_delete_lease(engine, [1], operation="Sample delete"):
+                with pytest.raises(ValueError, match="being deleted"):
+                    create_lai_job(sample_id=1)
+            # Released on exit, so the same request now reserves normally.
+            job_id = create_lai_job(sample_id=1)
+
+        with engine.connect() as conn:
+            lai_rows = conn.execute(
+                sa.select(jobs.c.job_id).where(jobs.c.job_type == "lai_analysis")
+            ).fetchall()
+        assert [row.job_id for row in lai_rows] == [job_id]
+
 
 # ── Slow-tier real-bundle accuracy (Step 25a; Plan §6.4, §16.5) ──────────
 
