@@ -40,6 +40,7 @@ from backend.ingestion.dispatcher import (
     reject_unsupported_archive_bytes,
 )
 from backend.ingestion.liftover import lift_build36_to_grch37
+from backend.services.data_wipe_fence import upload_hold
 from backend.services.sample_operation_lock import (
     SampleOperationConflictError,
     SampleOperationUnavailableError,
@@ -359,6 +360,12 @@ def _finish_ingest_lease(engine: sa.Engine, job_id: str, variant_count: int) -> 
 
 
 def _ingest_file(file_bytes: bytes, filename: str) -> dict:
+    """Run :func:`_ingest_upload` under the upload fence (#2574)."""
+    with upload_hold():
+        return _ingest_upload(file_bytes, filename)
+
+
+def _ingest_upload(file_bytes: bytes, filename: str) -> dict:
     """Parse a vendor raw-data file (23andMe or AncestryDNA) and persist it.
 
     This is the synchronous core of the ingest endpoint, which runs it in the

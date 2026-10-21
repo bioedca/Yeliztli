@@ -21,11 +21,15 @@ from pathlib import Path
 import httpx
 import pytest
 import sqlalchemy as sa
+from fastapi import HTTPException
 
 from backend.api.routes import ingest as ingest_route
+from backend.api.routes import nuclear as nuclear_route
+from backend.api.routes import samples as samples_route
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.tables import jobs, reference_metadata, samples
+from backend.services.data_wipe_fence import exclusive_wipe
 from backend.services.sample_delete import delete_sample_with_cascade
 from backend.services.sample_operation_lock import (
     SAMPLE_DELETE_JOB_TYPE,
@@ -204,6 +208,91 @@ class TestOtherOperationsDuringIngest:
             job_id="synthetic-ann",
             created_at=datetime.now(UTC),
         )
+
+
+def _http_status(call) -> int:
+    try:
+        asyncio.run(call())
+    except HTTPException as exc:
+        return exc.status_code
+    return 200
+
+
+class TestMetadataUpdateDuringIngest:
+    def test_patch_mid_ingest_is_refused_and_ingest_keeps_its_metadata(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(samples_route, "get_registry", lambda: registry)
+        seen = _hook_mid_build(
+            registry,
+            monkeypatch,
+            lambda sample_id: _http_status(
+                lambda: samples_route.update_sample(
+                    sample_id, samples_route.SampleUpdate(name="renamed", notes="synthetic")
+                )
+            ),
+        )
+
+        response = _ingest(registry)
+
+        assert seen["result"] == 409
+        with registry.reference_engine.connect() as conn:
+            name = conn.execute(
+                sa.select(samples.c.name).where(samples.c.id == response["sample_id"])
+            ).scalar_one()
+        assert name == "synthetic.txt"
+
+    def test_patch_is_allowed_once_ingest_completes(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(samples_route, "get_registry", lambda: registry)
+        response = _ingest(registry)
+
+        updated = asyncio.run(
+            samples_route.update_sample(
+                response["sample_id"], samples_route.SampleUpdate(name="renamed")
+            )
+        )
+
+        assert updated.name == "renamed"
+
+
+class TestDataWipeDuringIngest:
+    def test_wipe_mid_ingest_is_refused_and_removes_nothing(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nuclear_route, "get_registry", lambda: registry)
+        reference_db = registry.settings.reference_db_path
+        seen = _hook_mid_build(
+            registry, monkeypatch, lambda _sid: _http_status(nuclear_route.nuclear_delete)
+        )
+
+        response = _ingest(registry)
+
+        assert seen["result"] == 409
+        assert reference_db.exists()
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{response['sample_id']}.db"
+        assert sample_db.exists()
+
+    def test_upload_during_a_wipe_is_refused_before_anything_is_written(
+        self, registry: DBRegistry
+    ) -> None:
+        with exclusive_wipe(), pytest.raises(SampleOperationConflictError, match="being deleted"):
+            _ingest(registry)
+
+        assert _count(registry.reference_engine, samples) == 0
+        assert not (registry.settings.data_dir / "samples").exists() or not list(
+            (registry.settings.data_dir / "samples").iterdir()
+        )
+
+    def test_wipe_is_allowed_once_ingest_completes(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(nuclear_route, "get_registry", lambda: registry)
+        _ingest(registry)
+
+        assert _http_status(nuclear_route.nuclear_delete) == 200
+        assert list(registry.settings.data_dir.iterdir()) == []
 
 
 class TestFailedIngest:

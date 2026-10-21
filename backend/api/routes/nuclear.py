@@ -19,6 +19,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.db.connection import get_registry, reset_registry
+from backend.services.data_wipe_fence import exclusive_wipe
+from backend.services.sample_operation_lock import SampleOperationConflictError
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +34,8 @@ class NuclearDeleteResponse(BaseModel):
     message: str
 
 
-# TODO(P4-21a): Gate behind PIN/password auth when auth system lands (P4-21a).
-@router.delete("/nuclear", response_model=NuclearDeleteResponse)
-async def nuclear_delete() -> NuclearDeleteResponse:
-    """Wipe ALL data and reset to fresh-install state.
-
-    Deletes every file inside the configured ``data_dir`` — sample databases,
-    reference databases, downloaded bundles, logs, caches, config, and the
-    disclaimer marker. After completion the application redirects to the
-    setup wizard on next page load.
-    """
+def _wipe_data_dir() -> None:
+    """Remove everything inside the data directory and recreate it empty."""
     registry = get_registry()
     settings = registry.settings
     data_dir = settings.data_dir
@@ -72,6 +66,26 @@ async def nuclear_delete() -> NuclearDeleteResponse:
             status_code=500,
             detail="Nuclear delete failed. Check server logs for details.",
         )
+
+
+# TODO(P4-21a): Gate behind PIN/password auth when auth system lands (P4-21a).
+@router.delete("/nuclear", response_model=NuclearDeleteResponse)
+async def nuclear_delete() -> NuclearDeleteResponse:
+    """Wipe ALL data and reset to fresh-install state.
+
+    Deletes every file inside the configured ``data_dir`` — sample databases,
+    reference databases, downloaded bundles, logs, caches, config, and the
+    disclaimer marker. After completion the application redirects to the
+    setup wizard on next page load.
+    """
+    # An upload running in the threadpool would recreate its sample database
+    # after the wipe (#2574). Refuse rather than wait, as other busy-sample
+    # operations do.
+    try:
+        with exclusive_wipe():
+            _wipe_data_dir()
+    except SampleOperationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return NuclearDeleteResponse(
         deleted=True,

@@ -103,7 +103,7 @@ def _deletion_in_progress(conn: sa.Connection, sample_id: int) -> bool:
     )
 
 
-def _ingest_in_progress(conn: sa.Connection, sample_id: int) -> bool:
+def ingest_in_progress(conn: sa.Connection, sample_id: int) -> bool:
     """Whether ``sample_id``'s upload is still building its database.
 
     Read inside the caller's transaction. An operation that opened the database
@@ -176,7 +176,7 @@ def reserve_annotation_job(
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; annotation was not started."
                 )
-            if _ingest_in_progress(conn, sample_id):
+            if ingest_in_progress(conn, sample_id):
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is still being imported; annotation was not started."
                 )
@@ -227,7 +227,7 @@ def reserve_lai_job(
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; LAI analysis was not started."
                 )
-            if _ingest_in_progress(conn, sample_id):
+            if ingest_in_progress(conn, sample_id):
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is still being imported; LAI analysis was not started."
                 )
@@ -362,7 +362,7 @@ def sample_export_lease(
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; the export was not started."
                 )
-            if _ingest_in_progress(conn, sample_id):
+            if ingest_in_progress(conn, sample_id):
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is still being imported; the export was not started."
                 )
@@ -603,7 +603,7 @@ def sample_merge_lease(
                     raise SampleOperationConflictError(
                         f"Sample {sample_id} is being deleted; the merge was not started."
                     )
-                if _ingest_in_progress(conn, sample_id):
+                if ingest_in_progress(conn, sample_id):
                     raise SampleOperationConflictError(
                         f"Sample {sample_id} is still being imported; the merge was not started."
                     )
