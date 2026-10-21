@@ -53,6 +53,7 @@ from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.services.sample_operation_lock import (
     SampleOperationConflictError,
     SampleOperationUnavailableError,
+    ingest_in_progress,
     sample_export_lease,
 )
 from backend.services.staleness import get_recorded_bundle_version, is_sample_stale
@@ -62,6 +63,7 @@ _BUNDLE_KEY = "vep_bundle"
 _FALLBACK_SAMPLE_VERSION = "v1.0.0"
 _MERGED_FILE_FORMAT = "merged_v1"
 _MERGE_PROVENANCE_RETRY_AFTER_SECONDS = 1
+_INGEST_PENDING_RETRY_AFTER_SECONDS = 2
 
 
 def _raise_if_merge_provenance_pending(sample_id: int) -> None:
@@ -103,6 +105,25 @@ def _raise_if_merge_provenance_pending(sample_id: int) -> None:
         provenance_exists = conn.execute("SELECT 1 FROM merge_provenance WHERE id = 1").fetchone()
     if provenance_exists is None:
         raise_pending()
+
+
+def _raise_if_ingest_pending(sample_id: int) -> None:
+    """Fail closed while the sample's upload is still building its database.
+
+    The ``samples`` row is published with its ingest lease before the database
+    exists (#2574). A route reading it now would see a partial ``raw_variants``
+    table as if it were the sample; answer 503 with ``Retry-After`` the way a
+    materialising merged sample is answered.
+    """
+    registry = get_registry()
+    with registry.reference_engine.connect() as conn:
+        pending = ingest_in_progress(conn, sample_id)
+    if pending:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "ingest_pending"},
+            headers={"Retry-After": str(_INGEST_PENDING_RETRY_AFTER_SECONDS)},
+        )
 
 
 def _read_recorded_sample_version(sample_id: int) -> str:
@@ -213,12 +234,15 @@ def require_fresh_sample(sample_id: int) -> int:
        cross-user information, and 404-for-missing is the simpler, RESTful
        contract. (Supersedes the prior "missing falls through to 423 to
        avoid leaking existence" wording.)
-    2. **Merged sample still materialising** (registered as ``merged_v1`` but
+    2. **Upload still importing** (its ingest lease is active, #2574) →
+       ``HTTPException(503, detail={"error": "ingest_pending"})`` with
+       ``Retry-After: 2``, before anything opens the partial database.
+    3. **Merged sample still materialising** (registered as ``merged_v1`` but
        its database, provenance table, or provenance row is not yet visible) →
        ``HTTPException(503)`` with ``Retry-After: 1``. The probe is read-only
        so freshness checking cannot install the ordinary sample schema into a
        partial merged database.
-    3. **Existing but never annotated** (no recorded
+    4. **Existing but never annotated** (no recorded
        ``annotation_state.vep_bundle_version`` row) → returned unchanged.
        It has no stale data to block; it needs its *first* annotation,
        surfaced by the dashboard's "Run Annotation" CTA rather than the
@@ -229,9 +253,9 @@ def require_fresh_sample(sample_id: int) -> int:
        means "never annotated". ``is_sample_stale`` keeps the fallback for
        the merge stale-source gate, where blocking an un-annotated source
        before merge is intended.)
-    4. **Existing and stale** (bundle major < installed major) →
+    5. **Existing and stale** (bundle major < installed major) →
        ``HTTPException(423, detail={...})`` with the Plan §7.5 payload.
-    5. Otherwise → ``sample_id`` returned unchanged so routes can declare
+    6. Otherwise → ``sample_id`` returned unchanged so routes can declare
        the dependency without losing path-parameter access
        (``sample_id: int = Depends(require_fresh_sample)`` keeps the value
        bound to the handler signature).
@@ -245,6 +269,7 @@ def require_fresh_sample(sample_id: int) -> int:
     if existence is False:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
     if existence:
+        _raise_if_ingest_pending(sample_id)
         _raise_if_merge_provenance_pending(sample_id)
         if get_recorded_bundle_version(sample_id) is None:
             return sample_id
