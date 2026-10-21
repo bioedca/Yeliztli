@@ -752,6 +752,29 @@ class TestDeleteExcludesSampleOperations:
         assert len(outcomes) == 2
         assert all("being deleted" in message for message in outcomes)
 
+    def test_a_second_delete_of_the_same_sample_is_refused(
+        self, cascade_registry: DBRegistry
+    ) -> None:
+        """Overlapping deletes must not both proceed.
+
+        The later one would otherwise act on a row the earlier already removed,
+        whose reusable id the next upload may by then occupy.
+        """
+        sid = _make_source_sample(cascade_registry, name="twice.txt")
+        db_path = _sample_db_path(cascade_registry, sid)
+
+        with sample_delete_lease(
+            cascade_registry.reference_engine, [sid], operation="Sample delete"
+        ):
+            with pytest.raises(SampleOperationConflictError, match="already being deleted"):
+                delete_sample_with_cascade(cascade_registry, sid)
+            assert db_path.exists()
+            assert sid in _sample_ids(cascade_registry)
+
+        assert delete_sample_with_cascade(cascade_registry, sid) is not None
+        # A delete that arrives after the first finished sees the row gone.
+        assert delete_sample_with_cascade(cascade_registry, sid) is None
+
     def test_no_delete_lease_rows_survive_a_cascade(self, cascade_registry: DBRegistry) -> None:
         s1 = _make_source_sample(cascade_registry, name="s1.txt")
         s2 = _make_source_sample(cascade_registry, name="s2.txt")

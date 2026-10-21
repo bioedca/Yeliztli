@@ -208,15 +208,6 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
     exist is the worse failure mode (would silently mask the source's deletion),
     so the source row is the last write.
     """
-    with registry.reference_engine.connect() as conn:
-        row = conn.execute(
-            sa.select(samples.c.id, samples.c.name, samples.c.db_path).where(
-                samples.c.id == sample_id
-            )
-        ).fetchone()
-    if row is None:
-        return None
-
     # A merge, annotation, export, liftover or LAI run holds the sample's
     # database open for its whole run. Removing it underneath one would leave
     # that operation reconnecting through its open engine and recreating an
@@ -231,6 +222,17 @@ def delete_sample_with_cascade(registry: DBRegistry, sample_id: int) -> DeleteCa
     # insert inside one BEGIN IMMEDIATE so whichever commits first is seen by
     # the other.
     with sample_delete_lease(registry.reference_engine, [sample_id], operation="Sample delete"):
+        # Read the row only once it is reserved. Read earlier, a delete that
+        # waited on the lease could act on a row another delete has since
+        # removed -- and whose reusable id a new upload may already occupy.
+        with registry.reference_engine.connect() as conn:
+            row = conn.execute(
+                sa.select(samples.c.id, samples.c.name, samples.c.db_path).where(
+                    samples.c.id == sample_id
+                )
+            ).fetchone()
+        if row is None:
+            return None
         return _delete_sample_with_cascade_locked(registry, sample_id, row)
 
 

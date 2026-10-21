@@ -54,9 +54,12 @@ ACTIVE_DELETE_STATUSES = ("pending", "running")
 # Every operation that holds a sample's database open for its whole run, and so
 # must not have that database unlinked underneath it (#2314). The export lease
 # also covers report renders and the GRCh38 liftover batch, which take it
-# through ``sample_export_guard``. Each value is the operation's active statuses
-# and how a refused delete names it.
+# through ``sample_export_guard``. A second delete is refused too: two
+# overlapping deletes of one id would let the later one act on a row the earlier
+# already removed, and that rowid can be reused by the next upload. Each value
+# is the operation's active statuses and how a refused delete names it.
 _DELETE_BLOCKING_OPERATIONS: dict[str, tuple[tuple[str, ...], str]] = {
+    SAMPLE_DELETE_JOB_TYPE: (ACTIVE_DELETE_STATUSES, "already being deleted"),
     SAMPLE_MERGE_JOB_TYPE: (ACTIVE_MERGE_STATUSES, "being merged"),
     ANNOTATION_JOB_TYPE: (ACTIVE_ANNOTATION_STATUSES, "being annotated"),
     SAMPLE_EXPORT_JOB_TYPE: (ACTIVE_EXPORT_STATUSES, "busy with an export, report or liftover"),
@@ -407,7 +410,7 @@ def sample_delete_lease(
     *,
     operation: str,
 ) -> Iterator[str]:
-    """Reserve samples for deletion, excluding every operation atomically.
+    """Reserve samples for deletion, excluding every operation and other deletes.
 
     A read-only pre-check cannot close this window: a merge, annotation,
     export, liftover or LAI run could acquire its own lease between the check
