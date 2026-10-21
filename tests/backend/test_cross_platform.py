@@ -140,6 +140,14 @@ def _reset_child_signals() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
+def _is_running(pid: int) -> bool:
+    """True while *pid* exists and is not a zombie awaiting a reaper."""
+    state = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True
+    ).stdout.strip()
+    return bool(state) and not state.startswith("Z")
+
+
 @pytest.mark.skipif(
     sys.platform == "win32" or not Path("/bin/sh").exists(), reason="needs a POSIX /bin/sh"
 )
@@ -155,16 +163,27 @@ class TestDevLauncherShutdown:
     @pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGINT], ids=["TERM", "INT"])
     def test_trap_stops_process_group_without_crashing(self, target, sig):
         trap = _dev_recipe_trap(target)
+        # The child is a fresh shell that reports its own pid before exec'ing
+        # sleep, so it is fully started when signalled and can be tracked by pid.
+        child = "/bin/sh -c 'echo child $$; exec sleep 30'"
         proc = subprocess.Popen(
-            ["/bin/sh", "-c", f"{trap}; sleep 30 & echo ready; wait"],
+            ["/bin/sh", "-c", f"{trap}; {child} & echo ready; wait"],
             stdout=subprocess.PIPE,
             text=True,
             preexec_fn=_reset_child_signals,
         )
+        child_pid = None
         try:
             # The trap must be armed before the signal arrives, or the shell's
             # default disposition would pass this test without exercising it.
-            assert proc.stdout.readline().strip() == "ready"
+            seen_ready = False
+            while not (seen_ready and child_pid):
+                line = proc.stdout.readline().split()
+                assert line, "launcher exited before it was ready"
+                if line == ["ready"]:
+                    seen_ready = True
+                elif line[0] == "child":
+                    child_pid = int(line[1])
             os.kill(proc.pid, sig)
             returncode = proc.wait(timeout=10)
         finally:
@@ -177,15 +196,11 @@ class TestDevLauncherShutdown:
         assert returncode == -signal.SIGTERM
 
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline:
-            try:
-                os.killpg(proc.pid, 0)
-            except ProcessLookupError:
-                break
+        while _is_running(child_pid):
+            if time.monotonic() > deadline:
+                os.kill(child_pid, signal.SIGKILL)
+                raise AssertionError(f"{target} trap left its child running")
             time.sleep(0.05)
-        else:
-            os.killpg(proc.pid, signal.SIGKILL)
-            raise AssertionError(f"{target} trap left its children running")
 
 
 # ── Service templates ─────────────────────────────────────
