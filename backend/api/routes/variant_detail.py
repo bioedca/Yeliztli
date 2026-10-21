@@ -26,18 +26,21 @@ from backend.analysis.gtex import eqtl_regulatory_context
 from backend.analysis.spliceai import spliceai_splice_context
 from backend.annotation.gtex_eqtl import lookup_eqtls_by_rsids, lookup_gene_names
 from backend.annotation.insilico_axes import assess_insilico_axes, deleterious_predictor_names
-from backend.annotation.mondo_hpo import lookup_gene_phenotypes, mondo_hpo_install_is_serviceable
+from backend.annotation.mondo_hpo import lookup_gene_phenotypes
 from backend.annotation.spliceai import lookup_spliceai_by_variant
 from backend.annotation.vep_bundle import _filter_rows_for_sample_allele, primary_transcript_rank
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.services.sample_phenotype_scope import (
+    sample_phenotype_scope_is_current,
+    withhold_legacy_phenotype_fields,
+)
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
     resolve_biological_sex,
 )
-from backend.services.staleness import read_recorded_reference_versions
 
 logger = logging.getLogger(__name__)
 
@@ -496,23 +499,6 @@ def _attach_spliceai_badge(data: dict[str, Any], registry: Any) -> None:
 # ── Endpoint ─────────────────────────────────────────────────────────
 
 
-def _sample_phenotype_scope_is_current(sample_engine: sa.Engine) -> bool:
-    """Whether this sample's stored phenotype columns came from a scoped install.
-
-    Reads the sample's own recorded reference snapshot rather than the current
-    reference install: the columns were copied in at annotation time, so what
-    matters is the MONDO/HPO revision that run used, not what is installed now.
-
-    Fails closed. A sample with no recorded snapshot predates the mechanism, so
-    its provenance cannot be established and its pooled gene-wide terms are the
-    ones this gate exists to withhold.
-    """
-    versions = read_recorded_reference_versions(sample_engine)
-    if not versions:
-        return False
-    return mondo_hpo_install_is_serviceable(versions.get("mondo_hpo"))
-
-
 @router.get("/{rsid}")
 def get_variant_detail(
     rsid: str,
@@ -544,24 +530,12 @@ def get_variant_detail(
         data[col.name] = getattr(row, col.name, None)
 
     # A sample annotated before the disease-scope migration holds gene-wide
-    # phenotype columns: every disease's terms pooled onto the gene, which is
-    # the cross-disease annotation this change exists to withhold. The live
-    # reference gate does not reach them, because these were copied into the
-    # sample at annotation time and are served straight from its own table -
-    # so rebuilding the reference install alone does not stop an upgraded user
-    # seeing them. Withhold until the sample is re-annotated under a scoped
-    # install; the sample's own recorded snapshot is what says which it was.
-    # Scoped to mondo_hpo-sourced summaries only. OMIM enrichment writes these
-    # same columns from a separate loader with its own phenotype-specific
-    # disease ID and inheritance; it never went through the gene-wide MONDO/HPO
-    # merge, so clearing it would cost a user valid context for a problem it
-    # does not have.
-    if data.get("phenotype_source") == "mondo_hpo" and not _sample_phenotype_scope_is_current(
+    # phenotype columns copied in at annotation time; withhold them until it
+    # is re-annotated under a scoped install (#2238, #2317).
+    if data.get("phenotype_source") == "mondo_hpo" and not sample_phenotype_scope_is_current(
         sample_engine
     ):
-        for field in ("disease_name", "disease_id", "phenotype_source", "hpo_terms"):
-            data[field] = None
-        data["inheritance_pattern"] = None
+        withhold_legacy_phenotype_fields(data)
 
     registry = get_registry()
     biological_sex: str | None = None

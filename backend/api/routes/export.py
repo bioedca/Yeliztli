@@ -38,6 +38,10 @@ from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.ingestion.vcf_export import export_vcf_from_rows
 from backend.query.translator import TranslationError, translate
+from backend.services.sample_phenotype_scope import (
+    legacy_phenotype_column_masks,
+    sample_phenotype_scope_is_current,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -314,10 +318,18 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
             detail="Sample has no annotated variants. Run annotation first.",
         )
 
+    # Same legacy MONDO/HPO withholding as the visual builder: the filter and
+    # the exported columns both see the withheld value (#2317).
+    column_overrides = (
+        None
+        if sample_phenotype_scope_is_current(sample_engine)
+        else legacy_phenotype_column_masks(annotated_variants)
+    )
+
     # Translate filter tree
     try:
         filter_tree = body.filter.model_dump(by_alias=True)
-        where_clause = translate(filter_tree)
+        where_clause = translate(filter_tree, column_overrides=column_overrides)
     except TranslationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -331,7 +343,11 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
         )
 
     # Build query — NO pagination, fetch all
-    query = sa.select(annotated_variants).where(where_clause)
+    projection = [
+        (column_overrides or {}).get(col.name, col).label(col.name)
+        for col in annotated_variants.columns
+    ]
+    query = sa.select(*projection).where(where_clause)
     chrom_expr = _chrom_order_expr()
     query = query.order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
 

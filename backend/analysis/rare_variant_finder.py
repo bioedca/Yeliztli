@@ -61,6 +61,10 @@ from backend.analysis.zygosity import (
 )
 from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
 from backend.db.tables import annotated_variants, findings
+from backend.services.sample_phenotype_scope import (
+    legacy_phenotype_column_masks,
+    sample_phenotype_scope_is_current,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -324,6 +328,18 @@ def find_rare_variants(
     """
     av = annotated_variants
 
+    # A legacy-scope sample's gene-wide MONDO/HPO disease and inheritance are
+    # read as NULL here, not just hidden afterwards: the hom-alt plausibility
+    # guard below acts on inheritance, so the stored merge would otherwise
+    # still decide which variants are returned (#2317).
+    phenotype_columns: dict[str, sa.ColumnElement] = {
+        "disease_name": av.c.disease_name,
+        "inheritance_pattern": av.c.inheritance_pattern,
+    }
+    if not sample_phenotype_scope_is_current(sample_engine):
+        masks = legacy_phenotype_column_masks(av)
+        phenotype_columns = {name: masks[name] for name in phenotype_columns}
+
     # Select columns needed for the result
     stmt = sa.select(
         av.c.rsid,
@@ -358,8 +374,7 @@ def find_rare_variants(
         av.c.deleterious_total_assessed,
         av.c.ensemble_pathogenic,
         av.c.evidence_conflict,
-        av.c.disease_name,
-        av.c.inheritance_pattern,
+        *(expr.label(name) for name, expr in phenotype_columns.items()),
     )
 
     # Build WHERE conditions
