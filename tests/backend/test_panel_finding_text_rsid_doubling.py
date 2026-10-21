@@ -11,7 +11,10 @@ Two self-discovering guards over ``backend/data/panels/*.json``:
 * the template guard walks every ``finding_text`` string at any depth and rejects a literal
   ``rs<digits>`` immediately before ``{genotype}``;
 * the render guard pushes every genotype model of every risk-genotype panel through the
-  production formatter and rejects an rsID repeated back-to-back in the emitted text.
+  production formatter and rejects an rsID repeated back-to-back in the emitted text, and any
+  rsID the model matches that the emitted text names more than once. The second check
+  catches the non-adjacent form, such as ``Factor V Leiden (rs6025) … (rs6025 GA; …)``, where
+  a template labels a locus in prose that ``{genotype}`` then names again (issue #2372).
 """
 
 from __future__ import annotations
@@ -130,9 +133,31 @@ def test_render_guard_discriminates(rendered: str, offends: bool) -> None:
     assert bool(ADJACENT_REPEATED_RSID.search(rendered)) is offends
 
 
+def _rsids_named_more_than_once(rendered: str, rsids: list[str]) -> dict[str, int]:
+    """Model rsIDs the rendered text names more than once, with their counts."""
+    counts = {rsid: len(re.findall(rf"\b{re.escape(rsid)}\b", rendered)) for rsid in rsids}
+    return {rsid: count for rsid, count in counts.items() if count > 1}
+
+
+@pytest.mark.parametrize(
+    ("rendered", "offenders"),
+    [
+        (
+            "Factor V Leiden (rs6025) and Prothrombin (rs1799963) (rs6025 GA; rs1799963 GA).",
+            {"rs6025": 2, "rs1799963": 2},
+        ),
+        ("Factor V Leiden and Prothrombin G20210A (rs6025 GA; rs1799963 GA).", {}),
+        # A prefix of another rsID is a different variant, not a repeat.
+        ("Variant (rs60250 GA; rs6025 GA).", {}),
+    ],
+)
+def test_once_per_rsid_guard_discriminates(rendered: str, offenders: dict[str, int]) -> None:
+    assert _rsids_named_more_than_once(rendered, ["rs6025", "rs1799963"]) == offenders
+
+
 @pytest.mark.parametrize("panel_path", RISK_PANEL_PATHS, ids=_panel_id)
-def test_rendered_finding_never_repeats_an_rsid_back_to_back(panel_path: Path) -> None:
-    """Every genotype model, rendered by the production formatter, names each rsID once."""
+def test_rendered_finding_names_each_rsid_once(panel_path: Path) -> None:
+    """Every genotype model, rendered by the production formatter, names each of its rsIDs once."""
     panel = load_risk_panel(panel_path)
     assert panel.genotype_models, f"{panel_path.name} loads with no genotype models"
 
@@ -151,7 +176,14 @@ def test_rendered_finding_never_repeats_an_rsid_back_to_back(panel_path: Path) -
         repeated = ADJACENT_REPEATED_RSID.search(call.finding_text)
         if repeated is not None:
             offenders[model.id] = repeated.group(0)
+        assert all(rsid in call.finding_text for rsid in rsids), (
+            f"{panel_path.name}:{model.id} rendered text names none of its rsIDs; "
+            "the once-per-rsID check below would pass vacuously"
+        )
+        named_twice = _rsids_named_more_than_once(call.finding_text, rsids)
+        if named_twice:
+            offenders[model.id] = str(named_twice)
 
     assert offenders == {}, (
-        f"{panel_path.name}: rendered finding_text repeats an rsID back-to-back: {offenders}"
+        f"{panel_path.name}: rendered finding_text names an rsID more than once: {offenders}"
     )
