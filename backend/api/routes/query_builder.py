@@ -37,6 +37,11 @@ from backend.query.translator import (
     TranslationError,
     translate,
 )
+from backend.services.sample_phenotype_scope import (
+    legacy_phenotype_column_masks,
+    sample_phenotype_scope_is_current,
+    withhold_legacy_phenotype_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,9 +265,11 @@ def _carriage_status(zygosity: str | None) -> CarriageStatus:
     return "unresolved"
 
 
-def _row_to_dict(row: sa.Row) -> dict[str, Any]:
+def _row_to_dict(row: sa.Row, *, phenotype_scope_is_current: bool) -> dict[str, Any]:
     """Convert a Row to a response dict with explicit carriage semantics."""
     data = {col.name: getattr(row, col.name, None) for col in annotated_variants.columns}
+    if not phenotype_scope_is_current:
+        withhold_legacy_phenotype_fields(data)
     data["carriage_status"] = _carriage_status(data.get("zygosity"))
     return data
 
@@ -326,10 +333,18 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
             detail="Sample has no annotated variants. Run annotation first.",
         )
 
+    # A legacy-scope sample's gene-wide MONDO/HPO columns are withheld from
+    # the response, so a filter on them must see the withheld value too -
+    # otherwise the result set is still chosen by the merge it hides (#2317).
+    phenotype_scope_is_current = sample_phenotype_scope_is_current(sample_engine)
+    column_overrides = (
+        None if phenotype_scope_is_current else legacy_phenotype_column_masks(annotated_variants)
+    )
+
     # ── Translate the filter tree ─────────────────────────────────
     try:
         filter_tree = body.filter.model_dump(by_alias=True)
-        where_clause = translate(filter_tree)
+        where_clause = translate(filter_tree, column_overrides=column_overrides)
     except TranslationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -359,7 +374,10 @@ def execute_query(body: QueryRequest) -> QueryResultPage:
     has_more = len(rows) > body.limit
     result_rows = rows[: body.limit]
 
-    items = [QueryVariantRow(**_row_to_dict(row)) for row in result_rows]
+    items = [
+        QueryVariantRow(**_row_to_dict(row, phenotype_scope_is_current=phenotype_scope_is_current))
+        for row in result_rows
+    ]
 
     next_chrom: str | None = None
     next_pos: int | None = None

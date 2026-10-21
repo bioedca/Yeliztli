@@ -14,6 +14,7 @@ Reference: PRD §P4-01, §8.7 (adversarial test matrix).
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import sqlalchemy as sa
@@ -121,7 +122,10 @@ def _coerce_value(value: Any, field: str) -> Any:
 # ── Core translator ──────────────────────────────────────────────────
 
 
-def _translate_rule(rule: dict[str, Any]) -> sa.ColumnElement:
+def _translate_rule(
+    rule: dict[str, Any],
+    column_overrides: Mapping[str, sa.ColumnElement] | None = None,
+) -> sa.ColumnElement:
     """Translate a single RuleType dict to a SQLAlchemy column expression.
 
     Expected shape::
@@ -146,7 +150,9 @@ def _translate_rule(rule: dict[str, Any]) -> sa.ColumnElement:
     if operator not in SUPPORTED_OPERATORS:
         raise TranslationError(f"Unsupported operator '{operator}'.")
 
-    col = annotated_variants.c[field]
+    # Overrides substitute an expression for a column (same name, same type)
+    # so a caller can filter on a derived value, e.g. a withheld field (#2317).
+    col = (column_overrides or {}).get(field, annotated_variants.c[field])
 
     # ── Null operators (no value needed) ──────────────────────────
     if operator == "null":
@@ -225,7 +231,12 @@ def _count_rules(node: dict[str, Any]) -> int:
     return total
 
 
-def translate(rule_group: dict[str, Any], *, _depth: int = 0) -> sa.ColumnElement:
+def translate(
+    rule_group: dict[str, Any],
+    *,
+    column_overrides: Mapping[str, sa.ColumnElement] | None = None,
+    _depth: int = 0,
+) -> sa.ColumnElement:
     """Recursively translate a RuleGroupType JSON tree to a SQLAlchemy expression.
 
     Parameters
@@ -238,6 +249,11 @@ def translate(rule_group: dict[str, Any], *, _depth: int = 0) -> sa.ColumnElemen
                 "rules": [ ...rules or nested groups... ],
                 "not": false  // optional
             }
+
+    column_overrides:
+        Optional expressions to filter on in place of the named
+        ``annotated_variants`` columns. Field validation and value coercion
+        still follow the underlying column.
 
     Returns
     -------
@@ -288,12 +304,12 @@ def translate(rule_group: dict[str, Any], *, _depth: int = 0) -> sa.ColumnElemen
 
         if "rules" in child:
             # Nested group
-            clauses.append(translate(child, _depth=_depth + 1))
+            clauses.append(translate(child, column_overrides=column_overrides, _depth=_depth + 1))
         elif "field" in child:
             # Individual rule
             if child.get("disabled"):
                 continue
-            clauses.append(_translate_rule(child))
+            clauses.append(_translate_rule(child, column_overrides))
         # else: skip unrecognised entries
 
     if len(clauses) == 0:
