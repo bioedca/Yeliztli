@@ -17,9 +17,10 @@ from pathlib import Path, PurePosixPath
 import sqlalchemy as sa
 from fastapi import APIRouter, HTTPException, UploadFile
 from packaging.version import InvalidVersion, Version
+from starlette.concurrency import run_in_threadpool
 
 from backend.api.sse import job_progress_stream, sse_response
-from backend.db.connection import get_registry
+from backend.db.connection import DBRegistry, get_registry
 from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
@@ -39,6 +40,11 @@ from backend.ingestion.dispatcher import (
     reject_unsupported_archive_bytes,
 )
 from backend.ingestion.liftover import lift_build36_to_grch37
+from backend.services.sample_operation_lock import (
+    SampleOperationConflictError,
+    SampleOperationUnavailableError,
+    ingest_publication,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -245,12 +251,120 @@ def _lift_result_build36(result: ParseResult) -> dict[str, int]:
     return stats
 
 
+def _build_sample_database(
+    registry: DBRegistry,
+    sample_db_path: Path,
+    result: ParseResult,
+    filename: str,
+    file_format: str,
+    file_hash: str,
+    now: datetime,
+) -> None:
+    """Create the per-sample database and load its metadata and raw variants."""
+    sample_db_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_engine = registry.get_sample_engine(sample_db_path)
+    create_sample_tables(sample_engine)
+
+    # Write sample metadata (single-row table)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            sample_metadata_table.insert().values(
+                id=1,
+                name=filename,
+                file_format=file_format,
+                file_hash=file_hash,
+                created_at=now,
+            )
+        )
+
+    # Bulk-insert raw variants in batches
+    variant_dicts = [
+        {
+            "rsid": v.rsid,
+            "chrom": v.chrom,
+            "pos": v.pos,
+            "genotype": v.genotype,
+        }
+        for v in result.variants
+    ]
+    with sample_engine.begin() as conn:
+        for i in range(0, len(variant_dicts), _INSERT_BATCH):
+            batch = variant_dicts[i : i + _INSERT_BATCH]
+            conn.execute(raw_variants.insert(), batch)
+
+
+def _discard_failed_ingest(
+    registry: DBRegistry, sample_id: int, sample_db_path: Path, job_id: str
+) -> None:
+    """Withdraw an upload whose database could not be built.
+
+    Runs while the ingest lease is still held, so nothing else can be using the
+    partial database. A half-loaded sample would otherwise stay listed as if it
+    were complete. If the files cannot be removed the row is kept and the lease
+    marked ``failed`` instead: a row with a stray file is recoverable by an
+    ordinary delete, a stray file with no row is not.
+    """
+    try:
+        registry.dispose_sample_engine(sample_db_path)
+        for path in (
+            sample_db_path,
+            Path(f"{sample_db_path}-wal"),
+            Path(f"{sample_db_path}-shm"),
+        ):
+            path.unlink(missing_ok=True)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
+            )
+            conn.execute(samples.delete().where(samples.c.id == sample_id))
+            conn.execute(jobs.delete().where(jobs.c.job_id == job_id))
+    except Exception:  # noqa: BLE001
+        logger.exception("ingest_discard_failed sample_id=%s", sample_id)
+        try:
+            with registry.reference_engine.begin() as conn:
+                conn.execute(
+                    jobs.update()
+                    .where(jobs.c.job_id == job_id)
+                    .values(
+                        status="failed",
+                        message="Import failed",
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+        except Exception:  # noqa: BLE001
+            # Startup recovery fails an abandoned ingest lease, so this is
+            # bounded by the next restart rather than permanent.
+            logger.exception("ingest_lease_release_failed sample_id=%s", sample_id)
+
+
+def _finish_ingest_lease(engine: sa.Engine, job_id: str, variant_count: int) -> None:
+    """Mark the upload complete, releasing the sample to other operations."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                jobs.update()
+                .where(jobs.c.job_id == job_id)
+                .values(
+                    status="complete",
+                    progress_pct=100.0,
+                    message=f"Parsed {variant_count} variants",
+                    updated_at=datetime.now(UTC),
+                )
+            )
+    except sa.exc.SQLAlchemyError:
+        # The sample is already complete. Failing the upload here would report
+        # an error for data that was stored and invite a duplicate upload --
+        # worse than a stranded lease, which startup recovery clears.
+        logger.exception("ingest_lease_finish_failed job_id=%s", job_id)
+
+
 def _ingest_file(file_bytes: bytes, filename: str) -> dict:
     """Parse a vendor raw-data file (23andMe or AncestryDNA) and persist it.
 
-    This is the synchronous core of the ingest endpoint. For v1 (< 2 min
-    parse time), this runs inline. Huey background tasks will wrap this
-    in Phase 2 for the annotation pipeline.
+    This is the synchronous core of the ingest endpoint, which runs it in the
+    threadpool so a long upload does not stall every other request (#2574).
+    The ingest lease it holds from allocation to completion keeps other
+    operations off the sample until its database is complete.
 
     Returns a dict with sample_id, job_id, variant_count, nocall_count.
     """
@@ -331,9 +445,19 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
 
     file_format = f"{result.vendor.value}_{result.version}"
 
-    # Register sample in reference.db
+    # Register the sample and take its ingest lease in one transaction (#2574).
+    # The row is published before its database exists, and ingest runs off the
+    # event loop, so a concurrent delete, annotation, export, merge or LAI run
+    # could otherwise open or unlink a database that is still being written --
+    # and a delete would leave this upload recreating sample_<id>.db at an id
+    # the registry no longer holds (#2573). Every one of them refuses while the
+    # lease is ``running``.
     now = datetime.now(UTC)
-    with registry.reference_engine.begin() as conn:
+    job_id = str(uuid.uuid4())
+    with ingest_publication(registry.reference_engine, job_id=job_id, created_at=now) as (
+        conn,
+        reserve,
+    ):
         row = conn.execute(
             samples.insert()
             .values(
@@ -346,6 +470,7 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
             .returning(samples.c.id)
         )
         sample_id = row.scalar_one()
+        reserve(sample_id)
 
         # SQLite may reuse a vacant integer primary key. Releases before the
         # sample-deletion cascade could have left a prompt for that old owner;
@@ -358,54 +483,16 @@ def _ingest_file(file_bytes: bytes, filename: str) -> dict:
         db_path = f"samples/sample_{sample_id}.db"
         conn.execute(samples.update().where(samples.c.id == sample_id).values(db_path=db_path))
 
-    # Create the per-sample database
     sample_db_path = settings.data_dir / db_path
-    sample_db_path.parent.mkdir(parents=True, exist_ok=True)
-    sample_engine = registry.get_sample_engine(sample_db_path)
-    create_sample_tables(sample_engine)
-
-    # Write sample metadata (single-row table)
-    with sample_engine.begin() as conn:
-        conn.execute(
-            sample_metadata_table.insert().values(
-                id=1,
-                name=filename,
-                file_format=file_format,
-                file_hash=file_hash,
-                created_at=now,
-            )
+    try:
+        _build_sample_database(
+            registry, sample_db_path, result, filename, file_format, file_hash, now
         )
+    except BaseException:
+        _discard_failed_ingest(registry, sample_id, sample_db_path, job_id)
+        raise
 
-    # Bulk-insert raw variants in batches
-    variant_dicts = [
-        {
-            "rsid": v.rsid,
-            "chrom": v.chrom,
-            "pos": v.pos,
-            "genotype": v.genotype,
-        }
-        for v in result.variants
-    ]
-    with sample_engine.begin() as conn:
-        for i in range(0, len(variant_dicts), _INSERT_BATCH):
-            batch = variant_dicts[i : i + _INSERT_BATCH]
-            conn.execute(raw_variants.insert(), batch)
-
-    # Create a job record to track status
-    job_id = str(uuid.uuid4())
-    with registry.reference_engine.begin() as conn:
-        conn.execute(
-            jobs.insert().values(
-                job_id=job_id,
-                sample_id=sample_id,
-                job_type="ingest",
-                status="complete",
-                progress_pct=100.0,
-                message=f"Parsed {len(result.variants)} variants",
-                created_at=now,
-                updated_at=now,
-            )
-        )
+    _finish_ingest_lease(registry.reference_engine, job_id, len(result.variants))
 
     return {
         "sample_id": sample_id,
@@ -436,10 +523,18 @@ async def ingest_file(file: UploadFile) -> dict:
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Empty file.")
 
+    # Parsing and loading a full raw file takes tens of seconds. Run it off the
+    # event loop so the rest of the API keeps answering meanwhile (#2574); the
+    # ingest lease is what keeps other requests away from the sample until it
+    # is complete.
     try:
-        result = _ingest_file(file_bytes, file.filename)
+        result = await run_in_threadpool(_ingest_file, file_bytes, file.filename)
     except ParserError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except SampleOperationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SampleOperationUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return result
 

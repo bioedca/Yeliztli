@@ -161,6 +161,7 @@ def recover_orphaned_jobs(engine) -> int:
     from backend.services.sample_operation_lock import (
         SAMPLE_DELETE_JOB_TYPE,
         SAMPLE_EXPORT_JOB_TYPE,
+        SAMPLE_INGEST_JOB_TYPE,
         SAMPLE_MERGE_JOB_TYPE,
     )
 
@@ -176,6 +177,10 @@ def recover_orphaned_jobs(engine) -> int:
         # crash mid-delete would otherwise strand `running` rows that make every
         # later merge on that sample report "being deleted" forever.
         SAMPLE_DELETE_JOB_TYPE,
+        # Ingest runs in the API's threadpool, so a restart proves it abandoned
+        # too. A stranded lease would refuse every later delete, annotation,
+        # export, merge and LAI run on that sample (#2574).
+        SAMPLE_INGEST_JOB_TYPE,
         "database_download",
         "download",
     }
