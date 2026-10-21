@@ -85,6 +85,14 @@ scoped to the disease they were recorded against. Database health reports such a
 rebuilt, so an upgraded machine is never admitted while phenotype annotations would come back
 empty. Refresh MONDO/HPO to restore disease-scoped rows.
 
+Refreshing the reference install does not change samples that were already annotated against the
+old one, because each sample stores its own copy of the phenotype columns. Until such a sample is
+re-annotated, its MONDO/HPO disease, inheritance and HPO terms are hidden from variant detail, the
+annotations table, the Query Builder and its export, and the Rare Variant Finder. Filters treat
+them as empty, so they cannot change which variants a search returns. A sample with no recorded
+reference snapshot is treated the same way. OMIM-sourced phenotype context is kept. The
+re-annotation banner already marks these samples as stale.
+
 The loader rejects grossly truncated inputs before replacing installed rows: the compressed
 Monarch primary archive must be at least 100,000 bytes, the HPO export at least 10,000,000
 bytes, and the MONDO SSSOM export must yield at least 50,000 unambiguous exact mappings. It

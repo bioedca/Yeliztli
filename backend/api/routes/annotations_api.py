@@ -22,6 +22,10 @@ from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.services.sample_phenotype_scope import (
+    sample_phenotype_scope_is_current,
+    withhold_legacy_phenotype_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -272,11 +276,15 @@ def _build_filters(
     return clauses
 
 
-def _row_to_annotated_variant(row: sa.Row) -> AnnotatedVariantRow:
+def _row_to_annotated_variant(
+    row: sa.Row, *, phenotype_scope_is_current: bool
+) -> AnnotatedVariantRow:
     """Convert a SQLAlchemy Row to AnnotatedVariantRow."""
     data: dict[str, Any] = {}
     for col in _TABLE.c:
         data[col.name] = getattr(row, col.name, None)
+    if not phenotype_scope_is_current:
+        withhold_legacy_phenotype_fields(data)
     data["alphamissense_badge"] = alphamissense_badge_for_variant(
         data.get("alphamissense_pathogenicity"),
         data.get("alphamissense_class"),
@@ -352,7 +360,11 @@ def list_annotated_variants(
 
     has_more = len(rows) > limit
     result_rows = rows[:limit]
-    items = [_row_to_annotated_variant(row) for row in result_rows]
+    phenotype_scope_is_current = sample_phenotype_scope_is_current(sample_engine)
+    items = [
+        _row_to_annotated_variant(row, phenotype_scope_is_current=phenotype_scope_is_current)
+        for row in result_rows
+    ]
 
     next_chrom: str | None = None
     next_pos: int | None = None
