@@ -46,16 +46,48 @@ def _order_literals(tree: ast.AST) -> list[int]:
     return found
 
 
-def _case_over_order(tree: ast.AST) -> list[int]:
-    """Lines that iterate the canonical order's items (how a private ``CASE`` is built)."""
+_CANONICAL_MODULE = "backend.ingestion.chrom_order"
+
+
+def _order_aliases(tree: ast.AST) -> set[str]:
+    """Names a module binds to the canonical order: ``from … import CHROM_ORDER [as X]``."""
+    return {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == _CANONICAL_MODULE
+        for alias in node.names
+        if alias.name == "CHROM_ORDER"
+    }
+
+
+def _is_order_reference(node: ast.expr, aliases: set[str]) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in aliases or "chrom_order" in node.id.lower()
+    # Qualified access, however the module was imported: chrom_order.CHROM_ORDER,
+    # m.CHROM_ORDER, backend.ingestion.chrom_order.CHROM_ORDER (#2584 review).
+    return isinstance(node, ast.Attribute) and node.attr == "CHROM_ORDER"
+
+
+def _private_order_uses(tree: ast.AST, methods: frozenset[str]) -> list[int]:
+    """Lines calling one of ``methods`` on the canonical order, however it was imported."""
+    aliases = _order_aliases(tree)
     return [
         node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Attribute)
-        and node.attr == "items"
-        and isinstance(node.value, ast.Name)
-        and "chrom_order" in node.value.id.lower()
+        and node.attr in methods
+        and _is_order_reference(node.value, aliases)
     ]
+
+
+def _case_over_order(tree: ast.AST) -> list[int]:
+    """Lines that iterate the canonical order's items (how a private ``CASE`` is built)."""
+    return _private_order_uses(tree, frozenset({"items"}))
+
+
+def _key_over_order(tree: ast.AST) -> list[int]:
+    """Lines that look a chromosome up in the order directly (a private ``chrom_sort_key``)."""
+    return _private_order_uses(tree, frozenset({"get"}))
 
 
 def test_no_module_outside_the_canonical_one_defines_a_chromosome_order() -> None:
@@ -100,9 +132,41 @@ def test_order_literal_scan_discriminates(source: str, offends: bool) -> None:
     assert bool(_order_literals(ast.parse(source))) is offends
 
 
+def test_no_module_outside_the_canonical_one_hand_rolls_a_chromosome_sort_key() -> None:
+    offenders = {
+        str(path.relative_to(_BACKEND.parent)): lines
+        for path in sorted(_BACKEND.rglob("*.py"))
+        if path != _CANONICAL
+        and (lines := _key_over_order(ast.parse(path.read_text(encoding="utf-8"))))
+    }
+    assert offenders == {}, f"private chromosome sort keys: {offenders}; use chrom_sort_key"
+
+
 @pytest.mark.parametrize(
     ("source", "offends"),
     [
+        (
+            "from backend.ingestion.chrom_order import CHROM_ORDER as ORDER\n"
+            "sa.case(*[(c == k, v) for k, v in ORDER.items()], else_=99)",
+            True,
+        ),
+        (
+            "from backend.ingestion import chrom_order\n"
+            "sa.case(*[(c == k, v) for k, v in chrom_order.CHROM_ORDER.items()], else_=99)",
+            True,
+        ),
+        (
+            "import backend.ingestion.chrom_order as order_module\n"
+            "sa.case(*[(c == k, v) for k, v in order_module.CHROM_ORDER.items()], else_=99)",
+            True,
+        ),
+        (
+            "import backend.ingestion.chrom_order\n"
+            "pairs = backend.ingestion.chrom_order.CHROM_ORDER.items()",
+            True,
+        ),
+        # An unrelated name that happens to be imported as ORDER elsewhere is not the order.
+        ("from somewhere import LENGTHS as ORDER\nfor k, v in ORDER.items(): pass", False),
         ("sa.case(*[(c == k, v) for k, v in CHROM_ORDER.items()], else_=99)", True),
         ("sa.case(*[(c == k, v) for k, v in _CHROM_ORDER.items()], else_=99)", True),
         ("sa.case(*[(c == k, v) for k, v in chrom_order.items()], else_=99)", True),
@@ -111,6 +175,23 @@ def test_order_literal_scan_discriminates(source: str, offends: bool) -> None:
 )
 def test_case_scan_discriminates(source: str, offends: bool) -> None:
     assert bool(_case_over_order(ast.parse(source))) is offends
+
+
+@pytest.mark.parametrize(
+    ("source", "offends"),
+    [
+        ("values = [_CHROM_ORDER.get(cursor_chrom, 99), cursor_pos]", True),
+        (
+            "from backend.ingestion.chrom_order import CHROM_ORDER as ORDER\n"
+            "key = ORDER.get(chrom, 99)",
+            True,
+        ),
+        ("key = chrom_sort_key(chrom)", False),
+        ("value = settings.get('chrom', 99)", False),
+    ],
+)
+def test_key_scan_discriminates(source: str, offends: bool) -> None:
+    assert bool(_key_over_order(ast.parse(source))) is offends
 
 
 _CHROMS = ["10", "2", "MT", "Y", "1", "X", "22", "GL000192.1", "chrUn", "11"]
