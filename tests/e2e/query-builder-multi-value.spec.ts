@@ -6,6 +6,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
 import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 const jsonRoute = (payload: unknown, status = 200) => ({
@@ -108,4 +109,51 @@ test('in and not in rules typed as comma lists are posted as arrays (#2059)', as
     expect.objectContaining({ field: 'chrom', operator: 'notIn', value: ['X', 'Y'] }),
   ])
   await expect(page.getByText(/Query failed/i)).toHaveCount(0)
+})
+
+// #2378: the builder panel itself had never been under an accessibility assertion. The
+// one violation it still carries is the design-system primary pair -- white
+// --color-primary-foreground on --color-primary, below 4.5:1 in both themes -- on the
+// "+ Rule" action. That is a token decision shared by every primary button, tracked as
+// #2378's design follow-up; when it lands this allowance must go, and the assertion below
+// fails until it does.
+const KNOWN_PRIMARY_TOKEN_CONTRAST = { id: 'color-contrast', targets: ['.ruleGroup-addRule'] }
+
+test('the builder panel names both between bounds and has no other accessibility violations (#2378)', async ({
+  page,
+}) => {
+  await stubQueryBuilder(page)
+  await page.goto('/query-builder?sample_id=1')
+  await waitForReactHydration(page)
+
+  const rule = await addRule(page, 'gnomad_af_global', 'between')
+  await rule.getByRole('spinbutton', { name: 'Gnomad Af Global lower bound' }).fill('0.1')
+  await rule.getByRole('spinbutton', { name: 'Gnomad Af Global upper bound' }).fill('0.5')
+
+  const addRuleButton = page.getByRole('button', { name: '+ Rule' })
+  const background = () => addRuleButton.evaluate((el) => getComputedStyle(el).backgroundColor)
+  const lightBackground = await background()
+  for (const theme of ['light', 'dark'] as const) {
+    await page.evaluate((t) => document.documentElement.classList.toggle('dark', t === 'dark'), theme)
+    // Wait for the theme's primary token to apply before axe samples contrast.
+    if (theme === 'dark') await expect.poll(background).not.toBe(lightBackground)
+    const a11y = await new AxeBuilder({ page })
+      .include('[data-testid="query-builder-panel"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+    const violations = a11y.violations.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      targets: nodes.map(({ target }) => target.join(' ')),
+    }))
+    expect(
+      violations.filter(({ id }) => id !== KNOWN_PRIMARY_TOKEN_CONTRAST.id),
+      `${theme} mode accessibility violations`,
+    ).toEqual([])
+    expect(
+      violations.find(({ id }) => id === KNOWN_PRIMARY_TOKEN_CONTRAST.id)?.targets,
+      `${theme} mode: contrast is confined to the tracked primary-token node; if this is now ` +
+        'undefined the token was fixed, so remove KNOWN_PRIMARY_TOKEN_CONTRAST',
+    ).toEqual(KNOWN_PRIMARY_TOKEN_CONTRAST.targets)
+  }
 })
