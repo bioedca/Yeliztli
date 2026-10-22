@@ -1,4 +1,4 @@
-"""Atomic per-sample exclusion between annotation, export, LAI, merge and delete.
+"""Atomic per-sample exclusion between ingest, annotation, export, LAI, merge and delete.
 
 SQLite does not provide a process-wide named-lock primitive.  The reference
 database's ``jobs`` table therefore acts as a recoverable lease registry:
@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 
@@ -36,6 +36,12 @@ SAMPLE_MERGE_JOB_TYPE = "sample_merge"
 # a sample's database open is atomic rather than a read-then-act pre-check.
 SAMPLE_DELETE_JOB_TYPE = "sample_delete"
 ANNOTATION_JOB_TYPE = "annotation"
+# An upload publishes its ``samples`` row before it has built the database that
+# row names, and since #2574 it runs off the event loop, so other requests can
+# reach the sample meanwhile. The ingest job row is therefore a lease: written
+# ``running`` in the transaction that allocates the id, and finished only once
+# the database is complete.
+SAMPLE_INGEST_JOB_TYPE = "ingest"
 LAI_JOB_TYPE = "lai_analysis"
 # The one definition of "this job is still doing something". `cancelling` belongs
 # here: the worker has not acknowledged the cancel yet, so the job may still be
@@ -51,6 +57,8 @@ ACTIVE_EXPORT_STATUSES = ("pending", "running")
 ACTIVE_MERGE_STATUSES = ("pending", "running")
 # Deletion is synchronous and API-owned as well.
 ACTIVE_DELETE_STATUSES = ("pending", "running")
+# So is ingest.
+ACTIVE_INGEST_STATUSES = ("pending", "running")
 # Every operation that holds a sample's database open for its whole run, and so
 # must not have that database unlinked underneath it (#2314). The export lease
 # also covers report renders and the GRCh38 liftover batch, which take it
@@ -60,6 +68,7 @@ ACTIVE_DELETE_STATUSES = ("pending", "running")
 # is the operation's active statuses and how a refused delete names it.
 _DELETE_BLOCKING_OPERATIONS: dict[str, tuple[tuple[str, ...], str]] = {
     SAMPLE_DELETE_JOB_TYPE: (ACTIVE_DELETE_STATUSES, "already being deleted"),
+    SAMPLE_INGEST_JOB_TYPE: (ACTIVE_INGEST_STATUSES, "still being imported"),
     SAMPLE_MERGE_JOB_TYPE: (ACTIVE_MERGE_STATUSES, "being merged"),
     ANNOTATION_JOB_TYPE: (ACTIVE_ANNOTATION_STATUSES, "being annotated"),
     SAMPLE_EXPORT_JOB_TYPE: (ACTIVE_EXPORT_STATUSES, "busy with an export, report or liftover"),
@@ -88,6 +97,24 @@ def _deletion_in_progress(conn: sa.Connection, sample_id: int) -> bool:
             .where(jobs.c.sample_id == sample_id)
             .where(jobs.c.job_type == SAMPLE_DELETE_JOB_TYPE)
             .where(jobs.c.status.in_(ACTIVE_DELETE_STATUSES))
+            .limit(1)
+        ).fetchone()
+        is not None
+    )
+
+
+def ingest_in_progress(conn: sa.Connection, sample_id: int) -> bool:
+    """Whether ``sample_id``'s upload is still building its database.
+
+    Read inside the caller's transaction. An operation that opened the database
+    now would read a partial ``raw_variants`` table as if it were the sample.
+    """
+    return (
+        conn.execute(
+            sa.select(jobs.c.job_id)
+            .where(jobs.c.sample_id == sample_id)
+            .where(jobs.c.job_type == SAMPLE_INGEST_JOB_TYPE)
+            .where(jobs.c.status.in_(ACTIVE_INGEST_STATUSES))
             .limit(1)
         ).fetchone()
         is not None
@@ -149,6 +176,10 @@ def reserve_annotation_job(
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; annotation was not started."
                 )
+            if ingest_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is still being imported; annotation was not started."
+                )
 
             conn.execute(
                 jobs.insert().values(
@@ -196,6 +227,10 @@ def reserve_lai_job(
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; LAI analysis was not started."
                 )
+            if ingest_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is still being imported; LAI analysis was not started."
+                )
 
             conn.execute(
                 jobs.insert().values(
@@ -214,6 +249,56 @@ def reserve_lai_job(
     except sa.exc.SQLAlchemyError as exc:
         raise SampleOperationUnavailableError(
             f"Unable to reserve LAI analysis for sample {sample_id}."
+        ) from exc
+
+
+@contextmanager
+def ingest_publication(
+    engine: sa.Engine,
+    *,
+    job_id: str,
+    created_at: datetime,
+) -> Iterator[tuple[sa.Connection, Callable[[int], None]]]:
+    """Allocate a sample id and take its ingest lease in one transaction.
+
+    Yields the open ``BEGIN IMMEDIATE`` connection and a ``reserve(sample_id)``
+    callable. The caller inserts the ``samples`` row, then calls ``reserve`` with
+    the id it got back; the row and the lease commit together, so no other
+    request can observe the sample without also observing that it is still
+    being imported.
+
+    ``reserve`` refuses an id an active deletion already holds. SQLite reuses a
+    vacated rowid, so a delete that reserved an id before this upload allocated
+    it would otherwise read the new row afterwards and unlink the database this
+    upload is about to build.
+    """
+    try:
+        with _immediate_transaction(engine) as conn:
+
+            def reserve(sample_id: int) -> None:
+                if _deletion_in_progress(conn, sample_id):
+                    raise SampleOperationConflictError(
+                        f"Sample id {sample_id} is still being deleted; retry the upload."
+                    )
+                conn.execute(
+                    jobs.insert().values(
+                        job_id=job_id,
+                        sample_id=sample_id,
+                        job_type=SAMPLE_INGEST_JOB_TYPE,
+                        status="running",
+                        progress_pct=0.0,
+                        message="Importing raw data",
+                        created_at=created_at,
+                        updated_at=created_at,
+                    )
+                )
+
+            yield conn, reserve
+    except SampleOperationConflictError:
+        raise
+    except sa.exc.SQLAlchemyError as exc:
+        raise SampleOperationUnavailableError(
+            "Unable to register the upload; nothing was stored."
         ) from exc
 
 
@@ -276,6 +361,10 @@ def sample_export_lease(
             if _deletion_in_progress(conn, sample_id):
                 raise SampleOperationConflictError(
                     f"Sample {sample_id} is being deleted; the export was not started."
+                )
+            if ingest_in_progress(conn, sample_id):
+                raise SampleOperationConflictError(
+                    f"Sample {sample_id} is still being imported; the export was not started."
                 )
 
             conn.execute(
@@ -513,6 +602,10 @@ def sample_merge_lease(
                 if _deletion_in_progress(conn, sample_id):
                     raise SampleOperationConflictError(
                         f"Sample {sample_id} is being deleted; the merge was not started."
+                    )
+                if ingest_in_progress(conn, sample_id):
+                    raise SampleOperationConflictError(
+                        f"Sample {sample_id} is still being imported; the merge was not started."
                     )
             for sample_id in ordered_ids:
                 conn.execute(

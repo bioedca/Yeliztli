@@ -43,6 +43,7 @@ from backend.services.sample_delete import (
 from backend.services.sample_operation_lock import (
     SampleOperationConflictError,
     SampleOperationUnavailableError,
+    ingest_in_progress,
 )
 
 logger = logging.getLogger(__name__)
@@ -152,9 +153,15 @@ async def get_sample(sample_id: int) -> SampleResponse:
     registry = get_registry()
     with registry.reference_engine.connect() as conn:
         row = conn.execute(sa.select(samples).where(samples.c.id == sample_id)).fetchone()
+        # Still importing (#2574): its database is being built, and the
+        # per-sample metadata it would add is not written yet. Serve the
+        # registry row alone rather than open the partial file.
+        importing = row is not None and ingest_in_progress(conn, sample_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
     response = _row_to_response(row)
+    if importing:
+        return response
     return _enrich_with_sample_metadata(response, registry)
 
 
@@ -183,6 +190,14 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
         row = conn.execute(sa.select(samples).where(samples.c.id == sample_id)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail=f"Sample {sample_id} not found.")
+        # Its database is still being built (#2574): a metadata write now
+        # would either be lost when ingest inserts the row or wait on the
+        # import's write lock here on the event loop.
+        if ingest_in_progress(conn, sample_id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Sample {sample_id} is still being imported; retry once it completes.",
+            )
 
         # Validate before the update, but after the existence check so a missing
         # sample still reports 404 rather than 422. The rename lands here in the

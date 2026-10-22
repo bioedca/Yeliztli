@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -39,6 +40,13 @@ class DBRegistry:
         self._settings = settings
         self._sample_engines: dict[str, sa.Engine] = {}
         self._sample_prompt_sync_complete: dict[str, sa.Engine] = {}
+        # First-open schema setup is a check-then-DDL sequence, so two threads
+        # opening one sample at once could both run it and one fail on "already
+        # exists". Ingest runs in the threadpool since #2574, which makes that
+        # reachable; serialize setup per path, not globally, so one slow
+        # migration does not hold up every other sample.
+        self._sample_engine_locks: dict[str, threading.Lock] = {}
+        self._sample_engine_locks_guard = threading.Lock()
 
         # Reference DB (shared, long-lived)
         self.reference_engine = self._create_engine(
@@ -476,13 +484,17 @@ class DBRegistry:
         """
         key = str(sample_db_path)
         if key not in self._sample_engines:
-            engine = self._create_engine(Path(sample_db_path), wal=self._settings.wal_mode)
-            # Ensure schema is up to date (adds missing tables like
-            # haplogroup_assignments for pre-P3-33 sample databases).
-            from backend.db.sample_schema import ensure_sample_schema_current
+            with self._sample_engine_locks_guard:
+                lock = self._sample_engine_locks.setdefault(key, threading.Lock())
+            with lock:
+                if key not in self._sample_engines:
+                    engine = self._create_engine(Path(sample_db_path), wal=self._settings.wal_mode)
+                    # Ensure schema is up to date (adds missing tables like
+                    # haplogroup_assignments for pre-P3-33 sample databases).
+                    from backend.db.sample_schema import ensure_sample_schema_current
 
-            ensure_sample_schema_current(engine)
-            self._sample_engines[key] = engine
+                    ensure_sample_schema_current(engine)
+                    self._sample_engines[key] = engine
         engine = self._sample_engines[key]
         if self._sample_prompt_sync_complete.get(key) is not engine:
             if self._sync_cyp2c9_phenytoin_reanalysis_prompt(engine, sample_db_path):
