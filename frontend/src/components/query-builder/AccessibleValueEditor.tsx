@@ -26,6 +26,36 @@ function boundLabel(props: ValueEditorProps, index: number): string {
   return `${field} ${BOUND_LABELS[index].toLowerCase()}`.replace(/^./, (c) => c.toUpperCase())
 }
 
+// The props the library's ValueEditor keeps for itself rather than passing to its value
+// selector, so a custom valueSelector receives exactly what it would by default.
+const EDITOR_ONLY_PROPS = [
+  "operator",
+  "value",
+  "handleOnChange",
+  "title",
+  "className",
+  "type",
+  "inputType",
+  "values",
+  "listsAsArrays",
+  "fieldData",
+  "disabled",
+  "separator",
+  "testID",
+  "selectorComponent",
+  "parseNumbers",
+  "skipHook",
+  "valueSource",
+] as const
+
+function propsForValueSelector(
+  props: ValueEditorProps,
+): Omit<ValueEditorProps, (typeof EDITOR_ONLY_PROPS)[number]> {
+  const rest: Record<string, unknown> = { ...props }
+  for (const key of EDITOR_ONLY_PROPS) delete rest[key]
+  return rest as Omit<ValueEditorProps, (typeof EDITOR_ONLY_PROPS)[number]>
+}
+
 function BetweenValueEditor(props: ValueEditorProps) {
   const {
     type = "text",
@@ -36,12 +66,14 @@ function BetweenValueEditor(props: ValueEditorProps) {
     separator = null,
     testID,
     listsAsArrays,
+    fieldData,
+    selectorComponent,
     schema,
   } = props
   const { valueAsArray, multiValueHandler, valueListItemClassName, inputTypeCoerced } =
     useValueEditor(props)
-  const SelectorComponent = props.selectorComponent ?? schema.controls.valueSelector
-  const placeholder = props.fieldData?.placeholder ?? ""
+  const SelectorComponent = selectorComponent ?? schema.controls.valueSelector
+  const placeholder = fieldData?.placeholder ?? ""
 
   const editors = [0, 1].map((index) => {
     const label = boundLabel(props, index)
@@ -62,7 +94,7 @@ function BetweenValueEditor(props: ValueEditorProps) {
     return (
       <SelectorComponent
         key={index}
-        {...props}
+        {...propsForValueSelector(props)}
         schema={schema}
         className={valueListItemClassName}
         title={label}
