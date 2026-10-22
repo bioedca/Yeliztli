@@ -1,12 +1,7 @@
 """Fetch +/-25 bp of GRCh38 and GRCh37 assembly sequence around single-route rows (#2493)."""
-import gzip
-import json
-import sys
-import time
+import gzip, json, sys, time
 from pathlib import Path
-
 import httpx
-
 D = Path(sys.argv[1])
 records = json.loads(gzip.decompress((D / "derived" / "grch37_positions.json.gz").read_bytes()))
 todo = [r for r in records if r.get("orientation_basis") != "identity+projection"]
