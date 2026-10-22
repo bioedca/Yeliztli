@@ -131,12 +131,19 @@ test('the builder panel names both between bounds and has no other accessibility
   await rule.getByRole('spinbutton', { name: 'Gnomad Af Global upper bound' }).fill('0.5')
 
   const addRuleButton = page.getByRole('button', { name: '+ Rule' })
+  const notToggle = page.getByTestId('not-toggle').first()
   const background = () => addRuleButton.evaluate((el) => getComputedStyle(el).backgroundColor)
   const lightBackground = await background()
+  // --color-foreground per theme, as the carriage-gate spec asserts it.
+  const foreground = { light: 'rgb(2, 8, 23)', dark: 'rgb(248, 250, 252)' }
   for (const theme of ['light', 'dark'] as const) {
     await page.evaluate((t) => document.documentElement.classList.toggle('dark', t === 'dark'), theme)
-    // Wait for the theme's primary token to apply before axe samples contrast.
+    // Wait for both semantic tokens -- the primary background and the inherited
+    // foreground -- before axe samples contrast, so WebKit cannot observe a
+    // mixed-theme frame (#2592: it read the "Not" label's light-theme text on the
+    // dark background, 1.1:1, mid-switch).
     if (theme === 'dark') await expect.poll(background).not.toBe(lightBackground)
+    await expect(notToggle).toHaveCSS('color', foreground[theme])
     const a11y = await new AxeBuilder({ page })
       .include('[data-testid="query-builder-panel"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
