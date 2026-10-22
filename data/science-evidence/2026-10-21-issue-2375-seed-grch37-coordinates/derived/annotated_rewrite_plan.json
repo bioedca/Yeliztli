@@ -1,0 +1,1034 @@
+[
+ {
+  "seed": "vep_seed",
+  "line": 12,
+  "rsid": "rs16947",
+  "old": "22:42522613 C>T",
+  "new": "22:42523943 A>G",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 17,
+  "rsid": "rs63750066",
+  "old": "13:32337190 C>T",
+  "new": "21:27264108 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 21,
+  "rsid": "rs76151636",
+  "old": "5:112175770 G>A",
+  "new": "13:52518281 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 22,
+  "rsid": "rs104894396",
+  "old": "5:112176756 T>C",
+  "new": "13:20763650 C>T",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 23,
+  "rsid": "rs121912443",
+  "old": "12:112910829 G>A",
+  "new": "21:33036170 A>G",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 24,
+  "rsid": "rs5030862",
+  "old": "22:42523805 C>T",
+  "new": "22:42526670 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 26,
+  "rsid": "rs4244285",
+  "old": "10:94781858 G>A",
+  "new": "10:96541616 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 27,
+  "rsid": "rs12248560",
+  "old": "10:94761900 C>T",
+  "new": "10:96521657 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 28,
+  "rsid": "rs1799853",
+  "old": "10:94942290 C>T",
+  "new": "10:96702047 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 29,
+  "rsid": "rs1057910",
+  "old": "10:94981296 A>C",
+  "new": "10:96741053 A>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 31,
+  "rsid": "rs776746",
+  "old": "7:99652613 T>C",
+  "new": "7:99270539 C>T",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 32,
+  "rsid": "rs3918290",
+  "old": "1:97515839 C>T",
+  "new": "1:97915614 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 33,
+  "rsid": "rs1800460",
+  "old": "6:18130918 C>T",
+  "new": "6:18139228 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 34,
+  "rsid": "rs1142345",
+  "old": "6:18139228 A>G",
+  "new": "6:18130918 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 35,
+  "rsid": "rs4149056",
+  "old": "12:21178615 T>C",
+  "new": "12:21331549 T>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 36,
+  "rsid": "rs2306283",
+  "old": "12:21176804 A>G",
+  "new": "12:21329738 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 44,
+  "rsid": "rs2228479",
+  "old": "16:89919510 G>A",
+  "new": "16:89985940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 45,
+  "rsid": "rs1800462",
+  "old": "6:18130845 C>G",
+  "new": "6:18143955 C>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 46,
+  "rsid": "rs5030655",
+  "old": "22:42524188 T>C",
+  "new": "22:42525085 CA>C",
+  "reason": "vcf_deletion_from_ensembl_and_assembly"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 47,
+  "rsid": "rs72552267",
+  "old": "22:42525772 G>A",
+  "new": "10:96535210 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 48,
+  "rsid": "rs121913529",
+  "old": "12:112919637 G>A",
+  "new": "12:25398284 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 49,
+  "rsid": "rs121913529",
+  "old": "12:112919637 G>C",
+  "new": "12:25398284 C>G",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 50,
+  "rsid": "rs1800497",
+  "old": "11:113400106 G>A",
+  "new": "11:113270828 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 51,
+  "rsid": "rs6311",
+  "old": "13:46895805 C>T",
+  "new": "13:47471478 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 52,
+  "rsid": "rs6313",
+  "old": "13:46897343 G>A",
+  "new": "13:47469940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 53,
+  "rsid": "rs25531",
+  "old": "17:30237328 C>T",
+  "new": "17:28564346 T>C",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 54,
+  "rsid": "rs4986893",
+  "old": "10:94780653 G>A",
+  "new": "10:96540410 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 55,
+  "rsid": "rs12979860",
+  "old": "19:39248147 C>T",
+  "new": "19:39738787 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 56,
+  "rsid": "rs8099917",
+  "old": "19:39252525 T>G",
+  "new": "19:39743165 T>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 58,
+  "rsid": "rs1800896",
+  "old": "1:206773552 A>G",
+  "new": "1:206946897 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 59,
+  "rsid": "rs1800629",
+  "old": "6:31575254 G>A",
+  "new": "6:31543031 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 60,
+  "rsid": "rs1143634",
+  "old": "2:112832813 C>T",
+  "new": "2:113590390 G>A",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 61,
+  "rsid": "rs4149015",
+  "old": "12:21173677 G>A",
+  "new": "12:21283322 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 62,
+  "rsid": "rs7294",
+  "old": "1:11794419 C>T",
+  "new": "16:31102321 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 63,
+  "rsid": "rs121434569",
+  "old": "17:43094464 G>A",
+  "new": "7:55249071 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 64,
+  "rsid": "rs80358981",
+  "old": "17:43104121 G>A",
+  "new": "13:32930687 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 65,
+  "rsid": "rs1799950",
+  "old": "17:43091434 G>A",
+  "new": "17:41246481 T>C",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 66,
+  "rsid": "rs28897727",
+  "old": "7:117540198 G>T",
+  "new": "13:32912750 G>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 69,
+  "rsid": "rs213950",
+  "old": "7:117530955 G>A",
+  "new": "7:117199533 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 72,
+  "rsid": "rs1800872",
+  "old": "1:206773289 T>G",
+  "new": "1:206946407 T>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 75,
+  "rsid": "rs1800544",
+  "old": "10:112582340 C>G",
+  "new": "10:112836503 G>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 76,
+  "rsid": "rs4570625",
+  "old": "12:71430875 G>T",
+  "new": "12:72331923 G>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 78,
+  "rsid": "rs1799971",
+  "old": "6:154039662 A>G",
+  "new": "6:154360797 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 82,
+  "rsid": "rs5882",
+  "old": "16:57017292 A>G",
+  "new": "16:57016092 G>A",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 83,
+  "rsid": "rs708272",
+  "old": "16:57015091 G>A",
+  "new": "16:56996288 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 85,
+  "rsid": "rs854560",
+  "old": "7:95316772 A>T",
+  "new": "7:94946084 A>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 87,
+  "rsid": "rs1111875",
+  "old": "10:114758077 C>T",
+  "new": "10:94462882 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 90,
+  "rsid": "rs757210",
+  "old": "2:226737040 G>A",
+  "new": "17:36096515 T>C",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 92,
+  "rsid": "rs10811661",
+  "old": "9:22134095 T>C",
+  "new": "9:22134094 T>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "vep_seed",
+  "line": 101,
+  "rsid": "rs2060793",
+  "old": "11:14878938 G>A",
+  "new": "11:14915310 A>G",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 11,
+  "rsid": "rs16947",
+  "old": "22:42522613 C>T",
+  "new": "22:42523943 A>G",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 16,
+  "rsid": "rs5030862",
+  "old": "22:42523805 C>T",
+  "new": "22:42526670 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 18,
+  "rsid": "rs4244285",
+  "old": "10:94781858 G>A",
+  "new": "10:96541616 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 19,
+  "rsid": "rs12248560",
+  "old": "10:94761900 C>T",
+  "new": "10:96521657 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 20,
+  "rsid": "rs1799853",
+  "old": "10:94942290 C>T",
+  "new": "10:96702047 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 21,
+  "rsid": "rs1057910",
+  "old": "10:94981296 A>C",
+  "new": "10:96741053 A>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 23,
+  "rsid": "rs776746",
+  "old": "7:99652613 T>C",
+  "new": "7:99270539 C>T",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 24,
+  "rsid": "rs3918290",
+  "old": "1:97515839 C>T",
+  "new": "1:97915614 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 25,
+  "rsid": "rs1800460",
+  "old": "6:18130918 C>T",
+  "new": "6:18139228 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 26,
+  "rsid": "rs1142345",
+  "old": "6:18139228 A>G",
+  "new": "6:18130918 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 27,
+  "rsid": "rs4149056",
+  "old": "12:21178615 T>C",
+  "new": "12:21331549 T>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 28,
+  "rsid": "rs2306283",
+  "old": "12:21176804 A>G",
+  "new": "12:21329738 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 35,
+  "rsid": "rs2228479",
+  "old": "16:89919510 G>A",
+  "new": "16:89985940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 36,
+  "rsid": "rs1800462",
+  "old": "6:18130845 C>G",
+  "new": "6:18143955 C>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 37,
+  "rsid": "rs5030655",
+  "old": "22:42524188 T>C",
+  "new": "22:42525085 CA>C",
+  "reason": "vcf_deletion_from_ensembl_and_assembly"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 38,
+  "rsid": "rs1800497",
+  "old": "11:113400106 G>A",
+  "new": "11:113270828 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 39,
+  "rsid": "rs6311",
+  "old": "13:46895805 C>T",
+  "new": "13:47471478 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 40,
+  "rsid": "rs6313",
+  "old": "13:46897343 G>A",
+  "new": "13:47469940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 41,
+  "rsid": "rs4986893",
+  "old": "10:94780653 G>A",
+  "new": "10:96540410 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 42,
+  "rsid": "rs12979860",
+  "old": "19:39248147 C>T",
+  "new": "19:39738787 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 43,
+  "rsid": "rs8099917",
+  "old": "19:39252525 T>G",
+  "new": "19:39743165 T>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 45,
+  "rsid": "rs1800896",
+  "old": "1:206773552 A>G",
+  "new": "1:206946897 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 46,
+  "rsid": "rs1800629",
+  "old": "6:31575254 G>A",
+  "new": "6:31543031 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 47,
+  "rsid": "rs1143634",
+  "old": "2:112832813 C>T",
+  "new": "2:113590390 G>A",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 48,
+  "rsid": "rs1799950",
+  "old": "17:43091434 G>A",
+  "new": "17:41246481 T>C",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 51,
+  "rsid": "rs213950",
+  "old": "7:117530955 G>A",
+  "new": "7:117199533 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 54,
+  "rsid": "rs1800872",
+  "old": "1:206773289 T>G",
+  "new": "1:206946407 T>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 56,
+  "rsid": "rs1800544",
+  "old": "10:112582340 C>G",
+  "new": "10:112836503 G>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 58,
+  "rsid": "rs1799971",
+  "old": "6:154039662 A>G",
+  "new": "6:154360797 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 62,
+  "rsid": "rs5882",
+  "old": "16:57017292 A>G",
+  "new": "16:57016092 G>A",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 63,
+  "rsid": "rs708272",
+  "old": "16:57015091 G>A",
+  "new": "16:56996288 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "clinvar_seed",
+  "line": 65,
+  "rsid": "rs854560",
+  "old": "7:95316772 A>T",
+  "new": "7:94946084 A>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 12,
+  "rsid": "rs16947",
+  "old": "22:42522613 C>T",
+  "new": "22:42523943 A>G",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 17,
+  "rsid": "rs63750066",
+  "old": "13:32337190 C>T",
+  "new": "21:27264108 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 21,
+  "rsid": "rs76151636",
+  "old": "5:112175770 G>A",
+  "new": "13:52518281 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 22,
+  "rsid": "rs104894396",
+  "old": "5:112176756 T>C",
+  "new": "13:20763650 C>T",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 23,
+  "rsid": "rs121912443",
+  "old": "12:112910829 G>A",
+  "new": "21:33036170 A>G",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 24,
+  "rsid": "rs5030862",
+  "old": "22:42523805 C>T",
+  "new": "22:42526670 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 26,
+  "rsid": "rs4244285",
+  "old": "10:94781858 G>A",
+  "new": "10:96541616 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 27,
+  "rsid": "rs12248560",
+  "old": "10:94761900 C>T",
+  "new": "10:96521657 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 28,
+  "rsid": "rs1799853",
+  "old": "10:94942290 C>T",
+  "new": "10:96702047 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 29,
+  "rsid": "rs1057910",
+  "old": "10:94981296 A>C",
+  "new": "10:96741053 A>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 31,
+  "rsid": "rs776746",
+  "old": "7:99652613 T>C",
+  "new": "7:99270539 C>T",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 32,
+  "rsid": "rs3918290",
+  "old": "1:97515839 C>T",
+  "new": "1:97915614 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 33,
+  "rsid": "rs1800460",
+  "old": "6:18130918 C>T",
+  "new": "6:18139228 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 34,
+  "rsid": "rs1142345",
+  "old": "6:18139228 A>G",
+  "new": "6:18130918 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 35,
+  "rsid": "rs4149056",
+  "old": "12:21178615 T>C",
+  "new": "12:21331549 T>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 36,
+  "rsid": "rs2306283",
+  "old": "12:21176804 A>G",
+  "new": "12:21329738 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 44,
+  "rsid": "rs2228479",
+  "old": "16:89919510 G>A",
+  "new": "16:89985940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 45,
+  "rsid": "rs1800462",
+  "old": "6:18130845 C>G",
+  "new": "6:18143955 C>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 46,
+  "rsid": "rs5030655",
+  "old": "22:42524188 T>C",
+  "new": "22:42525085 CA>C",
+  "reason": "vcf_deletion_from_ensembl_and_assembly"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 47,
+  "rsid": "rs72552267",
+  "old": "22:42525772 G>A",
+  "new": "10:96535210 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 48,
+  "rsid": "rs121913529",
+  "old": "12:112919637 G>A",
+  "new": "12:25398284 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 49,
+  "rsid": "rs1800497",
+  "old": "11:113400106 G>A",
+  "new": "11:113270828 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 50,
+  "rsid": "rs6311",
+  "old": "13:46895805 C>T",
+  "new": "13:47471478 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 51,
+  "rsid": "rs6313",
+  "old": "13:46897343 G>A",
+  "new": "13:47469940 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 52,
+  "rsid": "rs25531",
+  "old": "17:30237328 C>T",
+  "new": "17:28564346 T>C",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 53,
+  "rsid": "rs4986893",
+  "old": "10:94780653 G>A",
+  "new": "10:96540410 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 54,
+  "rsid": "rs12979860",
+  "old": "19:39248147 C>T",
+  "new": "19:39738787 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 55,
+  "rsid": "rs8099917",
+  "old": "19:39252525 T>G",
+  "new": "19:39743165 T>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 57,
+  "rsid": "rs1800896",
+  "old": "1:206773552 A>G",
+  "new": "1:206946897 T>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 58,
+  "rsid": "rs1800629",
+  "old": "6:31575254 G>A",
+  "new": "6:31543031 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 59,
+  "rsid": "rs1143634",
+  "old": "2:112832813 C>T",
+  "new": "2:113590390 G>A",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 60,
+  "rsid": "rs4149015",
+  "old": "12:21173677 G>A",
+  "new": "12:21283322 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 61,
+  "rsid": "rs121434569",
+  "old": "17:43094464 G>A",
+  "new": "7:55249071 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 62,
+  "rsid": "rs80358981",
+  "old": "17:43104121 G>A",
+  "new": "13:32930687 C>T",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 63,
+  "rsid": "rs1799950",
+  "old": "17:43091434 G>A",
+  "new": "17:41246481 T>C",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 64,
+  "rsid": "rs28897727",
+  "old": "7:117540198 G>T",
+  "new": "13:32912750 G>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 67,
+  "rsid": "rs213950",
+  "old": "7:117530955 G>A",
+  "new": "7:117199533 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 72,
+  "rsid": "rs1800544",
+  "old": "10:112582340 C>G",
+  "new": "10:112836503 G>C",
+  "reason": "complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 73,
+  "rsid": "rs4570625",
+  "old": "12:71430875 G>T",
+  "new": "12:72331923 G>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 75,
+  "rsid": "rs1799971",
+  "old": "6:154039662 A>G",
+  "new": "6:154360797 A>G",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 79,
+  "rsid": "rs5882",
+  "old": "16:57017292 A>G",
+  "new": "16:57016092 G>A",
+  "reason": "reversed_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 80,
+  "rsid": "rs708272",
+  "old": "16:57015091 G>A",
+  "new": "16:56996288 G>A",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 82,
+  "rsid": "rs854560",
+  "old": "7:95316772 A>T",
+  "new": "7:94946084 A>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 84,
+  "rsid": "rs1111875",
+  "old": "10:114758077 C>T",
+  "new": "10:94462882 C>T",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 87,
+  "rsid": "rs757210",
+  "old": "2:226737040 G>A",
+  "new": "17:36096515 T>C",
+  "reason": "reversed_complemented_seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 89,
+  "rsid": "rs10811661",
+  "old": "9:22134095 T>C",
+  "new": "9:22134094 T>C",
+  "reason": "seed_alleles"
+ },
+ {
+  "seed": "gnomad_seed",
+  "line": 98,
+  "rsid": "rs2060793",
+  "old": "11:14878938 G>A",
+  "new": "11:14915310 A>G",
+  "reason": "reversed_seed_alleles"
+ }
+]

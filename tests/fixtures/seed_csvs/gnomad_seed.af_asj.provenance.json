@@ -2,7 +2,7 @@
   "source": "gnomAD v4.1.0 (GRCh38) via GraphQL API https://gnomad.broadinstitute.org/api",
   "field": "af_asj",
   "population": "asj (Ashkenazi Jewish)",
-  "method": "combined exome+genome AC/AN per population; af = asj_ac/asj_an; resolved by rsID (gnomAD native), oriented to the fixture ref/alt allele by identity matching",
+  "method": "combined exome+genome AC/AN per population; af = asj_ac/asj_an; resolved by rsID (gnomAD native), oriented to the fixture ref/alt allele by identity matching. A record with \"orientation\": \"reversed\" stores 1 - asj_ac/asj_an, because the fixture ALT is gnomAD's REF (#2375).",
   "accessed": "2026-07-16",
   "records": {
     "rs429358": {
@@ -63,7 +63,8 @@
       "af_asj": 0.0,
       "asj_ac": 0,
       "asj_an": 29602,
-      "gnomad_variant_id": "21-25891796-C-T"
+      "gnomad_variant_id": "21-25891796-C-T",
+      "orientation": "same"
     },
     "rs80359550": {
       "af_asj": 0.00533856,
@@ -141,7 +142,8 @@
       "af_asj": 0.0,
       "asj_ac": 0,
       "asj_an": 29604,
-      "gnomad_variant_id": "10-94775453-G-A"
+      "gnomad_variant_id": "10-94775453-G-A",
+      "orientation": "same"
     },
     "rs1800497": {
       "af_asj": 0.150635,
@@ -195,19 +197,22 @@
       "af_asj": 0.0,
       "asj_ac": 0,
       "asj_an": 29608,
-      "gnomad_variant_id": "7-55181378-C-T"
+      "gnomad_variant_id": "7-55181378-C-T",
+      "orientation": "same"
     },
     "rs80358981": {
       "af_asj": 0.0,
       "asj_ac": 0,
       "asj_an": 29604,
-      "gnomad_variant_id": "13-32356550-C-T"
+      "gnomad_variant_id": "13-32356550-C-T",
+      "orientation": "same"
     },
     "rs28897727": {
       "af_asj": 0.00122783,
       "asj_ac": 36,
       "asj_an": 29320,
-      "gnomad_variant_id": "13-32338613-G-T"
+      "gnomad_variant_id": "13-32338613-G-T",
+      "orientation": "same"
     },
     "rs213950": {
       "af_asj": 0.282089,
@@ -252,10 +257,11 @@
       "gnomad_variant_id": "2-135859184-C-T"
     },
     "rs5882": {
-      "af_asj": 0.411606,
+      "af_asj": 0.58839424,
       "asj_ac": 17420,
       "asj_an": 29606,
-      "gnomad_variant_id": "16-56982180-G-A"
+      "gnomad_variant_id": "16-56982180-G-A",
+      "orientation": "same"
     },
     "rs662": {
       "af_asj": 0.313378,
@@ -328,13 +334,33 @@
       "asj_ac": 2515,
       "asj_an": 3470,
       "gnomad_variant_id": "11-14893332-A-G"
+    },
+    "rs104894396": {
+      "af_asj": 0.0,
+      "asj_ac": 0,
+      "asj_an": 29608,
+      "gnomad_variant_id": "13-20189511-C-T",
+      "orientation": "same"
+    },
+    "rs776746": {
+      "af_asj": 0.075,
+      "asj_ac": 17686,
+      "asj_an": 19120,
+      "gnomad_variant_id": "7-99672916-T-C",
+      "orientation": "reversed"
+    },
+    "rs1799950": {
+      "af_asj": 0.07850821,
+      "asj_ac": 2324,
+      "asj_an": 29602,
+      "gnomad_variant_id": "17-43094464-T-C",
+      "orientation": "same"
     }
   },
   "withheld_rsids": {
-    "count": 43,
+    "count": 40,
     "reason": "variant identity/coordinates in this fixture row are unreliable (see #1949) or the rsID is multiallelic/absent in gnomAD r4; a correctly-oriented ASJ AF cannot be placed without first fixing the row's identity \u2014 withheld (NULL) rather than fabricated",
     "rsids": [
-      "rs104894396",
       "rs1051266",
       "rs1057910",
       "rs121908757",
@@ -345,7 +371,6 @@
       "rs12979860",
       "rs13266634",
       "rs16947",
-      "rs1799950",
       "rs1800012",
       "rs1800460",
       "rs1800544",
@@ -374,7 +399,6 @@
       "rs75039782",
       "rs757210",
       "rs76151636",
-      "rs776746",
       "rs78655421",
       "rs854560"
     ]

@@ -2,16 +2,16 @@
   "_provenance": {
     "source": "Ensembl GRCh37 REST (grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>)",
     "assembly": "GRCh37",
-    "accessed": "2026-10-20",
-    "gene_count": 57,
+    "accessed": "2026-10-21",
+    "gene_count": 58,
     "fetch_failures": 0,
     "synthetic_excluded": [
       "GENE1"
     ],
     "generator": "scripts/build_vep_strand_snapshot.py",
     "evidence_path": "tests/fixtures/vep_gene_strand_snapshot.evidence.json",
-    "evidence_sha256": "458130fc74b04730be87fa81808b7c62a2a267f13b92b7ad264fbe88b4b51ac7",
-    "evidence_bytes": 31547,
+    "evidence_sha256": "2803b4a7a18a3b5022b2d482ff8d8ad92af9ddc74a164bea354c8d60621cf1ad",
+    "evidence_bytes": 32120,
     "note": "Committed offline reference for the vep_seed strand guard (#2045). A gene's genomic strand is invariant, so this needs no version pinning beyond the assembly. Regenerate whenever vep_seed.csv gains a gene -- the guard FAILS on an uncovered gene rather than skipping it. GENE1 is a deliberately synthetic locus with no Ensembl record and is exempt in the guard, pinned by symbol. The strands here are exactly the reduction of the evidence file named above, which the guard re-derives."
   },
   "strands": {
@@ -31,6 +31,14 @@
       "strand": "+",
       "ensembl_gene_id": "ENSG00000130203"
     },
+    "APP": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000142192"
+    },
+    "ATP7B": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000123191"
+    },
     "BDNF": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000176697"
@@ -42,10 +50,6 @@
     "BRCA2": {
       "strand": "+",
       "ensembl_gene_id": "ENSG00000139618"
-    },
-    "CDKN2A": {
-      "strand": "-",
-      "ensembl_gene_id": "ENSG00000147889"
     },
     "CETP": {
       "strand": "+",
@@ -87,6 +91,10 @@
       "strand": "-",
       "ensembl_gene_id": "ENSG00000188641"
     },
+    "EGFR": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000146648"
+    },
     "F2": {
       "strand": "+",
       "ensembl_gene_id": "ENSG00000180210"
@@ -103,13 +111,13 @@
       "strand": "+",
       "ensembl_gene_id": "ENSG00000134824"
     },
-    "GBA": {
-      "strand": "-",
-      "ensembl_gene_id": "ENSG00000177628"
-    },
     "GC": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000145321"
+    },
+    "GJB2": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000165474"
     },
     "HBB": {
       "strand": "-",
@@ -118,10 +126,6 @@
     "HERC2": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000128731"
-    },
-    "HHEX": {
-      "strand": "+",
-      "ensembl_gene_id": "ENSG00000152804"
     },
     "HLA-DRA": {
       "strand": "+",
@@ -134,10 +138,6 @@
     "HTR2A": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000102468"
-    },
-    "IFNL3": {
-      "strand": "-",
-      "ensembl_gene_id": "ENSG00000197110"
     },
     "IFNL4": {
       "strand": "-",
@@ -163,6 +163,10 @@
       "strand": "-",
       "ensembl_gene_id": "ENSG00000187486"
     },
+    "KRAS": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000133703"
+    },
     "MC1R": {
       "strand": "+",
       "ensembl_gene_id": "ENSG00000258839"
@@ -186,10 +190,6 @@
     "OPRM1": {
       "strand": "+",
       "ensembl_gene_id": "ENSG00000112038"
-    },
-    "PAH": {
-      "strand": "-",
-      "ensembl_gene_id": "ENSG00000171759"
     },
     "PON1": {
       "strand": "-",
@@ -222,6 +222,10 @@
     "SLCO1B1": {
       "strand": "+",
       "ensembl_gene_id": "ENSG00000134538"
+    },
+    "SOD1": {
+      "strand": "+",
+      "ensembl_gene_id": "ENSG00000142168"
     },
     "TCF7L2": {
       "strand": "+",

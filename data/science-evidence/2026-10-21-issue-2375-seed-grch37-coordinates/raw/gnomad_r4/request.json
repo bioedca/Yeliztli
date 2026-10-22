@@ -1,0 +1,46 @@
+{
+ "query": "query($rsid:String!){ variant(rsid:$rsid, dataset: gnomad_r4){ variant_id rsids joint{ ac an homozygote_count populations{ id ac an homozygote_count } } } }",
+ "reversed": [
+  "rs104894396",
+  "rs121912443",
+  "rs16947",
+  "rs1799950",
+  "rs2060793",
+  "rs25531",
+  "rs5882",
+  "rs757210",
+  "rs776746"
+ ],
+ "identity_changed": [
+  "rs104894396",
+  "rs121434569",
+  "rs121912443",
+  "rs121913529",
+  "rs28897727",
+  "rs63750066",
+  "rs72552267",
+  "rs7294",
+  "rs76151636",
+  "rs80358981"
+ ],
+ "rsids": [
+  "rs5882",
+  "rs7294",
+  "rs16947",
+  "rs25531",
+  "rs757210",
+  "rs776746",
+  "rs1799950",
+  "rs2060793",
+  "rs28897727",
+  "rs63750066",
+  "rs72552267",
+  "rs76151636",
+  "rs80358981",
+  "rs104894396",
+  "rs121434569",
+  "rs121912443",
+  "rs121913529"
+ ],
+ "accessed": "2026-10-22"
+}
