@@ -27,6 +27,7 @@ from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    annotation_state,
     jobs,
     raw_variants,
     reannotation_prompts,
@@ -56,6 +57,10 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 # Batch size for bulk inserts
 _INSERT_BATCH = 10_000
+
+# Written in the same transaction as an import's raw variants; its presence is
+# what proves the import committed (#2580). The value is the stored count.
+_INGEST_COMMITTED_STATE_KEY = "ingest_committed"
 
 # Vendor raw genotype exports are normally tens of MiB. Keep ZIP extraction
 # bounded well above that while preserving the existing plain-text upload path.
@@ -278,9 +283,9 @@ def _build_sample_database(
         }
         for v in result.variants
     ]
-    # Metadata and variants commit in one transaction, so the single
-    # sample_metadata row exists exactly when the import is complete. Startup
-    # recovery relies on that to tell an interrupted build from one whose lease
+    # Metadata, variants and the completion marker commit in one transaction,
+    # so the marker exists exactly when the import is complete. Startup
+    # recovery relies on it to tell an interrupted build from one whose lease
     # merely failed to be marked complete (#2580).
     with sample_engine.begin() as conn:
         conn.execute(
@@ -295,6 +300,11 @@ def _build_sample_database(
         for i in range(0, len(variant_dicts), _INSERT_BATCH):
             batch = variant_dicts[i : i + _INSERT_BATCH]
             conn.execute(raw_variants.insert(), batch)
+        conn.execute(
+            annotation_state.insert().values(
+                key=_INGEST_COMMITTED_STATE_KEY, value=str(len(variant_dicts)), updated_at=now
+            )
+        )
 
 
 def _withdraw_unfinished_import(
@@ -356,9 +366,16 @@ def _discard_failed_ingest(
 def _import_committed(sample_db_path: Path) -> bool | None:
     """Whether an import's data transaction committed, read without side effects.
 
-    ``True`` when the ``sample_metadata`` row exists (it commits together with
-    the raw variants), ``False`` when the database or the row is absent, and
-    ``None`` when the file cannot be read. Uses a throwaway read-only
+    ``True`` when the completion marker is present -- it commits together with
+    the raw variants. Databases built before the marker existed wrote
+    ``sample_metadata`` in its own transaction ahead of the variants, so a
+    metadata row alone does not prove they committed; for those, the import
+    counts as committed only when variants are present too. A legacy sample
+    with metadata and no variants cannot be told apart from a killed import,
+    and withdrawing it loses no genotype data, so it reads as not committed.
+
+    ``False`` when the database, the metadata row or (legacy) the variants are
+    absent; ``None`` when the file cannot be read. Uses a throwaway read-only
     connection: ``get_sample_engine`` would create a missing file and migrate
     an existing one.
     """
@@ -367,14 +384,23 @@ def _import_committed(sample_db_path: Path) -> bool | None:
     uri = f"{sample_db_path.resolve().as_uri()}?mode=ro"
     try:
         with closing(sqlite3.connect(uri, uri=True)) as conn:
-            table = conn.execute(
-                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'sample_metadata'"
-            ).fetchone()
-            if table is None:
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
+            }
+            if "annotation_state" in tables and (
+                conn.execute(
+                    "SELECT 1 FROM annotation_state WHERE key = ?",
+                    (_INGEST_COMMITTED_STATE_KEY,),
+                ).fetchone()
+                is not None
+            ):
+                return True
+            if not {"sample_metadata", "raw_variants"} <= tables:
                 return False
-            return (
-                conn.execute("SELECT 1 FROM sample_metadata WHERE id = 1").fetchone() is not None
-            )
+            if conn.execute("SELECT 1 FROM sample_metadata WHERE id = 1").fetchone() is None:
+                return False
+            return conn.execute("SELECT 1 FROM raw_variants LIMIT 1").fetchone() is not None
     except sqlite3.Error:
         return None
 

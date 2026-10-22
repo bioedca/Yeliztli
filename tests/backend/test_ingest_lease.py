@@ -29,7 +29,7 @@ from backend.api.routes import nuclear as nuclear_route
 from backend.api.routes import samples as samples_route
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
-from backend.db.tables import jobs, reference_metadata, samples
+from backend.db.tables import annotation_state, jobs, raw_variants, reference_metadata, samples
 from backend.services.data_wipe_fence import exclusive_wipe
 from backend.services.sample_delete import delete_sample_with_cascade
 from backend.services.sample_operation_lock import (
@@ -617,3 +617,59 @@ class TestInterruptedImportRecovery:
 
         assert sample_db.exists()
         assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_new_import_writes_its_completion_marker_with_its_variants(
+        self, registry: DBRegistry
+    ) -> None:
+        response = _ingest(registry)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{response['sample_id']}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            with engine.connect() as conn:
+                marker = conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == "ingest_committed"
+                    )
+                ).scalar_one()
+        finally:
+            engine.dispose()
+        assert marker == str(response["variant_count"])
+
+    @pytest.mark.parametrize(
+        ("keep_variants", "expect_withdrawn"),
+        [
+            pytest.param(False, True, id="metadata-without-variants-is-withdrawn"),
+            pytest.param(True, False, id="metadata-with-variants-is-kept"),
+        ],
+    )
+    def test_databases_built_before_the_marker_are_judged_by_their_variants(
+        self,
+        registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+        keep_variants: bool,
+        expect_withdrawn: bool,
+    ) -> None:
+        """Earlier builds committed sample_metadata on its own, ahead of the
+        variants, so a killed one can carry metadata and no variants."""
+        monkeypatch.setattr(ingest_route, "_finish_ingest_lease", lambda *a, **k: None)
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        registry.dispose_sample_engine(sample_db)
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    annotation_state.delete().where(annotation_state.c.key == "ingest_committed")
+                )
+                if not keep_variants:
+                    conn.execute(raw_variants.delete())
+        finally:
+            engine.dispose()
+        recover_orphaned_jobs(registry.reference_engine)
+
+        withdrawn = ingest_route.recover_interrupted_ingests(registry)
+
+        assert withdrawn == ([sample_id] if expect_withdrawn else [])
+        assert sample_db.exists() is not expect_withdrawn
+        assert _count(registry.reference_engine, samples) == (0 if expect_withdrawn else 1)
