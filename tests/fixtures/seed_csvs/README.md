@@ -88,7 +88,10 @@ guard pins, checked against two sources in
 row written for an indel rsID is flagged too.
 
 Rows that break this today are listed exactly in
-`../seed_allele_known_exceptions.json`, so the list can only shrink. When you
+`../seed_allele_known_exceptions.json`, so the list can only shrink. #2590 gave
+every unannotated `vep_seed` filler row its oracle alleles. The 11 listed rows
+that remain are annotated or carry frequencies, and each has an owning issue
+(#2541, #2563, #2591). When you
 correct a row, also re-source the frequencies of any `gnomad_seed` row whose
 orientation changes, rather than flipping them.
 
