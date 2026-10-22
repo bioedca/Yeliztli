@@ -1,0 +1,7 @@
+{
+ "GCF_000001405.25_GRCh37.p13_assembly_report.txt": "a6cf8300aa2cef9188590bad2d9d54a5909f6d4d2da3f22aa5c5ba2fda1adab3",
+ "ensembl_grch37_sequence_region.json": "cf4b10a1b3e360ce073aab53dd2f828f7d79b7cb02a1f3ce69d29743378e4f87",
+ "ncbi_NC_012920.1.fasta": "fc392cde8e63b4d2e3a870bb97cc0626dea33d46dfb8abdebffada040f42ec92",
+ "ucsc_hg19_chrM_not_used.json": "e87df32e9a384cf3a7887d784cbd38ab59be50a367c7daf1f6c1a33e57261424",
+ "ucsc_hg19_sequence.json": "d58901848e1b981af37a1fe778f242cc356a7e6b6fd088709279678a9527b799"
+}

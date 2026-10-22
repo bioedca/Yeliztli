@@ -77,6 +77,21 @@ row's identity, so a corrected row takes its rsID's locus and alleles, and an
 annotated row then mirrors the pinned production bundle (#2562). Evidence:
 `data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates/`.
 
+The loci guard does not look at alleles, and the REF pin of #2344 reaches only
+the 38 panel rsIDs. `tests/backend/test_seed_grch37_alleles.py` holds every
+located row of `vep_seed`, `clinvar_seed` and `gnomad_seed` to its rsID's
+plus-strand GRCh37 alleles (#2583). Where the oracle's allele string is
+single-base, `ref` and `alt` must both come from it, and `ref` must be its first
+allele. That first allele is the GRCh37 assembly base at every position the
+guard pins, checked against two sources in
+`data/science-evidence/2026-10-22-issue-2583-seed-allele-orientation/`. An SNV
+row written for an indel rsID is flagged too.
+
+Rows that break this today are listed exactly in
+`../seed_allele_known_exceptions.json`, so the list can only shrink. When you
+correct a row, also re-source the frequencies of any `gnomad_seed` row whose
+orientation changes, rather than flipping them.
+
 `../mini_clinvar.vcf` is hand-maintained rather than generated, so the
 seed/oracle guard above did not reach it and it drifted with the seeds. It is
 now checked against the same oracle: it must declare `##reference=GRCh37`, and

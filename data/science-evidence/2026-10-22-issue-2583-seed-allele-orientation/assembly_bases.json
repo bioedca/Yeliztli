@@ -1,0 +1,5798 @@
+{
+ "rs10076494": {
+  "allele_string": "C/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 38139,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10100384": {
+  "allele_string": "G/A/C",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 16087729,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10101779": {
+  "allele_string": "T/A/C/G",
+  "chrom": "8",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 27450535,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs10106717": {
+  "allele_string": "C/A/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 84155214,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10143703": {
+  "allele_string": "C/A",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 24898355,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1017239": {
+  "allele_string": "C/G/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 75358207,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10216980": {
+  "allele_string": "C/A/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 3044961,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10231165": {
+  "allele_string": "C/A/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 8673637,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10262234": {
+  "allele_string": "C/A/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 139359730,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10280461": {
+  "allele_string": "C/A/G",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 38149932,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10283686": {
+  "allele_string": "G/A/C/T",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 112648964,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1029098": {
+  "allele_string": "T/A/C/G",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 144186321,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1035478": {
+  "allele_string": "C/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 33316323,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10406904": {
+  "allele_string": "T/A/C/G",
+  "chrom": "19",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 53807654,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1045642": {
+  "allele_string": "A/C/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 87138645,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10457800": {
+  "allele_string": "C/G/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 100936628,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs104886257": {
+  "allele_string": "G/A",
+  "chrom": "X",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 107920747,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs104894001": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 41129260,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs104894396": {
+  "allele_string": "C/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 20763650,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10501795": {
+  "allele_string": "G/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 92447418,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10509006": {
+  "allele_string": "A/C/G",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 55922706,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10509397": {
+  "allele_string": "G/A/C/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 80235368,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1051266": {
+  "allele_string": "T/C/G",
+  "chrom": "21",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 46957794,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs10513821": {
+  "allele_string": "A/G",
+  "chrom": "3",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 187543342,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10514973": {
+  "allele_string": "A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 47960482,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10518474": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 126553615,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1051858": {
+  "allele_string": "A/G/T",
+  "chrom": "14",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 58831142,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10520766": {
+  "allele_string": "G/A/T",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 95379491,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1057910": {
+  "allele_string": "A/C/G",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 96741053,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1065852": {
+  "allele_string": "G/A/C",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 42526694,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10733680": {
+  "allele_string": "G/A",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 129361955,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10741068": {
+  "allele_string": "C/A/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 25144730,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10741657": {
+  "allele_string": "A/C/G",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 14914878,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10760075": {
+  "allele_string": "A/G",
+  "chrom": "9",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 122817066,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1076655": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 35450364,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10789753": {
+  "allele_string": "A/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 97816230,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10800335": {
+  "allele_string": "C/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 168090767,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10811661": {
+  "allele_string": "T/A/C",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 22134094,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs10812738": {
+  "allele_string": "A/G",
+  "chrom": "9",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 2817887,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10814410": {
+  "allele_string": "C/G/T",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 46587,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10863868": {
+  "allele_string": "C/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 211088302,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10868488": {
+  "allele_string": "C/A/T",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 89437343,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10874250": {
+  "allele_string": "C/A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 81947930,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10898483": {
+  "allele_string": "G/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 86160313,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10914780": {
+  "allele_string": "G/A/C/T",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 34261267,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10919536": {
+  "allele_string": "C/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 162440935,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs10958708": {
+  "allele_string": "A/G/T",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 42003108,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs10968293": {
+  "allele_string": "G/A/T",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 28034028,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs10982289": {
+  "allele_string": "G/A",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 117314774,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11041009": {
+  "allele_string": "G/A/C",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 6792058,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs111033173": {
+  "allele_string": "C/T",
+  "chrom": "MT",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 7468,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "C"
+ },
+ "rs111033710": {
+  "allele_string": "T/C",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 34647960,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1111875": {
+  "allele_string": "C/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 94462882,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11129950": {
+  "allele_string": "A/G",
+  "chrom": "3",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 42314587,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs11133745": {
+  "allele_string": "A/C/G/T",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 13339905,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs111481402": {
+  "allele_string": "G/A/C",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 238296751,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11154212": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 124651861,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1122073": {
+  "allele_string": "G/A/C/T",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 15058236,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11222663": {
+  "allele_string": "C/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 131345098,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11231409": {
+  "allele_string": "T/A/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 62984868,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs11240777": {
+  "allele_string": "G/A",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 798959,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs113013762": {
+  "allele_string": "G/A/C",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 116677378,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs113628606": {
+  "allele_string": "T/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 33503353,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1142345": {
+  "allele_string": "T/A/C/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 18130918,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1143634": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 113590390,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs114525117": {
+  "allele_string": "G/A",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 759036,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11568422": {
+  "allele_string": "A/G",
+  "chrom": "14",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 23242980,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs11575897": {
+  "allele_string": "G/A/C",
+  "chrom": "Y",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 2655180,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11635848": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 79624808,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11665106": {
+  "allele_string": "G/A/C/T",
+  "chrom": "18",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 42362589,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11667371": {
+  "allele_string": "C/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 2976724,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11769410": {
+  "allele_string": "A/C/G",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 146428215,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs117712666": {
+  "allele_string": "G/A",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 74518028,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11775918": {
+  "allele_string": "A/G",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 93299275,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs11780869": {
+  "allele_string": "A/G/T",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 164984,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs11785638": {
+  "allele_string": "C/A",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 62099814,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11853517": {
+  "allele_string": "G/A/T",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 40283274,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11863536": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 80969674,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11887929": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 207578440,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs11944965": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 63424089,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs11996253": {
+  "allele_string": "C/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 114761849,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12009148": {
+  "allele_string": "C/A",
+  "chrom": "X",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 39441821,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12140696": {
+  "allele_string": "A/C",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 223879212,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs121434262": {
+  "allele_string": "C/A/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 193091355,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs121434569": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 55249071,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs121908757": {
+  "allele_string": "A/C",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 117227853,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs121909224": {
+  "allele_string": "C/A/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 89692904,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs121912443": {
+  "allele_string": "A/G",
+  "chrom": "21",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 33036170,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs121912891": {
+  "allele_string": "C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 48369835,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs121913529": {
+  "allele_string": "C/A/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 25398284,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12248560": {
+  "allele_string": "C/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 96521657,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12255372": {
+  "allele_string": "G/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 114808902,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12345872": {
+  "allele_string": "T/A/G",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 6774846,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12404339": {
+  "allele_string": "A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 74838026,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1241182": {
+  "allele_string": "A/C",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 103348100,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12424969": {
+  "allele_string": "T/C/G",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 97762560,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12441022": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 98908143,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12443553": {
+  "allele_string": "C/A",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 2465990,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12455764": {
+  "allele_string": "C/T",
+  "chrom": "18",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 3597838,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12455984": {
+  "allele_string": "G/A",
+  "chrom": "18",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 13034,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12457893": {
+  "allele_string": "A/C/T",
+  "chrom": "18",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 60926161,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12465207": {
+  "allele_string": "G/T",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 16452047,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12465498": {
+  "allele_string": "G/A/T",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 199346187,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12482371": {
+  "allele_string": "T/C",
+  "chrom": "21",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 26938353,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12485939": {
+  "allele_string": "G/A",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 67321882,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12487740": {
+  "allele_string": "T/C/G",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 115346418,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12522693": {
+  "allele_string": "G/A/T",
+  "chrom": "5",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 130195731,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1255277": {
+  "allele_string": "C/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 53833926,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12626669": {
+  "allele_string": "C/A/T",
+  "chrom": "21",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 31020875,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12637187": {
+  "allele_string": "T/A/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 27931857,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12639369": {
+  "allele_string": "A/C/G",
+  "chrom": "3",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 98216252,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12647112": {
+  "allele_string": "A/G/T",
+  "chrom": "4",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 102740602,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12682471": {
+  "allele_string": "T/C",
+  "chrom": "8",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 33896448,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12743133": {
+  "allele_string": "C/A/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 175389045,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1277992": {
+  "allele_string": "T/C",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 68169416,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12781860": {
+  "allele_string": "A/C",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 108908351,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12794714": {
+  "allele_string": "G/A",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 14913575,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12802362": {
+  "allele_string": "G/A",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 44881997,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12828682": {
+  "allele_string": "T/C",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 31411051,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12881241": {
+  "allele_string": "C/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 64289162,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs12899110": {
+  "allele_string": "A/C/T",
+  "chrom": "15",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 20028058,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12910709": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 55013967,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs12913832": {
+  "allele_string": "A/C/G",
+  "chrom": "15",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 28365618,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs12931813": {
+  "allele_string": "T/C/G",
+  "chrom": "16",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 64412126,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12949267": {
+  "allele_string": "T/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 67318946,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs12979860": {
+  "allele_string": "C/G/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 39738787,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs13004083": {
+  "allele_string": "A/G",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 166945367,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs13024531": {
+  "allele_string": "C/A",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 180329583,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs13072987": {
+  "allele_string": "T/A/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 156827444,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs131031": {
+  "allele_string": "A/G",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 49180535,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs13123841": {
+  "allele_string": "T/C/G",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 5187398,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs13125929": {
+  "allele_string": "T/C",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 71566,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs13169827": {
+  "allele_string": "G/A",
+  "chrom": "5",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 28831513,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1321348": {
+  "allele_string": "T/A/C/G",
+  "chrom": "20",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 19607141,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs13224720": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 4967663,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs13266634": {
+  "allele_string": "C/A/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 118184783,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs13304414": {
+  "allele_string": "T/G",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 16767517,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs13304625": {
+  "allele_string": "A/G",
+  "chrom": "Y",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 19077409,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs13305939": {
+  "allele_string": "A/G",
+  "chrom": "Y",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 15156388,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1332770": {
+  "allele_string": "T/C",
+  "chrom": "10",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 36862892,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs13423275": {
+  "allele_string": "T/C/G",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 116933302,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1356915": {
+  "allele_string": "T/A/C/G",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 107210629,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1362123": {
+  "allele_string": "G/C",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 30876996,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1378378": {
+  "allele_string": "T/A/C",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 80034047,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1394431": {
+  "allele_string": "C/A/G",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 98998009,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1394585": {
+  "allele_string": "G/A",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 93099756,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs139476990": {
+  "allele_string": "C/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 10335053,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1394860": {
+  "allele_string": "A/G/T",
+  "chrom": "4",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 172979002,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1399953": {
+  "allele_string": "G/A/C",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 56179883,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1401239": {
+  "allele_string": "A/C/G",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 36021984,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1404988": {
+  "allele_string": "T/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 75146741,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1415564": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 95947234,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1419271": {
+  "allele_string": "C/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 85688158,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1419931": {
+  "allele_string": "A/C/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 2703633,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs142189490": {
+  "allele_string": "T/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 55904389,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs143026267": {
+  "allele_string": "T/A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 56798159,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1440985": {
+  "allele_string": "C/A/G/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 30545594,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1447373": {
+  "allele_string": "G/A",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 30832836,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1453794": {
+  "allele_string": "G/A/C",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 5358815,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs145472480": {
+  "allele_string": "G/A",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 42536703,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1457576": {
+  "allele_string": "A/G/T",
+  "chrom": "3",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 182255777,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs146891": {
+  "allele_string": "T/C/A/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 35123056,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs147474255": {
+  "allele_string": "C/T",
+  "chrom": "21",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 38126554,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs148818431": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 243434326,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1492361": {
+  "allele_string": "T/C/G",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 70462148,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1493550": {
+  "allele_string": "G/A",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 71064543,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1498583": {
+  "allele_string": "A/G/T",
+  "chrom": "15",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 35998328,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs150802": {
+  "allele_string": "G/A/C/T",
+  "chrom": "21",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 43486168,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1509914": {
+  "allele_string": "A/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 80904549,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1530440": {
+  "allele_string": "C/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 63524591,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1535": {
+  "allele_string": "A/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 61597972,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1553560": {
+  "allele_string": "T/A/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 192434058,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1557809": {
+  "allele_string": "T/C",
+  "chrom": "16",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 24309108,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1557975": {
+  "allele_string": "G/A/C",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 32191808,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1606351": {
+  "allele_string": "T/A/C",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 19426202,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs16557": {
+  "allele_string": "A/G/T",
+  "chrom": "17",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 31367269,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs166405": {
+  "allele_string": "G/A/C/T",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 131830612,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1669462": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 134371503,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs16855061": {
+  "allele_string": "C/A/T",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 142363473,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs16879258": {
+  "allele_string": "C/A",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 7865891,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1691551": {
+  "allele_string": "T/A/C/G",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 77324116,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs16917736": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 19026307,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs16921098": {
+  "allele_string": "C/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 55981777,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs16930139": {
+  "allele_string": "C/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 26253706,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs16938948": {
+  "allele_string": "G/A",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 75689462,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs16947": {
+  "allele_string": "A/G/C/T",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 42523943,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs16958010": {
+  "allele_string": "C/A/T",
+  "chrom": "15",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 73857048,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs16961733": {
+  "allele_string": "C/A/G/T",
+  "chrom": "15",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 49148356,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1698135": {
+  "allele_string": "T/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 89399330,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs16997056": {
+  "allele_string": "C/T",
+  "chrom": "20",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 16043408,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17035807": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 47092203,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs17060201": {
+  "allele_string": "A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 161709827,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs17154114": {
+  "allele_string": "A/C/G",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 103307425,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs17227806": {
+  "allele_string": "T/C",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 80491100,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17257107": {
+  "allele_string": "A/G",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 26448447,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs17294794": {
+  "allele_string": "T/A/C/G",
+  "chrom": "10",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 30234246,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17299918": {
+  "allele_string": "C/T",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 83404401,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17321858": {
+  "allele_string": "T/C",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 12768974,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17415614": {
+  "allele_string": "T/A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 143141022,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17436486": {
+  "allele_string": "A/G",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 11387855,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs174547": {
+  "allele_string": "T/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 61570783,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17465965": {
+  "allele_string": "T/C",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 39200689,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17501421": {
+  "allele_string": "G/A",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 66919913,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1753780": {
+  "allele_string": "C/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 86220760,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17560758": {
+  "allele_string": "C/T",
+  "chrom": "15",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 26836402,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17607303": {
+  "allele_string": "T/C",
+  "chrom": "7",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 27578068,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs17612126": {
+  "allele_string": "C/A/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 68705674,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17710392": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 64766077,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs17718358": {
+  "allele_string": "C/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 52926494,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs17770189": {
+  "allele_string": "A/G/T",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 12714790,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs17776650": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 95747617,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1786803": {
+  "allele_string": "A/G",
+  "chrom": "18",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 35071814,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1787868": {
+  "allele_string": "C/T",
+  "chrom": "18",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 13835742,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1790517": {
+  "allele_string": "G/A/C",
+  "chrom": "18",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 6918297,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1799853": {
+  "allele_string": "C/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 96702047,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1799950": {
+  "allele_string": "T/A/C",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 41246481,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1799963": {
+  "allele_string": "G/A",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 46761055,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1799966": {
+  "allele_string": "T/A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 41223094,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1799971": {
+  "allele_string": "A/G",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 154360797,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1800012": {
+  "allele_string": "C/A",
+  "chrom": "17",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 48277749,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1800460": {
+  "allele_string": "C/A/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 18139228,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1800462": {
+  "allele_string": "C/G",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 18143955,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1800497": {
+  "allele_string": "G/A",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 113270828,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1800544": {
+  "allele_string": "G/A/C",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 112836503,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1800629": {
+  "allele_string": "G/A",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 31543031,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1800795": {
+  "allele_string": "C/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 22766645,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1800872": {
+  "allele_string": "T/G",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 206946407,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1800896": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 206946897,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1801131": {
+  "allele_string": "T/G",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 11854476,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1801133": {
+  "allele_string": "G/A/C",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 11856378,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1801282": {
+  "allele_string": "C/G/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 12393125,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1801394": {
+  "allele_string": "A/G",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 7870973,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1805007": {
+  "allele_string": "C/A/G/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 89986117,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1805008": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 89986144,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1805009": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 89986546,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs181378432": {
+  "allele_string": "A/G/T",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 7584294,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1820935": {
+  "allele_string": "C/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 149167628,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1824483": {
+  "allele_string": "T/C",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 136148697,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs182549": {
+  "allele_string": "C/T",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 136616754,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1830597": {
+  "allele_string": "T/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 75149300,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1857269": {
+  "allele_string": "G/A/C/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 120172638,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1864571": {
+  "allele_string": "A/C/G/T",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 68010318,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1865810": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 5901163,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1868255": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 107399759,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1870416": {
+  "allele_string": "C/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 14698054,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1884198": {
+  "allele_string": "C/A",
+  "chrom": "X",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 139837918,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1885800": {
+  "allele_string": "C/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 117013732,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1894081": {
+  "allele_string": "T/A/C/G",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 122616059,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1894225": {
+  "allele_string": "C/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 126812293,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs1908219": {
+  "allele_string": "T/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 54603266,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs193302985": {
+  "allele_string": "G/A",
+  "chrom": "MT",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 15043,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "G"
+ },
+ "rs1948438": {
+  "allele_string": "T/C",
+  "chrom": "19",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 23671926,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs1953200": {
+  "allele_string": "G/A/T",
+  "chrom": "14",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 40267514,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1959775": {
+  "allele_string": "G/T",
+  "chrom": "14",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 48609875,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs1967251": {
+  "allele_string": "A/C/G/T",
+  "chrom": "3",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 3530023,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1967890": {
+  "allele_string": "A/C/G",
+  "chrom": "9",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 101417785,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs1993560": {
+  "allele_string": "A/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 31892202,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs199474657": {
+  "allele_string": "A/G/T",
+  "chrom": "MT",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 3243,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "A"
+ },
+ "rs199476119": {
+  "allele_string": "T/C",
+  "chrom": "MT",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 4160,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "T"
+ },
+ "rs200115553": {
+  "allele_string": "G/A",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 70176901,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2011703": {
+  "allele_string": "T/C",
+  "chrom": "20",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 54556388,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2013979": {
+  "allele_string": "C/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 58612733,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs201435049": {
+  "allele_string": "G/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 193808,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2023238": {
+  "allele_string": "A/G/T",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 84282761,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2032582": {
+  "allele_string": "A/C/T",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 87160618,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2060793": {
+  "allele_string": "A/C/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 14915310,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2063393": {
+  "allele_string": "T/A/C",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 179277574,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2071738": {
+  "allele_string": "G/T",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 35814113,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2071753": {
+  "allele_string": "G/A",
+  "chrom": "X",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 100913069,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2071848": {
+  "allele_string": "T/A/C",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 17750294,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2078901": {
+  "allele_string": "C/A/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 66995395,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2091781": {
+  "allele_string": "G/A/T",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 6872512,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2103899": {
+  "allele_string": "T/A/C",
+  "chrom": "20",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 12173825,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2109850": {
+  "allele_string": "C/T",
+  "chrom": "Y",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 15726484,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs213498": {
+  "allele_string": "T/A/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 54867174,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs213950": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 117199533,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2159404": {
+  "allele_string": "T/C",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 3658352,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs216590": {
+  "allele_string": "G/A/T",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 101263,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2209623": {
+  "allele_string": "C/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 34226091,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs221311": {
+  "allele_string": "T/A/C",
+  "chrom": "20",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 35286460,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2213665": {
+  "allele_string": "T/A/C/G",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 85664221,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2213770": {
+  "allele_string": "G/A",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 27244685,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2218313": {
+  "allele_string": "G/A/T",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 142810258,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2228479": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 89985940,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2239534": {
+  "allele_string": "C/A/G",
+  "chrom": "20",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 44097173,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2255748": {
+  "allele_string": "G/A/C",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 11292509,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2257090": {
+  "allele_string": "C/A/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 150883761,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2270302": {
+  "allele_string": "A/C/G",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 10537018,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2270381": {
+  "allele_string": "G/A/T",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 107708454,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2279120": {
+  "allele_string": "C/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 99046040,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2279343": {
+  "allele_string": "A/G/T",
+  "chrom": "19",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 41515263,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2282679": {
+  "allele_string": "T/G",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 72608383,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2283075": {
+  "allele_string": "G/A/C",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 126464966,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2285781": {
+  "allele_string": "G/A",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 7717012,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2292585": {
+  "allele_string": "G/A/C",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 50186317,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2299754": {
+  "allele_string": "C/T",
+  "chrom": "21",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 41261290,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2306283": {
+  "allele_string": "A/C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 21329738,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs231506": {
+  "allele_string": "T/A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 41970191,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2315966": {
+  "allele_string": "G/A",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 81854425,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2368831": {
+  "allele_string": "C/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 188285,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2382087": {
+  "allele_string": "G/A/C/T",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 9960537,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2382849": {
+  "allele_string": "C/A/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 50769331,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2396789": {
+  "allele_string": "T/A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 8547,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs245110": {
+  "allele_string": "G/A/T",
+  "chrom": "19",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 50526896,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2457434": {
+  "allele_string": "G/A/C/T",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 22749961,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2476601": {
+  "allele_string": "A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 114377568,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2516234": {
+  "allele_string": "G/C",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 12593554,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs25531": {
+  "allele_string": "T/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 28564346,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2584764": {
+  "allele_string": "T/C",
+  "chrom": "18",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 46506135,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2593420": {
+  "allele_string": "G/A/C/T",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 167896868,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs259435": {
+  "allele_string": "C/A/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 22063502,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2608174": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 20055884,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs264591": {
+  "allele_string": "T/C",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 159975516,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2675165": {
+  "allele_string": "C/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 11079070,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2758679": {
+  "allele_string": "C/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 157543762,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2776061": {
+  "allele_string": "T/G",
+  "chrom": "21",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 18860914,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs28359175": {
+  "allele_string": "A/G",
+  "chrom": "MT",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 13263,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "A"
+ },
+ "rs28399504": {
+  "allele_string": "A/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 96522463,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs284307": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 10739255,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2853497": {
+  "allele_string": "G/A",
+  "chrom": "MT",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 12007,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "G"
+ },
+ "rs2855668": {
+  "allele_string": "T/A/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 3203464,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs2856993": {
+  "allele_string": "G/C",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 32791403,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs28634172": {
+  "allele_string": "C/T",
+  "chrom": "18",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 56490046,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs2873689": {
+  "allele_string": "C/A",
+  "chrom": "Y",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 21754097,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs28897696": {
+  "allele_string": "G/A/C/T",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 41215920,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs28897727": {
+  "allele_string": "G/A/C/T",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 32912750,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2891944": {
+  "allele_string": "A/G",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 121921290,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs28934607": {
+  "allele_string": "G/A",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 58157952,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2924729": {
+  "allele_string": "A/G/T",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 4890478,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs2934928": {
+  "allele_string": "G/A",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 52956487,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs2941394": {
+  "allele_string": "T/C/G",
+  "chrom": "18",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 66277526,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs296522": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 200881940,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs3000050": {
+  "allele_string": "T/C",
+  "chrom": "14",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 84903339,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs3011572": {
+  "allele_string": "C/A/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 238922048,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3013211": {
+  "allele_string": "C/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 124290957,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs303528": {
+  "allele_string": "A/G",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 90566907,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3094315": {
+  "allele_string": "G/A/T",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 752566,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3096835": {
+  "allele_string": "A/G",
+  "chrom": "Y",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 7073423,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3111876": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 154975758,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3113494": {
+  "allele_string": "G/A/C",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 87832601,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3118536": {
+  "allele_string": "A/C",
+  "chrom": "9",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 137308462,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3129795": {
+  "allele_string": "T/A/C/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 28984755,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs3131378": {
+  "allele_string": "A/G",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 31725285,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3131972": {
+  "allele_string": "A/C/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 752721,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3135388": {
+  "allele_string": "A/C/G/T",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 32413051,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3179690": {
+  "allele_string": "G/A",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 20518226,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3212287": {
+  "allele_string": "T/C",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 21899888,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs334": {
+  "allele_string": "T/A/C/G",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 5248232,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs341272": {
+  "allele_string": "C/G/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 106887068,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs34277206": {
+  "allele_string": "A/G",
+  "chrom": "20",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 51215992,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs344577": {
+  "allele_string": "C/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 6607597,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs34705075": {
+  "allele_string": "A/G",
+  "chrom": "17",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 22192695,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs35018407": {
+  "allele_string": "A/C/G/T",
+  "chrom": "17",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 62690181,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs350720": {
+  "allele_string": "T/A/C/G",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 52980071,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs35178723": {
+  "allele_string": "T/G",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 8614138,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs35416799": {
+  "allele_string": "G/A",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 16869887,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs35782477": {
+  "allele_string": "T/G",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 134203600,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs369544574": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 89860691,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs370983472": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 73559386,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3737325": {
+  "allele_string": "A/G",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 110865881,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs374438258": {
+  "allele_string": "T/C",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 22711465,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs374938148": {
+  "allele_string": "G/A/C",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 29130713,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3759378": {
+  "allele_string": "T/C",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 113574274,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs3765492": {
+  "allele_string": "G/A",
+  "chrom": "14",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 94422467,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3784351": {
+  "allele_string": "C/T",
+  "chrom": "15",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 68642220,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3794331": {
+  "allele_string": "T/G",
+  "chrom": "13",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 46053544,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs3813380": {
+  "allele_string": "C/A/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 22148796,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3826464": {
+  "allele_string": "G/A/T",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 9057909,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3849233": {
+  "allele_string": "A/G",
+  "chrom": "16",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 87081190,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs3859044": {
+  "allele_string": "A/C/G",
+  "chrom": "16",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 58000163,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs386833659": {
+  "allele_string": "C/A/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 40544331,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs386833743": {
+  "allele_string": "G/A",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 28493503,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs3886013": {
+  "allele_string": "C/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 6968905,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs388669": {
+  "allele_string": "C/G/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 34625746,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3892097": {
+  "allele_string": "C/A/G/T",
+  "chrom": "22",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 42524947,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs3899188": {
+  "allele_string": "T/C",
+  "chrom": "MT",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 10115,
+  "second_source": "ncbi_NC_012920.1",
+  "second_source_base": "T"
+ },
+ "rs3918290": {
+  "allele_string": "C/A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 97915614,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs397514382": {
+  "allele_string": "T/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 15686106,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs397516371": {
+  "allele_string": "G/C",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 63351810,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4085154": {
+  "allele_string": "G/A",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 216858013,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4142568": {
+  "allele_string": "T/C",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 120377132,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs41432549": {
+  "allele_string": "C/G/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 78788991,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4146697": {
+  "allele_string": "C/A/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 111078453,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs41475048": {
+  "allele_string": "A/G",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 183058452,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4149015": {
+  "allele_string": "G/A/C/T",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 21283322,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4149056": {
+  "allele_string": "T/A/C",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 21331549,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4240133": {
+  "allele_string": "A/C",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 133733624,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4244285": {
+  "allele_string": "G/A/C/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 96541616,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4247524": {
+  "allele_string": "A/G",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 42920,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs429358": {
+  "allele_string": "T/C",
+  "chrom": "19",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 45411941,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4328439": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 10915516,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4339166": {
+  "allele_string": "T/A/C/G",
+  "chrom": "4",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 165744136,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs435986": {
+  "allele_string": "T/A/G",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 107809777,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4381747": {
+  "allele_string": "C/A/G",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 29807890,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4402033": {
+  "allele_string": "A/C/T",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 34391042,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4402960": {
+  "allele_string": "G/C/T",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 185511687,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4456071": {
+  "allele_string": "T/G",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 66167963,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4460346": {
+  "allele_string": "C/A/G",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 141113716,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4475691": {
+  "allele_string": "C/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 846808,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4477212": {
+  "allele_string": "A/G",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 82154,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4491840": {
+  "allele_string": "G/A",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 122080747,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4501299": {
+  "allele_string": "A/C/G/T",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 52698387,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4512236": {
+  "allele_string": "G/A/T",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 156300107,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4532407": {
+  "allele_string": "A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 155089792,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4545536": {
+  "allele_string": "T/A/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 3259535,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs45467396": {
+  "allele_string": "A/G",
+  "chrom": "16",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 69753259,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4551650": {
+  "allele_string": "C/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 235276289,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4570625": {
+  "allele_string": "G/A/T",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 72331923,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4571176": {
+  "allele_string": "C/G/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 73001928,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4583021": {
+  "allele_string": "C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 84883070,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4632379": {
+  "allele_string": "A/G",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 15672,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4654748": {
+  "allele_string": "C/A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 21786068,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4664737": {
+  "allele_string": "T/A/G",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 151569097,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4680": {
+  "allele_string": "G/A",
+  "chrom": "22",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 19951271,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4714902": {
+  "allele_string": "C/A/G",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 46044237,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4730333": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 108455334,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4741377": {
+  "allele_string": "T/A/C",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 14429307,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4746796": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 70619276,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4754086": {
+  "allele_string": "T/C",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 103451544,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4772102": {
+  "allele_string": "A/C/G",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 99234116,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs477590": {
+  "allele_string": "G/A/C",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 15643218,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4785434": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 50587976,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4796760": {
+  "allele_string": "G/A/C",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 40178215,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4810884": {
+  "allele_string": "A/C",
+  "chrom": "20",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 47521544,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4820571": {
+  "allele_string": "A/G/T",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 24242973,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4846979": {
+  "allele_string": "A/C/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 230685079,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4853006": {
+  "allele_string": "A/G",
+  "chrom": "2",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 74263419,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4866585": {
+  "allele_string": "T/G",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 3574619,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs487502": {
+  "allele_string": "C/A/T",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 78342898,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs491794": {
+  "allele_string": "T/C/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 145593806,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs4938066": {
+  "allele_string": "A/G",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 113885412,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4947936": {
+  "allele_string": "C/A",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 50906752,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4969678": {
+  "allele_string": "A/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 95815918,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs4970383": {
+  "allele_string": "C/A/G",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 838555,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs4986893": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 96540410,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs4988235": {
+  "allele_string": "G/A/C/T",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 136608646,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs5026665": {
+  "allele_string": "A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 5374940,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs5030862": {
+  "allele_string": "C/A/G/T",
+  "chrom": "22",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 42526670,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs5219": {
+  "allele_string": "T/A/C/G",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 17409572,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs55828573": {
+  "allele_string": "T/A/C",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 80653609,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs55894265": {
+  "allele_string": "T/A/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 142231119,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs56025600": {
+  "allele_string": "C/A/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 249357,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs56371618": {
+  "allele_string": "T/C/G",
+  "chrom": "7",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 89045670,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs56396134": {
+  "allele_string": "T/A/G",
+  "chrom": "22",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 44952160,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs566071": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 23655168,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs573120764": {
+  "allele_string": "G/A",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 30103602,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs587776831": {
+  "allele_string": "C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 21716161,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs587778078": {
+  "allele_string": "C/A/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 108186820,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs587779236": {
+  "allele_string": "T/A/C",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 48027497,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs587779723": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 189869073,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs5882": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 57016092,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs5905864": {
+  "allele_string": "G/T",
+  "chrom": "X",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 44549519,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs5926434": {
+  "allele_string": "T/A/G",
+  "chrom": "X",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 27453472,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs5938060": {
+  "allele_string": "A/G",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 74630390,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs5951587": {
+  "allele_string": "A/C/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 22405206,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs5976493": {
+  "allele_string": "G/A/C",
+  "chrom": "X",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 126228497,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs5988003": {
+  "allele_string": "A/G",
+  "chrom": "X",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 114948746,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs5995518": {
+  "allele_string": "A/G",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 38314178,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6025": {
+  "allele_string": "T/C/A",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 169519049,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6049496": {
+  "allele_string": "C/T",
+  "chrom": "20",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 2473231,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6049736": {
+  "allele_string": "G/A/T",
+  "chrom": "20",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 24471953,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs60580031": {
+  "allele_string": "A/G",
+  "chrom": "17",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 77319448,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6076506": {
+  "allele_string": "T/G",
+  "chrom": "20",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 63231,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs60778967": {
+  "allele_string": "T/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 127533581,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6100204": {
+  "allele_string": "G/A",
+  "chrom": "20",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 57339126,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6102592": {
+  "allele_string": "C/T",
+  "chrom": "20",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 40573522,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6133613": {
+  "allele_string": "A/C/G",
+  "chrom": "20",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 8712123,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6139746": {
+  "allele_string": "C/A/G/T",
+  "chrom": "20",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 5474296,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs61954364": {
+  "allele_string": "A/G",
+  "chrom": "12",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 122723734,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs62048414": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 85062530,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs62385600": {
+  "allele_string": "C/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 167707858,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6265": {
+  "allele_string": "C/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 27679916,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6311": {
+  "allele_string": "C/A/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 47471478,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6313": {
+  "allele_string": "G/A/C",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 47469940,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs63750066": {
+  "allele_string": "C/T",
+  "chrom": "21",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 27264108,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6416186": {
+  "allele_string": "C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 129997417,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6421910": {
+  "allele_string": "T/A/C",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 136221763,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs642770": {
+  "allele_string": "C/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 79688804,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6484978": {
+  "allele_string": "T/A/C/G",
+  "chrom": "11",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 38211928,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6493165": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 45947619,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6493741": {
+  "allele_string": "C/A/G/T",
+  "chrom": "15",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 31821835,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6550169": {
+  "allele_string": "T/C",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 32913093,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs658513": {
+  "allele_string": "T/A/C",
+  "chrom": "18",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 10100136,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs658980": {
+  "allele_string": "C/A",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 89045338,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6597676": {
+  "allele_string": "A/G",
+  "chrom": "9",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 133965189,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs662": {
+  "allele_string": "T/A/C/G",
+  "chrom": "7",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 94937446,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6640082": {
+  "allele_string": "C/A/T",
+  "chrom": "X",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 8351676,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6656346": {
+  "allele_string": "G/A",
+  "chrom": "1",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 111103688,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6681049": {
+  "allele_string": "T/A/C/G",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 800007,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6683485": {
+  "allele_string": "A/C/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 151817405,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs672601317": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 117176688,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6740918": {
+  "allele_string": "G/A",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 234093035,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6748545": {
+  "allele_string": "G/A/C/T",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 125318315,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs679670": {
+  "allele_string": "C/A/G/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 138137551,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6813598": {
+  "allele_string": "G/T",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 118760390,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6822105": {
+  "allele_string": "G/A/C",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 183361857,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6838713": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 24836416,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6846361": {
+  "allele_string": "A/G/T",
+  "chrom": "4",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 151761599,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6854035": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 38181054,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6872249": {
+  "allele_string": "T/A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 67239774,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6901900": {
+  "allele_string": "T/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 132012886,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs6912784": {
+  "allele_string": "A/G",
+  "chrom": "6",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 108295444,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6917666": {
+  "allele_string": "G/A",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 53071349,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs6951454": {
+  "allele_string": "C/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 132644903,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6957876": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 18040264,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs6979609": {
+  "allele_string": "A/G",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 73436066,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs6982478": {
+  "allele_string": "G/A/C",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 19044189,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7007927": {
+  "allele_string": "C/T",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 136244955,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7039002": {
+  "allele_string": "G/A/C",
+  "chrom": "9",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 94775387,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7041": {
+  "allele_string": "A/C/G/T",
+  "chrom": "4",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 72618334,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs7042159": {
+  "allele_string": "C/A/G",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 18545209,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7060208": {
+  "allele_string": "C/G/T",
+  "chrom": "X",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 152976269,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7071825": {
+  "allele_string": "G/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 131558651,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs708272": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 56996288,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7128359": {
+  "allele_string": "G/A/T",
+  "chrom": "11",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 16787922,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7142571": {
+  "allele_string": "A/C",
+  "chrom": "14",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 90035606,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs7144384": {
+  "allele_string": "G/A",
+  "chrom": "14",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 101100586,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7151969": {
+  "allele_string": "C/G/T",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 97143227,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7172789": {
+  "allele_string": "T/C",
+  "chrom": "15",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 85843517,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7191379": {
+  "allele_string": "G/A/C/T",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 14472528,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7219536": {
+  "allele_string": "C/T",
+  "chrom": "17",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 12320741,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs723796": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 4031148,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs72544145": {
+  "allele_string": "C/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 118039454,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs72552267": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 96535210,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs72627225": {
+  "allele_string": "A/T",
+  "chrom": "18",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 51000405,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs72641339": {
+  "allele_string": "G/A/T",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 114856526,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs72661529": {
+  "allele_string": "G/A",
+  "chrom": "14",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 19120274,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs72917612": {
+  "allele_string": "C/T",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 91800594,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7294": {
+  "allele_string": "C/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 31102321,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7312564": {
+  "allele_string": "G/A",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 12172685,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs73246815": {
+  "allele_string": "G/A",
+  "chrom": "X",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 149511006,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs73250451": {
+  "allele_string": "G/A",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 18674938,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs734336": {
+  "allele_string": "T/C",
+  "chrom": "21",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 45768350,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7350930": {
+  "allele_string": "G/A",
+  "chrom": "17",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 6432975,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs73518976": {
+  "allele_string": "A/C",
+  "chrom": "19",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 16817588,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs7364201": {
+  "allele_string": "A/C/G/T",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 33000069,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs73719521": {
+  "allele_string": "G/A/C/T",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 149636,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs74086291": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 60126660,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7412": {
+  "allele_string": "C/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 45412079,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs74517184": {
+  "allele_string": "A/C",
+  "chrom": "4",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 158319070,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs748078361": {
+  "allele_string": "G/C",
+  "chrom": "Y",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 23243887,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs748333617": {
+  "allele_string": "T/C",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 14861908,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs749651": {
+  "allele_string": "C/A",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 41962945,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs75039782": {
+  "allele_string": "C/A/G/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 117280015,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7510466": {
+  "allele_string": "T/A/C/G",
+  "chrom": "21",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 22430067,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs753116280": {
+  "allele_string": "C/T/A",
+  "chrom": "21",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 10862919,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7558081": {
+  "allele_string": "C/T",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 227958469,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs757210": {
+  "allele_string": "T/C/G",
+  "chrom": "17",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 36096515,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7601387": {
+  "allele_string": "G/A/C/T",
+  "chrom": "2",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 22980155,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs76151636": {
+  "allele_string": "G/A/T",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 52518281,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs76257237": {
+  "allele_string": "G/A/T",
+  "chrom": "12",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 127206057,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs76265645": {
+  "allele_string": "C/A/T",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 60175669,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs766066": {
+  "allele_string": "C/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 16731221,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs76699816": {
+  "allele_string": "G/A",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 50846401,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7683903": {
+  "allele_string": "G/A/T",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 72396727,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7694491": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 95290250,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7700758": {
+  "allele_string": "C/T",
+  "chrom": "5",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 123657569,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs770143722": {
+  "allele_string": "C/G/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 55672660,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7710852": {
+  "allele_string": "A/C/T",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 116624982,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs77153933": {
+  "allele_string": "C/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 13636701,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7718874": {
+  "allele_string": "A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 176358065,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs771953225": {
+  "allele_string": "C/A/T",
+  "chrom": "19",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 12758988,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7719818": {
+  "allele_string": "A/C/G",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 97182715,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs774129279": {
+  "allele_string": "C/T",
+  "chrom": "Y",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 21327198,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7751553": {
+  "allele_string": "G/A",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 166266322,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs77674357": {
+  "allele_string": "C/T",
+  "chrom": "2",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 173555921,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs776746": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 99270539,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7780448": {
+  "allele_string": "G/A",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 13305542,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs778350157": {
+  "allele_string": "C/T",
+  "chrom": "Y",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 7801788,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs77850724": {
+  "allele_string": "A/C/T",
+  "chrom": "5",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 172133229,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs779723": {
+  "allele_string": "G/A/T",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 7498342,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7824480": {
+  "allele_string": "G/A/C",
+  "chrom": "8",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 8520663,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs78450446": {
+  "allele_string": "C/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 65384590,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs785520": {
+  "allele_string": "T/C",
+  "chrom": "1",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 46568836,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs786202638": {
+  "allele_string": "G/A/C",
+  "chrom": "3",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 37089132,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs786205624": {
+  "allele_string": "C/A/G",
+  "chrom": "14",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 74992773,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs78622436": {
+  "allele_string": "T/C",
+  "chrom": "12",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 117578741,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs78655421": {
+  "allele_string": "G/A/C/T",
+  "chrom": "7",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 117171029,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7868316": {
+  "allele_string": "T/C",
+  "chrom": "9",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 23262261,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7893985": {
+  "allele_string": "G/A",
+  "chrom": "10",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 101893418,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs7903146": {
+  "allele_string": "C/G/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 114758349,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs7914924": {
+  "allele_string": "T/A/C/G",
+  "chrom": "10",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 3868392,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs7924410": {
+  "allele_string": "A/C/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 20563041,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs7966732": {
+  "allele_string": "C/T",
+  "chrom": "12",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 41790191,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs8001112": {
+  "allele_string": "A/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 23548470,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs8014890": {
+  "allele_string": "A/G",
+  "chrom": "14",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 69920730,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs80299432": {
+  "allele_string": "C/T",
+  "chrom": "7",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 44389470,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs80356493": {
+  "allele_string": "T/A/G",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 58062922,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs80357172": {
+  "allele_string": "C/A/G/T",
+  "chrom": "17",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 41244288,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs8035845": {
+  "allele_string": "G/A",
+  "chrom": "15",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 92782291,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs80358559": {
+  "allele_string": "A/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 32911629,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs80358981": {
+  "allele_string": "C/A/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 32930687,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs8039095": {
+  "allele_string": "T/A/C",
+  "chrom": "15",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 59565097,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs8044348": {
+  "allele_string": "A/G",
+  "chrom": "16",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 83223034,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs8044765": {
+  "allele_string": "T/C/G",
+  "chrom": "16",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 7958906,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs8069024": {
+  "allele_string": "C/T",
+  "chrom": "17",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 74636253,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs8090073": {
+  "allele_string": "A/G",
+  "chrom": "18",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 70880006,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs8098963": {
+  "allele_string": "T/C",
+  "chrom": "18",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 74280050,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs8099917": {
+  "allele_string": "T/G",
+  "chrom": "19",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 39743165,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs8108848": {
+  "allele_string": "G/T",
+  "chrom": "19",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 37019742,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs830842": {
+  "allele_string": "C/A/G/T",
+  "chrom": "4",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 186917931,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs854560": {
+  "allele_string": "A/C/G/N/T",
+  "chrom": "7",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 94946084,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs863224468": {
+  "allele_string": "T/A/C/G",
+  "chrom": "13",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 32936726,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs865010": {
+  "allele_string": "T/A/C/G",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 62579596,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs868590": {
+  "allele_string": "T/A",
+  "chrom": "10",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 128002254,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs869025612": {
+  "allele_string": "C/T",
+  "chrom": "10",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 93432,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs879253733": {
+  "allele_string": "A/G",
+  "chrom": "10",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 96354459,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs882257": {
+  "allele_string": "C/G/T",
+  "chrom": "11",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 25636886,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs890086": {
+  "allele_string": "T/C",
+  "chrom": "2",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 220535733,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs895630": {
+  "allele_string": "A/G/T",
+  "chrom": "18",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 23739025,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs913722": {
+  "allele_string": "C/A/G/T",
+  "chrom": "1",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 205318983,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9304656": {
+  "allele_string": "T/C/G",
+  "chrom": "19",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 46646936,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs9315027": {
+  "allele_string": "G/A",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 31271314,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9322306": {
+  "allele_string": "C/A",
+  "chrom": "6",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 151546061,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9332377": {
+  "allele_string": "C/A/T",
+  "chrom": "22",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 19955692,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9364590": {
+  "allele_string": "G/A/T",
+  "chrom": "6",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 161713967,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs937472": {
+  "allele_string": "A/G/T",
+  "chrom": "12",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 103083239,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9383372": {
+  "allele_string": "T/C/G",
+  "chrom": "6",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 18351530,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs944260": {
+  "allele_string": "G/A/T",
+  "chrom": "20",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 60243411,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9516258": {
+  "allele_string": "G/A",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 94260091,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9520136": {
+  "allele_string": "A/C/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 107304075,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9535511": {
+  "allele_string": "G/A/T",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 51438802,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs953588": {
+  "allele_string": "C/A/G/T",
+  "chrom": "9",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 71704827,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9537975": {
+  "allele_string": "A/C/T",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 58797394,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9541520": {
+  "allele_string": "G/A/C/T",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 35213967,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9542986": {
+  "allele_string": "C/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 73081363,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9544526": {
+  "allele_string": "G/A",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 78084272,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9549035": {
+  "allele_string": "A/C/T",
+  "chrom": "13",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 40569328,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9551512": {
+  "allele_string": "G/A/C/T",
+  "chrom": "13",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 19121950,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9586006": {
+  "allele_string": "C/G/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 103554267,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9627540": {
+  "allele_string": "A/C",
+  "chrom": "22",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 47115825,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9656787": {
+  "allele_string": "C/A",
+  "chrom": "8",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 104231944,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9755941": {
+  "allele_string": "T/C/A",
+  "chrom": "3",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 61044,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs9785905": {
+  "allele_string": "A/C",
+  "chrom": "Y",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 18097251,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9785983": {
+  "allele_string": "G/A",
+  "chrom": "Y",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 6630931,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9785990": {
+  "allele_string": "T/C",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 17412198,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs9786325": {
+  "allele_string": "T/C",
+  "chrom": "Y",
+  "ensembl_grch37": "T",
+  "oracle_first_allele": "T",
+  "pos": 14149772,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "T"
+ },
+ "rs979244": {
+  "allele_string": "C/T",
+  "chrom": "13",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 27090036,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs980349": {
+  "allele_string": "A/G/T",
+  "chrom": "8",
+  "ensembl_grch37": "A",
+  "oracle_first_allele": "A",
+  "pos": 127071167,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "A"
+ },
+ "rs9808685": {
+  "allele_string": "G/A/C/T",
+  "chrom": "21",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 34785672,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs985774": {
+  "allele_string": "G/A",
+  "chrom": "4",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 43635055,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ },
+ "rs9867956": {
+  "allele_string": "C/T",
+  "chrom": "3",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 174532637,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9923231": {
+  "allele_string": "C/A/G/T",
+  "chrom": "16",
+  "ensembl_grch37": "C",
+  "oracle_first_allele": "C",
+  "pos": 31107689,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "C"
+ },
+ "rs9929802": {
+  "allele_string": "G/A/C",
+  "chrom": "16",
+  "ensembl_grch37": "G",
+  "oracle_first_allele": "G",
+  "pos": 78715604,
+  "second_source": "ucsc_hg19",
+  "second_source_base": "G"
+ }
+}
