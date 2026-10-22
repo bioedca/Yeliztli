@@ -1,0 +1,72 @@
+{
+ "issue": "#2583",
+ "accessed": "2026-10-22",
+ "privacy": "Requests carry public GRCh37 coordinates only; no genotype or sample data was sent anywhere.",
+ "queries": [
+  {
+   "source": "Ensembl GRCh37 REST",
+   "endpoint": "POST https://grch37.rest.ensembl.org/sequence/region/human",
+   "scope": "644 positions, batches of 50, 1-bp regions on strand 1",
+   "payload": "raw/ensembl_grch37_sequence_region.json",
+   "license": "Ensembl data: no restrictions on use (Ensembl disclaimer)"
+  },
+  {
+   "source": "UCSC Genome Browser API, hg19",
+   "endpoint": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19",
+   "scope": "637 positions on 1-22, X, Y",
+   "payload": "raw/ucsc_hg19_sequence.json",
+   "license": "UCSC hg19 sequence: freely available (UCSC conditions of use)"
+  },
+  {
+   "source": "NCBI E-utilities efetch",
+   "endpoint": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=NC_012920.1&rettype=fasta",
+   "scope": "the 7 MT positions",
+   "payload": "raw/ncbi_NC_012920.1.fasta",
+   "license": "NCBI public domain (NCBI website policies)"
+  },
+  {
+   "source": "NCBI Assembly report, GRCh37.p13 (GCF_000001405.25)",
+   "endpoint": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.25_GRCh37.p13/GCF_000001405.25_GRCh37.p13_assembly_report.txt",
+   "scope": "maps GRCh37 MT to RefSeq NC_012920.1",
+   "payload": "raw/GCF_000001405.25_GRCh37.p13_assembly_report.txt",
+   "license": "NCBI public domain"
+  },
+  {
+   "source": "UCSC Genome Browser API, hg19 chrM (recorded, not used)",
+   "endpoint": "GET https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM",
+   "scope": "the 7 MT positions",
+   "payload": "raw/ucsc_hg19_chrM_not_used.json",
+   "license": "UCSC conditions of use"
+  }
+ ],
+ "claims": [
+  {
+   "claim": "At each of the 644 located single-base seed positions, the first allele of the oracle's Ensembl GRCh37 allele_string is the GRCh37 assembly base.",
+   "support": [
+    "Ensembl GRCh37 sequence/region",
+    "UCSC hg19 (nuclear) or NCBI NC_012920.1 (MT)"
+   ],
+   "result": "644/644 agree across both sources and with the oracle",
+   "file": "assembly_bases.json"
+  },
+  {
+   "claim": "GRCh37's MT is RefSeq NC_012920.1.",
+   "support": [
+    "NCBI GRCh37.p13 assembly report"
+   ],
+   "result": "MT row: J01415.2 = NC_012920.1"
+  },
+  {
+   "claim": "UCSC hg19 chrM is not interchangeable with GRCh37 MT.",
+   "support": [
+    "raw/ucsc_hg19_chrM_not_used.json vs raw/ncbi_NC_012920.1.fasta"
+   ],
+   "result": "differs at MT:3243 and MT:4160 of the 7 positions"
+  }
+ ],
+ "citations": [
+  "PMID:25236461 / DOI:10.1093/bioinformatics/btu613 (accessed 2026-10-20, via #2344's packet)",
+  "PMID:41251146 / DOI:10.1093/nar/gkaf1250 (accessed 2026-10-20, via #2344's packet)"
+ ],
+ "discovery_ladder": "No literature claim is made: the facts are reference-sequence bases read directly from the assembly databases. The two database citations are the ones #2344's packet verified through PubMed (data/science-evidence/2026-10-20-issue-2344-seed-ref-orientation). Consensus MCP failed to connect this session; Scite was not needed for a sequence lookup."
+}
