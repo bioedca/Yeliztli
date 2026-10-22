@@ -37,7 +37,8 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         patch("backend.main.configure_logging") as configure_logging_mock,
         patch("backend.main.warn_if_insecure_network_bind"),
         patch("backend.main.cleanup_interrupted_sessions"),
-        patch("backend.main.recover_orphaned_jobs"),
+        patch("backend.main.recover_orphaned_jobs") as recover_jobs,
+        patch("backend.main.recover_interrupted_ingests") as recover_ingests,
         patch("backend.main.recover_orphaned_downloads"),
         patch("backend.main.recover_unpublished_merge_artifacts"),
         patch("backend.main.shutdown_executor") as shutdown_executor,
@@ -50,6 +51,10 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
         bootstrap_schema.side_effect = lambda *a, **k: call_order.append("bootstrap_schema")
         ensure_log_schema.side_effect = lambda *a, **k: call_order.append("ensure_log_schema")
         ensure_schema.side_effect = lambda *a, **k: call_order.append("ensure_schema")
+        recover_jobs.side_effect = lambda *a, **k: call_order.append("recover_orphaned_jobs")
+        recover_ingests.side_effect = lambda *a, **k: call_order.append(
+            "recover_interrupted_ingests"
+        )
 
         yield SimpleNamespace(
             bootstrap_schema=bootstrap_schema,
@@ -61,7 +66,23 @@ def lifespan_dependencies(tmp_path: Path) -> Iterator[SimpleNamespace]:
             ensure_log_schema=ensure_log_schema,
             build_check=build_check,
             call_order=call_order,
+            recover_ingests=recover_ingests,
         )
+
+
+@pytest.mark.asyncio
+async def test_startup_withdraws_interrupted_imports_after_releasing_their_leases(
+    lifespan_dependencies: SimpleNamespace,
+) -> None:
+    """#2580: the sweep runs on every start, after orphaned leases are failed."""
+    async with lifespan(FastAPI()):
+        pass
+
+    lifespan_dependencies.recover_ingests.assert_called_once_with(
+        lifespan_dependencies.get_registry.return_value
+    )
+    order = lifespan_dependencies.call_order
+    assert order.index("recover_orphaned_jobs") < order.index("recover_interrupted_ingests")
 
 
 @pytest.mark.asyncio

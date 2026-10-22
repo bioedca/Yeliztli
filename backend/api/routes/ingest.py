@@ -9,8 +9,10 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
+import sqlite3
 import uuid
 import zipfile
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
@@ -25,6 +27,7 @@ from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    annotation_state,
     jobs,
     raw_variants,
     reannotation_prompts,
@@ -42,6 +45,7 @@ from backend.ingestion.dispatcher import (
 from backend.ingestion.liftover import lift_build36_to_grch37
 from backend.services.data_wipe_fence import upload_hold
 from backend.services.sample_operation_lock import (
+    SAMPLE_INGEST_JOB_TYPE,
     SampleOperationConflictError,
     SampleOperationUnavailableError,
     ingest_publication,
@@ -53,6 +57,10 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 # Batch size for bulk inserts
 _INSERT_BATCH = 10_000
+
+# Written in the same transaction as an import's raw variants; its presence is
+# what proves the import committed (#2580). The value is the stored count.
+_INGEST_COMMITTED_STATE_KEY = "ingest_committed"
 
 # Vendor raw genotype exports are normally tens of MiB. Keep ZIP extraction
 # bounded well above that while preserving the existing plain-text upload path.
@@ -266,7 +274,19 @@ def _build_sample_database(
     sample_engine = registry.get_sample_engine(sample_db_path)
     create_sample_tables(sample_engine)
 
-    # Write sample metadata (single-row table)
+    variant_dicts = [
+        {
+            "rsid": v.rsid,
+            "chrom": v.chrom,
+            "pos": v.pos,
+            "genotype": v.genotype,
+        }
+        for v in result.variants
+    ]
+    # Metadata, variants and the completion marker commit in one transaction,
+    # so the marker exists exactly when the import is complete. Startup
+    # recovery relies on it to tell an interrupted build from one whose lease
+    # merely failed to be marked complete (#2580).
     with sample_engine.begin() as conn:
         conn.execute(
             sample_metadata_table.insert().values(
@@ -277,21 +297,41 @@ def _build_sample_database(
                 created_at=now,
             )
         )
-
-    # Bulk-insert raw variants in batches
-    variant_dicts = [
-        {
-            "rsid": v.rsid,
-            "chrom": v.chrom,
-            "pos": v.pos,
-            "genotype": v.genotype,
-        }
-        for v in result.variants
-    ]
-    with sample_engine.begin() as conn:
         for i in range(0, len(variant_dicts), _INSERT_BATCH):
             batch = variant_dicts[i : i + _INSERT_BATCH]
             conn.execute(raw_variants.insert(), batch)
+        conn.execute(
+            annotation_state.insert().values(
+                key=_INGEST_COMMITTED_STATE_KEY, value=str(len(variant_dicts)), updated_at=now
+            )
+        )
+
+
+def _withdraw_unfinished_import(
+    registry: DBRegistry, sample_id: int, sample_db_path: Path, job_id: str
+) -> None:
+    """Remove an import's partial database, then its row, prompts and lease.
+
+    Files go first: if they cannot be removed this raises with the row still in
+    place, because a row with a stray file is recoverable by an ordinary delete
+    and a stray file with no row is not.
+    """
+    registry.dispose_sample_engine(sample_db_path)
+    # A killed import in rollback-journal mode leaves ``-journal`` beside the
+    # file; left behind, it would be replayed into a later sample at this path.
+    for path in (
+        sample_db_path,
+        Path(f"{sample_db_path}-wal"),
+        Path(f"{sample_db_path}-shm"),
+        Path(f"{sample_db_path}-journal"),
+    ):
+        path.unlink(missing_ok=True)
+    with registry.reference_engine.begin() as conn:
+        conn.execute(
+            reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
+        )
+        conn.execute(samples.delete().where(samples.c.id == sample_id))
+        conn.execute(jobs.delete().where(jobs.c.job_id == job_id))
 
 
 def _discard_failed_ingest(
@@ -302,23 +342,11 @@ def _discard_failed_ingest(
     Runs while the ingest lease is still held, so nothing else can be using the
     partial database. A half-loaded sample would otherwise stay listed as if it
     were complete. If the files cannot be removed the row is kept and the lease
-    marked ``failed`` instead: a row with a stray file is recoverable by an
-    ordinary delete, a stray file with no row is not.
+    marked ``failed`` instead, and the next startup retries the withdrawal
+    (:func:`recover_interrupted_ingests`).
     """
     try:
-        registry.dispose_sample_engine(sample_db_path)
-        for path in (
-            sample_db_path,
-            Path(f"{sample_db_path}-wal"),
-            Path(f"{sample_db_path}-shm"),
-        ):
-            path.unlink(missing_ok=True)
-        with registry.reference_engine.begin() as conn:
-            conn.execute(
-                reannotation_prompts.delete().where(reannotation_prompts.c.sample_id == sample_id)
-            )
-            conn.execute(samples.delete().where(samples.c.id == sample_id))
-            conn.execute(jobs.delete().where(jobs.c.job_id == job_id))
+        _withdraw_unfinished_import(registry, sample_id, sample_db_path, job_id)
     except Exception:  # noqa: BLE001
         logger.exception("ingest_discard_failed sample_id=%s", sample_id)
         try:
@@ -336,6 +364,149 @@ def _discard_failed_ingest(
             # Startup recovery fails an abandoned ingest lease, so this is
             # bounded by the next restart rather than permanent.
             logger.exception("ingest_lease_release_failed sample_id=%s", sample_id)
+
+
+def _import_committed(sample_db_path: Path) -> bool | None:
+    """Whether an import's data transaction committed, read without side effects.
+
+    ``True`` when the completion marker is present -- it commits together with
+    the raw variants. Databases built before the marker existed wrote
+    ``sample_metadata`` in its own transaction ahead of the variants, so a
+    metadata row alone does not prove they committed; for those, the import
+    counts as committed only when variants are present too. A legacy sample
+    with metadata and no variants cannot be told apart from a killed import,
+    and withdrawing it loses no genotype data, so it reads as not committed.
+
+    ``False`` when the database, the metadata row or (legacy) the variants are
+    absent; ``None`` when the file cannot be read. Uses a throwaway connection
+    that only reads (beyond journal recovery): ``get_sample_engine`` would
+    create a missing file and migrate an existing one.
+    """
+    # Filesystem errors (an unreadable samples directory) are "cannot tell",
+    # never "absent": that would delete, and an escaping error would stop the
+    # API from starting.
+    try:
+        if not sample_db_path.is_file():
+            return False
+        # ``mode=rw`` opens only an existing file, never creating one, but unlike
+        # ``mode=ro`` it lets SQLite roll back the hot journal a killed import
+        # leaves behind in rollback-journal mode; read-only, that database is
+        # unreadable and the sample would be skipped instead of withdrawn.
+        uri = f"{sample_db_path.resolve().as_uri()}?mode=rw"
+    except OSError:
+        return None
+    try:
+        with closing(sqlite3.connect(uri, uri=True)) as conn:
+            tables = {
+                row[0]
+                for row in conn.execute("SELECT name FROM sqlite_schema WHERE type = 'table'")
+            }
+            if "annotation_state" in tables and (
+                conn.execute(
+                    "SELECT 1 FROM annotation_state WHERE key = ?",
+                    (_INGEST_COMMITTED_STATE_KEY,),
+                ).fetchone()
+                is not None
+            ):
+                return True
+            if not {"sample_metadata", "raw_variants"} <= tables:
+                return False
+            if conn.execute("SELECT 1 FROM sample_metadata WHERE id = 1").fetchone() is None:
+                return False
+            return conn.execute("SELECT 1 FROM raw_variants LIMIT 1").fetchone() is not None
+    except sqlite3.Error:
+        return None
+
+
+def recover_interrupted_ingests(registry: DBRegistry) -> list[int]:
+    """Withdraw samples whose import never finished. Run at startup only (#2580).
+
+    A process killed mid-upload never reaches :func:`_discard_failed_ingest`,
+    so its row and partial database survive the restart; restart recovery then
+    releases the ``ingest`` lease, and every gate -- which checks only *active*
+    leases -- would treat the half-loaded sample as complete. Ingest runs in the
+    API process, so at startup any ingest lease that is not ``complete`` belongs
+    to an import that can no longer finish, whether recovery has already failed
+    it or not.
+
+    A lease can also be left open by an import that *did* finish: when marking
+    it complete fails, the upload is still reported as stored. So the sample's
+    own database decides. If its data transaction committed, the lease is
+    completed and the sample kept; if not, the sample is withdrawn; if the file
+    cannot be read, nothing is deleted and the next start looks again.
+
+    The lease is matched to its sample by id **and** ``created_at``, which ingest
+    writes from the same timestamp. Deletion does not remove ``jobs`` rows and
+    SQLite reuses a vacated rowid, so an id match alone could point a stale
+    lease at a later, complete sample that now holds the same id.
+
+    Returns the withdrawn sample ids. Never raises: a registry it cannot read is
+    logged and left for the next start, and a sample that cannot be withdrawn
+    is logged and skipped.
+    """
+    try:
+        with registry.reference_engine.connect() as conn:
+            rows = conn.execute(
+                sa.select(samples.c.id, samples.c.db_path, jobs.c.job_id)
+                .join(
+                    jobs,
+                    sa.and_(
+                        jobs.c.sample_id == samples.c.id,
+                        jobs.c.created_at == samples.c.created_at,
+                    ),
+                )
+                .where(jobs.c.job_type == SAMPLE_INGEST_JOB_TYPE)
+                .where(jobs.c.status != "complete")
+                .order_by(samples.c.id)
+            ).fetchall()
+    except sa.exc.SQLAlchemyError:
+        logger.exception("ingest_recovery_unreadable")
+        return []
+
+    withdrawn: list[int] = []
+    for row in rows:
+        sample_db_path = registry.settings.data_dir / row.db_path
+        try:
+            committed = _import_committed(sample_db_path)
+        except Exception:  # noqa: BLE001 -- startup must not stop on one sample
+            logger.exception("ingest_recovery_probe_failed sample_id=%s", row.id)
+            committed = None
+        if committed is None:
+            logger.warning("ingest_recovery_unreadable_sample sample_id=%s", row.id)
+            continue
+        if committed:
+            _complete_recovered_lease(registry.reference_engine, row.job_id, int(row.id))
+            continue
+        try:
+            _withdraw_unfinished_import(registry, int(row.id), sample_db_path, row.job_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("ingest_recovery_withdraw_failed sample_id=%s", row.id)
+            continue
+        withdrawn.append(int(row.id))
+    if withdrawn:
+        logger.warning("ingest_recovery_withdrew_unfinished_imports sample_ids=%s", withdrawn)
+    return withdrawn
+
+
+def _complete_recovered_lease(engine: sa.Engine, job_id: str, sample_id: int) -> None:
+    """Mark the lease of an import that finished, but was never marked so, complete."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                jobs.update()
+                .where(jobs.c.job_id == job_id)
+                .values(
+                    status="complete",
+                    progress_pct=100.0,
+                    message="Import completed; lease released at startup",
+                    error=None,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+    except sa.exc.SQLAlchemyError:
+        logger.exception("ingest_recovery_complete_failed sample_id=%s", sample_id)
+        return
+    logger.info("ingest_recovery_completed_lease sample_id=%s", sample_id)
 
 
 def _finish_ingest_lease(engine: sa.Engine, job_id: str, variant_count: int) -> None:

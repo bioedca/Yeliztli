@@ -14,6 +14,9 @@ All genotype rows here are synthetic.
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
+import textwrap
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +32,7 @@ from backend.api.routes import nuclear as nuclear_route
 from backend.api.routes import samples as samples_route
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
-from backend.db.tables import jobs, reference_metadata, samples
+from backend.db.tables import annotation_state, jobs, raw_variants, reference_metadata, samples
 from backend.services.data_wipe_fence import exclusive_wipe
 from backend.services.sample_delete import delete_sample_with_cascade
 from backend.services.sample_operation_lock import (
@@ -477,3 +480,254 @@ class TestEventLoopStaysFree:
         asyncio.run(scenario())
 
         assert order == ["health", "upload"]
+
+
+class _Killed(BaseException):
+    """Stands in for SIGKILL: no ``except`` or ``finally`` in ingest runs."""
+
+
+def _kill_mid_build(registry: DBRegistry, monkeypatch: pytest.MonkeyPatch) -> int:
+    """Leave exactly what a process killed mid-insert leaves: row, lease, partial DB."""
+    # A killed process runs none of ingest's cleanup.
+    monkeypatch.setattr(ingest_route, "_discard_failed_ingest", lambda *a, **k: None)
+
+    def killed_during_variants(*args, **kwargs):
+        raise _Killed
+
+    with monkeypatch.context() as patched:
+        patched.setattr(ingest_route.raw_variants, "insert", killed_during_variants)
+        with pytest.raises(_Killed):
+            _ingest(registry)
+    with registry.reference_engine.connect() as conn:
+        return conn.execute(sa.select(sa.func.max(samples.c.id))).scalar_one()
+
+
+class TestInterruptedImportRecovery:
+    """#2580: a sample whose import was killed must not survive the restart."""
+
+    @pytest.mark.parametrize("lease_released_first", [True, False])
+    def test_killed_import_is_withdrawn_at_startup(
+        self,
+        registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+        lease_released_first: bool,
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        assert sample_db.exists()
+        if lease_released_first:
+            assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        withdrawn = ingest_route.recover_interrupted_ingests(registry)
+
+        assert withdrawn == [sample_id]
+        assert _count(registry.reference_engine, samples) == 0
+        assert _count(registry.reference_engine, jobs) == 0
+        assert list((registry.settings.data_dir / "samples").glob("sample_*")) == []
+
+    def test_completed_import_is_left_alone(self, registry: DBRegistry) -> None:
+        response = _ingest(registry)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{response['sample_id']}.db"
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert sample_db.exists()
+        assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_stale_lease_never_withdraws_a_later_sample_at_a_reused_id(
+        self, registry: DBRegistry
+    ) -> None:
+        """Deletion keeps ``jobs`` rows and SQLite reuses the vacated id."""
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        earlier = datetime(2020, 1, 1, tzinfo=UTC)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="synthetic-stale-ingest",
+                    sample_id=sample_id,
+                    job_type=SAMPLE_INGEST_JOB_TYPE,
+                    status="failed",
+                    created_at=earlier,
+                    updated_at=earlier,
+                )
+            )
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert (registry.settings.data_dir / "samples" / f"sample_{sample_id}.db").exists()
+        assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_withdrawal_that_cannot_remove_its_files_keeps_the_row_for_a_retry(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        real_unlink = Path.unlink
+
+        def refuse_sample_db(path: Path, *args, **kwargs):
+            if path.name == f"sample_{sample_id}.db":
+                raise PermissionError("synthetic")
+            return real_unlink(path, *args, **kwargs)
+
+        with monkeypatch.context() as patched:
+            patched.setattr(Path, "unlink", refuse_sample_db)
+            assert ingest_route.recover_interrupted_ingests(registry) == []
+        assert _count(registry.reference_engine, samples) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == [sample_id]
+        assert _count(registry.reference_engine, samples) == 0
+
+    def test_finished_import_whose_lease_was_never_completed_is_kept(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Marking the lease complete can fail after the data committed; the
+        upload was then reported as stored, so restart must not delete it."""
+        monkeypatch.setattr(ingest_route, "_finish_ingest_lease", lambda *a, **k: None)
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        assert sample_db.exists()
+        with registry.reference_engine.connect() as conn:
+            assert conn.execute(
+                sa.select(samples.c.id).where(samples.c.id == sample_id)
+            ).fetchone()
+            status = conn.execute(
+                sa.select(jobs.c.status).where(jobs.c.job_id == response["job_id"])
+            ).scalar_one()
+        assert status == "complete"
+        reserve_annotation_job(
+            registry.reference_engine,
+            sample_id=sample_id,
+            job_id="synthetic-ann",
+            created_at=datetime.now(UTC),
+        )
+
+    def test_an_unreadable_sample_database_is_never_deleted(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        registry.dispose_sample_engine(
+            registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        )
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        sample_db.write_bytes(b"not a sqlite database" * 64)
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert sample_db.exists()
+        assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_new_import_writes_its_completion_marker_with_its_variants(
+        self, registry: DBRegistry
+    ) -> None:
+        response = _ingest(registry)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{response['sample_id']}.db"
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            with engine.connect() as conn:
+                marker = conn.execute(
+                    sa.select(annotation_state.c.value).where(
+                        annotation_state.c.key == "ingest_committed"
+                    )
+                ).scalar_one()
+        finally:
+            engine.dispose()
+        assert marker == str(response["variant_count"])
+
+    @pytest.mark.parametrize(
+        ("keep_variants", "expect_withdrawn"),
+        [
+            pytest.param(False, True, id="metadata-without-variants-is-withdrawn"),
+            pytest.param(True, False, id="metadata-with-variants-is-kept"),
+        ],
+    )
+    def test_databases_built_before_the_marker_are_judged_by_their_variants(
+        self,
+        registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+        keep_variants: bool,
+        expect_withdrawn: bool,
+    ) -> None:
+        """Earlier builds committed sample_metadata on its own, ahead of the
+        variants, so a killed one can carry metadata and no variants."""
+        monkeypatch.setattr(ingest_route, "_finish_ingest_lease", lambda *a, **k: None)
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        registry.dispose_sample_engine(sample_db)
+        engine = sa.create_engine(f"sqlite:///{sample_db}")
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    annotation_state.delete().where(annotation_state.c.key == "ingest_committed")
+                )
+                if not keep_variants:
+                    conn.execute(raw_variants.delete())
+        finally:
+            engine.dispose()
+        recover_orphaned_jobs(registry.reference_engine)
+
+        withdrawn = ingest_route.recover_interrupted_ingests(registry)
+
+        assert withdrawn == ([sample_id] if expect_withdrawn else [])
+        assert sample_db.exists() is not expect_withdrawn
+        assert _count(registry.reference_engine, samples) == (0 if expect_withdrawn else 1)
+
+    def test_a_hot_journal_left_by_a_killed_process_is_recovered_and_withdrawn(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An actual abrupt exit mid-transaction, not an exception that rolls back.
+
+        The registry fixture runs with ``wal_mode=False``, so the killed writer
+        leaves a hot rollback journal that must be recovered before the database
+        can be read at all.
+        """
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        registry.dispose_sample_engine(sample_db)
+        writer = textwrap.dedent(
+            """
+            import os, sqlite3, sys
+            conn = sqlite3.connect(sys.argv[1], isolation_level=None)
+            conn.execute("PRAGMA journal_mode=DELETE")
+            conn.execute("PRAGMA cache_size=1")
+            conn.execute("BEGIN")
+            conn.execute("INSERT INTO sample_metadata (id, name) VALUES (1, 'synthetic')")
+            conn.executemany(
+                "INSERT INTO raw_variants (rsid, chrom, pos, genotype) VALUES (?, '1', ?, 'AA')",
+                ((f"rs{i}", i) for i in range(1, 20000)),
+            )
+            os._exit(9)
+            """
+        )
+        subprocess.run([sys.executable, "-c", writer, str(sample_db)], check=False, timeout=120)
+        journal = Path(f"{sample_db}-journal")
+        assert journal.is_file() and journal.stat().st_size > 0, "writer left no hot journal"
+        assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == [sample_id]
+
+        assert not sample_db.exists()
+        assert not journal.exists()
+        assert _count(registry.reference_engine, samples) == 0
+
+    def test_a_filesystem_error_while_probing_keeps_the_sample_and_lets_startup_continue(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        real_is_file = Path.is_file
+
+        def unsearchable(path: Path) -> bool:
+            if path.name == f"sample_{sample_id}.db":
+                raise PermissionError("synthetic: samples directory not searchable")
+            return real_is_file(path)
+
+        monkeypatch.setattr(Path, "is_file", unsearchable)
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert _count(registry.reference_engine, samples) == 1
