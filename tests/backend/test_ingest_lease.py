@@ -573,3 +573,47 @@ class TestInterruptedImportRecovery:
 
         assert ingest_route.recover_interrupted_ingests(registry) == [sample_id]
         assert _count(registry.reference_engine, samples) == 0
+
+    def test_finished_import_whose_lease_was_never_completed_is_kept(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Marking the lease complete can fail after the data committed; the
+        upload was then reported as stored, so restart must not delete it."""
+        monkeypatch.setattr(ingest_route, "_finish_ingest_lease", lambda *a, **k: None)
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        assert sample_db.exists()
+        with registry.reference_engine.connect() as conn:
+            assert conn.execute(
+                sa.select(samples.c.id).where(samples.c.id == sample_id)
+            ).fetchone()
+            status = conn.execute(
+                sa.select(jobs.c.status).where(jobs.c.job_id == response["job_id"])
+            ).scalar_one()
+        assert status == "complete"
+        reserve_annotation_job(
+            registry.reference_engine,
+            sample_id=sample_id,
+            job_id="synthetic-ann",
+            created_at=datetime.now(UTC),
+        )
+
+    def test_an_unreadable_sample_database_is_never_deleted(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        registry.dispose_sample_engine(
+            registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        )
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        sample_db.write_bytes(b"not a sqlite database" * 64)
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert sample_db.exists()
+        assert _count(registry.reference_engine, samples) == 1
