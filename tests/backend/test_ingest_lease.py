@@ -14,6 +14,9 @@ All genotype rows here are synthetic.
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
+import textwrap
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -673,3 +676,58 @@ class TestInterruptedImportRecovery:
         assert withdrawn == ([sample_id] if expect_withdrawn else [])
         assert sample_db.exists() is not expect_withdrawn
         assert _count(registry.reference_engine, samples) == (0 if expect_withdrawn else 1)
+
+    def test_a_hot_journal_left_by_a_killed_process_is_recovered_and_withdrawn(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An actual abrupt exit mid-transaction, not an exception that rolls back.
+
+        The registry fixture runs with ``wal_mode=False``, so the killed writer
+        leaves a hot rollback journal that must be recovered before the database
+        can be read at all.
+        """
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        registry.dispose_sample_engine(sample_db)
+        writer = textwrap.dedent(
+            """
+            import os, sqlite3, sys
+            conn = sqlite3.connect(sys.argv[1], isolation_level=None)
+            conn.execute("PRAGMA journal_mode=DELETE")
+            conn.execute("PRAGMA cache_size=1")
+            conn.execute("BEGIN")
+            conn.execute("INSERT INTO sample_metadata (id, name) VALUES (1, 'synthetic')")
+            conn.executemany(
+                "INSERT INTO raw_variants (rsid, chrom, pos, genotype) VALUES (?, '1', ?, 'AA')",
+                ((f"rs{i}", i) for i in range(1, 20000)),
+            )
+            os._exit(9)
+            """
+        )
+        subprocess.run([sys.executable, "-c", writer, str(sample_db)], check=False, timeout=120)
+        journal = Path(f"{sample_db}-journal")
+        assert journal.is_file() and journal.stat().st_size > 0, "writer left no hot journal"
+        assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == [sample_id]
+
+        assert not sample_db.exists()
+        assert not journal.exists()
+        assert _count(registry.reference_engine, samples) == 0
+
+    def test_a_filesystem_error_while_probing_keeps_the_sample_and_lets_startup_continue(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        real_is_file = Path.is_file
+
+        def unsearchable(path: Path) -> bool:
+            if path.name == f"sample_{sample_id}.db":
+                raise PermissionError("synthetic: samples directory not searchable")
+            return real_is_file(path)
+
+        monkeypatch.setattr(Path, "is_file", unsearchable)
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert _count(registry.reference_engine, samples) == 1

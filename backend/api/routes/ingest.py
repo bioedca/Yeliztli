@@ -317,10 +317,13 @@ def _withdraw_unfinished_import(
     and a stray file with no row is not.
     """
     registry.dispose_sample_engine(sample_db_path)
+    # A killed import in rollback-journal mode leaves ``-journal`` beside the
+    # file; left behind, it would be replayed into a later sample at this path.
     for path in (
         sample_db_path,
         Path(f"{sample_db_path}-wal"),
         Path(f"{sample_db_path}-shm"),
+        Path(f"{sample_db_path}-journal"),
     ):
         path.unlink(missing_ok=True)
     with registry.reference_engine.begin() as conn:
@@ -375,13 +378,23 @@ def _import_committed(sample_db_path: Path) -> bool | None:
     and withdrawing it loses no genotype data, so it reads as not committed.
 
     ``False`` when the database, the metadata row or (legacy) the variants are
-    absent; ``None`` when the file cannot be read. Uses a throwaway read-only
-    connection: ``get_sample_engine`` would create a missing file and migrate
-    an existing one.
+    absent; ``None`` when the file cannot be read. Uses a throwaway connection
+    that only reads (beyond journal recovery): ``get_sample_engine`` would
+    create a missing file and migrate an existing one.
     """
-    if not sample_db_path.is_file():
-        return False
-    uri = f"{sample_db_path.resolve().as_uri()}?mode=ro"
+    # Filesystem errors (an unreadable samples directory) are "cannot tell",
+    # never "absent": that would delete, and an escaping error would stop the
+    # API from starting.
+    try:
+        if not sample_db_path.is_file():
+            return False
+        # ``mode=rw`` opens only an existing file, never creating one, but unlike
+        # ``mode=ro`` it lets SQLite roll back the hot journal a killed import
+        # leaves behind in rollback-journal mode; read-only, that database is
+        # unreadable and the sample would be skipped instead of withdrawn.
+        uri = f"{sample_db_path.resolve().as_uri()}?mode=rw"
+    except OSError:
+        return None
     try:
         with closing(sqlite3.connect(uri, uri=True)) as conn:
             tables = {
@@ -453,7 +466,11 @@ def recover_interrupted_ingests(registry: DBRegistry) -> list[int]:
     withdrawn: list[int] = []
     for row in rows:
         sample_db_path = registry.settings.data_dir / row.db_path
-        committed = _import_committed(sample_db_path)
+        try:
+            committed = _import_committed(sample_db_path)
+        except Exception:  # noqa: BLE001 -- startup must not stop on one sample
+            logger.exception("ingest_recovery_probe_failed sample_id=%s", row.id)
+            committed = None
         if committed is None:
             logger.warning("ingest_recovery_unreadable_sample sample_id=%s", row.id)
             continue
