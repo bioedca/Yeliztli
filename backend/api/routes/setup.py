@@ -49,7 +49,7 @@ from backend.config import (
 from backend.db.connection import get_registry
 from backend.db.database_registry import BUNDLED_DIR, DatabaseInfo, get_all_databases
 from backend.db.db_health import get_database_health
-from backend.db.sample_schema import collect_sample_database_files
+from backend.db.sample_schema import collect_sample_database_files, sample_db_sidecars
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.vep_version import resolve_effective_vep_bundle_version
 from backend.disclaimers import (
@@ -1506,6 +1506,12 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                                     ),
                                 )
                             final_path.parent.mkdir(parents=True, exist_ok=True)
+                            # No database is at this path, so any sidecar here
+                            # is an orphan from an earlier one. A stale hot
+                            # journal would be replayed into the restored
+                            # file on first open and corrupt it (#2585).
+                            for sidecar in sample_db_sidecars(final_path):
+                                sidecar.unlink(missing_ok=True)
                             os.replace(staged, final_path)
                             moved_sample_paths.append(final_path)
                         _insert_registry_rows(

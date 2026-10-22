@@ -36,6 +36,23 @@ from backend.db.tables import PREDEFINED_TAGS, annotation_state, findings, sampl
 SAMPLE_DB_GLOBS: tuple[str, ...] = ("sample_*.db", "merged_*.db")
 
 
+# Every file SQLite may leave beside a sample database. ``-journal`` matters as
+# much as the WAL pair: a writer killed in rollback-journal mode leaves a hot
+# journal, and if it survives its database, SQLite replays it into whatever
+# complete file is next placed at that path -- a restored sample is corrupted
+# on first open (#2585). Every path that removes or places a sample database
+# goes through this one list so they cannot drift apart again.
+SAMPLE_DB_SIDECAR_SUFFIXES: tuple[str, ...] = ("-journal", "-wal", "-shm")
+
+
+def sample_db_sidecars(sample_db_path: Path) -> tuple[Path, ...]:
+    """The sidecar files SQLite may leave beside ``sample_db_path``."""
+    return tuple(
+        sample_db_path.with_name(sample_db_path.name + suffix)
+        for suffix in SAMPLE_DB_SIDECAR_SUFFIXES
+    )
+
+
 def collect_sample_database_files(samples_dir: Path) -> list[Path]:
     """Return every per-sample database in ``samples_dir``, sorted.
 
