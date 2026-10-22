@@ -30,8 +30,10 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.ingestion.chrom_order import chrom_sort_key
 from backend.query.translator import (
     SUPPORTED_OPERATORS,
     TranslationError,
@@ -46,15 +48,6 @@ from backend.services.sample_phenotype_scope import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/query", tags=["query-builder"])
-
-# Canonical chromosome sort order (same as variants.py).
-_CHROM_ORDER: dict[str, int] = {
-    **{str(i): i for i in range(1, 23)},
-    "X": 23,
-    "Y": 24,
-    "MT": 25,
-}
-
 
 # ── Request / Response models ────────────────────────────────────────
 
@@ -201,14 +194,6 @@ def _has_annotated_variants(engine: sa.Engine) -> bool:
     return row is not None
 
 
-def _chrom_order_expr() -> sa.Case:
-    """CASE expression for canonical chromosome ordering."""
-    return sa.case(
-        *[(annotated_variants.c.chrom == k, v) for k, v in _CHROM_ORDER.items()],
-        else_=99,
-    )
-
-
 def _order_key() -> list[sa.ColumnElement]:
     """Total order of result rows: canonical chromosome, chromosome, position, rsid.
 
@@ -218,7 +203,7 @@ def _order_key() -> list[sa.ColumnElement]:
     one position (#2115).
     """
     return [
-        _chrom_order_expr(),
+        chrom_order_case(annotated_variants.c.chrom),
         annotated_variants.c.chrom,
         annotated_variants.c.pos,
         annotated_variants.c.rsid,
@@ -243,7 +228,7 @@ def _build_cursor_clause(
         )
 
     columns = _order_key()
-    values = [_CHROM_ORDER.get(cursor_chrom, 99), cursor_chrom, cursor_pos, cursor_rsid]
+    values = [chrom_sort_key(cursor_chrom), cursor_chrom, cursor_pos, cursor_rsid]
     # Lexicographic "key > cursor": equal on every earlier part, greater on this one.
     return sa.or_(
         *[

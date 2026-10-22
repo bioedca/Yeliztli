@@ -20,8 +20,10 @@ from pydantic import BaseModel
 
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.api.dependencies import require_fresh_sample
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
+from backend.ingestion.chrom_order import chrom_sort_key
 from backend.services.sample_phenotype_scope import (
     sample_phenotype_scope_is_current,
     withhold_legacy_phenotype_fields,
@@ -34,15 +36,6 @@ router = APIRouter(
     tags=["annotations"],
     dependencies=[Depends(require_fresh_sample)],
 )
-
-# Canonical chromosome sort order — matches VCF export and /api/variants.
-CHROM_ORDER: dict[str, int] = {
-    **{str(i): i for i in range(1, 23)},
-    "X": 23,
-    "Y": 24,
-    "MT": 25,
-}
-
 
 # ── Response models ──────────────────────────────────────────────────
 
@@ -188,25 +181,14 @@ def _require_annotated(engine: sa.Engine) -> None:
         )
 
 
-def _chrom_sort_key(chrom: str) -> int:
-    return CHROM_ORDER.get(chrom, 99)
-
-
-def _chrom_order_expr() -> sa.Case:
-    return sa.case(
-        *[(_TABLE.c.chrom == k, v) for k, v in CHROM_ORDER.items()],
-        else_=99,
-    )
-
-
 def _build_cursor_clause(
     cursor_chrom: str | None,
     cursor_pos: int | None,
 ) -> sa.ColumnElement | None:
     if cursor_chrom is None or cursor_pos is None:
         return None
-    cursor_order = _chrom_sort_key(cursor_chrom)
-    expr = _chrom_order_expr()
+    cursor_order = chrom_sort_key(cursor_chrom)
+    expr = chrom_order_case(_TABLE.c.chrom)
     return sa.or_(
         expr > cursor_order,
         sa.and_(expr == cursor_order, _TABLE.c.pos > cursor_pos),
@@ -214,7 +196,7 @@ def _build_cursor_clause(
 
 
 def _build_order_by() -> list:
-    return [_chrom_order_expr().asc(), _TABLE.c.pos.asc()]
+    return [chrom_order_case(_TABLE.c.chrom).asc(), _TABLE.c.pos.asc()]
 
 
 def _build_filters(
@@ -477,5 +459,5 @@ def annotated_chromosome_counts(
         rows = conn.execute(query).fetchall()
 
     summaries = [AnnotatedChromosomeSummary(chrom=row.chrom, count=row.count) for row in rows]
-    summaries.sort(key=lambda s: _chrom_sort_key(s.chrom))
+    summaries.sort(key=lambda s: chrom_sort_key(s.chrom))
     return summaries

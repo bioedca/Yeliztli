@@ -34,6 +34,7 @@ from backend.analysis.pharmacogenomics import (
 )
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, ZYG_HOM_REF
 from backend.api.dependencies import require_fresh_sample, sample_export_guard
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.ingestion.vcf_export import export_vcf_from_rows
@@ -50,14 +51,6 @@ router = APIRouter(prefix="/export", tags=["export"])
 # ── Constants ────────────────────────────────────────────────────────
 
 _RESOLVED_ZYGOSITIES: frozenset[str] = CARRIED_ZYGOSITIES | {ZYG_HOM_REF}
-
-# Canonical chromosome sort order.
-_CHROM_ORDER: dict[str, int] = {
-    **{str(i): i for i in range(1, 23)},
-    "X": 23,
-    "Y": 24,
-    "MT": 25,
-}
 
 # Batch size for streaming SQL-export rows from the cursor (mirrors the
 # /export/query streaming loop). The SQL export streams the COMPLETE result set
@@ -193,14 +186,6 @@ def _has_annotated_variants(engine: sa.Engine) -> bool:
             sa.select(sa.literal(1)).select_from(annotated_variants).limit(1)
         ).fetchone()
     return row is not None
-
-
-def _chrom_order_expr() -> sa.Case:
-    """CASE expression for canonical chromosome ordering."""
-    return sa.case(
-        *[(annotated_variants.c.chrom == k, v) for k, v in _CHROM_ORDER.items()],
-        else_=99,
-    )
 
 
 def _row_to_dict(row: sa.Row) -> dict[str, Any]:
@@ -348,7 +333,7 @@ def export_query(body: ExportQueryRequest) -> StreamingResponse:
         for col in annotated_variants.columns
     ]
     query = sa.select(*projection).where(where_clause)
-    chrom_expr = _chrom_order_expr()
+    chrom_expr = chrom_order_case(annotated_variants.c.chrom)
     query = query.order_by(chrom_expr.asc(), annotated_variants.c.pos.asc())
 
     ext = body.format
