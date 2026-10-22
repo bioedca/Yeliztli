@@ -14,6 +14,7 @@
 
 import { useMemo } from "react"
 import { QueryBuilder, type RuleGroupType, type Field, type ValueEditorType } from "react-querybuilder"
+import AccessibleValueEditor from "./AccessibleValueEditor"
 import "react-querybuilder/dist/query-builder.css"
 import type { QueryFieldInfo } from "@/types/query-builder"
 
@@ -133,6 +134,7 @@ export default function QueryBuilderPanel({
           removeGroup:
             "rounded-md text-destructive hover:bg-destructive/10 px-2 py-1 text-xs transition-colors",
         }}
+        controlElements={{ valueEditor: AccessibleValueEditor }}
         addRuleToNewGroups
         showNotToggle
         listsAsArrays
