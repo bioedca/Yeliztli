@@ -298,15 +298,17 @@ def gnomad_engine() -> sa.Engine:
                         "pos": int(row["pos"]),
                         "ref": row["ref"],
                         "alt": row["alt"],
-                        "af_global": float(row["af_global"]),
-                        "af_afr": float(row["af_afr"]),
-                        "af_amr": float(row["af_amr"]),
+                        "af_global": float(row["af_global"]) if row["af_global"] else None,
+                        "af_afr": float(row["af_afr"]) if row["af_afr"] else None,
+                        "af_amr": float(row["af_amr"]) if row["af_amr"] else None,
                         "af_asj": float(row["af_asj"]) if row["af_asj"] else None,
-                        "af_eas": float(row["af_eas"]),
-                        "af_eur": float(row["af_eur"]),
-                        "af_fin": float(row["af_fin"]),
-                        "af_sas": float(row["af_sas"]),
-                        "homozygous_count": int(row["homozygous_count"]),
+                        "af_eas": float(row["af_eas"]) if row["af_eas"] else None,
+                        "af_eur": float(row["af_eur"]) if row["af_eur"] else None,
+                        "af_fin": float(row["af_fin"]) if row["af_fin"] else None,
+                        "af_sas": float(row["af_sas"]) if row["af_sas"] else None,
+                        "homozygous_count": (
+                            int(row["homozygous_count"]) if row["homozygous_count"] else None
+                        ),
                     },
                 )
     return engine

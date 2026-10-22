@@ -1,0 +1,4073 @@
+{
+ "_provenance": {
+  "source": "Ensembl GRCh37 REST POST /variation/homo_sapiens",
+  "assembly": "GRCh37",
+  "accessed": "2026-10-21",
+  "evidence_packet": "data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates",
+  "generator": "data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates/scripts/write_seed_coordinate_oracle.py",
+  "scope": "every dbSNP-form rsID in vep_seed, clinvar_seed, gnomad_seed and gwas_seed",
+  "no_grch37_record": [
+   "rs5778923",
+   "rs9999007"
+  ],
+  "note": "Committed offline oracle for the seed coordinate guard; tests never fetch."
+ },
+ "rsids": {
+  "rs334": {
+   "chrom": "11",
+   "start": 5248232,
+   "end": 5248232,
+   "allele_string": "T/A/C/G"
+  },
+  "rs662": {
+   "chrom": "7",
+   "start": 94937446,
+   "end": 94937446,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1535": {
+   "chrom": "11",
+   "start": 61597972,
+   "end": 61597972,
+   "allele_string": "A/G/T"
+  },
+  "rs4680": {
+   "chrom": "22",
+   "start": 19951271,
+   "end": 19951271,
+   "allele_string": "G/A"
+  },
+  "rs5219": {
+   "chrom": "11",
+   "start": 17409572,
+   "end": 17409572,
+   "allele_string": "T/A/C/G"
+  },
+  "rs5882": {
+   "chrom": "16",
+   "start": 57016092,
+   "end": 57016092,
+   "allele_string": "G/A/C"
+  },
+  "rs6025": {
+   "chrom": "1",
+   "start": 169519049,
+   "end": 169519049,
+   "allele_string": "T/C/A"
+  },
+  "rs6265": {
+   "chrom": "11",
+   "start": 27679916,
+   "end": 27679916,
+   "allele_string": "C/T"
+  },
+  "rs6311": {
+   "chrom": "13",
+   "start": 47471478,
+   "end": 47471478,
+   "allele_string": "C/A/T"
+  },
+  "rs6313": {
+   "chrom": "13",
+   "start": 47469940,
+   "end": 47469940,
+   "allele_string": "G/A/C"
+  },
+  "rs7041": {
+   "chrom": "4",
+   "start": 72618334,
+   "end": 72618334,
+   "allele_string": "A/C/G/T"
+  },
+  "rs7205": {
+   "chrom": "X",
+   "start": 1508324,
+   "end": 1508324,
+   "allele_string": "G/A"
+  },
+  "rs7294": {
+   "chrom": "16",
+   "start": 31102321,
+   "end": 31102321,
+   "allele_string": "C/T"
+  },
+  "rs7412": {
+   "chrom": "19",
+   "start": 45412079,
+   "end": 45412079,
+   "allele_string": "C/T"
+  },
+  "rs12345": {
+   "chrom": "22",
+   "start": 25855459,
+   "end": 25855459,
+   "allele_string": "G/A/C"
+  },
+  "rs16557": {
+   "chrom": "17",
+   "start": 31367269,
+   "end": 31367269,
+   "allele_string": "A/G/T"
+  },
+  "rs16947": {
+   "chrom": "22",
+   "start": 42523943,
+   "end": 42523943,
+   "allele_string": "A/G/C/T"
+  },
+  "rs25531": {
+   "chrom": "17",
+   "start": 28564346,
+   "end": 28564346,
+   "allele_string": "T/C/G"
+  },
+  "rs131031": {
+   "chrom": "22",
+   "start": 49180535,
+   "end": 49180535,
+   "allele_string": "A/G"
+  },
+  "rs146891": {
+   "chrom": "17",
+   "start": 35123056,
+   "end": 35123056,
+   "allele_string": "T/C/A/G"
+  },
+  "rs150802": {
+   "chrom": "21",
+   "start": 43486168,
+   "end": 43486168,
+   "allele_string": "G/A/C/T"
+  },
+  "rs166405": {
+   "chrom": "8",
+   "start": 131830612,
+   "end": 131830612,
+   "allele_string": "G/A/C/T"
+  },
+  "rs174547": {
+   "chrom": "11",
+   "start": 61570783,
+   "end": 61570783,
+   "allele_string": "T/C"
+  },
+  "rs182549": {
+   "chrom": "2",
+   "start": 136616754,
+   "end": 136616754,
+   "allele_string": "C/T"
+  },
+  "rs213498": {
+   "chrom": "1",
+   "start": 54867174,
+   "end": 54867174,
+   "allele_string": "T/A/C"
+  },
+  "rs213950": {
+   "chrom": "7",
+   "start": 117199533,
+   "end": 117199533,
+   "allele_string": "G/A"
+  },
+  "rs216590": {
+   "chrom": "16",
+   "start": 101263,
+   "end": 101263,
+   "allele_string": "G/A/T"
+  },
+  "rs221311": {
+   "chrom": "20",
+   "start": 35286460,
+   "end": 35286460,
+   "allele_string": "T/A/C"
+  },
+  "rs231506": {
+   "chrom": "17",
+   "start": 41970191,
+   "end": 41970191,
+   "allele_string": "T/A/C/G"
+  },
+  "rs245110": {
+   "chrom": "19",
+   "start": 50526896,
+   "end": 50526896,
+   "allele_string": "G/A/T"
+  },
+  "rs259435": {
+   "chrom": "3",
+   "start": 22063502,
+   "end": 22063502,
+   "allele_string": "C/A/T"
+  },
+  "rs264591": {
+   "chrom": "2",
+   "start": 159975516,
+   "end": 159975516,
+   "allele_string": "T/C"
+  },
+  "rs284307": {
+   "chrom": "1",
+   "start": 10739255,
+   "end": 10739255,
+   "allele_string": "T/C"
+  },
+  "rs296522": {
+   "chrom": "1",
+   "start": 200881940,
+   "end": 200881940,
+   "allele_string": "T/C"
+  },
+  "rs303528": {
+   "chrom": "10",
+   "start": 90566907,
+   "end": 90566907,
+   "allele_string": "A/G"
+  },
+  "rs341272": {
+   "chrom": "5",
+   "start": 106887068,
+   "end": 106887068,
+   "allele_string": "C/G/T"
+  },
+  "rs344577": {
+   "chrom": "19",
+   "start": 6607597,
+   "end": 6607597,
+   "allele_string": "C/T"
+  },
+  "rs350720": {
+   "chrom": "2",
+   "start": 52980071,
+   "end": 52980071,
+   "allele_string": "T/A/C/G"
+  },
+  "rs388669": {
+   "chrom": "5",
+   "start": 34625746,
+   "end": 34625746,
+   "allele_string": "C/G/T"
+  },
+  "rs429358": {
+   "chrom": "19",
+   "start": 45411941,
+   "end": 45411941,
+   "allele_string": "T/C"
+  },
+  "rs435986": {
+   "chrom": "9",
+   "start": 107809777,
+   "end": 107809777,
+   "allele_string": "T/A/G"
+  },
+  "rs477590": {
+   "chrom": "1",
+   "start": 15643218,
+   "end": 15643218,
+   "allele_string": "G/A/C"
+  },
+  "rs487502": {
+   "chrom": "9",
+   "start": 78342898,
+   "end": 78342898,
+   "allele_string": "C/A/T"
+  },
+  "rs491794": {
+   "chrom": "6",
+   "start": 145593806,
+   "end": 145593806,
+   "allele_string": "T/C/G"
+  },
+  "rs566071": {
+   "chrom": "6",
+   "start": 23655168,
+   "end": 23655168,
+   "allele_string": "C/T"
+  },
+  "rs642770": {
+   "chrom": "11",
+   "start": 79688804,
+   "end": 79688804,
+   "allele_string": "C/A/T"
+  },
+  "rs658513": {
+   "chrom": "18",
+   "start": 10100136,
+   "end": 10100136,
+   "allele_string": "T/A/C"
+  },
+  "rs658980": {
+   "chrom": "1",
+   "start": 89045338,
+   "end": 89045338,
+   "allele_string": "C/A"
+  },
+  "rs679670": {
+   "chrom": "6",
+   "start": 138137551,
+   "end": 138137551,
+   "allele_string": "C/A/G/T"
+  },
+  "rs708272": {
+   "chrom": "16",
+   "start": 56996288,
+   "end": 56996288,
+   "allele_string": "G/A/C"
+  },
+  "rs723796": {
+   "chrom": "6",
+   "start": 4031148,
+   "end": 4031148,
+   "allele_string": "C/T"
+  },
+  "rs734336": {
+   "chrom": "21",
+   "start": 45768350,
+   "end": 45768350,
+   "allele_string": "T/C"
+  },
+  "rs749651": {
+   "chrom": "2",
+   "start": 41962945,
+   "end": 41962945,
+   "allele_string": "C/A"
+  },
+  "rs757210": {
+   "chrom": "17",
+   "start": 36096515,
+   "end": 36096515,
+   "allele_string": "T/C/G"
+  },
+  "rs766066": {
+   "chrom": "12",
+   "start": 16731221,
+   "end": 16731221,
+   "allele_string": "C/T"
+  },
+  "rs776746": {
+   "chrom": "7",
+   "start": 99270539,
+   "end": 99270539,
+   "allele_string": "C/T"
+  },
+  "rs779723": {
+   "chrom": "3",
+   "start": 7498342,
+   "end": 7498342,
+   "allele_string": "G/A/T"
+  },
+  "rs785520": {
+   "chrom": "1",
+   "start": 46568836,
+   "end": 46568836,
+   "allele_string": "T/C"
+  },
+  "rs830842": {
+   "chrom": "4",
+   "start": 186917931,
+   "end": 186917931,
+   "allele_string": "C/A/G/T"
+  },
+  "rs854560": {
+   "chrom": "7",
+   "start": 94946084,
+   "end": 94946084,
+   "allele_string": "A/C/G/N/T"
+  },
+  "rs865010": {
+   "chrom": "3",
+   "start": 62579596,
+   "end": 62579596,
+   "allele_string": "T/A/C/G"
+  },
+  "rs868590": {
+   "chrom": "10",
+   "start": 128002254,
+   "end": 128002254,
+   "allele_string": "T/A"
+  },
+  "rs882257": {
+   "chrom": "11",
+   "start": 25636886,
+   "end": 25636886,
+   "allele_string": "C/G/T"
+  },
+  "rs890086": {
+   "chrom": "2",
+   "start": 220535733,
+   "end": 220535733,
+   "allele_string": "T/C"
+  },
+  "rs895630": {
+   "chrom": "18",
+   "start": 23739025,
+   "end": 23739025,
+   "allele_string": "A/G/T"
+  },
+  "rs913722": {
+   "chrom": "1",
+   "start": 205318983,
+   "end": 205318983,
+   "allele_string": "C/A/G/T"
+  },
+  "rs937472": {
+   "chrom": "12",
+   "start": 103083239,
+   "end": 103083239,
+   "allele_string": "A/G/T"
+  },
+  "rs944260": {
+   "chrom": "20",
+   "start": 60243411,
+   "end": 60243411,
+   "allele_string": "G/A/T"
+  },
+  "rs953588": {
+   "chrom": "9",
+   "start": 71704827,
+   "end": 71704827,
+   "allele_string": "C/A/G/T"
+  },
+  "rs979244": {
+   "chrom": "13",
+   "start": 27090036,
+   "end": 27090036,
+   "allele_string": "C/T"
+  },
+  "rs980349": {
+   "chrom": "8",
+   "start": 127071167,
+   "end": 127071167,
+   "allele_string": "A/G/T"
+  },
+  "rs985774": {
+   "chrom": "4",
+   "start": 43635055,
+   "end": 43635055,
+   "allele_string": "G/A"
+  },
+  "rs1017239": {
+   "chrom": "16",
+   "start": 75358207,
+   "end": 75358207,
+   "allele_string": "C/G/T"
+  },
+  "rs1029098": {
+   "chrom": "X",
+   "start": 144186321,
+   "end": 144186321,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1035478": {
+   "chrom": "19",
+   "start": 33316323,
+   "end": 33316323,
+   "allele_string": "C/T"
+  },
+  "rs1045642": {
+   "chrom": "7",
+   "start": 87138645,
+   "end": 87138645,
+   "allele_string": "A/C/G/T"
+  },
+  "rs1051266": {
+   "chrom": "21",
+   "start": 46957794,
+   "end": 46957794,
+   "allele_string": "T/C/G"
+  },
+  "rs1051858": {
+   "chrom": "14",
+   "start": 58831142,
+   "end": 58831142,
+   "allele_string": "A/G/T"
+  },
+  "rs1057910": {
+   "chrom": "10",
+   "start": 96741053,
+   "end": 96741053,
+   "allele_string": "A/C/G"
+  },
+  "rs1065852": {
+   "chrom": "22",
+   "start": 42526694,
+   "end": 42526694,
+   "allele_string": "G/A/C"
+  },
+  "rs1076655": {
+   "chrom": "6",
+   "start": 35450364,
+   "end": 35450364,
+   "allele_string": "C/T"
+  },
+  "rs1111875": {
+   "chrom": "10",
+   "start": 94462882,
+   "end": 94462882,
+   "allele_string": "C/G/T"
+  },
+  "rs1122073": {
+   "chrom": "17",
+   "start": 15058236,
+   "end": 15058236,
+   "allele_string": "G/A/C/T"
+  },
+  "rs1142345": {
+   "chrom": "6",
+   "start": 18130918,
+   "end": 18130918,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1143634": {
+   "chrom": "2",
+   "start": 113590390,
+   "end": 113590390,
+   "allele_string": "G/A"
+  },
+  "rs1241182": {
+   "chrom": "1",
+   "start": 103348100,
+   "end": 103348100,
+   "allele_string": "A/C"
+  },
+  "rs1255277": {
+   "chrom": "14",
+   "start": 53833926,
+   "end": 53833926,
+   "allele_string": "C/T"
+  },
+  "rs1277992": {
+   "chrom": "X",
+   "start": 68169416,
+   "end": 68169416,
+   "allele_string": "T/C"
+  },
+  "rs1321348": {
+   "chrom": "20",
+   "start": 19607141,
+   "end": 19607141,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1332770": {
+   "chrom": "10",
+   "start": 36862892,
+   "end": 36862892,
+   "allele_string": "T/C"
+  },
+  "rs1356915": {
+   "chrom": "3",
+   "start": 107210629,
+   "end": 107210629,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1362123": {
+   "chrom": "6",
+   "start": 30876996,
+   "end": 30876996,
+   "allele_string": "G/C"
+  },
+  "rs1378378": {
+   "chrom": "4",
+   "start": 80034047,
+   "end": 80034047,
+   "allele_string": "T/A/C"
+  },
+  "rs1394431": {
+   "chrom": "2",
+   "start": 98998009,
+   "end": 98998009,
+   "allele_string": "C/A/G"
+  },
+  "rs1394585": {
+   "chrom": "12",
+   "start": 93099756,
+   "end": 93099756,
+   "allele_string": "G/A"
+  },
+  "rs1394860": {
+   "chrom": "4",
+   "start": 172979002,
+   "end": 172979002,
+   "allele_string": "A/G/T"
+  },
+  "rs1399953": {
+   "chrom": "4",
+   "start": 56179883,
+   "end": 56179883,
+   "allele_string": "G/A/C"
+  },
+  "rs1401239": {
+   "chrom": "2",
+   "start": 36021984,
+   "end": 36021984,
+   "allele_string": "A/C/G"
+  },
+  "rs1404988": {
+   "chrom": "5",
+   "start": 75146741,
+   "end": 75146741,
+   "allele_string": "T/C/G"
+  },
+  "rs1415564": {
+   "chrom": "1",
+   "start": 95947234,
+   "end": 95947234,
+   "allele_string": "T/C"
+  },
+  "rs1419271": {
+   "chrom": "10",
+   "start": 85688158,
+   "end": 85688158,
+   "allele_string": "C/A/T"
+  },
+  "rs1419931": {
+   "chrom": "X",
+   "start": 2703633,
+   "end": 2703633,
+   "allele_string": "A/C/G/T"
+  },
+  "rs1440985": {
+   "chrom": "14",
+   "start": 30545594,
+   "end": 30545594,
+   "allele_string": "C/A/G/T"
+  },
+  "rs1447373": {
+   "chrom": "4",
+   "start": 30832836,
+   "end": 30832836,
+   "allele_string": "G/A"
+  },
+  "rs1453794": {
+   "chrom": "2",
+   "start": 5358815,
+   "end": 5358815,
+   "allele_string": "G/A/C"
+  },
+  "rs1457576": {
+   "chrom": "3",
+   "start": 182255777,
+   "end": 182255777,
+   "allele_string": "A/G/T"
+  },
+  "rs1492361": {
+   "chrom": "12",
+   "start": 70462148,
+   "end": 70462148,
+   "allele_string": "T/C/G"
+  },
+  "rs1493550": {
+   "chrom": "17",
+   "start": 71064543,
+   "end": 71064543,
+   "allele_string": "G/A"
+  },
+  "rs1498583": {
+   "chrom": "15",
+   "start": 35998328,
+   "end": 35998328,
+   "allele_string": "A/G/T"
+  },
+  "rs1509914": {
+   "chrom": "7",
+   "start": 80904549,
+   "end": 80904549,
+   "allele_string": "A/G/T"
+  },
+  "rs1530440": {
+   "chrom": "10",
+   "start": 63524591,
+   "end": 63524591,
+   "allele_string": "C/T"
+  },
+  "rs1553560": {
+   "chrom": "3",
+   "start": 192434058,
+   "end": 192434058,
+   "allele_string": "T/A/C"
+  },
+  "rs1557809": {
+   "chrom": "16",
+   "start": 24309108,
+   "end": 24309108,
+   "allele_string": "T/C"
+  },
+  "rs1557975": {
+   "chrom": "7",
+   "start": 32191808,
+   "end": 32191808,
+   "allele_string": "G/A/C"
+  },
+  "rs1606351": {
+   "chrom": "5",
+   "start": 19426202,
+   "end": 19426202,
+   "allele_string": "T/A/C"
+  },
+  "rs1669462": {
+   "chrom": "2",
+   "start": 134371503,
+   "end": 134371503,
+   "allele_string": "G/A"
+  },
+  "rs1691551": {
+   "chrom": "12",
+   "start": 77324116,
+   "end": 77324116,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1698135": {
+   "chrom": "5",
+   "start": 89399330,
+   "end": 89399330,
+   "allele_string": "T/C/G"
+  },
+  "rs1753780": {
+   "chrom": "13",
+   "start": 86220760,
+   "end": 86220760,
+   "allele_string": "C/T"
+  },
+  "rs1786803": {
+   "chrom": "18",
+   "start": 35071814,
+   "end": 35071814,
+   "allele_string": "A/G"
+  },
+  "rs1787868": {
+   "chrom": "18",
+   "start": 13835742,
+   "end": 13835742,
+   "allele_string": "C/T"
+  },
+  "rs1790517": {
+   "chrom": "18",
+   "start": 6918297,
+   "end": 6918297,
+   "allele_string": "G/A/C"
+  },
+  "rs1799853": {
+   "chrom": "10",
+   "start": 96702047,
+   "end": 96702047,
+   "allele_string": "C/A/T"
+  },
+  "rs1799950": {
+   "chrom": "17",
+   "start": 41246481,
+   "end": 41246481,
+   "allele_string": "T/A/C"
+  },
+  "rs1799963": {
+   "chrom": "11",
+   "start": 46761055,
+   "end": 46761055,
+   "allele_string": "G/A"
+  },
+  "rs1799966": {
+   "chrom": "17",
+   "start": 41223094,
+   "end": 41223094,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1799971": {
+   "chrom": "6",
+   "start": 154360797,
+   "end": 154360797,
+   "allele_string": "A/G"
+  },
+  "rs1800012": {
+   "chrom": "17",
+   "start": 48277749,
+   "end": 48277749,
+   "allele_string": "C/A"
+  },
+  "rs1800460": {
+   "chrom": "6",
+   "start": 18139228,
+   "end": 18139228,
+   "allele_string": "C/A/T"
+  },
+  "rs1800462": {
+   "chrom": "6",
+   "start": 18143955,
+   "end": 18143955,
+   "allele_string": "C/G"
+  },
+  "rs1800497": {
+   "chrom": "11",
+   "start": 113270828,
+   "end": 113270828,
+   "allele_string": "G/A"
+  },
+  "rs1800544": {
+   "chrom": "10",
+   "start": 112836503,
+   "end": 112836503,
+   "allele_string": "G/A/C"
+  },
+  "rs1800629": {
+   "chrom": "6",
+   "start": 31543031,
+   "end": 31543031,
+   "allele_string": "G/A"
+  },
+  "rs1800795": {
+   "chrom": "7",
+   "start": 22766645,
+   "end": 22766645,
+   "allele_string": "C/G/T"
+  },
+  "rs1800872": {
+   "chrom": "1",
+   "start": 206946407,
+   "end": 206946407,
+   "allele_string": "T/G"
+  },
+  "rs1800896": {
+   "chrom": "1",
+   "start": 206946897,
+   "end": 206946897,
+   "allele_string": "T/C"
+  },
+  "rs1801131": {
+   "chrom": "1",
+   "start": 11854476,
+   "end": 11854476,
+   "allele_string": "T/G"
+  },
+  "rs1801133": {
+   "chrom": "1",
+   "start": 11856378,
+   "end": 11856378,
+   "allele_string": "G/A/C"
+  },
+  "rs1801282": {
+   "chrom": "3",
+   "start": 12393125,
+   "end": 12393125,
+   "allele_string": "C/G/T"
+  },
+  "rs1801394": {
+   "chrom": "5",
+   "start": 7870973,
+   "end": 7870973,
+   "allele_string": "A/G"
+  },
+  "rs1805007": {
+   "chrom": "16",
+   "start": 89986117,
+   "end": 89986117,
+   "allele_string": "C/A/G/T"
+  },
+  "rs1805008": {
+   "chrom": "16",
+   "start": 89986144,
+   "end": 89986144,
+   "allele_string": "C/T"
+  },
+  "rs1805009": {
+   "chrom": "16",
+   "start": 89986546,
+   "end": 89986546,
+   "allele_string": "G/A/C"
+  },
+  "rs1820935": {
+   "chrom": "3",
+   "start": 149167628,
+   "end": 149167628,
+   "allele_string": "C/T"
+  },
+  "rs1824483": {
+   "chrom": "4",
+   "start": 136148697,
+   "end": 136148697,
+   "allele_string": "T/C"
+  },
+  "rs1830597": {
+   "chrom": "6",
+   "start": 75149300,
+   "end": 75149300,
+   "allele_string": "T/G"
+  },
+  "rs1857269": {
+   "chrom": "10",
+   "start": 120172638,
+   "end": 120172638,
+   "allele_string": "G/A/C/T"
+  },
+  "rs1864571": {
+   "chrom": "2",
+   "start": 68010318,
+   "end": 68010318,
+   "allele_string": "A/C/G/T"
+  },
+  "rs1865810": {
+   "chrom": "16",
+   "start": 5901163,
+   "end": 5901163,
+   "allele_string": "C/T"
+  },
+  "rs1868255": {
+   "chrom": "2",
+   "start": 107399759,
+   "end": 107399759,
+   "allele_string": "G/A"
+  },
+  "rs1870416": {
+   "chrom": "10",
+   "start": 14698054,
+   "end": 14698054,
+   "allele_string": "C/T"
+  },
+  "rs1884198": {
+   "chrom": "X",
+   "start": 139837918,
+   "end": 139837918,
+   "allele_string": "C/A"
+  },
+  "rs1885800": {
+   "chrom": "1",
+   "start": 117013732,
+   "end": 117013732,
+   "allele_string": "C/T"
+  },
+  "rs1894081": {
+   "chrom": "11",
+   "start": 122616059,
+   "end": 122616059,
+   "allele_string": "T/A/C/G"
+  },
+  "rs1894225": {
+   "chrom": "11",
+   "start": 126812293,
+   "end": 126812293,
+   "allele_string": "C/T"
+  },
+  "rs1908219": {
+   "chrom": "16",
+   "start": 54603266,
+   "end": 54603266,
+   "allele_string": "T/A/C"
+  },
+  "rs1948438": {
+   "chrom": "19",
+   "start": 23671926,
+   "end": 23671926,
+   "allele_string": "T/C"
+  },
+  "rs1953200": {
+   "chrom": "14",
+   "start": 40267514,
+   "end": 40267514,
+   "allele_string": "G/A/T"
+  },
+  "rs1959775": {
+   "chrom": "14",
+   "start": 48609875,
+   "end": 48609875,
+   "allele_string": "G/T"
+  },
+  "rs1967251": {
+   "chrom": "3",
+   "start": 3530023,
+   "end": 3530023,
+   "allele_string": "A/C/G/T"
+  },
+  "rs1967890": {
+   "chrom": "9",
+   "start": 101417785,
+   "end": 101417785,
+   "allele_string": "A/C/G"
+  },
+  "rs1993560": {
+   "chrom": "X",
+   "start": 31892202,
+   "end": 31892202,
+   "allele_string": "A/G/T"
+  },
+  "rs2011703": {
+   "chrom": "20",
+   "start": 54556388,
+   "end": 54556388,
+   "allele_string": "T/C"
+  },
+  "rs2013979": {
+   "chrom": "5",
+   "start": 58612733,
+   "end": 58612733,
+   "allele_string": "C/T"
+  },
+  "rs2023238": {
+   "chrom": "6",
+   "start": 84282761,
+   "end": 84282761,
+   "allele_string": "A/G/T"
+  },
+  "rs2032582": {
+   "chrom": "7",
+   "start": 87160618,
+   "end": 87160618,
+   "allele_string": "A/C/T"
+  },
+  "rs2032597": {
+   "chrom": "Y",
+   "start": 14847792,
+   "end": 14847792,
+   "allele_string": "A/C"
+  },
+  "rs2060793": {
+   "chrom": "11",
+   "start": 14915310,
+   "end": 14915310,
+   "allele_string": "A/C/G/T"
+  },
+  "rs2063393": {
+   "chrom": "4",
+   "start": 179277574,
+   "end": 179277574,
+   "allele_string": "T/A/C"
+  },
+  "rs2071738": {
+   "chrom": "22",
+   "start": 35814113,
+   "end": 35814113,
+   "allele_string": "G/T"
+  },
+  "rs2071753": {
+   "chrom": "X",
+   "start": 100913069,
+   "end": 100913069,
+   "allele_string": "G/A"
+  },
+  "rs2071848": {
+   "chrom": "X",
+   "start": 17750294,
+   "end": 17750294,
+   "allele_string": "T/A/C"
+  },
+  "rs2078901": {
+   "chrom": "6",
+   "start": 66995395,
+   "end": 66995395,
+   "allele_string": "C/A/T"
+  },
+  "rs2091781": {
+   "chrom": "12",
+   "start": 6872512,
+   "end": 6872512,
+   "allele_string": "G/A/T"
+  },
+  "rs2103899": {
+   "chrom": "20",
+   "start": 12173825,
+   "end": 12173825,
+   "allele_string": "T/A/C"
+  },
+  "rs2109850": {
+   "chrom": "Y",
+   "start": 15726484,
+   "end": 15726484,
+   "allele_string": "C/T"
+  },
+  "rs2159404": {
+   "chrom": "12",
+   "start": 3658352,
+   "end": 3658352,
+   "allele_string": "T/C"
+  },
+  "rs2209623": {
+   "chrom": "14",
+   "start": 34226091,
+   "end": 34226091,
+   "allele_string": "C/T"
+  },
+  "rs2213665": {
+   "chrom": "X",
+   "start": 85664221,
+   "end": 85664221,
+   "allele_string": "T/A/C/G"
+  },
+  "rs2213770": {
+   "chrom": "22",
+   "start": 27244685,
+   "end": 27244685,
+   "allele_string": "G/A"
+  },
+  "rs2218313": {
+   "chrom": "4",
+   "start": 142810258,
+   "end": 142810258,
+   "allele_string": "G/A/T"
+  },
+  "rs2228479": {
+   "chrom": "16",
+   "start": 89985940,
+   "end": 89985940,
+   "allele_string": "G/A/C"
+  },
+  "rs2239534": {
+   "chrom": "20",
+   "start": 44097173,
+   "end": 44097173,
+   "allele_string": "C/A/G"
+  },
+  "rs2255748": {
+   "chrom": "10",
+   "start": 11292509,
+   "end": 11292509,
+   "allele_string": "G/A/C"
+  },
+  "rs2257090": {
+   "chrom": "7",
+   "start": 150883761,
+   "end": 150883761,
+   "allele_string": "C/A/G/T"
+  },
+  "rs2270302": {
+   "chrom": "2",
+   "start": 10537018,
+   "end": 10537018,
+   "allele_string": "A/C/G"
+  },
+  "rs2270381": {
+   "chrom": "12",
+   "start": 107708454,
+   "end": 107708454,
+   "allele_string": "G/A/T"
+  },
+  "rs2279120": {
+   "chrom": "8",
+   "start": 99046040,
+   "end": 99046040,
+   "allele_string": "C/T"
+  },
+  "rs2279343": {
+   "chrom": "19",
+   "start": 41515263,
+   "end": 41515263,
+   "allele_string": "A/G/T"
+  },
+  "rs2282679": {
+   "chrom": "4",
+   "start": 72608383,
+   "end": 72608383,
+   "allele_string": "T/G"
+  },
+  "rs2283075": {
+   "chrom": "7",
+   "start": 126464966,
+   "end": 126464966,
+   "allele_string": "G/A/C"
+  },
+  "rs2285781": {
+   "chrom": "4",
+   "start": 7717012,
+   "end": 7717012,
+   "allele_string": "G/A"
+  },
+  "rs2292585": {
+   "chrom": "10",
+   "start": 50186317,
+   "end": 50186317,
+   "allele_string": "G/A/C"
+  },
+  "rs2299754": {
+   "chrom": "21",
+   "start": 41261290,
+   "end": 41261290,
+   "allele_string": "C/T"
+  },
+  "rs2306283": {
+   "chrom": "12",
+   "start": 21329738,
+   "end": 21329738,
+   "allele_string": "A/C/G/T"
+  },
+  "rs2315966": {
+   "chrom": "3",
+   "start": 81854425,
+   "end": 81854425,
+   "allele_string": "G/A"
+  },
+  "rs2368831": {
+   "chrom": "12",
+   "start": 188285,
+   "end": 188285,
+   "allele_string": "C/T"
+  },
+  "rs2382087": {
+   "chrom": "9",
+   "start": 9960537,
+   "end": 9960537,
+   "allele_string": "G/A/C/T"
+  },
+  "rs2382849": {
+   "chrom": "X",
+   "start": 50769331,
+   "end": 50769331,
+   "allele_string": "C/A/G/T"
+  },
+  "rs2396789": {
+   "chrom": "17",
+   "start": 8547,
+   "end": 8547,
+   "allele_string": "T/A/C/G"
+  },
+  "rs2457434": {
+   "chrom": "8",
+   "start": 22749961,
+   "end": 22749961,
+   "allele_string": "G/A/C/T"
+  },
+  "rs2476601": {
+   "chrom": "1",
+   "start": 114377568,
+   "end": 114377568,
+   "allele_string": "A/G/T"
+  },
+  "rs2516234": {
+   "chrom": "6",
+   "start": 12593554,
+   "end": 12593554,
+   "allele_string": "G/C"
+  },
+  "rs2584764": {
+   "chrom": "18",
+   "start": 46506135,
+   "end": 46506135,
+   "allele_string": "T/C"
+  },
+  "rs2593420": {
+   "chrom": "3",
+   "start": 167896868,
+   "end": 167896868,
+   "allele_string": "G/A/C/T"
+  },
+  "rs2608174": {
+   "chrom": "16",
+   "start": 20055884,
+   "end": 20055884,
+   "allele_string": "C/T"
+  },
+  "rs2675165": {
+   "chrom": "3",
+   "start": 11079070,
+   "end": 11079070,
+   "allele_string": "C/T"
+  },
+  "rs2758679": {
+   "chrom": "1",
+   "start": 157543762,
+   "end": 157543762,
+   "allele_string": "C/T"
+  },
+  "rs2776061": {
+   "chrom": "21",
+   "start": 18860914,
+   "end": 18860914,
+   "allele_string": "T/G"
+  },
+  "rs2853497": {
+   "chrom": "MT",
+   "start": 12007,
+   "end": 12007,
+   "allele_string": "G/A"
+  },
+  "rs2855668": {
+   "chrom": "17",
+   "start": 3203464,
+   "end": 3203464,
+   "allele_string": "T/A/C/G"
+  },
+  "rs2856993": {
+   "chrom": "6",
+   "start": 32791403,
+   "end": 32791403,
+   "allele_string": "G/C"
+  },
+  "rs2873689": {
+   "chrom": "Y",
+   "start": 21754097,
+   "end": 21754097,
+   "allele_string": "C/A"
+  },
+  "rs2891944": {
+   "chrom": "8",
+   "start": 121921290,
+   "end": 121921290,
+   "allele_string": "A/G"
+  },
+  "rs2924729": {
+   "chrom": "8",
+   "start": 4890478,
+   "end": 4890478,
+   "allele_string": "A/G/T"
+  },
+  "rs2934928": {
+   "chrom": "17",
+   "start": 52956487,
+   "end": 52956487,
+   "allele_string": "G/A"
+  },
+  "rs2941394": {
+   "chrom": "18",
+   "start": 66277526,
+   "end": 66277526,
+   "allele_string": "T/C/G"
+  },
+  "rs3000050": {
+   "chrom": "14",
+   "start": 84903339,
+   "end": 84903339,
+   "allele_string": "T/C"
+  },
+  "rs3011572": {
+   "chrom": "1",
+   "start": 238922048,
+   "end": 238922048,
+   "allele_string": "C/A/T"
+  },
+  "rs3013211": {
+   "chrom": "10",
+   "start": 124290957,
+   "end": 124290957,
+   "allele_string": "C/G/T"
+  },
+  "rs3094315": {
+   "chrom": "1",
+   "start": 752566,
+   "end": 752566,
+   "allele_string": "G/A/T"
+  },
+  "rs3096835": {
+   "chrom": "Y",
+   "start": 7073423,
+   "end": 7073423,
+   "allele_string": "A/G"
+  },
+  "rs3111876": {
+   "chrom": "7",
+   "start": 154975758,
+   "end": 154975758,
+   "allele_string": "C/T"
+  },
+  "rs3113494": {
+   "chrom": "4",
+   "start": 87832601,
+   "end": 87832601,
+   "allele_string": "G/A/C"
+  },
+  "rs3118536": {
+   "chrom": "9",
+   "start": 137308462,
+   "end": 137308462,
+   "allele_string": "A/C"
+  },
+  "rs3129795": {
+   "chrom": "6",
+   "start": 28984755,
+   "end": 28984755,
+   "allele_string": "T/A/C/G"
+  },
+  "rs3131378": {
+   "chrom": "6",
+   "start": 31725285,
+   "end": 31725285,
+   "allele_string": "A/G"
+  },
+  "rs3131972": {
+   "chrom": "1",
+   "start": 752721,
+   "end": 752721,
+   "allele_string": "A/C/G/T"
+  },
+  "rs3135388": {
+   "chrom": "6",
+   "start": 32413051,
+   "end": 32413051,
+   "allele_string": "A/C/G/T"
+  },
+  "rs3179690": {
+   "chrom": "1",
+   "start": 20518226,
+   "end": 20518226,
+   "allele_string": "G/A"
+  },
+  "rs3212287": {
+   "chrom": "Y",
+   "start": 21899888,
+   "end": 21899888,
+   "allele_string": "T/C"
+  },
+  "rs3737325": {
+   "chrom": "13",
+   "start": 110865881,
+   "end": 110865881,
+   "allele_string": "A/G"
+  },
+  "rs3759378": {
+   "chrom": "12",
+   "start": 113574274,
+   "end": 113574274,
+   "allele_string": "T/C"
+  },
+  "rs3765492": {
+   "chrom": "14",
+   "start": 94422467,
+   "end": 94422467,
+   "allele_string": "G/A"
+  },
+  "rs3784351": {
+   "chrom": "15",
+   "start": 68642220,
+   "end": 68642220,
+   "allele_string": "C/T"
+  },
+  "rs3794331": {
+   "chrom": "13",
+   "start": 46053544,
+   "end": 46053544,
+   "allele_string": "T/G"
+  },
+  "rs3813380": {
+   "chrom": "7",
+   "start": 22148796,
+   "end": 22148796,
+   "allele_string": "C/A/G/T"
+  },
+  "rs3826464": {
+   "chrom": "17",
+   "start": 9057909,
+   "end": 9057909,
+   "allele_string": "G/A/T"
+  },
+  "rs3849233": {
+   "chrom": "16",
+   "start": 87081190,
+   "end": 87081190,
+   "allele_string": "A/G"
+  },
+  "rs3859044": {
+   "chrom": "16",
+   "start": 58000163,
+   "end": 58000163,
+   "allele_string": "A/C/G"
+  },
+  "rs3886013": {
+   "chrom": "10",
+   "start": 6968905,
+   "end": 6968905,
+   "allele_string": "C/T"
+  },
+  "rs3892097": {
+   "chrom": "22",
+   "start": 42524947,
+   "end": 42524947,
+   "allele_string": "C/A/G/T"
+  },
+  "rs3899188": {
+   "chrom": "MT",
+   "start": 10115,
+   "end": 10115,
+   "allele_string": "T/C"
+  },
+  "rs3918290": {
+   "chrom": "1",
+   "start": 97915614,
+   "end": 97915614,
+   "allele_string": "C/A/G/T"
+  },
+  "rs4085154": {
+   "chrom": "1",
+   "start": 216858013,
+   "end": 216858013,
+   "allele_string": "G/A"
+  },
+  "rs4142568": {
+   "chrom": "X",
+   "start": 120377132,
+   "end": 120377132,
+   "allele_string": "T/C"
+  },
+  "rs4146697": {
+   "chrom": "4",
+   "start": 111078453,
+   "end": 111078453,
+   "allele_string": "C/A/T"
+  },
+  "rs4149015": {
+   "chrom": "12",
+   "start": 21283322,
+   "end": 21283322,
+   "allele_string": "G/A/C/T"
+  },
+  "rs4149056": {
+   "chrom": "12",
+   "start": 21331549,
+   "end": 21331549,
+   "allele_string": "T/A/C"
+  },
+  "rs4240133": {
+   "chrom": "X",
+   "start": 133733624,
+   "end": 133733624,
+   "allele_string": "A/C"
+  },
+  "rs4244285": {
+   "chrom": "10",
+   "start": 96541616,
+   "end": 96541616,
+   "allele_string": "G/A/C/T"
+  },
+  "rs4247524": {
+   "chrom": "7",
+   "start": 42920,
+   "end": 42920,
+   "allele_string": "A/G"
+  },
+  "rs4328439": {
+   "chrom": "16",
+   "start": 10915516,
+   "end": 10915516,
+   "allele_string": "G/A/C"
+  },
+  "rs4339166": {
+   "chrom": "4",
+   "start": 165744136,
+   "end": 165744136,
+   "allele_string": "T/A/C/G"
+  },
+  "rs4381747": {
+   "chrom": "2",
+   "start": 29807890,
+   "end": 29807890,
+   "allele_string": "C/A/G"
+  },
+  "rs4402033": {
+   "chrom": "X",
+   "start": 34391042,
+   "end": 34391042,
+   "allele_string": "A/C/T"
+  },
+  "rs4402960": {
+   "chrom": "3",
+   "start": 185511687,
+   "end": 185511687,
+   "allele_string": "G/C/T"
+  },
+  "rs4456071": {
+   "chrom": "1",
+   "start": 66167963,
+   "end": 66167963,
+   "allele_string": "T/G"
+  },
+  "rs4460346": {
+   "chrom": "8",
+   "start": 141113716,
+   "end": 141113716,
+   "allele_string": "C/A/G"
+  },
+  "rs4475691": {
+   "chrom": "1",
+   "start": 846808,
+   "end": 846808,
+   "allele_string": "C/T"
+  },
+  "rs4477212": {
+   "chrom": "1",
+   "start": 82154,
+   "end": 82154,
+   "allele_string": "A/G"
+  },
+  "rs4491840": {
+   "chrom": "3",
+   "start": 122080747,
+   "end": 122080747,
+   "allele_string": "G/A"
+  },
+  "rs4501299": {
+   "chrom": "5",
+   "start": 52698387,
+   "end": 52698387,
+   "allele_string": "A/C/G/T"
+  },
+  "rs4512236": {
+   "chrom": "6",
+   "start": 156300107,
+   "end": 156300107,
+   "allele_string": "G/A/T"
+  },
+  "rs4532407": {
+   "chrom": "5",
+   "start": 155089792,
+   "end": 155089792,
+   "allele_string": "A/C/G"
+  },
+  "rs4545536": {
+   "chrom": "11",
+   "start": 3259535,
+   "end": 3259535,
+   "allele_string": "T/A/C"
+  },
+  "rs4551650": {
+   "chrom": "1",
+   "start": 235276289,
+   "end": 235276289,
+   "allele_string": "C/T"
+  },
+  "rs4570625": {
+   "chrom": "12",
+   "start": 72331923,
+   "end": 72331923,
+   "allele_string": "G/A/T"
+  },
+  "rs4571176": {
+   "chrom": "3",
+   "start": 73001928,
+   "end": 73001928,
+   "allele_string": "C/G/T"
+  },
+  "rs4583021": {
+   "chrom": "12",
+   "start": 84883070,
+   "end": 84883070,
+   "allele_string": "C/G/T"
+  },
+  "rs4632379": {
+   "chrom": "2",
+   "start": 15672,
+   "end": 15672,
+   "allele_string": "A/G"
+  },
+  "rs4654748": {
+   "chrom": "1",
+   "start": 21786068,
+   "end": 21786068,
+   "allele_string": "C/A/G/T"
+  },
+  "rs4664737": {
+   "chrom": "2",
+   "start": 151569097,
+   "end": 151569097,
+   "allele_string": "T/A/G"
+  },
+  "rs4714902": {
+   "chrom": "6",
+   "start": 46044237,
+   "end": 46044237,
+   "allele_string": "C/A/G"
+  },
+  "rs4730333": {
+   "chrom": "7",
+   "start": 108455334,
+   "end": 108455334,
+   "allele_string": "C/T"
+  },
+  "rs4741377": {
+   "chrom": "9",
+   "start": 14429307,
+   "end": 14429307,
+   "allele_string": "T/A/C"
+  },
+  "rs4746796": {
+   "chrom": "10",
+   "start": 70619276,
+   "end": 70619276,
+   "allele_string": "G/A"
+  },
+  "rs4754086": {
+   "chrom": "11",
+   "start": 103451544,
+   "end": 103451544,
+   "allele_string": "T/C"
+  },
+  "rs4772102": {
+   "chrom": "13",
+   "start": 99234116,
+   "end": 99234116,
+   "allele_string": "A/C/G"
+  },
+  "rs4785434": {
+   "chrom": "16",
+   "start": 50587976,
+   "end": 50587976,
+   "allele_string": "C/T"
+  },
+  "rs4796760": {
+   "chrom": "17",
+   "start": 40178215,
+   "end": 40178215,
+   "allele_string": "G/A/C"
+  },
+  "rs4810884": {
+   "chrom": "20",
+   "start": 47521544,
+   "end": 47521544,
+   "allele_string": "A/C"
+  },
+  "rs4820571": {
+   "chrom": "22",
+   "start": 24242973,
+   "end": 24242973,
+   "allele_string": "A/G/T"
+  },
+  "rs4846979": {
+   "chrom": "1",
+   "start": 230685079,
+   "end": 230685079,
+   "allele_string": "A/C/G/T"
+  },
+  "rs4853006": {
+   "chrom": "2",
+   "start": 74263419,
+   "end": 74263419,
+   "allele_string": "A/G"
+  },
+  "rs4866585": {
+   "chrom": "5",
+   "start": 3574619,
+   "end": 3574619,
+   "allele_string": "T/G"
+  },
+  "rs4938066": {
+   "chrom": "11",
+   "start": 113885412,
+   "end": 113885412,
+   "allele_string": "A/G"
+  },
+  "rs4947936": {
+   "chrom": "7",
+   "start": 50906752,
+   "end": 50906752,
+   "allele_string": "C/A"
+  },
+  "rs4969678": {
+   "chrom": "X",
+   "start": 95815918,
+   "end": 95815918,
+   "allele_string": "A/G/T"
+  },
+  "rs4970383": {
+   "chrom": "1",
+   "start": 838555,
+   "end": 838555,
+   "allele_string": "C/A/G"
+  },
+  "rs4986893": {
+   "chrom": "10",
+   "start": 96540410,
+   "end": 96540410,
+   "allele_string": "G/A"
+  },
+  "rs4988235": {
+   "chrom": "2",
+   "start": 136608646,
+   "end": 136608646,
+   "allele_string": "G/A/C/T"
+  },
+  "rs5026665": {
+   "chrom": "1",
+   "start": 5374940,
+   "end": 5374940,
+   "allele_string": "A/G/T"
+  },
+  "rs5030655": {
+   "chrom": "22",
+   "start": 42525086,
+   "end": 42525086,
+   "allele_string": "A/-"
+  },
+  "rs5030862": {
+   "chrom": "22",
+   "start": 42526670,
+   "end": 42526670,
+   "allele_string": "C/A/G/T"
+  },
+  "rs5905864": {
+   "chrom": "X",
+   "start": 44549519,
+   "end": 44549519,
+   "allele_string": "G/T"
+  },
+  "rs5926434": {
+   "chrom": "X",
+   "start": 27453472,
+   "end": 27453472,
+   "allele_string": "T/A/G"
+  },
+  "rs5938060": {
+   "chrom": "X",
+   "start": 74630390,
+   "end": 74630390,
+   "allele_string": "A/G"
+  },
+  "rs5951587": {
+   "chrom": "X",
+   "start": 22405206,
+   "end": 22405206,
+   "allele_string": "A/C/G/T"
+  },
+  "rs5976493": {
+   "chrom": "X",
+   "start": 126228497,
+   "end": 126228497,
+   "allele_string": "G/A/C"
+  },
+  "rs5988003": {
+   "chrom": "X",
+   "start": 114948746,
+   "end": 114948746,
+   "allele_string": "A/G"
+  },
+  "rs5995518": {
+   "chrom": "22",
+   "start": 38314178,
+   "end": 38314178,
+   "allele_string": "A/G"
+  },
+  "rs6049496": {
+   "chrom": "20",
+   "start": 2473231,
+   "end": 2473231,
+   "allele_string": "C/T"
+  },
+  "rs6049736": {
+   "chrom": "20",
+   "start": 24471953,
+   "end": 24471953,
+   "allele_string": "G/A/T"
+  },
+  "rs6076506": {
+   "chrom": "20",
+   "start": 63231,
+   "end": 63231,
+   "allele_string": "T/G"
+  },
+  "rs6100204": {
+   "chrom": "20",
+   "start": 57339126,
+   "end": 57339126,
+   "allele_string": "G/A"
+  },
+  "rs6102592": {
+   "chrom": "20",
+   "start": 40573522,
+   "end": 40573522,
+   "allele_string": "C/T"
+  },
+  "rs6133613": {
+   "chrom": "20",
+   "start": 8712123,
+   "end": 8712123,
+   "allele_string": "A/C/G"
+  },
+  "rs6139746": {
+   "chrom": "20",
+   "start": 5474296,
+   "end": 5474296,
+   "allele_string": "C/A/G/T"
+  },
+  "rs6416186": {
+   "chrom": "12",
+   "start": 129997417,
+   "end": 129997417,
+   "allele_string": "C/G/T"
+  },
+  "rs6421910": {
+   "chrom": "5",
+   "start": 136221763,
+   "end": 136221763,
+   "allele_string": "T/A/C"
+  },
+  "rs6484978": {
+   "chrom": "11",
+   "start": 38211928,
+   "end": 38211928,
+   "allele_string": "T/A/C/G"
+  },
+  "rs6493165": {
+   "chrom": "15",
+   "start": 45947619,
+   "end": 45947619,
+   "allele_string": "G/A"
+  },
+  "rs6493741": {
+   "chrom": "15",
+   "start": 31821835,
+   "end": 31821835,
+   "allele_string": "C/A/G/T"
+  },
+  "rs6550169": {
+   "chrom": "3",
+   "start": 32913093,
+   "end": 32913093,
+   "allele_string": "T/C"
+  },
+  "rs6597676": {
+   "chrom": "9",
+   "start": 133965189,
+   "end": 133965189,
+   "allele_string": "A/G"
+  },
+  "rs6640082": {
+   "chrom": "X",
+   "start": 8351676,
+   "end": 8351676,
+   "allele_string": "C/A/T"
+  },
+  "rs6655587": {
+   "chrom": "X",
+   "start": 75991266,
+   "end": 75991266,
+   "allele_string": "T/A"
+  },
+  "rs6656346": {
+   "chrom": "1",
+   "start": 111103688,
+   "end": 111103688,
+   "allele_string": "G/A"
+  },
+  "rs6681049": {
+   "chrom": "1",
+   "start": 800007,
+   "end": 800007,
+   "allele_string": "T/A/C/G"
+  },
+  "rs6683485": {
+   "chrom": "1",
+   "start": 151817405,
+   "end": 151817405,
+   "allele_string": "A/C/G/T"
+  },
+  "rs6740918": {
+   "chrom": "2",
+   "start": 234093035,
+   "end": 234093035,
+   "allele_string": "G/A"
+  },
+  "rs6748545": {
+   "chrom": "2",
+   "start": 125318315,
+   "end": 125318315,
+   "allele_string": "G/A/C/T"
+  },
+  "rs6813598": {
+   "chrom": "4",
+   "start": 118760390,
+   "end": 118760390,
+   "allele_string": "G/T"
+  },
+  "rs6822105": {
+   "chrom": "4",
+   "start": 183361857,
+   "end": 183361857,
+   "allele_string": "G/A/C"
+  },
+  "rs6838713": {
+   "chrom": "4",
+   "start": 24836416,
+   "end": 24836416,
+   "allele_string": "C/T"
+  },
+  "rs6846361": {
+   "chrom": "4",
+   "start": 151761599,
+   "end": 151761599,
+   "allele_string": "A/G/T"
+  },
+  "rs6854035": {
+   "chrom": "4",
+   "start": 38181054,
+   "end": 38181054,
+   "allele_string": "C/T"
+  },
+  "rs6872249": {
+   "chrom": "5",
+   "start": 67239774,
+   "end": 67239774,
+   "allele_string": "T/A/C/G"
+  },
+  "rs6901900": {
+   "chrom": "6",
+   "start": 132012886,
+   "end": 132012886,
+   "allele_string": "T/G"
+  },
+  "rs6912784": {
+   "chrom": "6",
+   "start": 108295444,
+   "end": 108295444,
+   "allele_string": "A/G"
+  },
+  "rs6917666": {
+   "chrom": "6",
+   "start": 53071349,
+   "end": 53071349,
+   "allele_string": "G/A"
+  },
+  "rs6951454": {
+   "chrom": "7",
+   "start": 132644903,
+   "end": 132644903,
+   "allele_string": "C/G/T"
+  },
+  "rs6957876": {
+   "chrom": "7",
+   "start": 18040264,
+   "end": 18040264,
+   "allele_string": "C/T"
+  },
+  "rs6979609": {
+   "chrom": "7",
+   "start": 73436066,
+   "end": 73436066,
+   "allele_string": "A/G"
+  },
+  "rs6982478": {
+   "chrom": "8",
+   "start": 19044189,
+   "end": 19044189,
+   "allele_string": "G/A/C"
+  },
+  "rs7007927": {
+   "chrom": "8",
+   "start": 136244955,
+   "end": 136244955,
+   "allele_string": "C/T"
+  },
+  "rs7039002": {
+   "chrom": "9",
+   "start": 94775387,
+   "end": 94775387,
+   "allele_string": "G/A/C"
+  },
+  "rs7042159": {
+   "chrom": "9",
+   "start": 18545209,
+   "end": 18545209,
+   "allele_string": "C/A/G"
+  },
+  "rs7060208": {
+   "chrom": "X",
+   "start": 152976269,
+   "end": 152976269,
+   "allele_string": "C/G/T"
+  },
+  "rs7071825": {
+   "chrom": "10",
+   "start": 131558651,
+   "end": 131558651,
+   "allele_string": "G/A/T"
+  },
+  "rs7128359": {
+   "chrom": "11",
+   "start": 16787922,
+   "end": 16787922,
+   "allele_string": "G/A/T"
+  },
+  "rs7142571": {
+   "chrom": "14",
+   "start": 90035606,
+   "end": 90035606,
+   "allele_string": "A/C"
+  },
+  "rs7144384": {
+   "chrom": "14",
+   "start": 101100586,
+   "end": 101100586,
+   "allele_string": "G/A"
+  },
+  "rs7151969": {
+   "chrom": "14",
+   "start": 97143227,
+   "end": 97143227,
+   "allele_string": "C/G/T"
+  },
+  "rs7172789": {
+   "chrom": "15",
+   "start": 85843517,
+   "end": 85843517,
+   "allele_string": "T/C"
+  },
+  "rs7191379": {
+   "chrom": "16",
+   "start": 14472528,
+   "end": 14472528,
+   "allele_string": "G/A/C/T"
+  },
+  "rs7219536": {
+   "chrom": "17",
+   "start": 12320741,
+   "end": 12320741,
+   "allele_string": "C/T"
+  },
+  "rs7312564": {
+   "chrom": "12",
+   "start": 12172685,
+   "end": 12172685,
+   "allele_string": "G/A"
+  },
+  "rs7350930": {
+   "chrom": "17",
+   "start": 6432975,
+   "end": 6432975,
+   "allele_string": "G/A"
+  },
+  "rs7364201": {
+   "chrom": "22",
+   "start": 33000069,
+   "end": 33000069,
+   "allele_string": "A/C/G/T"
+  },
+  "rs7510466": {
+   "chrom": "21",
+   "start": 22430067,
+   "end": 22430067,
+   "allele_string": "T/A/C/G"
+  },
+  "rs7558081": {
+   "chrom": "2",
+   "start": 227958469,
+   "end": 227958469,
+   "allele_string": "C/T"
+  },
+  "rs7601387": {
+   "chrom": "2",
+   "start": 22980155,
+   "end": 22980155,
+   "allele_string": "G/A/C/T"
+  },
+  "rs7683903": {
+   "chrom": "4",
+   "start": 72396727,
+   "end": 72396727,
+   "allele_string": "G/A/T"
+  },
+  "rs7694491": {
+   "chrom": "4",
+   "start": 95290250,
+   "end": 95290250,
+   "allele_string": "C/T"
+  },
+  "rs7700758": {
+   "chrom": "5",
+   "start": 123657569,
+   "end": 123657569,
+   "allele_string": "C/T"
+  },
+  "rs7710852": {
+   "chrom": "5",
+   "start": 116624982,
+   "end": 116624982,
+   "allele_string": "A/C/T"
+  },
+  "rs7718874": {
+   "chrom": "5",
+   "start": 176358065,
+   "end": 176358065,
+   "allele_string": "A/C/G"
+  },
+  "rs7719818": {
+   "chrom": "5",
+   "start": 97182715,
+   "end": 97182715,
+   "allele_string": "A/C/G"
+  },
+  "rs7751553": {
+   "chrom": "6",
+   "start": 166266322,
+   "end": 166266322,
+   "allele_string": "G/A"
+  },
+  "rs7780448": {
+   "chrom": "7",
+   "start": 13305542,
+   "end": 13305542,
+   "allele_string": "G/A"
+  },
+  "rs7824480": {
+   "chrom": "8",
+   "start": 8520663,
+   "end": 8520663,
+   "allele_string": "G/A/C"
+  },
+  "rs7868316": {
+   "chrom": "9",
+   "start": 23262261,
+   "end": 23262261,
+   "allele_string": "T/C"
+  },
+  "rs7893985": {
+   "chrom": "10",
+   "start": 101893418,
+   "end": 101893418,
+   "allele_string": "G/A"
+  },
+  "rs7903146": {
+   "chrom": "10",
+   "start": 114758349,
+   "end": 114758349,
+   "allele_string": "C/G/T"
+  },
+  "rs7914924": {
+   "chrom": "10",
+   "start": 3868392,
+   "end": 3868392,
+   "allele_string": "T/A/C/G"
+  },
+  "rs7924410": {
+   "chrom": "11",
+   "start": 20563041,
+   "end": 20563041,
+   "allele_string": "A/C/G/T"
+  },
+  "rs7966732": {
+   "chrom": "12",
+   "start": 41790191,
+   "end": 41790191,
+   "allele_string": "C/T"
+  },
+  "rs8001112": {
+   "chrom": "13",
+   "start": 23548470,
+   "end": 23548470,
+   "allele_string": "A/G/T"
+  },
+  "rs8014890": {
+   "chrom": "14",
+   "start": 69920730,
+   "end": 69920730,
+   "allele_string": "A/G"
+  },
+  "rs8035845": {
+   "chrom": "15",
+   "start": 92782291,
+   "end": 92782291,
+   "allele_string": "G/A"
+  },
+  "rs8039095": {
+   "chrom": "15",
+   "start": 59565097,
+   "end": 59565097,
+   "allele_string": "T/A/C"
+  },
+  "rs8044348": {
+   "chrom": "16",
+   "start": 83223034,
+   "end": 83223034,
+   "allele_string": "A/G"
+  },
+  "rs8044765": {
+   "chrom": "16",
+   "start": 7958906,
+   "end": 7958906,
+   "allele_string": "T/C/G"
+  },
+  "rs8069024": {
+   "chrom": "17",
+   "start": 74636253,
+   "end": 74636253,
+   "allele_string": "C/T"
+  },
+  "rs8090073": {
+   "chrom": "18",
+   "start": 70880006,
+   "end": 70880006,
+   "allele_string": "A/G"
+  },
+  "rs8098963": {
+   "chrom": "18",
+   "start": 74280050,
+   "end": 74280050,
+   "allele_string": "T/C"
+  },
+  "rs8099917": {
+   "chrom": "19",
+   "start": 39743165,
+   "end": 39743165,
+   "allele_string": "T/G"
+  },
+  "rs8108848": {
+   "chrom": "19",
+   "start": 37019742,
+   "end": 37019742,
+   "allele_string": "G/T"
+  },
+  "rs8176318": {
+   "chrom": "17",
+   "start": 41197274,
+   "end": 41197274,
+   "allele_string": "C/A"
+  },
+  "rs9304656": {
+   "chrom": "19",
+   "start": 46646936,
+   "end": 46646936,
+   "allele_string": "T/C/G"
+  },
+  "rs9315027": {
+   "chrom": "13",
+   "start": 31271314,
+   "end": 31271314,
+   "allele_string": "G/A"
+  },
+  "rs9322306": {
+   "chrom": "6",
+   "start": 151546061,
+   "end": 151546061,
+   "allele_string": "C/A"
+  },
+  "rs9332377": {
+   "chrom": "22",
+   "start": 19955692,
+   "end": 19955692,
+   "allele_string": "C/A/T"
+  },
+  "rs9364590": {
+   "chrom": "6",
+   "start": 161713967,
+   "end": 161713967,
+   "allele_string": "G/A/T"
+  },
+  "rs9383372": {
+   "chrom": "6",
+   "start": 18351530,
+   "end": 18351530,
+   "allele_string": "T/C/G"
+  },
+  "rs9516258": {
+   "chrom": "13",
+   "start": 94260091,
+   "end": 94260091,
+   "allele_string": "G/A"
+  },
+  "rs9520136": {
+   "chrom": "13",
+   "start": 107304075,
+   "end": 107304075,
+   "allele_string": "A/C/G/T"
+  },
+  "rs9535511": {
+   "chrom": "13",
+   "start": 51438802,
+   "end": 51438802,
+   "allele_string": "G/A/T"
+  },
+  "rs9537975": {
+   "chrom": "13",
+   "start": 58797394,
+   "end": 58797394,
+   "allele_string": "A/C/T"
+  },
+  "rs9541520": {
+   "chrom": "13",
+   "start": 35213967,
+   "end": 35213967,
+   "allele_string": "G/A/C/T"
+  },
+  "rs9542986": {
+   "chrom": "13",
+   "start": 73081363,
+   "end": 73081363,
+   "allele_string": "C/G/T"
+  },
+  "rs9544526": {
+   "chrom": "13",
+   "start": 78084272,
+   "end": 78084272,
+   "allele_string": "G/A"
+  },
+  "rs9549035": {
+   "chrom": "13",
+   "start": 40569328,
+   "end": 40569328,
+   "allele_string": "A/C/T"
+  },
+  "rs9551512": {
+   "chrom": "13",
+   "start": 19121950,
+   "end": 19121950,
+   "allele_string": "G/A/C/T"
+  },
+  "rs9586006": {
+   "chrom": "13",
+   "start": 103554267,
+   "end": 103554267,
+   "allele_string": "C/G/T"
+  },
+  "rs9627540": {
+   "chrom": "22",
+   "start": 47115825,
+   "end": 47115825,
+   "allele_string": "A/C"
+  },
+  "rs9656787": {
+   "chrom": "8",
+   "start": 104231944,
+   "end": 104231944,
+   "allele_string": "C/A"
+  },
+  "rs9755941": {
+   "chrom": "3",
+   "start": 61044,
+   "end": 61044,
+   "allele_string": "T/C/A"
+  },
+  "rs9785905": {
+   "chrom": "Y",
+   "start": 18097251,
+   "end": 18097251,
+   "allele_string": "A/C"
+  },
+  "rs9785983": {
+   "chrom": "Y",
+   "start": 6630931,
+   "end": 6630931,
+   "allele_string": "G/A"
+  },
+  "rs9785990": {
+   "chrom": "Y",
+   "start": 17412198,
+   "end": 17412198,
+   "allele_string": "T/C"
+  },
+  "rs9786325": {
+   "chrom": "Y",
+   "start": 14149772,
+   "end": 14149772,
+   "allele_string": "T/C"
+  },
+  "rs9808685": {
+   "chrom": "21",
+   "start": 34785672,
+   "end": 34785672,
+   "allele_string": "G/A/C/T"
+  },
+  "rs9867956": {
+   "chrom": "3",
+   "start": 174532637,
+   "end": 174532637,
+   "allele_string": "C/T"
+  },
+  "rs9923231": {
+   "chrom": "16",
+   "start": 31107689,
+   "end": 31107689,
+   "allele_string": "C/A/G/T"
+  },
+  "rs9929802": {
+   "chrom": "16",
+   "start": 78715604,
+   "end": 78715604,
+   "allele_string": "G/A/C"
+  },
+  "rs9999001": {
+   "chrom": "4",
+   "start": 87838529,
+   "end": 87838529,
+   "allele_string": "G/A"
+  },
+  "rs9999003": {
+   "chrom": "4",
+   "start": 158775482,
+   "end": 158775482,
+   "allele_string": "T/A/C/G"
+  },
+  "rs9999004": {
+   "chrom": "4",
+   "start": 182220613,
+   "end": 182220613,
+   "allele_string": "G/C/T"
+  },
+  "rs9999005": {
+   "chrom": "4",
+   "start": 77456093,
+   "end": 77456093,
+   "allele_string": "C/T"
+  },
+  "rs9999006": {
+   "chrom": "4",
+   "start": 97274246,
+   "end": 97274246,
+   "allele_string": "A/G/T"
+  },
+  "rs9999008": {
+   "chrom": "4",
+   "start": 130064231,
+   "end": 130064231,
+   "allele_string": "A/C/G"
+  },
+  "rs9999009": {
+   "chrom": "4",
+   "start": 118157777,
+   "end": 118157777,
+   "allele_string": "G/A/C/T"
+  },
+  "rs9999010": {
+   "chrom": "4",
+   "start": 6224403,
+   "end": 6224403,
+   "allele_string": "A/C/T"
+  },
+  "rs9999011": {
+   "chrom": "4",
+   "start": 172177062,
+   "end": 172177062,
+   "allele_string": "A/G"
+  },
+  "rs9999012": {
+   "chrom": "4",
+   "start": 96926831,
+   "end": 96926831,
+   "allele_string": "T/A/G"
+  },
+  "rs9999050": {
+   "chrom": "4",
+   "start": 40408725,
+   "end": 40408725,
+   "allele_string": "C/G/T"
+  },
+  "rs10076494": {
+   "chrom": "5",
+   "start": 38139,
+   "end": 38139,
+   "allele_string": "C/T"
+  },
+  "rs10100384": {
+   "chrom": "8",
+   "start": 16087729,
+   "end": 16087729,
+   "allele_string": "G/A/C"
+  },
+  "rs10101779": {
+   "chrom": "8",
+   "start": 27450535,
+   "end": 27450535,
+   "allele_string": "T/A/C/G"
+  },
+  "rs10106717": {
+   "chrom": "8",
+   "start": 84155214,
+   "end": 84155214,
+   "allele_string": "C/A/T"
+  },
+  "rs10143703": {
+   "chrom": "14",
+   "start": 24898355,
+   "end": 24898355,
+   "allele_string": "C/A"
+  },
+  "rs10216980": {
+   "chrom": "8",
+   "start": 3044961,
+   "end": 3044961,
+   "allele_string": "C/A/T"
+  },
+  "rs10231165": {
+   "chrom": "7",
+   "start": 8673637,
+   "end": 8673637,
+   "allele_string": "C/A/T"
+  },
+  "rs10262234": {
+   "chrom": "7",
+   "start": 139359730,
+   "end": 139359730,
+   "allele_string": "C/A/G/T"
+  },
+  "rs10280461": {
+   "chrom": "7",
+   "start": 38149932,
+   "end": 38149932,
+   "allele_string": "C/A/G"
+  },
+  "rs10283686": {
+   "chrom": "9",
+   "start": 112648964,
+   "end": 112648964,
+   "allele_string": "G/A/C/T"
+  },
+  "rs10406904": {
+   "chrom": "19",
+   "start": 53807654,
+   "end": 53807654,
+   "allele_string": "T/A/C/G"
+  },
+  "rs10457800": {
+   "chrom": "6",
+   "start": 100936628,
+   "end": 100936628,
+   "allele_string": "C/G/T"
+  },
+  "rs10501795": {
+   "chrom": "11",
+   "start": 92447418,
+   "end": 92447418,
+   "allele_string": "G/A/T"
+  },
+  "rs10509006": {
+   "chrom": "10",
+   "start": 55922706,
+   "end": 55922706,
+   "allele_string": "A/C/G"
+  },
+  "rs10509397": {
+   "chrom": "10",
+   "start": 80235368,
+   "end": 80235368,
+   "allele_string": "G/A/C/T"
+  },
+  "rs10513821": {
+   "chrom": "3",
+   "start": 187543342,
+   "end": 187543342,
+   "allele_string": "A/G"
+  },
+  "rs10514973": {
+   "chrom": "17",
+   "start": 47960482,
+   "end": 47960482,
+   "allele_string": "A/C/G"
+  },
+  "rs10518474": {
+   "chrom": "4",
+   "start": 126553615,
+   "end": 126553615,
+   "allele_string": "C/T"
+  },
+  "rs10520766": {
+   "chrom": "15",
+   "start": 95379491,
+   "end": 95379491,
+   "allele_string": "G/A/T"
+  },
+  "rs10733680": {
+   "chrom": "9",
+   "start": 129361955,
+   "end": 129361955,
+   "allele_string": "G/A"
+  },
+  "rs10741068": {
+   "chrom": "10",
+   "start": 25144730,
+   "end": 25144730,
+   "allele_string": "C/A/G/T"
+  },
+  "rs10741657": {
+   "chrom": "11",
+   "start": 14914878,
+   "end": 14914878,
+   "allele_string": "A/C/G"
+  },
+  "rs10760075": {
+   "chrom": "9",
+   "start": 122817066,
+   "end": 122817066,
+   "allele_string": "A/G"
+  },
+  "rs10789753": {
+   "chrom": "11",
+   "start": 97816230,
+   "end": 97816230,
+   "allele_string": "A/G/T"
+  },
+  "rs10800335": {
+   "chrom": "1",
+   "start": 168090767,
+   "end": 168090767,
+   "allele_string": "C/G/T"
+  },
+  "rs10811661": {
+   "chrom": "9",
+   "start": 22134094,
+   "end": 22134094,
+   "allele_string": "T/A/C"
+  },
+  "rs10812738": {
+   "chrom": "9",
+   "start": 2817887,
+   "end": 2817887,
+   "allele_string": "A/G"
+  },
+  "rs10814410": {
+   "chrom": "9",
+   "start": 46587,
+   "end": 46587,
+   "allele_string": "C/G/T"
+  },
+  "rs10863868": {
+   "chrom": "1",
+   "start": 211088302,
+   "end": 211088302,
+   "allele_string": "C/G/T"
+  },
+  "rs10868488": {
+   "chrom": "9",
+   "start": 89437343,
+   "end": 89437343,
+   "allele_string": "C/A/T"
+  },
+  "rs10874250": {
+   "chrom": "1",
+   "start": 81947930,
+   "end": 81947930,
+   "allele_string": "C/A/G/T"
+  },
+  "rs10898483": {
+   "chrom": "11",
+   "start": 86160313,
+   "end": 86160313,
+   "allele_string": "G/A/T"
+  },
+  "rs10914780": {
+   "chrom": "1",
+   "start": 34261267,
+   "end": 34261267,
+   "allele_string": "G/A/C/T"
+  },
+  "rs10919536": {
+   "chrom": "1",
+   "start": 162440935,
+   "end": 162440935,
+   "allele_string": "C/T"
+  },
+  "rs10958708": {
+   "chrom": "8",
+   "start": 42003108,
+   "end": 42003108,
+   "allele_string": "A/G/T"
+  },
+  "rs10968293": {
+   "chrom": "9",
+   "start": 28034028,
+   "end": 28034028,
+   "allele_string": "G/A/T"
+  },
+  "rs10982289": {
+   "chrom": "9",
+   "start": 117314774,
+   "end": 117314774,
+   "allele_string": "G/A"
+  },
+  "rs11041009": {
+   "chrom": "11",
+   "start": 6792058,
+   "end": 6792058,
+   "allele_string": "G/A/C"
+  },
+  "rs11129950": {
+   "chrom": "3",
+   "start": 42314587,
+   "end": 42314587,
+   "allele_string": "A/G"
+  },
+  "rs11133745": {
+   "chrom": "5",
+   "start": 13339905,
+   "end": 13339905,
+   "allele_string": "A/C/G/T"
+  },
+  "rs11154212": {
+   "chrom": "6",
+   "start": 124651861,
+   "end": 124651861,
+   "allele_string": "C/T"
+  },
+  "rs11222663": {
+   "chrom": "11",
+   "start": 131345098,
+   "end": 131345098,
+   "allele_string": "C/A/T"
+  },
+  "rs11231409": {
+   "chrom": "11",
+   "start": 62984868,
+   "end": 62984868,
+   "allele_string": "T/A/C"
+  },
+  "rs11240777": {
+   "chrom": "1",
+   "start": 798959,
+   "end": 798959,
+   "allele_string": "G/A"
+  },
+  "rs11568422": {
+   "chrom": "14",
+   "start": 23242980,
+   "end": 23242980,
+   "allele_string": "A/G"
+  },
+  "rs11575897": {
+   "chrom": "Y",
+   "start": 2655180,
+   "end": 2655180,
+   "allele_string": "G/A/C"
+  },
+  "rs11635848": {
+   "chrom": "15",
+   "start": 79624808,
+   "end": 79624808,
+   "allele_string": "G/A"
+  },
+  "rs11665106": {
+   "chrom": "18",
+   "start": 42362589,
+   "end": 42362589,
+   "allele_string": "G/A/C/T"
+  },
+  "rs11667371": {
+   "chrom": "19",
+   "start": 2976724,
+   "end": 2976724,
+   "allele_string": "C/T"
+  },
+  "rs11769410": {
+   "chrom": "7",
+   "start": 146428215,
+   "end": 146428215,
+   "allele_string": "A/C/G"
+  },
+  "rs11775918": {
+   "chrom": "8",
+   "start": 93299275,
+   "end": 93299275,
+   "allele_string": "A/G"
+  },
+  "rs11780869": {
+   "chrom": "8",
+   "start": 164984,
+   "end": 164984,
+   "allele_string": "A/G/T"
+  },
+  "rs11785638": {
+   "chrom": "8",
+   "start": 62099814,
+   "end": 62099814,
+   "allele_string": "C/A"
+  },
+  "rs11853517": {
+   "chrom": "15",
+   "start": 40283274,
+   "end": 40283274,
+   "allele_string": "G/A/T"
+  },
+  "rs11863536": {
+   "chrom": "16",
+   "start": 80969674,
+   "end": 80969674,
+   "allele_string": "C/T"
+  },
+  "rs11887929": {
+   "chrom": "2",
+   "start": 207578440,
+   "end": 207578440,
+   "allele_string": "G/A"
+  },
+  "rs11944965": {
+   "chrom": "4",
+   "start": 63424089,
+   "end": 63424089,
+   "allele_string": "C/T"
+  },
+  "rs11996253": {
+   "chrom": "8",
+   "start": 114761849,
+   "end": 114761849,
+   "allele_string": "C/T"
+  },
+  "rs12009148": {
+   "chrom": "X",
+   "start": 39441821,
+   "end": 39441821,
+   "allele_string": "C/A"
+  },
+  "rs12124819": {
+   "chrom": "1",
+   "start": 776546,
+   "end": 776546,
+   "allele_string": "A/G"
+  },
+  "rs12140696": {
+   "chrom": "1",
+   "start": 223879212,
+   "end": 223879212,
+   "allele_string": "A/C"
+  },
+  "rs12248560": {
+   "chrom": "10",
+   "start": 96521657,
+   "end": 96521657,
+   "allele_string": "C/A/T"
+  },
+  "rs12255372": {
+   "chrom": "10",
+   "start": 114808902,
+   "end": 114808902,
+   "allele_string": "G/A/T"
+  },
+  "rs12345872": {
+   "chrom": "9",
+   "start": 6774846,
+   "end": 6774846,
+   "allele_string": "T/A/G"
+  },
+  "rs12404339": {
+   "chrom": "1",
+   "start": 74838026,
+   "end": 74838026,
+   "allele_string": "A/G/T"
+  },
+  "rs12424969": {
+   "chrom": "12",
+   "start": 97762560,
+   "end": 97762560,
+   "allele_string": "T/C/G"
+  },
+  "rs12441022": {
+   "chrom": "15",
+   "start": 98908143,
+   "end": 98908143,
+   "allele_string": "G/A"
+  },
+  "rs12443553": {
+   "chrom": "16",
+   "start": 2465990,
+   "end": 2465990,
+   "allele_string": "C/A"
+  },
+  "rs12455764": {
+   "chrom": "18",
+   "start": 3597838,
+   "end": 3597838,
+   "allele_string": "C/T"
+  },
+  "rs12455984": {
+   "chrom": "18",
+   "start": 13034,
+   "end": 13034,
+   "allele_string": "G/A"
+  },
+  "rs12457893": {
+   "chrom": "18",
+   "start": 60926161,
+   "end": 60926161,
+   "allele_string": "A/C/T"
+  },
+  "rs12465207": {
+   "chrom": "2",
+   "start": 16452047,
+   "end": 16452047,
+   "allele_string": "G/T"
+  },
+  "rs12465498": {
+   "chrom": "2",
+   "start": 199346187,
+   "end": 199346187,
+   "allele_string": "G/A/T"
+  },
+  "rs12482371": {
+   "chrom": "21",
+   "start": 26938353,
+   "end": 26938353,
+   "allele_string": "T/C"
+  },
+  "rs12485939": {
+   "chrom": "3",
+   "start": 67321882,
+   "end": 67321882,
+   "allele_string": "G/A"
+  },
+  "rs12487740": {
+   "chrom": "3",
+   "start": 115346418,
+   "end": 115346418,
+   "allele_string": "T/C/G"
+  },
+  "rs12522693": {
+   "chrom": "5",
+   "start": 130195731,
+   "end": 130195731,
+   "allele_string": "G/A/T"
+  },
+  "rs12626669": {
+   "chrom": "21",
+   "start": 31020875,
+   "end": 31020875,
+   "allele_string": "C/A/T"
+  },
+  "rs12637187": {
+   "chrom": "3",
+   "start": 27931857,
+   "end": 27931857,
+   "allele_string": "T/A/C"
+  },
+  "rs12639369": {
+   "chrom": "3",
+   "start": 98216252,
+   "end": 98216252,
+   "allele_string": "A/C/G"
+  },
+  "rs12647112": {
+   "chrom": "4",
+   "start": 102740602,
+   "end": 102740602,
+   "allele_string": "A/G/T"
+  },
+  "rs12682471": {
+   "chrom": "8",
+   "start": 33896448,
+   "end": 33896448,
+   "allele_string": "T/C"
+  },
+  "rs12743133": {
+   "chrom": "1",
+   "start": 175389045,
+   "end": 175389045,
+   "allele_string": "C/A/T"
+  },
+  "rs12781860": {
+   "chrom": "10",
+   "start": 108908351,
+   "end": 108908351,
+   "allele_string": "A/C"
+  },
+  "rs12794714": {
+   "chrom": "11",
+   "start": 14913575,
+   "end": 14913575,
+   "allele_string": "G/A"
+  },
+  "rs12802362": {
+   "chrom": "11",
+   "start": 44881997,
+   "end": 44881997,
+   "allele_string": "G/A"
+  },
+  "rs12828682": {
+   "chrom": "12",
+   "start": 31411051,
+   "end": 31411051,
+   "allele_string": "T/C"
+  },
+  "rs12881241": {
+   "chrom": "14",
+   "start": 64289162,
+   "end": 64289162,
+   "allele_string": "C/T"
+  },
+  "rs12899110": {
+   "chrom": "15",
+   "start": 20028058,
+   "end": 20028058,
+   "allele_string": "A/C/T"
+  },
+  "rs12910709": {
+   "chrom": "15",
+   "start": 55013967,
+   "end": 55013967,
+   "allele_string": "G/A"
+  },
+  "rs12913832": {
+   "chrom": "15",
+   "start": 28365618,
+   "end": 28365618,
+   "allele_string": "A/C/G"
+  },
+  "rs12931813": {
+   "chrom": "16",
+   "start": 64412126,
+   "end": 64412126,
+   "allele_string": "T/C/G"
+  },
+  "rs12949267": {
+   "chrom": "17",
+   "start": 67318946,
+   "end": 67318946,
+   "allele_string": "T/C/G"
+  },
+  "rs12979860": {
+   "chrom": "19",
+   "start": 39738787,
+   "end": 39738787,
+   "allele_string": "C/G/T"
+  },
+  "rs13004083": {
+   "chrom": "2",
+   "start": 166945367,
+   "end": 166945367,
+   "allele_string": "A/G"
+  },
+  "rs13024531": {
+   "chrom": "2",
+   "start": 180329583,
+   "end": 180329583,
+   "allele_string": "C/A"
+  },
+  "rs13072987": {
+   "chrom": "3",
+   "start": 156827444,
+   "end": 156827444,
+   "allele_string": "T/A/C"
+  },
+  "rs13123841": {
+   "chrom": "4",
+   "start": 5187398,
+   "end": 5187398,
+   "allele_string": "T/C/G"
+  },
+  "rs13125929": {
+   "chrom": "4",
+   "start": 71566,
+   "end": 71566,
+   "allele_string": "T/C"
+  },
+  "rs13169827": {
+   "chrom": "5",
+   "start": 28831513,
+   "end": 28831513,
+   "allele_string": "G/A"
+  },
+  "rs13224720": {
+   "chrom": "7",
+   "start": 4967663,
+   "end": 4967663,
+   "allele_string": "G/A"
+  },
+  "rs13266634": {
+   "chrom": "8",
+   "start": 118184783,
+   "end": 118184783,
+   "allele_string": "C/A/T"
+  },
+  "rs13304414": {
+   "chrom": "Y",
+   "start": 16767517,
+   "end": 16767517,
+   "allele_string": "T/G"
+  },
+  "rs13304625": {
+   "chrom": "Y",
+   "start": 19077409,
+   "end": 19077409,
+   "allele_string": "A/G"
+  },
+  "rs13305939": {
+   "chrom": "Y",
+   "start": 15156388,
+   "end": 15156388,
+   "allele_string": "A/G"
+  },
+  "rs13423275": {
+   "chrom": "2",
+   "start": 116933302,
+   "end": 116933302,
+   "allele_string": "T/C/G"
+  },
+  "rs16855061": {
+   "chrom": "2",
+   "start": 142363473,
+   "end": 142363473,
+   "allele_string": "C/A/T"
+  },
+  "rs16879258": {
+   "chrom": "5",
+   "start": 7865891,
+   "end": 7865891,
+   "allele_string": "C/A"
+  },
+  "rs16917736": {
+   "chrom": "10",
+   "start": 19026307,
+   "end": 19026307,
+   "allele_string": "G/A"
+  },
+  "rs16921098": {
+   "chrom": "8",
+   "start": 55981777,
+   "end": 55981777,
+   "allele_string": "C/T"
+  },
+  "rs16930139": {
+   "chrom": "12",
+   "start": 26253706,
+   "end": 26253706,
+   "allele_string": "C/T"
+  },
+  "rs16938948": {
+   "chrom": "8",
+   "start": 75689462,
+   "end": 75689462,
+   "allele_string": "G/A"
+  },
+  "rs16958010": {
+   "chrom": "15",
+   "start": 73857048,
+   "end": 73857048,
+   "allele_string": "C/A/T"
+  },
+  "rs16961733": {
+   "chrom": "15",
+   "start": 49148356,
+   "end": 49148356,
+   "allele_string": "C/A/G/T"
+  },
+  "rs16997056": {
+   "chrom": "20",
+   "start": 16043408,
+   "end": 16043408,
+   "allele_string": "C/T"
+  },
+  "rs17035807": {
+   "chrom": "2",
+   "start": 47092203,
+   "end": 47092203,
+   "allele_string": "G/A"
+  },
+  "rs17060201": {
+   "chrom": "5",
+   "start": 161709827,
+   "end": 161709827,
+   "allele_string": "A/C/G"
+  },
+  "rs17154114": {
+   "chrom": "7",
+   "start": 103307425,
+   "end": 103307425,
+   "allele_string": "A/C/G"
+  },
+  "rs17227806": {
+   "chrom": "5",
+   "start": 80491100,
+   "end": 80491100,
+   "allele_string": "T/C"
+  },
+  "rs17257107": {
+   "chrom": "1",
+   "start": 26448447,
+   "end": 26448447,
+   "allele_string": "A/G"
+  },
+  "rs17294794": {
+   "chrom": "10",
+   "start": 30234246,
+   "end": 30234246,
+   "allele_string": "T/A/C/G"
+  },
+  "rs17299918": {
+   "chrom": "9",
+   "start": 83404401,
+   "end": 83404401,
+   "allele_string": "C/T"
+  },
+  "rs17321858": {
+   "chrom": "X",
+   "start": 12768974,
+   "end": 12768974,
+   "allele_string": "T/C"
+  },
+  "rs17415614": {
+   "chrom": "5",
+   "start": 143141022,
+   "end": 143141022,
+   "allele_string": "T/A/C/G"
+  },
+  "rs17436486": {
+   "chrom": "11",
+   "start": 11387855,
+   "end": 11387855,
+   "allele_string": "A/G"
+  },
+  "rs17465965": {
+   "chrom": "5",
+   "start": 39200689,
+   "end": 39200689,
+   "allele_string": "T/C"
+  },
+  "rs17501421": {
+   "chrom": "13",
+   "start": 66919913,
+   "end": 66919913,
+   "allele_string": "G/A"
+  },
+  "rs17560758": {
+   "chrom": "15",
+   "start": 26836402,
+   "end": 26836402,
+   "allele_string": "C/T"
+  },
+  "rs17607303": {
+   "chrom": "7",
+   "start": 27578068,
+   "end": 27578068,
+   "allele_string": "T/C"
+  },
+  "rs17612126": {
+   "chrom": "11",
+   "start": 68705674,
+   "end": 68705674,
+   "allele_string": "C/A/G/T"
+  },
+  "rs17710392": {
+   "chrom": "7",
+   "start": 64766077,
+   "end": 64766077,
+   "allele_string": "G/A"
+  },
+  "rs17718358": {
+   "chrom": "12",
+   "start": 52926494,
+   "end": 52926494,
+   "allele_string": "C/T"
+  },
+  "rs17770189": {
+   "chrom": "8",
+   "start": 12714790,
+   "end": 12714790,
+   "allele_string": "A/G/T"
+  },
+  "rs17776650": {
+   "chrom": "7",
+   "start": 95747617,
+   "end": 95747617,
+   "allele_string": "G/A"
+  },
+  "rs17842875": {
+   "chrom": "X",
+   "start": 2404855,
+   "end": 2404855,
+   "allele_string": "G/A"
+  },
+  "rs28359175": {
+   "chrom": "MT",
+   "start": 13263,
+   "end": 13263,
+   "allele_string": "A/G"
+  },
+  "rs28399504": {
+   "chrom": "10",
+   "start": 96522463,
+   "end": 96522463,
+   "allele_string": "A/G/T"
+  },
+  "rs28634172": {
+   "chrom": "18",
+   "start": 56490046,
+   "end": 56490046,
+   "allele_string": "C/T"
+  },
+  "rs28736870": {
+   "chrom": "X",
+   "start": 220770,
+   "end": 220770,
+   "allele_string": "A/G/T"
+  },
+  "rs28897696": {
+   "chrom": "17",
+   "start": 41215920,
+   "end": 41215920,
+   "allele_string": "G/A/C/T"
+  },
+  "rs28897727": {
+   "chrom": "13",
+   "start": 32912750,
+   "end": 32912750,
+   "allele_string": "G/A/C/T"
+  },
+  "rs28934607": {
+   "chrom": "12",
+   "start": 58157952,
+   "end": 58157952,
+   "allele_string": "G/A"
+  },
+  "rs34277206": {
+   "chrom": "20",
+   "start": 51215992,
+   "end": 51215992,
+   "allele_string": "A/G"
+  },
+  "rs34705075": {
+   "chrom": "17",
+   "start": 22192695,
+   "end": 22192695,
+   "allele_string": "A/G"
+  },
+  "rs35018407": {
+   "chrom": "17",
+   "start": 62690181,
+   "end": 62690181,
+   "allele_string": "A/C/G/T"
+  },
+  "rs35178723": {
+   "chrom": "Y",
+   "start": 8614138,
+   "end": 8614138,
+   "allele_string": "T/G"
+  },
+  "rs35416799": {
+   "chrom": "22",
+   "start": 16869887,
+   "end": 16869887,
+   "allele_string": "G/A"
+  },
+  "rs35782477": {
+   "chrom": "3",
+   "start": 134203600,
+   "end": 134203600,
+   "allele_string": "T/G"
+  },
+  "rs41432549": {
+   "chrom": "14",
+   "start": 78788991,
+   "end": 78788991,
+   "allele_string": "C/G/T"
+  },
+  "rs41475048": {
+   "chrom": "1",
+   "start": 183058452,
+   "end": 183058452,
+   "allele_string": "A/G"
+  },
+  "rs45467396": {
+   "chrom": "16",
+   "start": 69753259,
+   "end": 69753259,
+   "allele_string": "A/G"
+  },
+  "rs55828573": {
+   "chrom": "2",
+   "start": 80653609,
+   "end": 80653609,
+   "allele_string": "T/A/C"
+  },
+  "rs55894265": {
+   "chrom": "3",
+   "start": 142231119,
+   "end": 142231119,
+   "allele_string": "T/A/C"
+  },
+  "rs56025600": {
+   "chrom": "19",
+   "start": 249357,
+   "end": 249357,
+   "allele_string": "C/A/T"
+  },
+  "rs56371618": {
+   "chrom": "7",
+   "start": 89045670,
+   "end": 89045670,
+   "allele_string": "T/C/G"
+  },
+  "rs56396134": {
+   "chrom": "22",
+   "start": 44952160,
+   "end": 44952160,
+   "allele_string": "T/A/G"
+  },
+  "rs60580031": {
+   "chrom": "17",
+   "start": 77319448,
+   "end": 77319448,
+   "allele_string": "A/G"
+  },
+  "rs60778967": {
+   "chrom": "3",
+   "start": 127533581,
+   "end": 127533581,
+   "allele_string": "T/C"
+  },
+  "rs61954364": {
+   "chrom": "12",
+   "start": 122723734,
+   "end": 122723734,
+   "allele_string": "A/G"
+  },
+  "rs62048414": {
+   "chrom": "16",
+   "start": 85062530,
+   "end": 85062530,
+   "allele_string": "G/A/C"
+  },
+  "rs62385600": {
+   "chrom": "5",
+   "start": 167707858,
+   "end": 167707858,
+   "allele_string": "C/T"
+  },
+  "rs63750066": {
+   "chrom": "21",
+   "start": 27264108,
+   "end": 27264108,
+   "allele_string": "C/T"
+  },
+  "rs72544145": {
+   "chrom": "11",
+   "start": 118039454,
+   "end": 118039454,
+   "allele_string": "C/T"
+  },
+  "rs72552267": {
+   "chrom": "10",
+   "start": 96535210,
+   "end": 96535210,
+   "allele_string": "G/A"
+  },
+  "rs72627225": {
+   "chrom": "18",
+   "start": 51000405,
+   "end": 51000405,
+   "allele_string": "A/T"
+  },
+  "rs72641339": {
+   "chrom": "10",
+   "start": 114856526,
+   "end": 114856526,
+   "allele_string": "G/A/T"
+  },
+  "rs72661529": {
+   "chrom": "14",
+   "start": 19120274,
+   "end": 19120274,
+   "allele_string": "G/A"
+  },
+  "rs72917612": {
+   "chrom": "6",
+   "start": 91800594,
+   "end": 91800594,
+   "allele_string": "C/T"
+  },
+  "rs73246815": {
+   "chrom": "X",
+   "start": 149511006,
+   "end": 149511006,
+   "allele_string": "G/A"
+  },
+  "rs73250451": {
+   "chrom": "4",
+   "start": 18674938,
+   "end": 18674938,
+   "allele_string": "G/A"
+  },
+  "rs73518976": {
+   "chrom": "19",
+   "start": 16817588,
+   "end": 16817588,
+   "allele_string": "A/C"
+  },
+  "rs73719521": {
+   "chrom": "6",
+   "start": 149636,
+   "end": 149636,
+   "allele_string": "G/A/C/T"
+  },
+  "rs74086291": {
+   "chrom": "1",
+   "start": 60126660,
+   "end": 60126660,
+   "allele_string": "T/C"
+  },
+  "rs74517184": {
+   "chrom": "4",
+   "start": 158319070,
+   "end": 158319070,
+   "allele_string": "A/C"
+  },
+  "rs75039782": {
+   "chrom": "7",
+   "start": 117280015,
+   "end": 117280015,
+   "allele_string": "C/A/G/T"
+  },
+  "rs76151636": {
+   "chrom": "13",
+   "start": 52518281,
+   "end": 52518281,
+   "allele_string": "G/A/T"
+  },
+  "rs76257237": {
+   "chrom": "12",
+   "start": 127206057,
+   "end": 127206057,
+   "allele_string": "G/A/T"
+  },
+  "rs76265645": {
+   "chrom": "2",
+   "start": 60175669,
+   "end": 60175669,
+   "allele_string": "C/A/T"
+  },
+  "rs76699816": {
+   "chrom": "3",
+   "start": 50846401,
+   "end": 50846401,
+   "allele_string": "G/A"
+  },
+  "rs77153933": {
+   "chrom": "4",
+   "start": 13636701,
+   "end": 13636701,
+   "allele_string": "C/T"
+  },
+  "rs77674357": {
+   "chrom": "2",
+   "start": 173555921,
+   "end": 173555921,
+   "allele_string": "C/T"
+  },
+  "rs77850724": {
+   "chrom": "5",
+   "start": 172133229,
+   "end": 172133229,
+   "allele_string": "A/C/T"
+  },
+  "rs78450446": {
+   "chrom": "12",
+   "start": 65384590,
+   "end": 65384590,
+   "allele_string": "C/G/T"
+  },
+  "rs78622436": {
+   "chrom": "12",
+   "start": 117578741,
+   "end": 117578741,
+   "allele_string": "T/C"
+  },
+  "rs78655421": {
+   "chrom": "7",
+   "start": 117171029,
+   "end": 117171029,
+   "allele_string": "G/A/C/T"
+  },
+  "rs78907894": {
+   "chrom": "MT",
+   "start": 514,
+   "end": 524,
+   "allele_string": "CACACACACAC/CACACACAC/CACACACACACAC/CACACACACACACAC"
+  },
+  "rs80299432": {
+   "chrom": "7",
+   "start": 44389470,
+   "end": 44389470,
+   "allele_string": "C/T"
+  },
+  "rs80356493": {
+   "chrom": "3",
+   "start": 58062922,
+   "end": 58062922,
+   "allele_string": "T/A/G"
+  },
+  "rs80357172": {
+   "chrom": "17",
+   "start": 41244288,
+   "end": 41244288,
+   "allele_string": "C/A/G/T"
+  },
+  "rs80357906": {
+   "chrom": "17",
+   "start": 41209080,
+   "end": 41209082,
+   "allele_string": "GGG/GGGG"
+  },
+  "rs80358559": {
+   "chrom": "13",
+   "start": 32911629,
+   "end": 32911629,
+   "allele_string": "A/G/T"
+  },
+  "rs80358981": {
+   "chrom": "13",
+   "start": 32930687,
+   "end": 32930687,
+   "allele_string": "C/A/G/T"
+  },
+  "rs80359550": {
+   "chrom": "13",
+   "start": 32914438,
+   "end": 32914438,
+   "allele_string": "T/-"
+  },
+  "rs104886257": {
+   "chrom": "X",
+   "start": 107920747,
+   "end": 107920747,
+   "allele_string": "G/A"
+  },
+  "rs104894001": {
+   "chrom": "6",
+   "start": 41129260,
+   "end": 41129260,
+   "allele_string": "C/T"
+  },
+  "rs104894396": {
+   "chrom": "13",
+   "start": 20763650,
+   "end": 20763650,
+   "allele_string": "C/T"
+  },
+  "rs111033173": {
+   "chrom": "MT",
+   "start": 7468,
+   "end": 7468,
+   "allele_string": "C/T"
+  },
+  "rs111033710": {
+   "chrom": "9",
+   "start": 34647960,
+   "end": 34647960,
+   "allele_string": "T/C"
+  },
+  "rs111481402": {
+   "chrom": "2",
+   "start": 238296751,
+   "end": 238296751,
+   "allele_string": "G/A/C"
+  },
+  "rs113013762": {
+   "chrom": "6",
+   "start": 116677378,
+   "end": 116677378,
+   "allele_string": "G/A/C"
+  },
+  "rs113628606": {
+   "chrom": "11",
+   "start": 33503353,
+   "end": 33503353,
+   "allele_string": "T/C"
+  },
+  "rs113993960": {
+   "chrom": "7",
+   "start": 117199645,
+   "end": 117199648,
+   "allele_string": "TCTT/T/TCTTCTT"
+  },
+  "rs114525117": {
+   "chrom": "1",
+   "start": 759036,
+   "end": 759036,
+   "allele_string": "G/A"
+  },
+  "rs117712666": {
+   "chrom": "11",
+   "start": 74518028,
+   "end": 74518028,
+   "allele_string": "G/A"
+  },
+  "rs121434262": {
+   "chrom": "1",
+   "start": 193091355,
+   "end": 193091355,
+   "allele_string": "C/A/T"
+  },
+  "rs121434569": {
+   "chrom": "7",
+   "start": 55249071,
+   "end": 55249071,
+   "allele_string": "C/T"
+  },
+  "rs121908757": {
+   "chrom": "7",
+   "start": 117227853,
+   "end": 117227853,
+   "allele_string": "A/C"
+  },
+  "rs121909224": {
+   "chrom": "10",
+   "start": 89692904,
+   "end": 89692904,
+   "allele_string": "C/A/G/T"
+  },
+  "rs121912443": {
+   "chrom": "21",
+   "start": 33036170,
+   "end": 33036170,
+   "allele_string": "A/G"
+  },
+  "rs121912891": {
+   "chrom": "12",
+   "start": 48369835,
+   "end": 48369835,
+   "allele_string": "C/G/T"
+  },
+  "rs121913529": {
+   "chrom": "12",
+   "start": 25398284,
+   "end": 25398284,
+   "allele_string": "C/A/G/T"
+  },
+  "rs139476990": {
+   "chrom": "19",
+   "start": 10335053,
+   "end": 10335053,
+   "allele_string": "C/T"
+  },
+  "rs142189490": {
+   "chrom": "11",
+   "start": 55904389,
+   "end": 55904389,
+   "allele_string": "T/C"
+  },
+  "rs143026267": {
+   "chrom": "17",
+   "start": 56798159,
+   "end": 56798159,
+   "allele_string": "T/A/C/G"
+  },
+  "rs145472480": {
+   "chrom": "22",
+   "start": 42536703,
+   "end": 42536703,
+   "allele_string": "G/A"
+  },
+  "rs147474255": {
+   "chrom": "21",
+   "start": 38126554,
+   "end": 38126554,
+   "allele_string": "C/T"
+  },
+  "rs148818431": {
+   "chrom": "1",
+   "start": 243434326,
+   "end": 243434326,
+   "allele_string": "T/C"
+  },
+  "rs181378432": {
+   "chrom": "6",
+   "start": 7584294,
+   "end": 7584294,
+   "allele_string": "A/G/T"
+  },
+  "rs193302985": {
+   "chrom": "MT",
+   "start": 15043,
+   "end": 15043,
+   "allele_string": "G/A"
+  },
+  "rs199474657": {
+   "chrom": "MT",
+   "start": 3243,
+   "end": 3243,
+   "allele_string": "A/G/T"
+  },
+  "rs199474672": {
+   "chrom": "MT",
+   "start": 5538,
+   "end": 5537,
+   "allele_string": "-/T"
+  },
+  "rs199476119": {
+   "chrom": "MT",
+   "start": 4160,
+   "end": 4160,
+   "allele_string": "T/C"
+  },
+  "rs200115553": {
+   "chrom": "8",
+   "start": 70176901,
+   "end": 70176901,
+   "allele_string": "G/A"
+  },
+  "rs201435049": {
+   "chrom": "11",
+   "start": 193808,
+   "end": 193808,
+   "allele_string": "G/A/T"
+  },
+  "rs281860276": {
+   "chrom": "5",
+   "start": 149435595,
+   "end": 149435600,
+   "allele_string": "AGAAGA/AGA"
+  },
+  "rs369202065": {
+   "chrom": "MT",
+   "start": 8838,
+   "end": 8838,
+   "allele_string": "G/A"
+  },
+  "rs369544574": {
+   "chrom": "15",
+   "start": 89860691,
+   "end": 89860691,
+   "allele_string": "G/A"
+  },
+  "rs370983472": {
+   "chrom": "10",
+   "start": 73559386,
+   "end": 73559386,
+   "allele_string": "G/A"
+  },
+  "rs374438258": {
+   "chrom": "Y",
+   "start": 22711465,
+   "end": 22711465,
+   "allele_string": "T/C"
+  },
+  "rs374938148": {
+   "chrom": "22",
+   "start": 29130713,
+   "end": 29130713,
+   "allele_string": "G/A/C"
+  },
+  "rs386833659": {
+   "chrom": "1",
+   "start": 40544331,
+   "end": 40544331,
+   "allele_string": "C/A/T"
+  },
+  "rs386833743": {
+   "chrom": "16",
+   "start": 28493503,
+   "end": 28493503,
+   "allele_string": "G/A"
+  },
+  "rs397514382": {
+   "chrom": "3",
+   "start": 15686106,
+   "end": 15686106,
+   "allele_string": "T/C"
+  },
+  "rs397514462": {
+   "chrom": "X",
+   "start": 601578,
+   "end": 601578,
+   "allele_string": "C/A"
+  },
+  "rs397516371": {
+   "chrom": "15",
+   "start": 63351810,
+   "end": 63351810,
+   "allele_string": "G/C"
+  },
+  "rs397517749": {
+   "chrom": "2",
+   "start": 179417040,
+   "end": 179417041,
+   "allele_string": "TT/T"
+  },
+  "rs573120764": {
+   "chrom": "6",
+   "start": 30103602,
+   "end": 30103602,
+   "allele_string": "G/A"
+  },
+  "rs587776831": {
+   "chrom": "12",
+   "start": 21716161,
+   "end": 21716161,
+   "allele_string": "C/G/T"
+  },
+  "rs587778078": {
+   "chrom": "11",
+   "start": 108186820,
+   "end": 108186820,
+   "allele_string": "C/A/G/T"
+  },
+  "rs587779236": {
+   "chrom": "2",
+   "start": 48027497,
+   "end": 48027497,
+   "allele_string": "T/A/C"
+  },
+  "rs587779723": {
+   "chrom": "2",
+   "start": 189869073,
+   "end": 189869073,
+   "allele_string": "G/A"
+  },
+  "rs587782504": {
+   "chrom": "2",
+   "start": 215595203,
+   "end": 215595205,
+   "allele_string": "ATA/A"
+  },
+  "rs672601317": {
+   "chrom": "7",
+   "start": 117176688,
+   "end": 117176688,
+   "allele_string": "G/A"
+  },
+  "rs748078361": {
+   "chrom": "Y",
+   "start": 23243887,
+   "end": 23243887,
+   "allele_string": "G/C"
+  },
+  "rs748333617": {
+   "chrom": "Y",
+   "start": 14861908,
+   "end": 14861908,
+   "allele_string": "T/C"
+  },
+  "rs753116280": {
+   "chrom": "21",
+   "start": 10862919,
+   "end": 10862919,
+   "allele_string": "C/T/A"
+  },
+  "rs770143722": {
+   "chrom": "19",
+   "start": 55672660,
+   "end": 55672660,
+   "allele_string": "C/G/T"
+  },
+  "rs771953225": {
+   "chrom": "19",
+   "start": 12758988,
+   "end": 12758988,
+   "allele_string": "C/A/T"
+  },
+  "rs774129279": {
+   "chrom": "Y",
+   "start": 21327198,
+   "end": 21327198,
+   "allele_string": "C/T"
+  },
+  "rs778350157": {
+   "chrom": "Y",
+   "start": 7801788,
+   "end": 7801788,
+   "allele_string": "C/T"
+  },
+  "rs786202638": {
+   "chrom": "3",
+   "start": 37089132,
+   "end": 37089132,
+   "allele_string": "G/A/C"
+  },
+  "rs786203760": {
+   "chrom": "5",
+   "start": 112175096,
+   "end": 112175099,
+   "allele_string": "ATAT/AT"
+  },
+  "rs786205624": {
+   "chrom": "14",
+   "start": 74992773,
+   "end": 74992773,
+   "allele_string": "C/A/G"
+  },
+  "rs794728091": {
+   "chrom": "18",
+   "start": 29101148,
+   "end": 29101147,
+   "allele_string": "-/T"
+  },
+  "rs863224468": {
+   "chrom": "13",
+   "start": 32936726,
+   "end": 32936726,
+   "allele_string": "T/A/C/G"
+  },
+  "rs869025612": {
+   "chrom": "10",
+   "start": 93432,
+   "end": 93432,
+   "allele_string": "C/T"
+  },
+  "rs879253733": {
+   "chrom": "10",
+   "start": 96354459,
+   "end": 96354459,
+   "allele_string": "A/G"
+  }
+ }
+}
