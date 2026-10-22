@@ -24,11 +24,11 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
+from backend.db.sample_schema import sample_db_sidecars
 from backend.db.tables import merge_provenance, reannotation_prompts, samples
 from backend.services.sample_operation_lock import sample_delete_lease
 
@@ -175,14 +175,18 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
 
 
 def _delete_sample_files(registry: DBRegistry, db_path: str | None) -> None:
-    """Dispose the cached engine then remove the SQLite file + WAL/SHM siblings."""
+    """Dispose the cached engine then remove the SQLite file and every sidecar.
+
+    ``-journal`` included: an orphaned hot journal is replayed into the next
+    complete database placed at this path, such as a restored sample (#2585).
+    """
     if not db_path:
         return
     sample_db_path = registry.settings.data_dir / db_path
     registry.dispose_sample_engine(sample_db_path)
     sample_db_path.unlink(missing_ok=True)
-    Path(f"{sample_db_path}-wal").unlink(missing_ok=True)
-    Path(f"{sample_db_path}-shm").unlink(missing_ok=True)
+    for sidecar in sample_db_sidecars(sample_db_path):
+        sidecar.unlink(missing_ok=True)
 
 
 def _delete_sample_reference_rows(conn: sa.Connection, sample_id: int) -> None:

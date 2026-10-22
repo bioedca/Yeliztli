@@ -15,6 +15,7 @@ import asyncio
 import io
 import json
 import os
+import sqlite3
 import stat
 import tarfile
 import tomllib
@@ -23,6 +24,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from _sqlite_journal import leave_hot_journal
 from fastapi.testclient import TestClient
 
 from backend.annotation.mondo_hpo import (
@@ -906,6 +908,48 @@ class TestImportBackup:
         # Verify files were extracted
         assert (tmp_data_dir / "samples" / "sample_000.db").exists()
         assert (tmp_data_dir / "samples" / "sample_001.db").exists()
+
+    def test_import_is_not_corrupted_by_an_orphaned_hot_journal_at_its_path(
+        self, setup_client: TestClient, tmp_data_dir: Path, tmp_path: Path
+    ) -> None:
+        """A hot journal left by an earlier sample at the restored path would be
+        replayed into the restored database on first open (#2585)."""
+        samples_dir = tmp_data_dir / "samples"
+        samples_dir.mkdir(parents=True, exist_ok=True)
+        restored_path = samples_dir / "sample_000.db"
+        leave_hot_journal(restored_path)
+        restored_path.unlink()  # the earlier sample's file is gone; its journal is not
+
+        archived = tmp_path / "archived.db"
+        with sqlite3.connect(archived, isolation_level=None) as conn:
+            conn.execute("CREATE TABLE raw_variants (rsid TEXT PRIMARY KEY, genotype TEXT)")
+            conn.executemany(
+                "INSERT INTO raw_variants VALUES (?, 'RESTORED')",
+                ((f"r{i}",) for i in range(5000)),
+            )
+        conn.close()
+        archive = _create_backup_archive(
+            tmp_path,
+            num_samples=0,
+            extra_entries=[("samples/sample_000.db", archived.read_bytes())],
+        )
+
+        with archive.open("rb") as f:
+            resp = setup_client.post(
+                "/api/setup/import-backup",
+                files={"file": ("backup.tar.gz", f, "application/gzip")},
+            )
+
+        assert resp.status_code == 200, resp.text
+        assert not Path(f"{restored_path}-journal").exists()
+        conn = sqlite3.connect(restored_path)
+        try:
+            assert conn.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+            assert conn.execute(
+                "SELECT genotype, count(*) FROM raw_variants GROUP BY genotype"
+            ).fetchall() == [("RESTORED", 5000)]
+        finally:
+            conn.close()
 
     def test_import_with_config(
         self, setup_client: TestClient, tmp_data_dir: Path, tmp_path: Path
