@@ -555,6 +555,12 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
     }
 
     test.beforeEach(async ({ page }) => {
+      // The detail panel slides in from translateX(100%). Sampled mid-slide, its
+      // primary button is partly off-screen, so axe files it as incomplete rather
+      // than as a color-contrast violation and the #2525 guard below misfires --
+      // intermittently in WebKit, every attempt on 3d7a43bf (#2595). Reduced
+      // motion collapses the animation (index.css), as the other axe specs do.
+      await page.emulateMedia({ reducedMotion: 'reduce' })
       // Server-side watch list, mutated by the row toggle, so the sidebar
       // renders from a real round trip. Anchored on the port: `**/api/watches**`
       // would also match Vite's request for the app's own src/api/watches.ts.
@@ -643,7 +649,18 @@ test.describe('P4-26c: WCAG 2.1 AA Audit', () => {
 
       // 2. The other row's detail panel.
       await page.getByText('rs2000', { exact: true }).first().click()
-      await expect(page.getByRole('dialog', { name: /Variant detail for rs2000/ })).toBeVisible()
+      const dialog = page.getByRole('dialog', { name: /Variant detail for rs2000/ })
+      await expect(dialog).toBeVisible()
+      // Visible is not settled: wait out the slide-in so axe samples the panel
+      // where it rests, not a frame of it still entering (#2595).
+      await dialog.evaluate((el) =>
+        Promise.all(
+          el
+            .getAnimations({ subtree: true })
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished),
+        ),
+      )
       const panel = await wcagScan(page).analyze()
 
       // One known, app-wide defect is filed rather than fixed here: white text on
