@@ -1,0 +1,86 @@
+{
+ "rs111033173": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "c",
+   "downloadTime": "2026:10:22T04:33:17Z",
+   "downloadTimeStamp": 1792643597,
+   "end": 7468,
+   "genome": "hg19",
+   "start": 7467
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=7467;end=7468"
+ },
+ "rs193302985": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "G",
+   "downloadTime": "2026:10:22T04:33:18Z",
+   "downloadTimeStamp": 1792643598,
+   "end": 15043,
+   "genome": "hg19",
+   "start": 15042
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=15042;end=15043"
+ },
+ "rs199474657": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "g",
+   "downloadTime": "2026:10:22T04:33:18Z",
+   "downloadTimeStamp": 1792643598,
+   "end": 3243,
+   "genome": "hg19",
+   "start": 3242
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=3242;end=3243"
+ },
+ "rs199476119": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "C",
+   "downloadTime": "2026:10:22T04:33:19Z",
+   "downloadTimeStamp": 1792643599,
+   "end": 4160,
+   "genome": "hg19",
+   "start": 4159
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=4159;end=4160"
+ },
+ "rs28359175": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "A",
+   "downloadTime": "2026:10:22T04:33:19Z",
+   "downloadTimeStamp": 1792643599,
+   "end": 13263,
+   "genome": "hg19",
+   "start": 13262
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=13262;end=13263"
+ },
+ "rs2853497": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "G",
+   "downloadTime": "2026:10:22T04:33:20Z",
+   "downloadTimeStamp": 1792643600,
+   "end": 12007,
+   "genome": "hg19",
+   "start": 12006
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=12006;end=12007"
+ },
+ "rs3899188": {
+  "response": {
+   "chrom": "chrM",
+   "dna": "T",
+   "downloadTime": "2026:10:22T04:33:20Z",
+   "downloadTimeStamp": 1792643600,
+   "end": 10115,
+   "genome": "hg19",
+   "start": 10114
+  },
+  "url": "https://api.genome.ucsc.edu/getData/sequence?genome=hg19;chrom=chrM;start=10114;end=10115"
+ }
+}

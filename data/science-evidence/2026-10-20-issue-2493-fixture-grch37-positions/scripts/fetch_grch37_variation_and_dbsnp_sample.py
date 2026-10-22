@@ -1,6 +1,11 @@
 """Fetch public GRCh37/GRCh38 coordinate evidence for the synthetic fixture's rsIDs (#2493)."""
-import gzip, json, random, sys, time
+import gzip
+import json
+import random
+import sys
+import time
 from pathlib import Path
+
 import httpx
 
 out = Path(sys.argv[1]); fixture = Path(sys.argv[2])

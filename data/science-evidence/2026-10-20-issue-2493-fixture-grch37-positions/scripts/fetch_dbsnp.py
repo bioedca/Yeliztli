@@ -1,6 +1,10 @@
-import json, sys, time
+import json
+import sys
+import time
 from pathlib import Path
+
 import httpx
+
 D = Path(sys.argv[1])
 sample = json.loads((D / "raw" / "sample_rsids.json").read_text())["rsids"]
 unknown = ["rs62532020", "rs28596778", "rs78569271", "rs115540404", "rs12018528"]

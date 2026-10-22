@@ -1,0 +1,3939 @@
+{
+ "_provenance": {
+  "origin": "#2583",
+  "oracle": "tests/fixtures/seed_rsid_grch37_coordinates.json",
+  "evidence_packet": "data/science-evidence/2026-10-22-issue-2583-seed-allele-orientation",
+  "generator": "data/science-evidence/2026-10-22-issue-2583-seed-allele-orientation/scripts/write_seed_allele_exceptions.py",
+  "note": "Rows that break the plus-strand, reference-first GRCh37 allele contract today. The guard requires this list to match exactly, so it can only shrink as rows are corrected."
+ },
+ "rows": [
+  {
+   "seed": "clinvar_seed",
+   "rsid": "rs1065852",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "clinvar_seed",
+   "rsid": "rs1800795",
+   "ref": "G",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "clinvar_seed",
+   "rsid": "rs6025",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2541"
+  },
+  {
+   "seed": "gnomad_seed",
+   "rsid": "rs1065852",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "gnomad_seed",
+   "rsid": "rs1800795",
+   "ref": "G",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "gnomad_seed",
+   "rsid": "rs2032582",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "gnomad_seed",
+   "rsid": "rs6025",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2541"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10076494",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10100384",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10101779",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10143703",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10216980",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10231165",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10262234",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10280461",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10283686",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1029098",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1035478",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10406904",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10457800",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs104886257",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs104894001",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10501795",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10509397",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10514973",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10518474",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1051858",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10520766",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1065852",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10733680",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10741068",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10760075",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1076655",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10789753",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10800335",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10812738",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10814410",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10863868",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10868488",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10898483",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10914780",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10919536",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10958708",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10968293",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs10982289",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11041009",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs111033173",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs111033710",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11129950",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11133745",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs111481402",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11154212",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1122073",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11222663",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11231409",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs113013762",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs113628606",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs114525117",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11575897",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11635848",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11665106",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11667371",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11769410",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs117712666",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11775918",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11780869",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11785638",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11853517",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11863536",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11887929",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11944965",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs11996253",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12009148",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs121912891",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12345872",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12404339",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1241182",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12424969",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12441022",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12443553",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12455764",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12455984",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12457893",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12465207",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12465498",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12482371",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12485939",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12487740",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12522693",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12626669",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12637187",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12647112",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12682471",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12743133",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1277992",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12781860",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12802362",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12828682",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12881241",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12899110",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12910709",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12931813",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs12949267",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13004083",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13024531",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13072987",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs131031",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13123841",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13125929",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1321348",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13224720",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13304414",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13304625",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13305939",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1332770",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs13423275",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1356915",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1362123",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1378378",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1394585",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs139476990",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1399953",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1401239",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1404988",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1415564",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1419271",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1419931",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs142189490",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1440985",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1447373",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1453794",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs145472480",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1457576",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs146891",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs148818431",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1492361",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1493550",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1498583",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs150802",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1509914",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1530440",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1553560",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1557809",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1557975",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1606351",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16557",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs166405",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1669462",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16879258",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1691551",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16917736",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16930139",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16938948",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16958010",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16961733",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1698135",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs16997056",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17035807",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17227806",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17257107",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17294794",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17299918",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17321858",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17436486",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17465965",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17501421",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1753780",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17560758",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17607303",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17710392",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17718358",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17770189",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs17776650",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1786803",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1787868",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1799966",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1800795",
+   "ref": "G",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1820935",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1824483",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1830597",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1857269",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1865810",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1868255",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1870416",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1884198",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1885800",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1894081",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1894225",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1908219",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs193302985",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1948438",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs1953200",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs199474657",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs199474672",
+   "ref": "T",
+   "alt": "C",
+   "violation": "snv_at_indel",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs199476119",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs200115553",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2011703",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2013979",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs201435049",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2032582",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2063393",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2071738",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2071753",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2071848",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2078901",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2091781",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2103899",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2109850",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs213498",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2159404",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2209623",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs221311",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2213665",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2213770",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2239534",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2255748",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2257090",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2270302",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2270381",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2279120",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2279343",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2283075",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2285781",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs231506",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2315966",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2368831",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2382087",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2382849",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2396789",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2457434",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2516234",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2584764",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2593420",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs259435",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2608174",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs264591",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2675165",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2758679",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2776061",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs281860276",
+   "ref": "A",
+   "alt": "T",
+   "violation": "snv_at_indel",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs28359175",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs284307",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2853497",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2855668",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2856993",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs28634172",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2873689",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2891944",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs28934607",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs2941394",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs296522",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3011572",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3013211",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs303528",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3094315",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3096835",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3111876",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3113494",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3118536",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3129795",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3179690",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3212287",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs341272",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs34277206",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs34705075",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs35018407",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs350720",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs35178723",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs35416799",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs35782477",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs369544574",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs370983472",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3737325",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs374438258",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs374938148",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3759378",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3765492",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3784351",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3794331",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3813380",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3826464",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3849233",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3859044",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs386833743",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3886013",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs388669",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs3899188",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs397514382",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs397516371",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs397517749",
+   "ref": "C",
+   "alt": "T",
+   "violation": "snv_at_indel",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4085154",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4142568",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs41432549",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4146697",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs41475048",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4240133",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4247524",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4328439",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4339166",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs435986",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4402033",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4456071",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4460346",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4491840",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4501299",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4512236",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4545536",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs45467396",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4551650",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4571176",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4583021",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4632379",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4664737",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4730333",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4741377",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4746796",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4754086",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4772102",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs477590",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4785434",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4796760",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4810884",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4820571",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4846979",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4866585",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs487502",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs491794",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4938066",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4947936",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs4970383",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5026665",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs55828573",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs55894265",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs56025600",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs56396134",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs566071",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs573120764",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs587776831",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs587779236",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs587779723",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs587782504",
+   "ref": "A",
+   "alt": "T",
+   "violation": "snv_at_indel",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5905864",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5926434",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5938060",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5976493",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5988003",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs5995518",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6025",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2541"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6049496",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6049736",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs60580031",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6076506",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs60778967",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6100204",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6102592",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6133613",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6139746",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs61954364",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs62048414",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6421910",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs642770",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6484978",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6493165",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6550169",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs658980",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6640082",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6656346",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6681049",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs672601317",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6740918",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6748545",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6813598",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6822105",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6838713",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6846361",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6854035",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6872249",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6901900",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6912784",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6917666",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6979609",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs6982478",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7007927",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7039002",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7042159",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7071825",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7128359",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7142571",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7144384",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7151969",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7172789",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7191379",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7219536",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs723796",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs72544145",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs72627225",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs72641339",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs72661529",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs72917612",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7312564",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs73246815",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs73250451",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs734336",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7350930",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs73518976",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7364201",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs73719521",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs74086291",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs74517184",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs748078361",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs749651",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7510466",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs753116280",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7558081",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7601387",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs76257237",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs76699816",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7683903",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7694491",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7710852",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs77153933",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs771953225",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs774129279",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7751553",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs77674357",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7780448",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs778350157",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs77850724",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs779723",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7824480",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs78450446",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs785520",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs786202638",
+   "ref": "A",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs78622436",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7868316",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7893985",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs794728091",
+   "ref": "A",
+   "alt": "C",
+   "violation": "snv_at_indel",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs7966732",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8001112",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8014890",
+   "ref": "G",
+   "alt": "A",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs80299432",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs80356493",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs80357172",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8035845",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs80358559",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8039095",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8044348",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8044765",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8069024",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8098963",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs8108848",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs830842",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs863224468",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs865010",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs868590",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs869025612",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs879253733",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs882257",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs890086",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs895630",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs913722",
+   "ref": "A",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9304656",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9315027",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9322306",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9332377",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9364590",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs937472",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9383372",
+   "ref": "C",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs944260",
+   "ref": "C",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9516258",
+   "ref": "A",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs953588",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9537975",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9541520",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9542986",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9544526",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9549035",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9551512",
+   "ref": "T",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9586006",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9627540",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9656787",
+   "ref": "T",
+   "alt": "C",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9755941",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9785905",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9785983",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9785990",
+   "ref": "G",
+   "alt": "A",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9786325",
+   "ref": "C",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs979244",
+   "ref": "C",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs980349",
+   "ref": "G",
+   "alt": "T",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9808685",
+   "ref": "A",
+   "alt": "G",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs985774",
+   "ref": "G",
+   "alt": "T",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9867956",
+   "ref": "A",
+   "alt": "G",
+   "violation": "outside_allele_string",
+   "tracked_by": "#2583"
+  },
+  {
+   "seed": "vep_seed",
+   "rsid": "rs9929802",
+   "ref": "A",
+   "alt": "C",
+   "violation": "not_reference_first",
+   "tracked_by": "#2583"
+  }
+ ]
+}

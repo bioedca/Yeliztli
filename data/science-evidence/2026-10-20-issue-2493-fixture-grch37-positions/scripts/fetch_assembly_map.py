@@ -1,7 +1,12 @@
 """Project every fixture row's current (GRCh38) coordinate to GRCh37 with Ensembl's assembly map (#2493)."""
-import gzip, json, sys, time
+import gzip
+import json
+import sys
+import time
 from pathlib import Path
+
 import httpx
+
 D = Path(sys.argv[1]); fixture = Path(sys.argv[2])
 rows = [l.split("\t") for l in fixture.read_text().splitlines() if l and not l.startswith("#")]
 c = httpx.Client(timeout=60, headers={"Accept": "application/json"})

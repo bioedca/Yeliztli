@@ -1,6 +1,10 @@
-import json, sys, time
+import json
+import sys
+import time
 from pathlib import Path
+
 import httpx
+
 D = Path(sys.argv[1]) / "raw" / "citation"; D.mkdir(parents=True, exist_ok=True)
 c = httpx.Client(timeout=120); E = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 def get(path, **params):

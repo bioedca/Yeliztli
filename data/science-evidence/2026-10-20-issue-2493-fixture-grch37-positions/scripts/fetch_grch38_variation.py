@@ -1,6 +1,11 @@
-import gzip, json, sys, time
+import gzip
+import json
+import sys
+import time
 from pathlib import Path
+
 import httpx
+
 D = Path(sys.argv[1]); dl = Path(sys.argv[2]); fixture = Path(sys.argv[3])
 rows = [l.split("\t") for l in fixture.read_text().splitlines() if l and not l.startswith("#")]
 ids = [r[0] for r in rows if r[0].startswith("rs")]
