@@ -477,3 +477,99 @@ class TestEventLoopStaysFree:
         asyncio.run(scenario())
 
         assert order == ["health", "upload"]
+
+
+class _Killed(BaseException):
+    """Stands in for SIGKILL: no ``except`` or ``finally`` in ingest runs."""
+
+
+def _kill_mid_build(registry: DBRegistry, monkeypatch: pytest.MonkeyPatch) -> int:
+    """Leave exactly what a process killed mid-insert leaves: row, lease, partial DB."""
+    # A killed process runs none of ingest's cleanup.
+    monkeypatch.setattr(ingest_route, "_discard_failed_ingest", lambda *a, **k: None)
+
+    def killed_during_variants(*args, **kwargs):
+        raise _Killed
+
+    with monkeypatch.context() as patched:
+        patched.setattr(ingest_route.raw_variants, "insert", killed_during_variants)
+        with pytest.raises(_Killed):
+            _ingest(registry)
+    with registry.reference_engine.connect() as conn:
+        return conn.execute(sa.select(sa.func.max(samples.c.id))).scalar_one()
+
+
+class TestInterruptedImportRecovery:
+    """#2580: a sample whose import was killed must not survive the restart."""
+
+    @pytest.mark.parametrize("lease_released_first", [True, False])
+    def test_killed_import_is_withdrawn_at_startup(
+        self,
+        registry: DBRegistry,
+        monkeypatch: pytest.MonkeyPatch,
+        lease_released_first: bool,
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{sample_id}.db"
+        assert sample_db.exists()
+        if lease_released_first:
+            assert recover_orphaned_jobs(registry.reference_engine) == 1
+
+        withdrawn = ingest_route.recover_interrupted_ingests(registry)
+
+        assert withdrawn == [sample_id]
+        assert _count(registry.reference_engine, samples) == 0
+        assert _count(registry.reference_engine, jobs) == 0
+        assert list((registry.settings.data_dir / "samples").glob("sample_*")) == []
+
+    def test_completed_import_is_left_alone(self, registry: DBRegistry) -> None:
+        response = _ingest(registry)
+        sample_db = registry.settings.data_dir / "samples" / f"sample_{response['sample_id']}.db"
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert sample_db.exists()
+        assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_stale_lease_never_withdraws_a_later_sample_at_a_reused_id(
+        self, registry: DBRegistry
+    ) -> None:
+        """Deletion keeps ``jobs`` rows and SQLite reuses the vacated id."""
+        response = _ingest(registry)
+        sample_id = response["sample_id"]
+        earlier = datetime(2020, 1, 1, tzinfo=UTC)
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id="synthetic-stale-ingest",
+                    sample_id=sample_id,
+                    job_type=SAMPLE_INGEST_JOB_TYPE,
+                    status="failed",
+                    created_at=earlier,
+                    updated_at=earlier,
+                )
+            )
+
+        assert ingest_route.recover_interrupted_ingests(registry) == []
+
+        assert (registry.settings.data_dir / "samples" / f"sample_{sample_id}.db").exists()
+        assert _count(registry.reference_engine, samples) == 1
+
+    def test_a_withdrawal_that_cannot_remove_its_files_keeps_the_row_for_a_retry(
+        self, registry: DBRegistry, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sample_id = _kill_mid_build(registry, monkeypatch)
+        real_unlink = Path.unlink
+
+        def refuse_sample_db(path: Path, *args, **kwargs):
+            if path.name == f"sample_{sample_id}.db":
+                raise PermissionError("synthetic")
+            return real_unlink(path, *args, **kwargs)
+
+        with monkeypatch.context() as patched:
+            patched.setattr(Path, "unlink", refuse_sample_db)
+            assert ingest_route.recover_interrupted_ingests(registry) == []
+        assert _count(registry.reference_engine, samples) == 1
+
+        assert ingest_route.recover_interrupted_ingests(registry) == [sample_id]
+        assert _count(registry.reference_engine, samples) == 0

@@ -56,6 +56,7 @@ from backend.api.routes.hla import router as hla_router
 from backend.api.routes.igv_tracks import router as igv_tracks_router
 from backend.api.routes.imputation import router as imputation_router
 from backend.api.routes.individuals import router as individuals_router
+from backend.api.routes.ingest import recover_interrupted_ingests
 from backend.api.routes.ingest import router as ingest_router
 from backend.api.routes.kinship import router as kinship_router
 from backend.api.routes.lhon import router as lhon_router
@@ -328,6 +329,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         cleanup_interrupted_sessions(registry.reference_engine)
         # Mark any orphaned jobs (worker killed mid-task) as failed
         recover_orphaned_jobs(registry.reference_engine)
+        # Withdraw samples whose upload was killed before its database was
+        # complete; the line above has just released their ingest leases, and
+        # nothing else would stop them being used as if fully imported (#2580).
+        recover_interrupted_ingests(registry)
         # Mark any download checkpoints stuck mid-transfer as failed so the partial
         # surfaces as honestly resumable instead of a phantom "downloading" forever.
         recover_orphaned_downloads(registry.reference_engine)
