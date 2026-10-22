@@ -2,7 +2,8 @@
 
 Imports the guard's own classifier so the list is exactly the set of rows the guard
 rejects today. Each entry names the issue that owns its correction: rs6025's Factor V
-Leiden rows are #2541; every other row is #2583's correction follow-up.
+Leiden rows are #2541, rs1800795's are #2563, and the CYP2D6/ABCB1 rows are #2591.
+#2590 corrected every unannotated filler row.
 
 Usage (from the repository root): python -I <this script> <repo-root>
 """
@@ -14,7 +15,14 @@ import json
 import sys
 from pathlib import Path
 
-TRACKED_ELSEWHERE = {"rs6025": "#2541"}
+TRACKED_ELSEWHERE = {
+    "rs6025": "#2541",
+    "rs1800795": "#2563",
+    # Transcript-strand pharmacogenomic rows that need annotation and frequency
+    # re-sourcing, split out of #2590.
+    "rs1065852": "#2591",
+    "rs2032582": "#2591",
+}
 
 
 def main() -> None:
