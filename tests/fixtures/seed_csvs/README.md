@@ -63,6 +63,20 @@ GRCh37 contract, and the regeneration test asserted one of those values outright
 (#476). Both are now pinned in the non-panel oracle at `19:45411941` and
 `19:45412079`. Prefer adding a verified mapping over leaving an rsID unguarded.
 
+The panel oracle reaches only panel members, and that gap let 75 seed rsIDs
+drift to a coordinate from another assembly or another locus (#2375). Some had
+annotation describing a different variant entirely: the row labelled PAH was the
+KRAS G12 locus. `../seed_rsid_grch37_coordinates.json` is the seed-wide oracle:
+every dbSNP-form rsID in the four coordinate seeds, with its single Ensembl
+GRCh37 primary mapping. `tests/backend/test_seed_grch37_coordinates.py` holds
+every located seed row to it, loci only. Rows writing an un-padded `-` allele sit
+at Ensembl's start; VCF-form indels sit one base earlier. Its exceptions are
+explicit sets that can only shrink: #2345's `rs12345`, and the unannotated rows
+that mirror the vendor parser fixtures, which are a follow-up. The rsID is a
+row's identity, so a corrected row takes its rsID's locus and alleles, and an
+annotated row then mirrors the pinned production bundle (#2562). Evidence:
+`data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates/`.
+
 `../mini_clinvar.vcf` is hand-maintained rather than generated, so the
 seed/oracle guard above did not reach it and it drifted with the seeds. It is
 now checked against the same oracle: it must declare `##reference=GRCh37`, and

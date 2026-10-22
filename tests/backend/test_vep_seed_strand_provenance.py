@@ -751,64 +751,16 @@ def test_cyp2c19_star4_stays_a_start_loss() -> None:
 _BUNDLE_SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_seed_bundle_snapshot.json"
 _MANIFEST = _ROOT / "bundles" / "manifest.json"
 
-_ANOTHER_POSITION = "#2375: not at its rsID's GRCh37 position"
-_ANOTHER_ALLELE = "#2375: at the position with another allele"
+_ANOTHER_ALLELE = "at its GRCh37 position, another allele (seed allele follow-up of #2375)"
 _REVERSED = "REF and ALT reversed relative to GRCh37 (rs6025 is #2541)"
 _ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
 
 # Annotated rows with no bundle row at their position and alleles, so nothing to
 # mirror yet. Each still fails the match today; once a fix moves one onto a
 # bundle locus, the guard below holds its annotation to the bundle and it must
-# leave this map, which can therefore only shrink.
+# leave this map, which can therefore only shrink. #2375 moved the 48 rows that
+# sat at another assembly's or another locus's coordinate onto their bundle rows.
 _NOT_AT_A_BUNDLE_LOCUS = {
-    "rs104894396": _ANOTHER_POSITION,
-    "rs1057910": _ANOTHER_POSITION,
-    "rs10811661": _ANOTHER_POSITION,
-    "rs1111875": _ANOTHER_POSITION,
-    "rs1142345": _ANOTHER_POSITION,
-    "rs1143634": _ANOTHER_POSITION,
-    "rs121434569": _ANOTHER_POSITION,
-    "rs121912443": _ANOTHER_POSITION,
-    "rs121913529": _ANOTHER_POSITION,
-    "rs12248560": _ANOTHER_POSITION,
-    "rs12979860": _ANOTHER_POSITION,
-    "rs16947": _ANOTHER_POSITION,
-    "rs1799853": _ANOTHER_POSITION,
-    "rs1799950": _ANOTHER_POSITION,
-    "rs1799971": _ANOTHER_POSITION,
-    "rs1800460": _ANOTHER_POSITION,
-    "rs1800462": _ANOTHER_POSITION,
-    "rs1800497": _ANOTHER_POSITION,
-    "rs1800544": _ANOTHER_POSITION,
-    "rs1800629": _ANOTHER_POSITION,
-    "rs1800872": _ANOTHER_POSITION,
-    "rs1800896": _ANOTHER_POSITION,
-    "rs2060793": _ANOTHER_POSITION,
-    "rs213950": _ANOTHER_POSITION,
-    "rs2228479": _ANOTHER_POSITION,
-    "rs2306283": _ANOTHER_POSITION,
-    "rs25531": _ANOTHER_POSITION,
-    "rs28897727": _ANOTHER_POSITION,
-    "rs3918290": _ANOTHER_POSITION,
-    "rs4149015": _ANOTHER_POSITION,
-    "rs4149056": _ANOTHER_POSITION,
-    "rs4244285": _ANOTHER_POSITION,
-    "rs4570625": _ANOTHER_POSITION,
-    "rs4986893": _ANOTHER_POSITION,
-    "rs5030862": _ANOTHER_POSITION,
-    "rs5882": _ANOTHER_POSITION,
-    "rs6311": _ANOTHER_POSITION,
-    "rs6313": _ANOTHER_POSITION,
-    "rs63750066": _ANOTHER_POSITION,
-    "rs708272": _ANOTHER_POSITION,
-    "rs72552267": _ANOTHER_POSITION,
-    "rs7294": _ANOTHER_POSITION,
-    "rs757210": _ANOTHER_POSITION,
-    "rs76151636": _ANOTHER_POSITION,
-    "rs776746": _ANOTHER_POSITION,
-    "rs80358981": _ANOTHER_POSITION,
-    "rs8099917": _ANOTHER_POSITION,
-    "rs854560": _ANOTHER_POSITION,
     "rs1065852": _ANOTHER_ALLELE,
     "rs2032582": _ANOTHER_ALLELE,
     "rs1800795": _REVERSED,
@@ -871,13 +823,15 @@ def test_annotated_rows_at_a_bundle_locus_mirror_the_bundle() -> None:
     )
 
 
-def test_the_flagged_pgx_alleles_wait_on_their_coordinates() -> None:
-    """#2363's DPYD*2A and CYP2C19*2 candidates resolve once #2375 moves them."""
-    snapshot = _bundle_snapshot()["rows"]
-    assert _NOT_AT_A_BUNDLE_LOCUS["rs3918290"] == _ANOTHER_POSITION
-    assert _NOT_AT_A_BUNDLE_LOCUS["rs4244285"] == _ANOTHER_POSITION
-    assert {row["consequence"] for row in snapshot["rs3918290"]} == {"splice_donor_variant"}
-    assert {row["consequence"] for row in snapshot["rs4244285"]} == {"synonymous_variant"}
+def test_the_flagged_pgx_alleles_now_say_what_the_bundle_says() -> None:
+    """#2363's DPYD*2A and CYP2C19*2 candidates resolved once #2375 moved them."""
+    rows = {row["rsid"]: row for row in _rows()}
+    assert "rs3918290" not in _NOT_AT_A_BUNDLE_LOCUS
+    assert "rs4244285" not in _NOT_AT_A_BUNDLE_LOCUS
+    assert (rows["rs3918290"]["chrom"], rows["rs3918290"]["pos"]) == ("1", "97915614")
+    assert rows["rs3918290"]["consequence"] == "splice_donor_variant"
+    assert (rows["rs4244285"]["chrom"], rows["rs4244285"]["pos"]) == ("10", "96541616")
+    assert rows["rs4244285"]["consequence"] == "synonymous_variant"
 
 
 def _tiny_bundle(path: Path, *, version: str = "v9.9.9") -> None:
