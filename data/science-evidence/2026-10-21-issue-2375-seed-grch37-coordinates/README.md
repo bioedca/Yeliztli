@@ -52,6 +52,19 @@ Two of the 26, `rs199474672` and `rs794728091`, are `-/T` insertions whose rows 
 
 `rs10811661` and `rs1111875` became intergenic. `scripts/prune_bundle_snapshot.py` removed them from the snapshot's annotated scope (deletions only). `tests/fixtures/vep_gene_strand_snapshot.json` was regenerated live by its own generator: 6 genes added, 5 dropped, and no existing gene's strand changed.
 
+**Allele frequencies (C6, from #2579's Codex review).** `gnomad_seed`'s frequency columns, except `af_asj`, are unsourced fixture values with no consistent orientation. For example, `rs776746`'s already described GRCh37's ALT, while `rs5882`'s described the old ALT. A uniform `1 − AF` would therefore be wrong.
+
+Two groups were re-sourced by rsID from gnomAD v4.1.0 joint (exome+genome), as `gnomad_seed.af_asj.provenance.json` already does (`scripts/fetch_gnomad_r4.py`; `raw/gnomad_r4/`, accessed 2026-10-22):
+- the 9 rows whose allele pair the rewrite reversed;
+- the 10 rows whose rsID names a different variant from the one the old coordinate described.
+
+That is 16 `gnomad_seed` rows. `scripts/apply_gnomad_r4.py` (`derived/gnomad_r4_values.json`) orients each to the fixture's GRCh37 alleles. `af_eur` is gnomAD `nfe`, as in `backend/annotation/gnomad.py`.
+- **Same orientation (8 rows):** `AC/AN` and the joint homozygote count.
+- **Reversed (`rs776746`):** `1 − AC/AN`. The homozygote count is withheld, since it counts the other allele's homozygotes.
+- **Withheld, every column NULL (7 rows):** `rs121913529`, `rs16947`, `rs2060793`, `rs25531` and `rs757210` are multiallelic in r4, `rs121912443` is absent, and `rs76151636`'s r4 allele is `G>T` while the row is `G>A`. This follows the ASJ provenance's own rule: "withheld (NULL) rather than fabricated".
+
+**Control.** For the 5 rsIDs that already had ASJ records, the derived `af_asj` reproduces the stored value exactly. The one change is `rs5882`, whose value is reoriented from 0.411606 to 0.588394 (= 17420/29606, the finding). Three rsIDs move from withheld to sourced. The three test helpers that load the seed directly now map an empty cell to NULL, as `regenerate_fixtures._cast_value` does.
+
 **Guard.** `scripts/write_seed_coordinate_oracle.py` writes `tests/fixtures/seed_rsid_grch37_coordinates.json` (676 rsIDs) from `raw/ensembl_grch37/`. `tests/backend/test_seed_grch37_coordinates.py` holds every located seed row to it. It fails on `main` @ `1c5f7f5f` and passes on this branch.
 
 **Controls.**
@@ -65,6 +78,7 @@ Two of the 26, `rs199474672` and `rs794728091`, are `-/T` insertions whose rows 
 **Citations** (verified for #2493, `data/science-evidence/2026-10-20-issue-2493-fixture-grch37-positions/raw/citation/`; PubMed lists no correction or retraction):
 - `PMID:25236461 / DOI:10.1093/bioinformatics/btu613 (accessed 2026-10-21)`: Yates et al., *The Ensembl REST API: Ensembl Data for Any Language*, Bioinformatics 2015. It covers the variation and sequence endpoints used here.
 - `PMID:25352552 / DOI:10.1093/nar/gku1010 (accessed 2026-10-21)`: Cunningham et al., *Ensembl 2015*, Nucleic Acids Res 2015. It describes the dedicated GRCh37 site.
+- gnomAD v4.1.0 is cited as the database release (`https://gnomad.broadinstitute.org/api`, dataset `gnomad_r4`, accessed 2026-10-22), as the existing ASJ provenance does.
 
 GRCh37.p13 is NCBI Assembly `GCF_000001405.25`, verified in the #2493 packet.
 
@@ -82,3 +96,5 @@ GRCh37.p13 is NCBI Assembly `GCF_000001405.25`, verified in the #2493 packet.
 7. `prune_bundle_snapshot.py`
 8. `write_seed_coordinate_oracle.py`
 9. Then `scripts/build_vep_strand_snapshot.py --evidence-out tests/fixtures/vep_gene_strand_snapshot.evidence.json` and `scripts/regenerate_fixtures.py`, with `mini_dbnsfp.db` restored, since it is logically identical.
+10. `fetch_gnomad_r4.py`
+11. `apply_gnomad_r4.py`, then `scripts/regenerate_fixtures.py` again
