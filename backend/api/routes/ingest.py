@@ -25,7 +25,7 @@ from backend.api.sse import job_progress_stream, sse_response
 from backend.db.connection import DBRegistry, get_registry
 from backend.db.database_registry import DATABASES
 from backend.db.manifest import get_bundle_info
-from backend.db.sample_schema import create_sample_tables
+from backend.db.sample_schema import create_sample_tables, sample_db_sidecars
 from backend.db.tables import (
     annotation_state,
     jobs,
@@ -319,12 +319,7 @@ def _withdraw_unfinished_import(
     registry.dispose_sample_engine(sample_db_path)
     # A killed import in rollback-journal mode leaves ``-journal`` beside the
     # file; left behind, it would be replayed into a later sample at this path.
-    for path in (
-        sample_db_path,
-        Path(f"{sample_db_path}-wal"),
-        Path(f"{sample_db_path}-shm"),
-        Path(f"{sample_db_path}-journal"),
-    ):
+    for path in (sample_db_path, *sample_db_sidecars(sample_db_path)):
         path.unlink(missing_ok=True)
     with registry.reference_engine.begin() as conn:
         conn.execute(
