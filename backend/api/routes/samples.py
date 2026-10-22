@@ -26,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
 from backend.api.dependencies import require_fresh_merged_sample, require_fresh_sample
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import (
     annotated_variants,
@@ -35,7 +36,6 @@ from backend.db.tables import (
     samples,
     watched_variants,
 )
-from backend.ingestion.chrom_order import CHROM_ORDER
 from backend.services.sample_delete import (
     delete_sample_with_cascade,
     list_merged_children,
@@ -319,19 +319,6 @@ _CONCORDANCE_REPORT_DEFAULT_LIMIT = 50
 _CONCORDANCE_REPORT_MAX_LIMIT = 500
 
 
-def _chrom_order_expr() -> sa.Case:
-    """CASE expression ordering ``raw_variants.chrom`` canonically (1..22, X, Y, MT).
-
-    ``chrom`` is TEXT, so a bare ``.asc()`` sorts ``1, 10, 11, …, 19, 2, 20, …``
-    with X/Y/MT interleaved by ASCII, and — because ORDER BY precedes
-    LIMIT/OFFSET — a chr2 locus pages after a chr19 one (issue #2053).
-    """
-    return sa.case(
-        *[(raw_variants.c.chrom == k, v) for k, v in CHROM_ORDER.items()],
-        else_=99,
-    )
-
-
 def _read_merge_provenance(registry: object, sample_id: int) -> sa.Row | None:
     """Open the per-sample DB read-only and fetch the single ``merge_provenance`` row.
 
@@ -495,7 +482,7 @@ async def get_concordance_report(
                 )
             )
             .where(discordant_filter)
-            .order_by(_chrom_order_expr().asc(), raw_variants.c.pos.asc())
+            .order_by(chrom_order_case(raw_variants.c.chrom).asc(), raw_variants.c.pos.asc())
             .limit(limit)
             .offset(offset)
         )

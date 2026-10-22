@@ -36,6 +36,7 @@ from backend.analysis.allelic_state import (
 )
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES
 from backend.api.gating import gated_modules_to_hide
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, findings, samples
 from backend.services.sex_inference import (
@@ -604,17 +605,7 @@ def _load_annotated_variants(
     hidden_modules: Sequence[str] = (),
 ) -> list[dict[str, Any]]:
     """Load at most one carried variant beyond the FHIR output ceiling."""
-    # Canonical chromosome sort order
-    chrom_order: dict[str, int] = {
-        **{str(i): i for i in range(1, 23)},
-        "X": 23,
-        "Y": 24,
-        "MT": 25,
-    }
-    chrom_expr = sa.case(
-        *[(annotated_variants.c.chrom == k, v) for k, v in chrom_order.items()],
-        else_=99,
-    )
+    chrom_expr = chrom_order_case(annotated_variants.c.chrom)
     query = (
         sa.select(annotated_variants)
         .where(

@@ -29,6 +29,7 @@ from typing import TextIO
 
 from backend.analysis.zygosity import ZYG_HET, ZYG_HOM_ALT, ZYG_HOM_REF
 from backend.ingestion.chrom_order import CHROM_ORDER as _CHROM_ORDER
+from backend.ingestion.chrom_order import chrom_sort_key as _chrom_sort_key
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -59,11 +60,6 @@ _VALID_BASES: frozenset[str] = frozenset("ACGT")
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
-
-
-def _chrom_sort_key(chrom: str) -> int:
-    """Return an integer sort key for a chromosome string."""
-    return _CHROM_ORDER.get(chrom, 99)
 
 
 def _resolve_vcf_fields(

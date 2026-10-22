@@ -28,8 +28,10 @@ from pydantic import BaseModel
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.zygosity import is_no_call
 from backend.api.dependencies import require_fresh_sample
+from backend.db.chrom_order import chrom_order_case
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, raw_variants, samples, tags, variant_tags
+from backend.ingestion.chrom_order import chrom_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +40,6 @@ router = APIRouter(
     tags=["variants"],
     dependencies=[Depends(require_fresh_sample)],
 )
-
-# Canonical chromosome sort order — same as VCF export.
-CHROM_ORDER: dict[str, int] = {
-    **{str(i): i for i in range(1, 23)},
-    "X": 23,
-    "Y": 24,
-    "MT": 25,
-}
 
 # Autosomes (chr1-22). The overall heterozygosity rate is, by convention, an
 # autosomal quantity — sex chromosomes carry sex-dependent heterozygosity (a
@@ -189,11 +183,6 @@ def _get_sample_engine(sample_id: int) -> sa.Engine:
     return registry.get_sample_engine(sample_db_path)
 
 
-def _chrom_sort_key(chrom: str) -> int:
-    """Return an integer sort key for a chromosome string."""
-    return CHROM_ORDER.get(chrom, 99)
-
-
 def _select_table(sample_engine: sa.Engine) -> sa.Table:
     """Choose annotated_variants if populated, else raw_variants."""
     with sample_engine.connect() as conn:
@@ -288,14 +277,6 @@ def _filter_requires_raw_join(filter_str: str | None) -> bool:
     return False
 
 
-def _chrom_order_expr(table: sa.Table) -> sa.Case:
-    """Build CASE expression mapping chrom text to canonical sort integer."""
-    return sa.case(
-        *[(table.c.chrom == k, v) for k, v in CHROM_ORDER.items()],
-        else_=99,
-    )
-
-
 def _prefix_range(column: sa.ColumnElement, prefix: str) -> sa.ColumnElement:
     """``column`` starts with ``prefix``, case-insensitively, as an index range.
 
@@ -350,8 +331,8 @@ def _build_cursor_clause(
     if cursor_chrom is None or cursor_pos is None:
         return None
 
-    cursor_order = _chrom_sort_key(cursor_chrom)
-    expr = _chrom_order_expr(table)
+    cursor_order = chrom_sort_key(cursor_chrom)
+    expr = chrom_order_case(table.c.chrom)
 
     return sa.or_(
         expr > cursor_order,
@@ -361,7 +342,7 @@ def _build_cursor_clause(
 
 def _build_order_by(table: sa.Table) -> list:
     """Build ORDER BY clause: chrom (canonical order), then pos."""
-    return [_chrom_order_expr(table).asc(), table.c.pos.asc()]
+    return [chrom_order_case(table.c.chrom).asc(), table.c.pos.asc()]
 
 
 def _row_to_variant(
@@ -649,7 +630,7 @@ def chromosome_counts(
 
     # Sort by canonical chromosome order and return
     summaries = [ChromosomeSummary(chrom=row.chrom, count=row.count) for row in rows]
-    summaries.sort(key=lambda s: _chrom_sort_key(s.chrom))
+    summaries.sort(key=lambda s: chrom_sort_key(s.chrom))
     return summaries
 
 
@@ -755,7 +736,7 @@ def qc_stats(
         )
         for chrom, stats in chrom_stats.items()
     ]
-    per_chrom.sort(key=lambda s: _chrom_sort_key(s.chrom))
+    per_chrom.sort(key=lambda s: chrom_sort_key(s.chrom))
 
     # Aggregate totals
     total = sum(s.total for s in per_chrom)
@@ -910,7 +891,7 @@ def variant_density(
     # Sort bins by canonical chrom order then bin_start.
     bins = sorted(
         bin_map.values(),
-        key=lambda b: (_chrom_sort_key(b.chrom), b.bin_start),
+        key=lambda b: (chrom_sort_key(b.chrom), b.bin_start),
     )
 
     return DensityResponse(bins=bins)
