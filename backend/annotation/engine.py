@@ -27,6 +27,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
@@ -268,20 +269,26 @@ def _lookup_vep(
     raw_by_rsid: dict[str, sa.Row],
     vep_engine: sa.Engine,
     allele_ambiguous_out: set[str] | None = None,
+    *,
+    allele_by_rsid: dict[str, tuple[str, int, str, str]] | None = None,
 ) -> dict[str, dict]:
     """Look up VEP annotations for a batch of rsids.
 
     ``allele_ambiguous_out`` receives the rsids the bundle lists under several
     ref/alt pairs where the call could not be tied to one (#2494).
+    ``allele_by_rsid`` supplies an exact identity settled by another source
+    after the initial genotype-only lookup.
     """
     from backend.annotation.vep_bundle import lookup_vep_by_rsids
 
-    genotype_by_rsid, allele_by_rsid, coordinate_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
+    genotype_by_rsid, sample_alleles, coordinate_by_rsid = _vep_sample_context(rsids, raw_by_rsid)
+    if allele_by_rsid:
+        sample_alleles.update(allele_by_rsid)
     matches = lookup_vep_by_rsids(
         rsids,
         vep_engine,
         genotype_by_rsid=genotype_by_rsid,
-        allele_by_rsid=allele_by_rsid,
+        allele_by_rsid=sample_alleles,
         coordinate_by_rsid=coordinate_by_rsid,
         allele_ambiguous_out=allele_ambiguous_out,
     )
@@ -306,6 +313,61 @@ def _lookup_vep(
                 row["_vep_alleles_unambiguous"] = True
         results[rsid] = row
     return results
+
+
+def _lookup_vep_after_clinvar(
+    raw_by_rsid: dict[str, sa.Row],
+    vep_data: dict[str, dict],
+    clinvar_data: dict[str, dict],
+    lookup_key: dict[str, str],
+    vep_engine: sa.Engine,
+) -> tuple[dict[str, dict], dict[str, tuple[str, int, str, str]]]:
+    """Recover missing VEP rows using the identity ClinVar settles in the merge.
+
+    Keep aliases with different full identities in separate batched lookups:
+    one query-rsID result must never be fanned out to another allele or locus.
+    Existing VEP annotations are never replaced. Remaining misses can still
+    use the coordinate fallback with these same exact identities.
+    """
+    from backend.annotation.vep_bundle import _genotype_allele_class, _row_allele_class
+
+    identities: dict[str, tuple[str, int, str, str]] = {}
+    pending: dict[str, dict[tuple[str, int, str, str], list[str]]] = {}
+    for rsid, raw in raw_by_rsid.items():
+        if rsid in vep_data:
+            continue
+        clinvar = clinvar_data.get(rsid, {})
+        ref, alt = clinvar.get("ref"), clinvar.get("alt")
+        if (
+            not isinstance(ref, str)
+            or not ref.strip()
+            or not isinstance(alt, str)
+            or not alt.strip()
+        ):
+            continue
+        probe_class = _genotype_allele_class(raw.genotype)
+        identity_class = _row_allele_class(SimpleNamespace(ref=ref, alt=alt))
+        if probe_class is not None and identity_class not in (None, probe_class):
+            continue
+        identity = (str(raw.chrom), int(raw.pos), str(ref), str(alt))
+        identities[rsid] = identity
+        query = lookup_key.get(rsid, rsid)
+        pending.setdefault(query, {}).setdefault(identity, []).append(rsid)
+
+    recovered: dict[str, dict] = {}
+    while pending:
+        contexts = {query: groups.popitem() for query, groups in pending.items()}
+        matches = _lookup_vep(
+            list(contexts),
+            {},
+            vep_engine,
+            allele_by_rsid={query: context[0] for query, context in contexts.items()},
+        )
+        for query, annotation in matches.items():
+            for original in contexts[query][1]:
+                recovered[original] = dict(annotation)
+        pending = {query: groups for query, groups in pending.items() if groups}
+    return recovered, identities
 
 
 def _lookup_vep_alleles(
@@ -1227,6 +1289,8 @@ def _vep_coord_fallback(
     vep_engine: sa.Engine,
     vep_data: dict[str, dict],
     result: AnnotationEngineResult,
+    *,
+    allele_by_rsid: dict[str, tuple[str, int, str, str]] | None = None,
 ) -> int:
     """Resolve unmatched rsids via (chrom, pos) lookup in the VEP bundle.
 
@@ -1234,6 +1298,7 @@ def _vep_coord_fallback(
     coord-fallback wall-clock time onto ``result.timing_vep_s``. Returns the
     number of variants resolved here so the caller can roll the count into
     ``result.vep_coord_fallback_matched``.
+    Exact identities from ClinVar take precedence over genotype inference.
 
     The plan calls this "defense-in-depth" for AncestryDNA `kgp*` IDs: the
     rsid string is internal-only, but the (chrom, pos) tuple still hits a
@@ -1261,16 +1326,18 @@ def _vep_coord_fallback(
     if not positions:
         return 0
 
-    genotype_by_rsid, allele_by_rsid, _coordinate_by_rsid = _vep_sample_context(
+    genotype_by_rsid, sample_alleles, _coordinate_by_rsid = _vep_sample_context(
         unmatched_rsids,
         raw_by_rsid,
     )
+    if allele_by_rsid:
+        sample_alleles.update(allele_by_rsid)
     t0 = time.perf_counter()
     matches = lookup_vep_by_positions(
         positions,
         vep_engine,
         genotype_by_rsid=genotype_by_rsid,
-        allele_by_rsid=allele_by_rsid,
+        allele_by_rsid=sample_alleles,
     )
     result.timing_vep_s += time.perf_counter() - t0
 
@@ -1830,6 +1897,23 @@ def run_annotation(
                     if query in vep_allele_ambiguous
                     and _same_call(raw_by_rsid.get(original), raw_by_query.get(query))
                 }
+                # ClinVar's ref/alt must describe this original call before it
+                # can settle VEP identity. Reusing another alias's locus or
+                # genotype can otherwise fabricate an exact VEP match (#2388).
+                for original, query in lookup_key.items():
+                    own_row = raw_by_rsid.get(original)
+                    if own_row is None or _same_call(own_row, raw_by_query.get(query)):
+                        continue
+                    t_clinvar = time.perf_counter()
+                    clinvar_data.pop(original, None)
+                    try:
+                        own_clinvar = _lookup_clinvar([query], {query: own_row}, reference_engine)
+                        if query in own_clinvar:
+                            clinvar_data[original] = own_clinvar[query]
+                    except Exception as exc:
+                        result.errors.append(f"clinvar alias lookup failed: {exc}")
+                    finally:
+                        result.timing_clinvar_s += time.perf_counter() - t_clinvar
                 # An alias whose own call differs gets a VEP lookup of its own,
                 # not the evaluated call's annotation. Fanning that out handed an
                 # alias carrying another ALT the other allele's consequence, so a
@@ -1907,6 +1991,53 @@ def run_annotation(
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": "vep_coord_fallback", "error": str(exc)},
+                    )
+                    result.errors.append(msg)
+                else:
+                    result.vep_coord_fallback_matched += vep_coord_count
+
+            # ClinVar can identify a marker that a hom-ref call could not tie
+            # to one VEP ALT (#2388). Recover only previously missing rows,
+            # after the original coordinate lookup and before downstream joins,
+            # using the identity the merge will store and the existing strict
+            # transcript selector.
+            settled_vep_alleles: dict[str, tuple[str, int, str, str]] = {}
+            if vep_engine is not None:
+                t_vep = time.perf_counter()
+                try:
+                    recovered, settled_vep_alleles = _lookup_vep_after_clinvar(
+                        raw_by_rsid, vep_data, clinvar_data, lookup_key, vep_engine
+                    )
+                    vep_data.update(recovered)
+                    vep_rsid_hit_keys.update(recovered)
+                    # A settled identity absent from VEP is a miss, rather than
+                    # a call whose allele remains ambiguous.
+                    vep_allele_ambiguous.difference_update(settled_vep_alleles)
+                except Exception as exc:
+                    msg = f"vep settled-identity lookup failed: {exc}"
+                    logger.warning(
+                        "annotation_source_error",
+                        extra={"source": "vep_settled_identity", "error": str(exc)},
+                    )
+                    result.errors.append(msg)
+                finally:
+                    result.timing_vep_s += time.perf_counter() - t_vep
+
+            if vep_engine is not None and settled_vep_alleles:
+                try:
+                    vep_coord_count = _vep_coord_fallback(
+                        list(settled_vep_alleles),
+                        raw_by_rsid,
+                        vep_engine,
+                        vep_data,
+                        result,
+                        allele_by_rsid=settled_vep_alleles,
+                    )
+                except Exception as exc:
+                    msg = f"vep settled-identity coord-fallback lookup failed: {exc}"
+                    logger.warning(
+                        "annotation_source_error",
+                        extra={"source": "vep_settled_coord_fallback", "error": str(exc)},
                     )
                     result.errors.append(msg)
                 else:
