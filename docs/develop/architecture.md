@@ -60,6 +60,14 @@ downloaded into the data directory — see [reference data](../install/reference
 
 Background jobs are tracked so an interrupted annotation is recovered on restart.
 
+When ClinVar supplies an exact allele identity for a marker whose multi-ALT VEP
+annotation was withheld, annotation now resolves its primary VEP transcript using
+that full `(chrom, pos, ref, alt)` identity. Gene-keyed views can then use the stored
+gene and consequence. Unresolved identities remain withheld, and existing VEP
+annotations retain their original selection. Existing samples are not rewritten
+on open for this correction: re-run annotation with `POST /api/annotation/{sample_id}`
+to apply it before relying on their stored gene columns.
+
 ## Entry points
 
 | Process | Command |

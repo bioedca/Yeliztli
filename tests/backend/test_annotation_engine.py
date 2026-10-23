@@ -4170,3 +4170,286 @@ class TestGenePhenotypeAnnotation:
         # will have gene-phenotype data
         for row in rows:
             assert row.annotation_coverage & GENE_PHENOTYPE_BIT == 0
+
+
+# Issue #2388: chip calls have no ref/alt until ClinVar identifies the marker.
+# All IDs, transcripts and phenotype payloads below are explicitly synthetic.
+_SETTLED_VEP_RSID = "rsYELIZTLI2388001"
+_SETTLED_VEP_OTHER_RSID = "rsYELIZTLI2388002"
+_SETTLED_VEP_POS = 2388001
+
+
+def _seed_settled_vep_case(
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+    vep_engine: sa.Engine,
+    *,
+    genotype: str = "CC",
+    clinvar_alt: str | None = "T",
+    source_rsid: str = _SETTLED_VEP_RSID,
+    source_chrom: str = "1",
+    source_pos: int = _SETTLED_VEP_POS,
+    source_ref: str = "C",
+) -> None:
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_RSID,
+                chrom="1",
+                pos=_SETTLED_VEP_POS,
+                genotype=genotype,
+            )
+        )
+    if clinvar_alt is not None:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert().values(
+                    rsid=_SETTLED_VEP_RSID,
+                    chrom="1",
+                    pos=_SETTLED_VEP_POS,
+                    ref="C",
+                    alt=clinvar_alt,
+                    significance="Uncertain_significance",
+                    review_stars=1,
+                    accession="VCV_SYNTHETIC_2388",
+                    conditions="Synthetic fixture condition",
+                    gene_symbol="SYNTHETIC_TARGET",
+                    variation_id=2388001,
+                )
+            )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            gene_phenotype.insert().values(
+                gene_symbol="SYNTHETIC_TARGET",
+                disease_id="SYNTHETIC:2388",
+                disease_name="Synthetic exact-allele association",
+                source="synthetic",
+                hpo_terms=json.dumps(["HP:0000001"]),
+            )
+        )
+    rows = []
+    for alt, transcript, consequence, mane in [
+        ("T", "ENST_SYNTHETIC_SEVERE", "stop_gained", 0),
+        ("T", "ENST_SYNTHETIC_PRIMARY", "missense_variant", 1),
+        ("G", "ENST_SYNTHETIC_OTHER_ALT", "stop_gained", 1),
+    ]:
+        rows.append(
+            {
+                "rsid": source_rsid,
+                "chrom": source_chrom,
+                "pos": source_pos,
+                "ref": source_ref,
+                "alt": alt,
+                "gene": "SYNTHETIC_TARGET" if alt == "T" else "SYNTHETIC_OTHER",
+                "tx": transcript,
+                "consequence": consequence,
+                "mane": mane,
+                "coding": "synthetic-exact-coding" if alt == "T" else "synthetic-other-coding",
+                "protein": "synthetic-exact-protein" if alt == "T" else "synthetic-other-protein",
+            }
+        )
+    with vep_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                "transcript_id, consequence, hgvs_coding, hgvs_protein, strand, "
+                "exon_number, intron_number, mane_select) VALUES "
+                "(:rsid, :chrom, :pos, :ref, :alt, :gene, :tx, :consequence, :coding, "
+                ":protein, '-', 7, NULL, :mane)"
+            ),
+            rows,
+        )
+
+
+@pytest.mark.parametrize(("genotype", "zygosity"), [("CC", "hom_ref"), ("CT", "het")])
+@pytest.mark.parametrize("by_rsid", [True, False])
+def test_settled_clinvar_identity_recovers_stored_vep_without_changing_carriage(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    genotype,
+    zygosity,
+    by_rsid,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype=genotype,
+        source_rsid=_SETTLED_VEP_RSID if by_rsid else _SETTLED_VEP_OTHER_RSID,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.zygosity) == ("C", "T", zygosity)
+    assert {
+        name: getattr(row, name)
+        for name in (
+            "gene_symbol",
+            "transcript_id",
+            "consequence",
+            "hgvs_coding",
+            "hgvs_protein",
+            "strand",
+            "exon_number",
+            "intron_number",
+            "mane_select",
+        )
+    } == {
+        "gene_symbol": "SYNTHETIC_TARGET",
+        "transcript_id": "ENST_SYNTHETIC_PRIMARY",
+        "consequence": "missense_variant",
+        "hgvs_coding": "synthetic-exact-coding",
+        "hgvs_protein": "synthetic-exact-protein",
+        "strand": "-",
+        "exon_number": 7,
+        "intron_number": None,
+        "mane_select": True,
+    }
+    assert row.disease_name == "Synthetic exact-allele association"
+    assert json.loads(row.hpo_terms) == ["HP:0000001"]
+    assert row.annotation_coverage == VEP_BIT | CLINVAR_BIT | GENE_PHENOTYPE_BIT
+    assert result.vep_matched == 1
+    assert result.vep_allele_ambiguous == 0
+    assert result.coverage_stats["vep_bundle_rsid_hits"] == int(by_rsid)
+    assert result.vep_coord_fallback_matched == int(not by_rsid)
+
+
+@pytest.mark.parametrize("clinvar_alt", [None, "A"])
+def test_unsettled_or_uncatalogued_identity_keeps_vep_withheld(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    clinvar_alt,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        clinvar_alt=clinvar_alt,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.gene_symbol is None
+    assert row.transcript_id is None
+    assert row.consequence is None
+    assert row.disease_name is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0
+    assert result.vep_allele_ambiguous == int(clinvar_alt is None)
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    [
+        {"source_chrom": "2"},
+        {"source_pos": _SETTLED_VEP_POS + 1},
+        {"source_ref": "A"},
+    ],
+)
+def test_settled_vep_recovery_requires_the_entire_coordinate_and_allele_identity(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    mismatch,
+):
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory, **mismatch)
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.zygosity) == ("C", "T", "hom_ref")
+    assert row.gene_symbol is None
+    assert row.consequence is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0
+
+
+@pytest.mark.parametrize("batch_size", [1, 1000])
+def test_a_hom_ref_alias_recovers_its_own_settled_identity(
+    batch_size,
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype="CT",
+    )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_SETTLED_VEP_OTHER_RSID,
+                current_rsid=_SETTLED_VEP_RSID,
+                build_id=155,
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID,
+                chrom="1",
+                pos=_SETTLED_VEP_POS,
+                genotype="CC",
+            )
+        )
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    with sample_engine.connect() as conn:
+        rows = conn.execute(sa.select(annotated_variants)).mappings().all()
+    assert len(rows) == 2
+    by_rsid = {row["rsid"]: row for row in rows}
+    assert set(by_rsid) == {_SETTLED_VEP_RSID, _SETTLED_VEP_OTHER_RSID}
+    for rsid, zygosity in [(_SETTLED_VEP_RSID, "het"), (_SETTLED_VEP_OTHER_RSID, "hom_ref")]:
+        row = by_rsid[rsid]
+        assert row["gene_symbol"] == "SYNTHETIC_TARGET"
+        assert row["transcript_id"] == "ENST_SYNTHETIC_PRIMARY"
+        assert (row["ref"], row["alt"], row["zygosity"]) == ("C", "T", zygosity)
+        assert row["annotation_coverage"] & VEP_BIT
+    assert result.vep_matched == 2
+    assert result.vep_allele_ambiguous == 0
+
+
+def test_settled_vep_alias_contexts_do_not_share_another_alleles_annotation(
+    sample_engine, reference_engine, vep_engine_inmemory
+):
+    from backend.annotation.engine import _lookup_vep_after_clinvar
+
+    query = "rsYELIZTLI2388010"
+    kept = "rsYELIZTLI2388003"
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory, source_rsid=query)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": rsid, "chrom": "1", "pos": _SETTLED_VEP_POS, "genotype": "CC"}
+                for rsid in (_SETTLED_VEP_OTHER_RSID, kept)
+            ],
+        )
+    with sample_engine.connect() as conn:
+        raw = {row.rsid: row for row in conn.execute(sa.select(raw_variants)).all()}
+    assert len(raw) == 3
+    existing = {kept: {"gene_symbol": "ALREADY_SELECTED"}}
+    recovered, identities = _lookup_vep_after_clinvar(
+        raw,
+        existing,
+        {
+            _SETTLED_VEP_RSID: {"ref": "C", "alt": "T"},
+            _SETTLED_VEP_OTHER_RSID: {"ref": "C", "alt": "G"},
+            kept: {"ref": "C", "alt": "G"},
+        },
+        {rsid: query for rsid in raw},
+        vep_engine_inmemory,
+    )
+    assert set(recovered) == {_SETTLED_VEP_RSID, _SETTLED_VEP_OTHER_RSID}
+    assert set(identities) == set(recovered)
+    assert recovered[_SETTLED_VEP_RSID]["gene_symbol"] == "SYNTHETIC_TARGET"
+    assert recovered[_SETTLED_VEP_RSID]["_vep_alt"] == "T"
+    assert recovered[_SETTLED_VEP_OTHER_RSID]["gene_symbol"] == "SYNTHETIC_OTHER"
+    assert recovered[_SETTLED_VEP_OTHER_RSID]["_vep_alt"] == "G"
+    assert existing == {kept: {"gene_symbol": "ALREADY_SELECTED"}}
