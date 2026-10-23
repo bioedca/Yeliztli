@@ -19,6 +19,7 @@ from backend.analysis.rare_variant_finder import (
     find_rare_variants,
     store_rare_variant_findings,
 )
+from backend.analysis.svg_renderer import render_finding_svg
 from backend.db.tables import annotated_variants, annotation_state, findings, samples
 from backend.services.sample_phenotype_scope import sample_phenotype_scope_is_current
 from backend.services.sex_inference import (
@@ -87,7 +88,7 @@ def refresh_legacy_rare_variant_findings(
             )
             prior_provenance = _recorded_finding_provenance(conn)
             store_rare_variant_findings(result, conn)
-            _restore_recorded_provenance(conn, prior_provenance)
+            _restore_finding_metadata(conn, prior_provenance)
             conn.commit()
         except BaseException:
             conn.rollback()
@@ -124,7 +125,7 @@ def _recorded_finding_provenance(conn: sa.Connection) -> dict[tuple, str]:
     return {locus: next(iter(values)) for locus, values in recorded.items() if len(values) == 1}
 
 
-def _restore_recorded_provenance(conn: sa.Connection, prior: dict[tuple, str]) -> None:
+def _restore_finding_metadata(conn: sa.Connection, prior: dict[tuple, str]) -> None:
     # Never stamp an upgraded user's old calls with the currently installed
     # releases. Compact annotation snapshots record versions but not builds;
     # unknown source builds remain explicitly unknown. Existing exact-locus
@@ -136,9 +137,7 @@ def _restore_recorded_provenance(conn: sa.Connection, prior: dict[tuple, str]) -
     updates = []
     for row in conn.execute(
         sa.select(
-            findings.c.id,
-            findings.c.rsid,
-            findings.c.detail_json,
+            findings,
             annotated_variants.c.clinvar_accession,
             annotated_variants.c.annotation_coverage,
         )
@@ -157,12 +156,18 @@ def _restore_recorded_provenance(conn: sa.Connection, prior: dict[tuple, str]) -
                     coverage_mask=row.annotation_coverage,
                 )
             )
-        updates.append({"_id": row.id, "_provenance": provenance})
+        # Cards are rendered freshly by both the API and reports. Regenerate
+        # only their safe availability marker, never a legacy artifact or its
+        # untrusted stored path. Newly recovered rows can have cards as well.
+        svg_marker = (
+            f"svgs/{row.id}.svg" if render_finding_svg(dict(row._mapping)) is not None else None
+        )
+        updates.append({"_id": row.id, "_provenance": provenance, "_svg_path": svg_marker})
     if updates:
         conn.execute(
             findings.update()
             .where(findings.c.id == sa.bindparam("_id"))
-            .values(provenance=sa.bindparam("_provenance")),
+            .values(provenance=sa.bindparam("_provenance"), svg_path=sa.bindparam("_svg_path")),
             updates,
         )
 

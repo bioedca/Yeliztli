@@ -283,7 +283,7 @@ def test_recorded_xy_sex_keeps_y_finding(tmp_path):
         registry.dispose_all()
 
 
-@pytest.mark.parametrize("failure", ["revision", "finding", "provenance"])
+@pytest.mark.parametrize("failure", ["revision", "finding", "provenance", "svg"])
 def test_failed_repair_rolls_back_and_does_not_publish_engine(tmp_path, failure):
     settings = _legacy_sample(tmp_path)
     path = settings.samples_dir / "sample_1.db"
@@ -295,7 +295,9 @@ def test_failed_repair_rolls_back_and_does_not_publish_engine(tmp_path, failure)
             if failure == "revision"
             else ("findings", "NEW.module = 'rare_variants'")
         )
-        operation = "UPDATE OF provenance" if failure == "provenance" else "INSERT"
+        operation = {"provenance": "UPDATE OF provenance", "svg": "UPDATE OF svg_path"}.get(
+            failure, "INSERT"
+        )
         conn.exec_driver_sql(
             f"CREATE TRIGGER reject_repair BEFORE {operation} ON {table} WHEN {condition} "
             "BEGIN SELECT RAISE(ABORT, 'blocked repair'); END"
@@ -493,3 +495,50 @@ def test_competing_registry_opens_rebuild_only_once(tmp_path):
         raw.dispose()
         for registry in registries:
             registry.dispose_all()
+
+
+def test_rebuilt_findings_keep_fresh_cards_in_api_and_reports(tmp_path):
+    settings = _legacy_sample(tmp_path)
+    raw = sa.create_engine(f"sqlite:///{settings.samples_dir / 'sample_1.db'}")
+    with raw.begin() as conn:
+        conn.execute(
+            findings.update()
+            .where(findings.c.module == "rare_variants")
+            .values(svg_path="svgs/stale.svg")
+        )
+    raw.dispose()
+    svg_dir = settings.samples_dir / "svgs"
+    svg_dir.mkdir()
+    (svg_dir / "stale.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"><text>STALE POOLED DISEASE</text></svg>'
+    )
+    with (
+        patch("backend.main.get_settings", return_value=settings),
+        patch("backend.db.connection.get_settings", return_value=settings),
+    ):
+        reset_registry()
+        from backend.db.connection import get_registry
+        from backend.main import create_app
+        from backend.reports.generator import _group_findings_into_sections, _load_findings
+
+        with TestClient(create_app()) as client:
+            response = client.get("/api/analysis/findings?sample_id=1&module=rare_variants")
+            assert response.status_code == 200
+            items = response.json()
+            assert {item["rsid"] for item in items} == EXPECTED
+            for item in items:
+                assert item["svg_path"] == f"svgs/{item['id']}.svg"
+                card = client.get(f"/api/analysis/findings/{item['id']}/svg?sample_id=1")
+                assert card.status_code == 200
+                assert "<svg" in card.text
+                assert "STALE POOLED DISEASE" not in card.text
+            engine = get_registry().get_sample_engine(settings.samples_dir / "sample_1.db")
+            report_rows = _load_findings(engine, modules=["rare_variants"])
+            sections = _group_findings_into_sections(report_rows, settings.samples_dir, None)
+            assert len(sections) == 1
+            cards = sections[0]["findings"]
+            assert {card["rsid"] for card in cards} == EXPECTED
+            for card in cards:
+                assert "<svg" in card["svg_content"]
+                assert "STALE POOLED DISEASE" not in card["svg_content"]
+        reset_registry()
