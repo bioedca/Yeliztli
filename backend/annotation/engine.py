@@ -1890,6 +1890,23 @@ def run_annotation(
                     if query in vep_allele_ambiguous
                     and _same_call(raw_by_rsid.get(original), raw_by_query.get(query))
                 }
+                # ClinVar's ref/alt must describe this original call before it
+                # can settle VEP identity. Reusing another alias's locus or
+                # genotype can otherwise fabricate an exact VEP match (#2388).
+                for original, query in lookup_key.items():
+                    own_row = raw_by_rsid.get(original)
+                    if own_row is None or _same_call(own_row, raw_by_query.get(query)):
+                        continue
+                    t_clinvar = time.perf_counter()
+                    clinvar_data.pop(original, None)
+                    try:
+                        own_clinvar = _lookup_clinvar([query], {query: own_row}, reference_engine)
+                        if query in own_clinvar:
+                            clinvar_data[original] = own_clinvar[query]
+                    except Exception as exc:
+                        result.errors.append(f"clinvar alias lookup failed: {exc}")
+                    finally:
+                        result.timing_clinvar_s += time.perf_counter() - t_clinvar
                 # An alias whose own call differs gets a VEP lookup of its own,
                 # not the evaluated call's annotation. Fanning that out handed an
                 # alias carrying another ALT the other allele's consequence, so a

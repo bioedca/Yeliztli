@@ -4453,3 +4453,58 @@ def test_settled_vep_alias_contexts_do_not_share_another_alleles_annotation(
     assert recovered[_SETTLED_VEP_OTHER_RSID]["gene_symbol"] == "SYNTHETIC_OTHER"
     assert recovered[_SETTLED_VEP_OTHER_RSID]["_vep_alt"] == "G"
     assert existing == {kept: {"gene_symbol": "ALREADY_SELECTED"}}
+
+
+@pytest.mark.parametrize("batch_size", [1, 1000])
+def test_settled_vep_aliases_at_different_loci_use_their_own_clinvar_identity(
+    batch_size, sample_engine, mock_registry, reference_engine, vep_engine_inmemory
+):
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory)
+    other_pos = _SETTLED_VEP_POS + 1
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID, chrom="1", pos=other_pos, genotype="CC"
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_SETTLED_VEP_OTHER_RSID, current_rsid=_SETTLED_VEP_RSID, build_id=155
+            )
+        )
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID,
+                chrom="1",
+                pos=other_pos,
+                ref="C",
+                alt="G",
+                review_stars=1,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations SELECT rsid, chrom, pos+1, ref, alt, "
+                "gene_symbol, transcript_id, consequence, hgvs_coding, hgvs_protein, "
+                "strand, exon_number, intron_number, mane_select FROM vep_annotations "
+                "WHERE rsid=:rsid"
+            ),
+            {"rsid": _SETTLED_VEP_RSID},
+        )
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants)).all()}
+    assert len(rows) == 2
+    for rsid, pos, alt, gene, transcript in [
+        (_SETTLED_VEP_RSID, _SETTLED_VEP_POS, "T", "SYNTHETIC_TARGET", "ENST_SYNTHETIC_PRIMARY"),
+        (_SETTLED_VEP_OTHER_RSID, other_pos, "G", "SYNTHETIC_OTHER", "ENST_SYNTHETIC_OTHER_ALT"),
+    ]:
+        row = rows[rsid]
+        assert (row.pos, row.ref, row.alt, row.zygosity) == (pos, "C", alt, "hom_ref")
+        assert (row.gene_symbol, row.transcript_id) == (gene, transcript)
+        assert row.annotation_coverage & VEP_BIT
+    assert result.vep_matched == 2
+    assert result.vep_allele_ambiguous == 0
+    assert not result.errors
