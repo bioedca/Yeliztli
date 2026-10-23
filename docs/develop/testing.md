@@ -70,3 +70,14 @@ start. All three browser projects remain required.
 
 The suite follows specific assertion standards (assert real values, not just non-null;
 carriage-gated modules need `hom_ref` negative controls). See [contributing](contributing.md).
+
+Prefix-search plan guards exercise the production predicate with 2,000 synthetic
+rows, bound parameters, and both list and count projections, before and after
+`ANALYZE`. They require both NOCASE search indexes and reject scans for selective
+prefixes; removing either index is a negative control. SQLite's
+[cost-based OR optimization](https://www.sqlite.org/optoverview.html#or_optimizations)
+is optional, so annotated searches use independent candidate ranges with
+`UNION ALL` and `IN` membership. Membership preserves one result per row when
+both branches match. Broad prefixes still require work proportional to their
+candidate set and may use different plans; these guards assert selective access,
+not one fixed plan for every data distribution.
