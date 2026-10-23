@@ -165,7 +165,7 @@ def test_v31_rewrites_legacy_rows_to_what_the_producer_now_stores(
     with engine.connect() as conn:
         repaired = _summary_row(conn)
         version = conn.execute(sa.text("PRAGMA user_version")).scalar_one()
-    assert version == SAMPLE_SCHEMA_VERSION == 31
+    assert version == SAMPLE_SCHEMA_VERSION == 32
     assert repaired["finding_text"] == producer["finding_text"]
     assert json.loads(repaired["detail_json"]) == json.loads(producer["detail_json"])
     # No other column moves.

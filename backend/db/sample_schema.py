@@ -488,6 +488,53 @@ def _uncertain_ancestry_warning_without_admixture(warning: object) -> str | None
     return _UNCERTAIN_ANCESTRY_WARNING_PREFIX + match.group("tail")
 
 
+# Issue #2380: match complete released producer messages rather than trimming an
+# arbitrary suffix from user-edited prose. Preserve the optional composition
+# warning, which is independent of whether a percentile is reported.
+_WITHHELD_PRS_LEGACY_WARNINGS = re.compile(
+    r"(?P<prefix>"
+    + re.escape(_UNCERTAIN_ANCESTRY_WARNING_PREFIX)
+    + r")(?:\. Interpret the percentile with caution\.)"
+    + r"|(?P<admixed>Your genotype did not resolve to a single top ancestry \(admixed "
+    r"composition\), so it cannot be matched to this score's development population\. "
+    r"PRS portability depends on ancestry composition, linkage disequilibrium, and "
+    r"allele-frequency differences), so percentile estimates may be less accurate "
+    r"for an admixed background\."
+    r"|(?P<mismatch>"
+    r"This PRS was derived from a single-ancestry \([^()\n]+\) population study\. "
+    r"Your inferred ancestry \([^()\n]+\) differs from the source population\."
+    r"|This PRS was developed across multiple ancestries \([^()\n]+\), none matching "
+    r"your inferred ancestry \([^()\n]+\)\.)"
+    r" Percentile estimates may be less accurate for your genetic background\."
+)
+_PRS_COMPOSITION_SUFFIX = re.compile(
+    r" Your ancestry composition is admixed \(top ancestry \d{1,3}%\)\. "
+    r"PRS accuracy may be reduced for admixed genetic backgrounds\."
+)
+
+
+def _withheld_prs_warning_without_percentile_guidance(detail: dict) -> str | None:
+    """Repair only explicit withheld states and exact legacy producer wording."""
+    if not (
+        detail.get("is_sufficient") is False
+        or detail.get("calibrated") is False
+        or ("percentile" in detail and detail["percentile"] is None)
+    ):
+        return None
+    warning = detail.get("ancestry_warning_text")
+    if not isinstance(warning, str):
+        return None
+    match = _WITHHELD_PRS_LEGACY_WARNINGS.match(warning)
+    if match is None:
+        return None
+    suffix = warning[match.end() :]
+    if suffix and _PRS_COMPOSITION_SUFFIX.fullmatch(suffix) is None:
+        return None
+    if match.group("mismatch") is not None:
+        return match.group("mismatch") + suffix
+    return (match.group("prefix") or match.group("admixed")) + "." + suffix
+
+
 # Issue #2058: the Variant Explorer search box matches an rsID or gene-symbol
 # prefix case-insensitively over the whole sample. The primary-key and gene
 # indexes are BINARY-collated, so a case-insensitive range cannot use them; these
@@ -660,7 +707,9 @@ def _ensure_search_indexes(engine: sa.Engine) -> bool:
 #      search (issue #2058); created on existing sample DBs via _ensure_search_indexes.
 # v31: Repair persisted traits pathway summaries that read as a clean negative while
 #      holding a withheld Indeterminate call, from before issue #2178's fix (#2207).
-SAMPLE_SCHEMA_VERSION = 31
+# v32: Remove percentile guidance from exact legacy PRS caveats only when the
+#      stored result explicitly withholds its percentile (issue #2380).
+SAMPLE_SCHEMA_VERSION = 32
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2410,6 +2459,60 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 "legacy_traits_indeterminate_summary_repaired",
                 findings_count=repaired_findings,
                 finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
+
+    if from_version < 32:
+        # Correcting the PRS producer did not change persisted caveats. This is
+        # a text-only repair: scores, reporting state, provenance and all other
+        # fields remain intact. Like v29, finding text does not embed this caveat.
+        inspector = sa.inspect(engine)
+        table_names = set(inspector.get_table_names())
+        findings_cols = (
+            {c["name"] for c in inspector.get_columns("findings")}
+            if "findings" in table_names
+            else set()
+        )
+        repaired_findings = 0
+        if {"id", "category", "detail_json"} <= findings_cols:
+            with engine.connect() as conn:
+                conn.exec_driver_sql("BEGIN IMMEDIATE")
+                try:
+                    candidates = conn.execute(
+                        sa.select(findings.c.id, findings.c.detail_json)
+                        .where(findings.c.category == "prs")
+                        .order_by(findings.c.id)
+                    ).fetchall()
+                    for row in candidates:
+                        try:
+                            detail = json.loads(row.detail_json)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+                        if not isinstance(detail, dict):
+                            continue
+                        warning = _withheld_prs_warning_without_percentile_guidance(detail)
+                        if warning is None:
+                            continue
+                        detail["ancestry_warning_text"] = warning
+                        result = conn.execute(
+                            findings.update()
+                            .where(
+                                findings.c.id == row.id,
+                                findings.c.category == "prs",
+                                findings.c.detail_json == row.detail_json,
+                            )
+                            .values(detail_json=json.dumps(detail))
+                        )
+                        repaired_findings += max(result.rowcount or 0, 0)
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
+        if repaired_findings:
+            added = True
+            logger.warning(
+                "legacy_withheld_prs_caveat_repaired",
+                findings_count=repaired_findings,
                 from_version=from_version,
             )
 

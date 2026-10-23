@@ -34,6 +34,12 @@ Yeliztli uses **SQLite** in a dual-database layout:
 - **Per-sample databases** (`samples/<id>.db`) — one isolated database per uploaded sample,
   holding that sample's raw genotypes, annotations, and findings. These are **Alembic**-migrated.
 
+Existing sample databases also receive versioned content repairs on open. Schema v32
+removes percentile advice from exact legacy PRS ancestry caveats when the stored
+result has insufficient coverage, is uncalibrated, or explicitly has no percentile.
+It preserves reported-percentile results, custom wording, scores, and provenance;
+no reanalysis is required for this text repair.
+
 Large reference datasets (gnomAD, the VEP bundle, dbNSFP, …) are separate SQLite files
 downloaded into the data directory — see [reference data](../install/reference-data.md).
 
