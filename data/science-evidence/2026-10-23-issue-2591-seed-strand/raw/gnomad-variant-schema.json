@@ -1,0 +1,274 @@
+{
+  "data": {
+    "__type": {
+      "name": "VariantDetails",
+      "fields": [
+        {
+          "name": "variant_id",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "name": "reference_genome",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "ENUM",
+              "name": "ReferenceGenomeId"
+            }
+          }
+        },
+        {
+          "name": "chrom",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "name": "pos",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Int"
+            }
+          }
+        },
+        {
+          "name": "ref",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "name": "alt",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "name": "caid",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "rsids",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "colocated_variants",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "LIST",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "coverage",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "VariantCoverage"
+            }
+          }
+        },
+        {
+          "name": "lof_curations",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "multi_nucleotide_variants",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "exome",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantDetailsSequencingTypeData",
+            "ofType": null
+          }
+        },
+        {
+          "name": "genome",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantDetailsSequencingTypeData",
+            "ofType": null
+          }
+        },
+        {
+          "name": "joint",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantDetailsJointSequencingTypeData",
+            "ofType": null
+          }
+        },
+        {
+          "name": "flags",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "transcript_consequences",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "in_silico_predictors",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "non_coding_constraint",
+          "type": {
+            "kind": "OBJECT",
+            "name": "NonCodingConstraintRegion",
+            "ofType": null
+          }
+        },
+        {
+          "name": "rsid",
+          "type": {
+            "kind": "SCALAR",
+            "name": "String",
+            "ofType": null
+          }
+        },
+        {
+          "name": "variantId",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String"
+            }
+          }
+        },
+        {
+          "name": "colocatedVariants",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "LIST",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "multiNucleotideVariants",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "sortedTranscriptConsequences",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "va",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "VACohortAlleleFrequency"
+            }
+          }
+        },
+        {
+          "name": "vrs",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VAAllele",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  }
+}

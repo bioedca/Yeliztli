@@ -9,14 +9,6 @@
  "rows": [
   {
    "seed": "clinvar_seed",
-   "rsid": "rs1065852",
-   "ref": "C",
-   "alt": "T",
-   "violation": "outside_allele_string",
-   "tracked_by": "#2591"
-  },
-  {
-   "seed": "clinvar_seed",
    "rsid": "rs1800795",
    "ref": "G",
    "alt": "C",
@@ -33,27 +25,11 @@
   },
   {
    "seed": "gnomad_seed",
-   "rsid": "rs1065852",
-   "ref": "C",
-   "alt": "T",
-   "violation": "outside_allele_string",
-   "tracked_by": "#2591"
-  },
-  {
-   "seed": "gnomad_seed",
    "rsid": "rs1800795",
    "ref": "G",
    "alt": "C",
    "violation": "not_reference_first",
    "tracked_by": "#2563"
-  },
-  {
-   "seed": "gnomad_seed",
-   "rsid": "rs2032582",
-   "ref": "G",
-   "alt": "T",
-   "violation": "outside_allele_string",
-   "tracked_by": "#2591"
   },
   {
    "seed": "gnomad_seed",
@@ -65,27 +41,11 @@
   },
   {
    "seed": "vep_seed",
-   "rsid": "rs1065852",
-   "ref": "C",
-   "alt": "T",
-   "violation": "outside_allele_string",
-   "tracked_by": "#2591"
-  },
-  {
-   "seed": "vep_seed",
    "rsid": "rs1800795",
    "ref": "G",
    "alt": "C",
    "violation": "not_reference_first",
    "tracked_by": "#2563"
-  },
-  {
-   "seed": "vep_seed",
-   "rsid": "rs2032582",
-   "ref": "G",
-   "alt": "T",
-   "violation": "outside_allele_string",
-   "tracked_by": "#2591"
   },
   {
    "seed": "vep_seed",

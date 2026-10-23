@@ -1,0 +1,79 @@
+{
+  "_retention": "DERIVED exact two-rsID subset of the committed offline pinned production-bundle snapshot. The local bundles/vep_bundle.db has another hash and was not used.",
+  "provenance": {
+    "build_date": "2026-07-02",
+    "bundle_version": "v4.0.0",
+    "ensembl_version": "112",
+    "generated": "2026-10-20",
+    "generator": "scripts/build_vep_seed_bundle_snapshot.py",
+    "scope": "every bundle row for each rsID with a gene_symbol in vep_seed.csv",
+    "sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+    "source": "production VEP bundle pinned by bundles/manifest.json"
+  },
+  "rows": {
+    "rs1065852": [
+      {
+        "alt": "A",
+        "chrom": "22",
+        "consequence": "missense_variant",
+        "exon_number": "1",
+        "gene_symbol": "CYP2D6",
+        "hgvs_coding": "c.100C>T",
+        "hgvs_protein": "p.Pro34Ser",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "42526694",
+        "ref": "G",
+        "strand": "-",
+        "transcript_id": "ENST00000360608"
+      },
+      {
+        "alt": "C",
+        "chrom": "22",
+        "consequence": "missense_variant",
+        "exon_number": "1",
+        "gene_symbol": "CYP2D6",
+        "hgvs_coding": "c.100C>G",
+        "hgvs_protein": "p.Pro34Ala",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "42526694",
+        "ref": "G",
+        "strand": "-",
+        "transcript_id": "ENST00000360608"
+      }
+    ],
+    "rs2032582": [
+      {
+        "alt": "C",
+        "chrom": "7",
+        "consequence": "missense_variant",
+        "exon_number": "22",
+        "gene_symbol": "ABCB1",
+        "hgvs_coding": "c.2677T>G",
+        "hgvs_protein": "p.Ser893Ala",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "87160618",
+        "ref": "A",
+        "strand": "-",
+        "transcript_id": "ENST00000265724"
+      },
+      {
+        "alt": "T",
+        "chrom": "7",
+        "consequence": "missense_variant",
+        "exon_number": "22",
+        "gene_symbol": "ABCB1",
+        "hgvs_coding": "c.2677T>A",
+        "hgvs_protein": "p.Ser893Thr",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "87160618",
+        "ref": "A",
+        "strand": "-",
+        "transcript_id": "ENST00000265724"
+      }
+    ]
+  }
+}

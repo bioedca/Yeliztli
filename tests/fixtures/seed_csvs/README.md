@@ -89,11 +89,20 @@ row written for an indel rsID is flagged too.
 
 Rows that break this today are listed exactly in
 `../seed_allele_known_exceptions.json`, so the list can only shrink. #2590 gave
-every unannotated `vep_seed` filler row its oracle alleles. The 11 listed rows
+every unannotated `vep_seed` filler row its oracle alleles. The six listed rows
 that remain are annotated or carry frequencies, and each has an owning issue
-(#2541, #2563, #2591). When you
+(#2541, #2563). When you
 correct a row, also re-source the frequencies of any `gnomad_seed` row whose
 orientation changes, rather than flipping them.
+
+#2591 corrected CYP2D6 rs1065852 to genomic G>A and ABCB1 rs2032582 to the
+reference-relative A>C allele. The latter also changes its old reverse-direction
+coding/protein annotation to the pinned bundle's `c.2677T>G` / `p.Ser893Ala`,
+exon 22. Every AF and homozygote count in those two gnomAD rows now comes from
+the exact GRCh37 allele's gnomAD r2.1.1 **exome** record, with record-level ASJ
+provenance overriding the legacy defaults. The explicit multiallelic selection,
+source versions, licences and sanitized public payloads are retained in
+`data/science-evidence/2026-10-23-issue-2591-seed-strand/`.
 
 `../mini_clinvar.vcf` is hand-maintained rather than generated, so the
 seed/oracle guard above did not reach it and it drifted with the seeds. It is

@@ -1,0 +1,62 @@
+{
+  "ambiguity": "V",
+  "name": "rs1065852",
+  "mappings": [
+    {
+      "assembly_name": "GRCh37",
+      "allele_string": "A/G/C",
+      "coord_system": "chromosome",
+      "strand": 1,
+      "end": 42526678,
+      "ancestral_allele": null,
+      "seq_region_name": "HSCHR22_2_CTG1",
+      "start": 42526678,
+      "location": "HSCHR22_2_CTG1:42526678-42526678"
+    },
+    {
+      "location": "22:42526694-42526694",
+      "start": 42526694,
+      "seq_region_name": "22",
+      "ancestral_allele": "G",
+      "end": 42526694,
+      "strand": 1,
+      "coord_system": "chromosome",
+      "allele_string": "G/A/C",
+      "assembly_name": "GRCh37"
+    }
+  ],
+  "MAF": 0.238019,
+  "minor_allele": "A",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "most_severe_consequence": "missense_variant",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "synonyms": [
+    "VAR_008336",
+    "PA166156062",
+    "rs117813846",
+    "rs58862176",
+    "124030.0005",
+    "RCV000734607",
+    "VCV000016893",
+    "RCV001030444",
+    "RCV000603460",
+    "RCV001093717",
+    "RCV000018389",
+    "RCV001029560"
+  ],
+  "clinical_significance": [
+    "likely benign",
+    "drug response",
+    "other"
+  ]
+}

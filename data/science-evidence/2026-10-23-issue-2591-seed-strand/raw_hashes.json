@@ -1,0 +1,58 @@
+{
+  "discovery.json": {
+    "sha256": "d74acb720081276002d13c3c78350e5e77f3cce6376b2c1e3be91ee76dcfab27",
+    "bytes": 8756
+  },
+  "gnomad-query.graphql": {
+    "sha256": "5d054dec8a8269b7b727bcc40089767183d958f7006d93596c5bd971d1670a0e",
+    "bytes": 340
+  },
+  "queries.json": {
+    "sha256": "2ebec52bad79136e5e4ffb3a4734dd4ce53b7ff98f8b69a5f1f99725389eb4f8",
+    "bytes": 4392
+  },
+  "raw/VCV000016893-identity-derived.json": {
+    "sha256": "7cef878dd284b1e631403eb744b091a0083dbee46a589be90889c3a082c6ad11",
+    "bytes": 3031
+  },
+  "raw/VCV000166622-identity-derived.json": {
+    "sha256": "ae5f49f0e8c36ee4837f05363d52fe9c7fc26b63b572efe3d2e12662948a5016",
+    "bytes": 3129
+  },
+  "raw/clinvar-tables-rs1065852.json": {
+    "sha256": "74b4923a7e1faf19ca87cfcc0eb374a7e2ffb43500f7a0a72bc4980a68335445",
+    "bytes": 424
+  },
+  "raw/ensembl37-rs1065852.json": {
+    "sha256": "08fc97f1ed6d47d571b9dc2584e9cf994dbfa5d1212b24f66e9b020df4318214",
+    "bytes": 1332
+  },
+  "raw/ensembl37-rs2032582.json": {
+    "sha256": "4e1b13de54738eb5b470516a45da6c3a952c30a9a0890aef3d5746cb9c9989d4",
+    "bytes": 1112
+  },
+  "raw/gnomad-frequency-schema.json": {
+    "sha256": "f38151a5ee0f2e76e31c76cc11dd3bcb53327caf7c32e140023499d2717adfe3",
+    "bytes": 3193
+  },
+  "raw/gnomad-r2_1-rs1065852.json": {
+    "sha256": "b401b14159bac5b1bb9323fd1fcc0cfcb7775b3095b8ce5ab25c0e0079744389",
+    "bytes": 9419
+  },
+  "raw/gnomad-r2_1-rs2032582.json": {
+    "sha256": "6e068aeaac819761e83633de7ef8cd8194166d4d08d45fa8ed8fc48651600162",
+    "bytes": 9495
+  },
+  "raw/gnomad-variant-schema.json": {
+    "sha256": "6ff004d741d65f55b43b208db7185099e598b79bcc82c333ac44c3b0cbea5e32",
+    "bytes": 6038
+  },
+  "raw/pinned-vep-snapshot-derived.json": {
+    "sha256": "803c7d84a8d6b7597ee6026bcfefc9701b2628f686d0824c599f5d8e44492bb8",
+    "bytes": 2319
+  },
+  "raw/pubmed-27268795-derived.json": {
+    "sha256": "690fc4f5c0d0ab6a0875f911ec3da02525391955522f7a1b1ef7ce0f14bdcc6a",
+    "bytes": 831
+  }
+}
