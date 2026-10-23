@@ -9,8 +9,17 @@ cancellation. That is why #2213 went undiagnosed through repeated re-runs.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
 from pathlib import Path
+
+import pytest
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CI_WORKFLOW = _PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
@@ -29,6 +38,195 @@ def _job_block(job_name: str) -> str:
     next_job = _JOB_HEADER.search(content, start + len(marker))
     end = next_job.start() if next_job else len(content)
     return content[start:end]
+
+
+def _step_block(job: str, name: str) -> str:
+    marker = f"      - name: {name}\n"
+    assert marker in job, f"missing CI step: {name}"
+    start = job.index(marker)
+    next_step = re.search(r"^      - ", job[start + len(marker) :], re.MULTILINE)
+    end = start + len(marker) + next_step.start() if next_step else len(job)
+    return job[start:end]
+
+
+def test_e2e_installer_budget_keeps_measured_headroom_and_all_browsers() -> None:
+    """A successful 33m09s install needs headroom, plus a finite outer backstop (#2600)."""
+    job = _job_block("test-e2e")
+    job_timeout = re.search(r"^    timeout-minutes:\s*(\d+)\s*$", job, re.MULTILINE)
+    assert job_timeout, "E2E must declare an explicit overall job budget"
+    install = _step_block(job, "Install Playwright browsers")
+    step_timeout = re.search(r"^        timeout-minutes:\s*(\d+)\s*$", install, re.MULTILINE)
+    budget = re.search(
+        r"^          PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS:\s*['\"]?(\d+)['\"]?\s*$",
+        install,
+        re.MULTILINE,
+    )
+    assert step_timeout, "installer needs an outer step backstop"
+    assert budget, "installer needs a declared command budget"
+    assert int(budget[1]) >= 45 * 60, "retain headroom over the successful 33m09s baseline"
+    assert int(step_timeout[1]) * 60 >= int(budget[1]) + 60, "allow timeout cleanup/reporting"
+    assert int(job_timeout[1]) >= int(step_timeout[1]) + 30, "leave room for setup and E2E"
+    matrix = re.search(r"^        browser:\s*\[([^]]+)\]", job, re.MULTILINE)
+    assert matrix, "keep an explicit browser matrix"
+    browsers = [value.strip().strip("'\"") for value in matrix[1].split(",")]
+    assert set(browsers) == {"chromium", "firefox", "webkit"}
+    assert len(browsers) == 3
+    assert "continue-on-error" not in job, "installer failures must still fail the gate"
+
+
+def test_e2e_installer_diagnostics_survive_failure_and_reruns() -> None:
+    """Keep installation evidence independently of whether browser tests start (#2600)."""
+    job = _job_block("test-e2e")
+    diagnostics = _step_block(job, "Upload browser installation diagnostics")
+    assert re.search(r"^        if: always\(\)$", diagnostics, re.MULTILINE)
+    assert "uses: actions/upload-artifact@" in diagnostics
+    names = re.findall(r"^          name:\s*(.+)$", diagnostics, re.MULTILINE)
+    assert len(names) == 1
+    assert "${{ matrix.browser }}" in names[0]
+    assert "${{ github.run_attempt }}" in names[0], "reruns must retain earlier diagnostics"
+    assert "output/playwright/" in diagnostics
+
+
+def _installer_shell() -> str:
+    """Execute the literal production step, rather than a test-only wrapper."""
+    step = _step_block(_job_block("test-e2e"), "Install Playwright browsers")
+    marker = "        run: |\n"
+    assert marker in step, "installer must retain its executable diagnostic wrapper"
+    lines = []
+    for line in step.split(marker, 1)[1].splitlines():
+        if line and not line.startswith("          "):
+            break
+        lines.append(line[10:] if line else "")
+    assert lines
+    return "\n".join(lines) + "\n"
+
+
+@pytest.fixture
+def installer_probe(tmp_path: Path):
+    """Replace only npx; use real Bash, tee and GNU timeout for the Ubuntu CI step."""
+    timeout = shutil.which("timeout") or shutil.which("gtimeout")
+    if os.name != "posix" or timeout is None:
+        pytest.skip("the Ubuntu CI shell probe requires POSIX and GNU timeout")
+    tools = tmp_path / "probe tools"
+    tools.mkdir()
+    (tools / "timeout").symlink_to(timeout)
+    (tools / "python").symlink_to(sys.executable)
+    npx = tools / "npx"
+    npx.write_text(
+        "#!/usr/bin/env python\n"
+        + textwrap.dedent(
+            """
+            import os
+            import subprocess
+            import sys
+            import time
+            from pathlib import Path
+
+            assert sys.argv[1:] == ["playwright", "install", "--with-deps", "webkit"]
+            print("installer stdout", flush=True)
+            print("installer stderr", file=sys.stderr, flush=True)
+            mode = os.environ["INSTALL_PROBE_MODE"]
+            if mode == "failure":
+                raise SystemExit(42)
+            if mode == "kill_status":
+                raise SystemExit(137)
+            if mode == "child_timeout":
+                child = (
+                    "import os,signal,time; from pathlib import Path; "
+                    "signal.signal(signal.SIGTERM, lambda *_: "
+                    "(Path(os.environ['INSTALL_PROBE_TERMINATED']).write_text('terminated'), "
+                    "exit(0))); "
+                    "Path(os.environ['INSTALL_PROBE_READY']).write_text('ready'); "
+                    "time.sleep(120)"
+                )
+                subprocess.Popen([sys.executable, "-c", child])
+            if mode in ("timeout", "child_timeout"):
+                time.sleep(120)
+            """
+        ),
+        encoding="utf-8",
+    )
+    npx.chmod(0o755)
+
+    def run(mode: str, budget: str = "30"):
+        env = {
+            **os.environ,
+            "PATH": str(tools) + os.pathsep + os.environ["PATH"],
+            "PLAYWRIGHT_BROWSER": "webkit",
+            "PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS": budget,
+            "INSTALL_PROBE_MODE": mode,
+            "INSTALL_PROBE_READY": str(tmp_path / "child.ready"),
+            "INSTALL_PROBE_TERMINATED": str(tmp_path / "child.terminated"),
+        }
+        result = subprocess.run(
+            ["bash", "-c", _installer_shell()],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        output = tmp_path / "output" / "playwright"
+        status = json.loads((output / "install-webkit.json").read_text(encoding="utf-8"))
+        log = (output / "install-webkit.log").read_text(encoding="utf-8")
+        return result, status, log
+
+    return run
+
+
+@pytest.mark.parametrize(
+    ("mode", "code", "outcome"),
+    [("success", 0, "succeeded"), ("failure", 42, "failed"), ("kill_status", 137, "kill_status")],
+)
+def test_installer_retains_output_and_propagates_phase_status(
+    installer_probe, mode, code, outcome
+):
+    result, status, log = installer_probe(mode)
+    assert result.returncode == code, result.stdout + result.stderr
+    assert status["exit_code"] == code
+    assert status["outcome"] == outcome
+    assert status["timeout_seconds"] == 30
+    assert status["elapsed_seconds"] >= 0
+    assert "installer stdout" in log and "installer stderr" in log
+    assert "installer stdout" in result.stdout and "installer stderr" in result.stdout
+    if code:
+        assert f"::error title=Playwright installation {outcome}::" in log
+    else:
+        assert "::error" not in result.stdout
+
+
+def test_installer_timeout_fails_with_retained_diagnostics(installer_probe):
+    result, status, log = installer_probe("timeout", "1")
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert status["outcome"] == "timeout_status"
+    assert status["exit_code"] == 124
+    assert status["timeout_seconds"] == 1
+    assert status["elapsed_seconds"] >= 1
+    assert "installer stdout" in log and "installer stderr" in log
+    assert "::error title=Playwright installation timeout_status::" in log
+
+
+def test_installer_deadline_signals_descendants(installer_probe, tmp_path: Path):
+    result, status, _log = installer_probe("child_timeout", "3")
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert status["outcome"] == "timeout_status"
+    assert (tmp_path / "child.ready").read_text() == "ready"
+    terminated = tmp_path / "child.terminated"
+    deadline = time.monotonic() + 2
+    while not terminated.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert terminated.read_text() == "terminated"
+
+
+@pytest.mark.parametrize("budget", ["0", "-1", "invalid"])
+def test_installer_rejects_an_unbounded_or_invalid_budget(installer_probe, budget):
+    result, status, log = installer_probe("success", budget)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert status["outcome"] == "invalid_budget"
+    assert status["exit_code"] == 2
+    assert "installer stdout" not in result.stdout + log
+    assert "::error title=Invalid Playwright installation budget::" in log
 
 
 def test_backend_job_timeout_clears_an_honest_slow_run() -> None:
