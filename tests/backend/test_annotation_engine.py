@@ -4915,3 +4915,107 @@ def test_clinvar_upstream_tolerance_does_not_extend_to_a_merged_rsid(
     assert row.ref is None and row.alt is None
     assert not row.annotation_coverage & CLINVAR_BIT
     assert result.clinvar_matched == 0
+
+
+@pytest.mark.parametrize("batch_size", [1, 100])
+@pytest.mark.parametrize("own_first", [True, False])
+def test_clinvar_upstream_alias_eligibility_is_independent_of_batching(
+    batch_size,
+    own_first,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    records = [
+        {"rsid": rsid, "chrom": "1", "pos": _CV_PROBE_POS, "genotype": "II"}
+        for rsid in [_CV_PROBE_RSID, _CV_OTHER_RSID]
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(raw_variants.insert(), records if own_first else records[::-1])
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [
+                _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1),
+            ],
+        )
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_CV_OTHER_RSID,
+                current_rsid=_CV_PROBE_RSID,
+                build_id=151,
+            )
+        )
+    type(mock_registry).vep_engine = property(lambda self: None)
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    assert not result.errors
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants))}
+    assert len(rows) == 2
+    assert rows[_CV_PROBE_RSID].clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert rows[_CV_PROBE_RSID].annotation_coverage & CLINVAR_BIT
+    alias = rows[_CV_OTHER_RSID]
+    assert alias.clinvar_accession is None
+    assert alias.clinvar_significance is None
+    assert alias.ref is None and alias.alt is None
+    assert not alias.annotation_coverage & CLINVAR_BIT
+    assert result.clinvar_matched == 1
+
+
+@pytest.mark.parametrize("native_frequency", [True, False])
+def test_clinvar_upstream_identity_reselects_gnomad_at_the_native_coordinate(
+    native_frequency,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        "II",
+        [
+            _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1, ref="A", alt="AT"),
+        ],
+    )
+    # The two insertions have identical ref/alt strings but different loci.
+    # A lower native frequency must not inherit the neighbour's counts/flags.
+    frequencies = [
+        {"rsid": _CV_PROBE_RSID, "pos": _CV_PROBE_POS, "af": 0.42, "hom": 42},
+    ]
+    if native_frequency:
+        frequencies.append(
+            {
+                "rsid": _CV_OTHER_RSID,
+                "pos": _CV_PROBE_POS - 1,
+                "af": 0.000001,
+                "hom": 0,
+            }
+        )
+    with mock_registry.gnomad_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO gnomad_af (rsid, chrom, pos, ref, alt, af_global, "
+                "homozygous_count) VALUES (:rsid, '1', :pos, 'A', 'AT', :af, :hom)"
+            ),
+            frequencies,
+        )
+    result = _annotate_clinvar_probe("engine", sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.pos) == ("A", "AT", _CV_PROBE_POS)
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.zygosity is None
+    if native_frequency:
+        assert row.gnomad_af_global == pytest.approx(0.000001)
+        assert row.gnomad_homozygous_count == 0
+        assert row.rare_flag and row.ultra_rare_flag
+        assert row.gnomad_source_status == GNOMAD_SOURCE_OBSERVED
+        assert row.annotation_coverage & GNOMAD_BIT
+        assert result.gnomad_matched == 1
+    else:
+        assert row.gnomad_af_global is None
+        assert row.gnomad_homozygous_count is None
+        assert row.rare_flag is None and row.ultra_rare_flag is None
+        assert row.gnomad_source_status == "locus_unresolved"
+        assert not row.annotation_coverage & GNOMAD_BIT
+        assert result.gnomad_matched == 0

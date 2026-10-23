@@ -40,7 +40,10 @@ SNV coordinate fallback and the existing handling of unclassified calls remain.
 The engine retains the reference record's native full identity for downstream
 VEP queries, rather than combining its alleles with the raw probe position.
 Records selected earlier at the raw position are reselected for these offset
-contexts. Existing sample coordinates and the public storage schema are unchanged.
+contexts. gnomAD frequencies are re-queried by that exact native full identity,
+with mismatched raw-position frequencies withheld. Own-rsID eligibility is
+rechecked after alias fan-out, independently of batching and insertion order.
+Existing sample coordinates and the public storage schema are unchanged.
 
 Synthetic regressions exercise the engine and standalone writer, compatible and
 incompatible coordinate candidates, a lower-star compatible candidate, ordinary

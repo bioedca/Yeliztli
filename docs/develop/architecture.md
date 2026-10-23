@@ -75,7 +75,9 @@ a ClinVar anchor exactly one base upstream on the same chromosome; this bounded
 compatibility rule does not apply to merged rsIDs, SNVs, or other offsets. The
 raw probe position stays unchanged, while downstream VEP joins use ClinVar's
 source-native `(chrom, pos, ref, alt)` identity and reselect any VEP record that
-was found at the raw position. This correction also requires re-annotation of
+was found at the raw position. Frequencies are re-queried at that same exact
+native identity; a co-located allele with the same strings at another position
+cannot supply its frequency, homozygote count, or rarity flags. This correction also requires re-annotation of
 existing samples; open the sample's Annotation Pipeline panel and run annotation
 again (see [updating](../install/updating.md)). Technical evidence and limits are
 recorded in the [issue #2391 evidence packet](https://github.com/bioedca/Yeliztli/blob/main/data/science-evidence/2026-10-23-issue-2391-clinvar-probe-identity/README.md).

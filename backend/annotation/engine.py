@@ -1920,7 +1920,15 @@ def run_annotation(
                 # genotype can otherwise fabricate an exact VEP match (#2388).
                 for original, query in lookup_key.items():
                     own_row = raw_by_rsid.get(original)
-                    if own_row is None or _same_call(own_row, raw_by_query.get(query)):
+                    if own_row is None:
+                        continue
+                    shifted = clinvar_data.get(original, {}).get("_clinvar_pos") not in (
+                        None,
+                        own_row.pos,
+                    )
+                    if _same_call(own_row, raw_by_query.get(query)) and not (
+                        shifted and original != query
+                    ):
                         continue
                     t_clinvar = time.perf_counter()
                     clinvar_data.pop(original, None)
@@ -2003,6 +2011,29 @@ def run_annotation(
                 and cv.get("ref")
                 and cv.get("alt")
             }
+            # Earlier frequency lookups also used the raw probe coordinate.
+            # Re-query the full native identity, with no rsID fallback: equal
+            # ref/alt strings at neighbouring positions describe different rows.
+            if gnomad_engine is not None and offset_clinvar_alleles:
+                for rsid in offset_clinvar_alleles:
+                    if gnomad_data.pop(rsid, None) is not None:
+                        gnomad_locus_unresolved.add(rsid)
+                t_gnomad = time.perf_counter()
+                try:
+                    native_frequencies = lookup_gnomad_by_positions(
+                        list(set(offset_clinvar_alleles.values())), gnomad_engine
+                    )
+                    for rsid, identity in offset_clinvar_alleles.items():
+                        if identity in native_frequencies:
+                            gnomad_data[rsid] = _annot_to_dict(native_frequencies[identity])
+                            gnomad_locus_unresolved.discard(rsid)
+                            gnomad_alias_unresolved.discard(rsid)
+                            gnomad_allele_ambiguous.discard(rsid)
+                except Exception as exc:
+                    result.errors.append(f"gnomad settled-identity lookup failed: {exc}")
+                finally:
+                    result.timing_gnomad_s += time.perf_counter() - t_gnomad
+
             # These newly accepted indels have a different source anchor.
             # Earlier VEP lookups used the raw coordinate, so their payloads
             # cannot establish this identity and must be resolved again.
