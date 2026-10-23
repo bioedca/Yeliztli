@@ -5,10 +5,13 @@ that inheritance. Clearing JSON fields cannot recover the missing membership.
 Rebuild the canonical module once, using only the sample's existing inputs.
 """
 
+import json
+import os
 from pathlib import Path
 
 import sqlalchemy as sa
 
+from backend.analysis.provenance import build_finding_provenance
 from backend.analysis.rare_variant_finder import (
     PHENOTYPE_SCOPE_REVISION,
     PHENOTYPE_SCOPE_REVISION_KEY,
@@ -16,13 +19,14 @@ from backend.analysis.rare_variant_finder import (
     find_rare_variants,
     store_rare_variant_findings,
 )
-from backend.db.tables import annotated_variants, annotation_state, samples
+from backend.db.tables import annotated_variants, annotation_state, findings, samples
 from backend.services.sample_phenotype_scope import sample_phenotype_scope_is_current
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
     resolve_biological_sex,
 )
+from backend.services.staleness import read_recorded_reference_versions
 
 
 def refresh_legacy_rare_variant_findings(
@@ -45,18 +49,17 @@ def refresh_legacy_rare_variant_findings(
         if not _needs_refresh(conn):
             return False
 
-    path = Path(sample_db_path).absolute()
-    candidates = {str(path)}
-    try:
-        candidates.add(str(path.relative_to(data_dir.absolute())))
-    except ValueError:
-        pass
+    # Registry strings predate canonical path spelling. Compare normalized
+    # absolute identities, including ./ and .. spellings, without guessing
+    # between two registered samples that point at the same file.
+    path = Path(os.path.abspath(sample_db_path))
     with reference_engine.connect() as conn:
-        ids = (
-            conn.execute(sa.select(samples.c.id).where(samples.c.db_path.in_(candidates)))
-            .scalars()
-            .all()
-        )
+        rows = conn.execute(sa.select(samples.c.id, samples.c.db_path)).all()
+    ids = [
+        row.id
+        for row in rows
+        if row.db_path and Path(os.path.abspath(data_dir / row.db_path)) == path
+    ]
     if len(ids) != 1:
         raise ValueError("Cannot identify legacy sample for rare-variant refresh")
     recorded = get_recorded_biological_sex(reference_engine, ids[0])
@@ -82,12 +85,86 @@ def refresh_legacy_rare_variant_findings(
                 ),
                 conn,
             )
+            prior_provenance = _recorded_finding_provenance(conn)
             store_rare_variant_findings(result, conn)
+            _restore_recorded_provenance(conn, prior_provenance)
             conn.commit()
         except BaseException:
             conn.rollback()
             raise
     return True
+
+
+def _finding_locus(rsid: str | None, raw_detail: str | None) -> tuple | None:
+    try:
+        detail = json.loads(raw_detail) if raw_detail else None
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(detail, dict) or not {"chrom", "pos", "ref", "alt"} <= detail.keys():
+        return None
+    if not isinstance(detail["chrom"], str) or type(detail["pos"]) is not int:
+        return None
+    if any(detail[key] is not None and not isinstance(detail[key], str) for key in ("ref", "alt")):
+        return None
+    return rsid, detail["chrom"], detail["pos"], detail["ref"], detail["alt"]
+
+
+def _recorded_finding_provenance(conn: sa.Connection) -> dict[tuple, str]:
+    recorded: dict[tuple, set[str]] = {}
+    for row in conn.execute(
+        sa.select(findings.c.rsid, findings.c.detail_json, findings.c.provenance).where(
+            findings.c.module == "rare_variants"
+        )
+    ):
+        locus = _finding_locus(row.rsid, row.detail_json)
+        if locus is not None and row.provenance is not None:
+            recorded.setdefault(locus, set()).add(row.provenance)
+    # A conflicting duplicate cannot establish one authoritative annotation
+    # provenance. Reconstruct it from the recorded sample inputs instead.
+    return {locus: next(iter(values)) for locus, values in recorded.items() if len(values) == 1}
+
+
+def _restore_recorded_provenance(conn: sa.Connection, prior: dict[tuple, str]) -> None:
+    # Never stamp an upgraded user's old calls with the currently installed
+    # releases. Compact annotation snapshots record versions but not builds;
+    # unknown source builds remain explicitly unknown. Existing exact-locus
+    # provenance retains its full original build/version metadata byte-for-byte.
+    snapshot = {
+        source: {"version": version, "genome_build": None}
+        for source, version in (read_recorded_reference_versions(conn) or {}).items()
+    }
+    updates = []
+    for row in conn.execute(
+        sa.select(
+            findings.c.id,
+            findings.c.rsid,
+            findings.c.detail_json,
+            annotated_variants.c.clinvar_accession,
+            annotated_variants.c.annotation_coverage,
+        )
+        .select_from(
+            findings.join(annotated_variants, findings.c.rsid == annotated_variants.c.rsid)
+        )
+        .where(findings.c.module == "rare_variants")
+    ):
+        provenance = prior.get(_finding_locus(row.rsid, row.detail_json))
+        if provenance is None:
+            provenance = json.dumps(
+                build_finding_provenance(
+                    snapshot,
+                    rsid=row.rsid,
+                    clinvar_accession=row.clinvar_accession,
+                    coverage_mask=row.annotation_coverage,
+                )
+            )
+        updates.append({"_id": row.id, "_provenance": provenance})
+    if updates:
+        conn.execute(
+            findings.update()
+            .where(findings.c.id == sa.bindparam("_id"))
+            .values(provenance=sa.bindparam("_provenance")),
+            updates,
+        )
 
 
 def _needs_refresh(conn: sa.Connection) -> bool:

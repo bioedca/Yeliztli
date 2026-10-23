@@ -25,6 +25,7 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
     annotation_state,
+    database_versions,
     findings,
     individuals,
     reference_metadata,
@@ -282,7 +283,7 @@ def test_recorded_xy_sex_keeps_y_finding(tmp_path):
         registry.dispose_all()
 
 
-@pytest.mark.parametrize("failure", ["revision", "finding"])
+@pytest.mark.parametrize("failure", ["revision", "finding", "provenance"])
 def test_failed_repair_rolls_back_and_does_not_publish_engine(tmp_path, failure):
     settings = _legacy_sample(tmp_path)
     path = settings.samples_dir / "sample_1.db"
@@ -294,8 +295,9 @@ def test_failed_repair_rolls_back_and_does_not_publish_engine(tmp_path, failure)
             if failure == "revision"
             else ("findings", "NEW.module = 'rare_variants'")
         )
+        operation = "UPDATE OF provenance" if failure == "provenance" else "INSERT"
         conn.exec_driver_sql(
-            f"CREATE TRIGGER reject_repair BEFORE INSERT ON {table} WHEN {condition} "
+            f"CREATE TRIGGER reject_repair BEFORE {operation} ON {table} WHEN {condition} "
             "BEGIN SELECT RAISE(ABORT, 'blocked repair'); END"
         )
     registry = DBRegistry(settings)
@@ -322,6 +324,118 @@ def test_failed_repair_rolls_back_and_does_not_publish_engine(tmp_path, failure)
                 )
                 == EXPECTED
             )
+    finally:
+        raw.dispose()
+        registry.dispose_all()
+
+
+@pytest.mark.parametrize("spelling", ["dot", "parent", "absolute", "merged"])
+def test_normalized_legacy_paths_keep_registered_sex(tmp_path, spelling):
+    settings = _legacy_sample(tmp_path)
+    registry = DBRegistry(settings)
+    path = settings.samples_dir / "sample_1.db"
+    if spelling == "merged":
+        target = settings.samples_dir / "merged_synthetic.db"
+        path.rename(target)
+        path = target
+    value = {
+        "dot": "./samples/sample_1.db",
+        "parent": "samples/../samples/sample_1.db",
+        "absolute": str(path.parent / ".." / "samples" / path.name),
+        "merged": "./samples/merged_synthetic.db",
+    }[spelling]
+    try:
+        with registry.reference_engine.begin() as conn:
+            conn.execute(samples.update().values(db_path=value))
+        with registry.get_sample_engine(path).connect() as conn:
+            assert (
+                set(
+                    conn.execute(
+                        sa.select(findings.c.rsid).where(findings.c.module == "rare_variants")
+                    ).scalars()
+                )
+                == EXPECTED
+            )
+    finally:
+        registry.dispose_all()
+
+
+def test_normalized_duplicate_identity_fails_closed(tmp_path):
+    settings = _legacy_sample(tmp_path)
+    registry = DBRegistry(settings)
+    try:
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                samples.insert().values(
+                    name="Synthetic duplicate",
+                    db_path="./samples/sample_1.db",
+                    file_format="23andme_v5",
+                )
+            )
+        with pytest.raises(ValueError, match="Cannot identify legacy sample"):
+            registry.get_sample_engine(settings.samples_dir / "sample_1.db")
+    finally:
+        registry.dispose_all()
+
+
+def test_rebuild_preserves_provenance_and_uses_recorded_source_versions(tmp_path):
+    settings = _legacy_sample(tmp_path)
+    path = settings.samples_dir / "sample_1.db"
+    raw = sa.create_engine(f"sqlite:///{path}")
+    old_provenance = {
+        rsid: json.dumps(
+            {
+                "pipeline_version": "synthetic-old-producer",
+                "pipeline_genome_build": "GRCh37",
+                "sources": {
+                    "clinvar": {"version": "synthetic-annotated-v1", "genome_build": "GRCh37"}
+                },
+                "variation_ids": {"rsid": rsid},
+                "annotation_coverage": 2,
+            },
+            indent=2,
+        )
+        for rsid in (MONDO_HET, OMIM_HET)
+    }
+    with raw.begin() as conn:
+        for rsid, provenance in old_provenance.items():
+            conn.execute(
+                findings.update().where(findings.c.rsid == rsid).values(provenance=provenance)
+            )
+        conn.execute(
+            annotation_state.update()
+            .where(annotation_state.c.key == REFERENCE_VERSION_SNAPSHOT_KEY)
+            .values(
+                value=json.dumps({"mondo_hpo": "20260101", "clinvar": "synthetic-annotated-v1"})
+            )
+        )
+        conn.execute(annotated_variants.update().values(annotation_coverage=2))
+    registry = DBRegistry(settings)
+    try:
+        with registry.reference_engine.begin() as conn:
+            conn.execute(
+                database_versions.insert().values(
+                    db_name="clinvar", version="synthetic-installed-v2", genome_build="GRCh38"
+                )
+            )
+        with registry.get_sample_engine(path).connect() as conn:
+            rows = conn.execute(
+                sa.select(findings).where(findings.c.module == "rare_variants")
+            ).all()
+            assert {row.rsid for row in rows} == EXPECTED
+            by_rsid = {row.rsid: row.provenance for row in rows}
+            for rsid in (MONDO_HET, OMIM_HET):
+                assert by_rsid[rsid] == old_provenance[rsid]
+            recovered = json.loads(by_rsid[MONDO_HOM])
+            assert recovered["sources"]["clinvar"] == {
+                "version": "synthetic-annotated-v1",
+                "genome_build": None,
+            }
+            assert recovered["sources"]["mondo_hpo"]["version"] == "20260101"
+            assert recovered["variation_ids"]["rsid"] == MONDO_HOM
+            assert recovered["annotation_coverage"] == 2
+            assert recovered["annotation_coverage_sources"] == ["ClinVar"]
+            assert "synthetic-installed-v2" not in by_rsid[MONDO_HOM]
     finally:
         raw.dispose()
         registry.dispose_all()
