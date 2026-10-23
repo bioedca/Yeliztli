@@ -298,18 +298,23 @@ def _build_search_clause(table: sa.Table, search: str | None) -> sa.ColumnElemen
     Matches an rsID prefix or a gene-symbol prefix, case-insensitively on both
     the term and the stored value, over the whole table — the same server-side
     scope as the command palette's variant search — so a term is found whether
-    or not its rows have been paged in. Each branch is a NOCASE index range,
-    which SQLite unions, rather than a table scan. Pre-annotation samples read
-    from ``raw_variants``, which has no ``gene_symbol`` column, so the gene
-    branch is only added when it exists.
+    or not its rows have been paged in. Independent NOCASE range queries
+    supply candidate keys: SQLite can choose a full scan for the equivalent
+    OR even when both ranges are selective (#2602). IN membership keeps an
+    overlapping rsID/gene match to one outer row, so UNION ALL needs no
+    explicit candidate deduplication. Raw samples use one direct range.
     """
     term = (search or "").strip()
     if not term:
         return None
-    clauses = [_prefix_range(table.c.rsid, term)]
-    if hasattr(table.c, "gene_symbol"):
-        clauses.append(_prefix_range(table.c.gene_symbol, term))
-    return sa.or_(*clauses)
+    rsid_range = _prefix_range(table.c.rsid, term)
+    if not hasattr(table.c, "gene_symbol"):
+        return rsid_range
+    candidates = sa.union_all(
+        sa.select(table.c.rsid).where(rsid_range).correlate(None),
+        sa.select(table.c.rsid).where(_prefix_range(table.c.gene_symbol, term)).correlate(None),
+    )
+    return table.c.rsid.in_(candidates)
 
 
 def _build_cursor_clause(

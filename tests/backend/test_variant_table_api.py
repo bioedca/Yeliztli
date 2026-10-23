@@ -378,6 +378,79 @@ class TestVariantCount:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+@pytest.fixture
+def search_plan_rows():
+    """Software-only rows: reserved synthetic IDs, no calls or reference biology."""
+    rows = [
+        {
+            "rsid": f"rsYELIZTLI{i:04d}",
+            "chrom": "1" if i < 1000 else "2",
+            "pos": i + 1,
+            "genotype": "--",
+            "gene_symbol": f"GENE_TEST_{i % 500:03d}",
+        }
+        for i in range(2000)
+    ]
+    # One row matches both branches, one matches only the gene branch, and
+    # the adjacent prefix must remain outside the result.
+    rows[42]["gene_symbol"] = "rSyElIzTlI0042_gene"
+    rows[1000]["gene_symbol"] = "RSYELIZTLI004_GENE"
+    rows[1001]["gene_symbol"] = "rsYELIZTLI005_GENE"
+    rows[1002]["gene_symbol"] = None
+    return rows
+
+
+@pytest.fixture(params=(False, True), ids=("without-statistics", "with-statistics"))
+def indexed_search_engine(request, search_plan_rows):
+    engine = sa.create_engine("sqlite://")
+    create_sample_tables(engine)
+    with engine.begin() as conn:
+        conn.execute(annotated_variants.insert(), search_plan_rows)
+        if request.param:
+            conn.exec_driver_sql("ANALYZE")
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+def _indexed_search_query(term: str, count_only: bool) -> sa.Select:
+    from backend.api.routes.variants import _build_order_by, _build_search_clause
+
+    if count_only:
+        query = sa.select(sa.func.count()).select_from(annotated_variants)
+    else:
+        # The list endpoint joins the same outer table to raw provenance.
+        query = sa.select(annotated_variants, raw_variants.c.source).select_from(
+            annotated_variants.outerjoin(
+                raw_variants, annotated_variants.c.rsid == raw_variants.c.rsid
+            )
+        )
+        query = query.order_by(*_build_order_by(annotated_variants)).limit(51)
+    return query.where(_build_search_clause(annotated_variants, term))
+
+
+def _bound_query_plan(engine: sa.Engine, query: sa.Select) -> list[str]:
+    compiled = query.compile(engine)
+    assert compiled.positiontup
+    parameters = tuple(compiled.params[name] for name in compiled.positiontup)
+    with engine.connect() as conn:
+        steps = conn.exec_driver_sql("EXPLAIN QUERY PLAN " + str(compiled), parameters)
+        return [row[-1] for row in steps]
+
+
+@pytest.fixture
+def client_with_indexed_search_sample(tmp_data_dir, search_plan_rows):
+    yield from _setup_sample_client(
+        tmp_data_dir,
+        sample_name="synthetic_search_sample",
+        db_filename="sample_indexed_search.db",
+        file_hash="syntheticsearchhash",
+        variants_table=annotated_variants,
+        variants_data=search_plan_rows,
+    )
+
+
 class TestSearch:
     """``search=`` matches an rsID / gene-symbol prefix over the whole sample (#2058).
 
@@ -436,11 +509,11 @@ class TestSearch:
 
     @pytest.mark.parametrize("term", ["BRCA", "rs10", "Rs4"])
     def test_search_uses_the_indexes_rather_than_scanning(self, term):
-        """Each branch of the search is an index range, so a 677k-row sample is
-        not scanned three times per debounced keystroke (list, count and
-        unannotated count). Asserted on SQLite's own query plan: the planner's
-        choice depends only on the schema's indexes and collations, so an
-        in-memory copy of the sample schema is enough."""
+        """Keep the original literal-plan guard, including a fresh empty schema.
+
+        Populated bound-query guards below additionally verify selective
+        access and values, with and without planner statistics (#2602).
+        """
         from backend.api.routes.variants import _build_order_by, _build_search_clause
 
         engine = sa.create_engine("sqlite://")
@@ -458,6 +531,101 @@ class TestSearch:
         joined = "\n".join(steps)
         assert "nocase" in joined.lower(), joined
         assert not any(step.startswith("SCAN") for step in steps), joined
+
+    @pytest.mark.parametrize("count_only", (False, True), ids=("list", "count"))
+    @pytest.mark.parametrize(
+        ("term", "expected"),
+        [
+            ("rSyElIzTlI004", [f"rsYELIZTLI{i:04d}" for i in range(40, 50)] + ["rsYELIZTLI1000"]),
+            ("gene_test_042", ["rsYELIZTLI0542", "rsYELIZTLI1042", "rsYELIZTLI1542"]),
+        ],
+    )
+    def test_populated_search_uses_indexes_and_returns_exact_matches(
+        self, indexed_search_engine, term, expected, count_only
+    ):
+        query = _indexed_search_query(term, count_only)
+        with indexed_search_engine.connect() as conn:
+            assert conn.scalar(sa.select(sa.func.count()).select_from(annotated_variants)) == 2000
+            if count_only:
+                assert conn.scalar(query) == len(expected)
+            else:
+                assert conn.execute(query).scalars().all() == expected
+        steps = _bound_query_plan(indexed_search_engine, query)
+        assert steps
+        joined = "\n".join(steps)
+        assert "idx_annot_rsid_nocase" in joined, joined
+        assert "idx_annot_gene_nocase" in joined, joined
+        assert not any(step.startswith("SCAN") for step in steps), joined
+
+    @pytest.mark.parametrize("index_name", ("idx_annot_rsid_nocase", "idx_annot_gene_nocase"))
+    def test_search_plan_negative_control_detects_either_missing_index(
+        self, indexed_search_engine, index_name
+    ):
+        with indexed_search_engine.begin() as conn:
+            conn.exec_driver_sql(f'DROP INDEX "{index_name}"')
+        steps = _bound_query_plan(
+            indexed_search_engine, _indexed_search_query("rSyElIzTlI004", False)
+        )
+        assert steps
+        assert index_name not in "\n".join(steps)
+        assert any(step.startswith("SCAN") for step in steps), steps
+
+    def test_annotated_search_overlap_counts_filters_and_cursor(
+        self, client_with_indexed_search_sample, tmp_data_dir, search_plan_rows
+    ):
+        client, sid = client_with_indexed_search_sample
+        expected = [f"rsYELIZTLI{i:04d}" for i in range(40, 50)] + ["rsYELIZTLI1000"]
+        params = {"sample_id": sid, "search": "rSyElIzTlI004", "limit": 2}
+        seen = []
+        for _ in range(len(expected)):
+            response = client.get("/api/variants", params=params)
+            page = self._rsids(response)
+            assert page
+            seen.extend(page)
+            body = response.json()
+            if not body["has_more"]:
+                break
+            params.update(
+                cursor_chrom=body["next_cursor_chrom"], cursor_pos=body["next_cursor_pos"]
+            )
+        else:
+            pytest.fail("search cursor did not terminate")
+        assert seen == expected
+        count = client.get(
+            "/api/variants/count", params={"sample_id": sid, "search": params["search"]}
+        )
+        assert count.status_code == 200
+        assert count.json() == {"total": 11, "filtered": True}
+
+        engine = sa.create_engine(
+            f"sqlite:///{tmp_data_dir / 'samples' / 'sample_indexed_search.db'}"
+        )
+        with engine.begin() as conn:
+            conn.execute(
+                raw_variants.insert(),
+                [
+                    {
+                        **{
+                            key: search_plan_rows[i][key]
+                            for key in ("rsid", "chrom", "pos", "genotype")
+                        },
+                        "source": source,
+                    }
+                    for i, source in ((42, "S1"), (1000, "S2"), (1001, "S1"))
+                ],
+            )
+        engine.dispose()
+        for source, rsid in (("S1", "rsYELIZTLI0042"), ("S2", "rsYELIZTLI1000")):
+            filtered = {"sample_id": sid, "search": params["search"], "filter": f"source:{source}"}
+            assert self._rsids(client.get("/api/variants", params=filtered)) == [rsid]
+            count = client.get("/api/variants/count", params=filtered)
+            assert count.status_code == 200
+            assert count.json() == {"total": 1, "filtered": True}
+        absent = {"sample_id": sid, "search": "GENE_TEST_ABSENT"}
+        assert self._rsids(client.get("/api/variants", params=absent)) == []
+        count = client.get("/api/variants/count", params=absent)
+        assert count.status_code == 200
+        assert count.json() == {"total": 0, "filtered": True}
 
     def test_stored_rsid_case_does_not_matter(self, client_with_sample, tmp_data_dir):
         """Parsers persist the rsID as written, so the match is case-insensitive
