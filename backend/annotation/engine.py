@@ -329,7 +329,12 @@ def _lookup_vep_after_clinvar(
     Existing VEP annotations are never replaced. Remaining misses can still
     use the coordinate fallback with these same exact identities.
     """
-    from backend.annotation.vep_bundle import _genotype_allele_class, _row_allele_class
+    from backend.annotation.allele_matching import (
+        genotype_allele_class as _genotype_allele_class,
+    )
+    from backend.annotation.allele_matching import (
+        row_allele_class as _row_allele_class,
+    )
 
     identities: dict[str, tuple[str, int, str, str]] = {}
     pending: dict[str, dict[tuple[str, int, str, str], list[str]]] = {}
@@ -349,7 +354,12 @@ def _lookup_vep_after_clinvar(
         identity_class = _row_allele_class(SimpleNamespace(ref=ref, alt=alt))
         if probe_class is not None and identity_class not in (None, probe_class):
             continue
-        identity = (str(raw.chrom), int(raw.pos), str(ref), str(alt))
+        identity = (
+            str(clinvar.get("_clinvar_chrom", raw.chrom)),
+            int(clinvar.get("_clinvar_pos", raw.pos)),
+            str(ref),
+            str(alt),
+        )
         identities[rsid] = identity
         query = lookup_key.get(rsid, rsid)
         pending.setdefault(query, {}).setdefault(identity, []).append(rsid)
@@ -487,6 +497,9 @@ def _lookup_clinvar(
             "clinvar_review_stars": annot.clinvar_review_stars,
             "clinvar_accession": annot.clinvar_accession,
             "clinvar_conditions": annot.clinvar_conditions,
+            # Preserve source-native identity for subsequent exact allele joins.
+            "_clinvar_chrom": annot.chrom,
+            "_clinvar_pos": annot.pos,
             # Carried-allele identity for zygosity computation in the merge.
             "ref": annot.ref,
             "alt": annot.alt,
@@ -982,7 +995,11 @@ def _merge_annotations(
             bitmask |= VEP_BIT
 
         if rsid in clinvar_data:
-            row_data.update(clinvar_data[rsid])
+            row_data.update(
+                (key, value)
+                for key, value in clinvar_data[rsid].items()
+                if key not in {"_clinvar_chrom", "_clinvar_pos"}
+            )
             bitmask |= CLINVAR_BIT
 
         if rsid in gnomad_data:
@@ -1315,8 +1332,9 @@ def _vep_coord_fallback(
         raw = raw_by_rsid.get(rsid)
         if raw is None:
             continue
-        chrom = getattr(raw, "chrom", None)
-        pos = getattr(raw, "pos", None)
+        identity = allele_by_rsid.get(rsid) if allele_by_rsid else None
+        chrom = identity[0] if identity else getattr(raw, "chrom", None)
+        pos = identity[1] if identity else getattr(raw, "pos", None)
         if chrom and pos is not None:
             try:
                 positions.append((chrom, int(pos), rsid))
@@ -1977,6 +1995,20 @@ def run_annotation(
             # Mirrors the future-result error trap: a failing coord lookup
             # (e.g. a partially-built bundle with no `vep_annotations` table)
             # must not abort the engine — it logs and continues.
+            offset_clinvar_alleles = {
+                rsid: (cv["_clinvar_chrom"], cv["_clinvar_pos"], cv["ref"], cv["alt"])
+                for rsid, cv in clinvar_data.items()
+                if cv.get("_clinvar_pos") is not None
+                and cv["_clinvar_pos"] != raw_by_rsid[rsid].pos
+                and cv.get("ref")
+                and cv.get("alt")
+            }
+            # These newly accepted indels have a different source anchor.
+            # Earlier VEP lookups used the raw coordinate, so their payloads
+            # cannot establish this identity and must be resolved again.
+            for rsid in offset_clinvar_alleles:
+                vep_data.pop(rsid, None)
+            vep_rsid_hit_keys.difference_update(offset_clinvar_alleles)
             if vep_engine is not None:
                 try:
                     vep_coord_count = _vep_coord_fallback(
@@ -1985,6 +2017,7 @@ def run_annotation(
                         vep_engine,
                         vep_data,
                         result,
+                        allele_by_rsid=offset_clinvar_alleles,
                     )
                 except Exception as exc:
                     msg = f"vep coord-fallback lookup failed: {exc}"
@@ -2048,7 +2081,9 @@ def run_annotation(
                     for rsid, alleles in _lookup_vep_alleles(
                         batch_rsids,
                         raw_by_rsid,
-                        set(vep_data),
+                        # Offset contexts already carry an exact native pair;
+                        # re-querying raw coordinates could overwrite it.
+                        set(vep_data).difference(offset_clinvar_alleles),
                         vep_engine,
                     ).items():
                         vep_data[rsid].update(alleles)

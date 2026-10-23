@@ -36,6 +36,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.clinvar_significance import is_low_penetrance_or_risk_allele
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
+from backend.annotation.allele_matching import genotype_allele_class, row_allele_class
 from backend.annotation.bulk_load import (
     BUSY_TIMEOUT_BACKSTOP_RETRIES,
     delete_table_in_batches,
@@ -667,7 +668,8 @@ def clinvar_position_concordant(raw: object | None, annot: ClinVarAnnotation) ->
     rsID merge recovery is useful only when the replacement rsID still points
     to the same physical variant. If the replacement record lives at a
     different coordinate, attaching its clinical significance to the sample row
-    conflates adjacent variants.
+    conflates adjacent variants. Only an own-rsID I/D probe can accept an indel
+    record anchored exactly one base upstream on the same chromosome.
     """
     if raw is None:
         return True
@@ -679,7 +681,20 @@ def clinvar_position_concordant(raw: object | None, annot: ClinVarAnnotation) ->
         return True
 
     try:
-        return raw_chrom == annot_chrom and int(raw_pos) == int(annot.pos)
+        if raw_chrom != annot_chrom:
+            return False
+        if int(raw_pos) == int(annot.pos):
+            return True
+        # An own-rsID I/D probe may omit the preceding VCF padding base.
+        # This is a bounded compatibility rule, not general normalization or
+        # permission to move a merged rsID to a neighbouring locus.
+        return (
+            annot.matched_by == "rsid"
+            and annot.rsid == getattr(raw, "rsid", None)
+            and int(raw_pos) == int(annot.pos) + 1
+            and genotype_allele_class(getattr(raw, "genotype", None)) == "indel"
+            and row_allele_class(annot) == "indel"
+        )
     except (TypeError, ValueError):
         return True
 
@@ -776,7 +791,8 @@ def lookup_clinvar_by_positions(
 
     This is the fallback strategy when rsid matching fails (e.g. the
     variant has an i-prefixed rsid or the ClinVar record uses a
-    different rsid for the same position).
+    different rsid for the same position). Known probe classes filter out
+    candidates of the other allele class before review-star/carriage ranking.
 
     Args:
         positions: List of (chrom, pos, rsid) tuples. The rsid is the
@@ -840,7 +856,17 @@ def lookup_clinvar_by_positions(
                 key = (chrom, pos)
                 if key in pos_candidates and sample_rsid not in results:
                     genotype = genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None
-                    row = _pick_clinvar_row(pos_candidates[key], genotype)
+                    candidates = pos_candidates[key]
+                    probe_class = genotype_allele_class(genotype)
+                    if probe_class is not None:
+                        candidates = [
+                            row
+                            for row in candidates
+                            if row_allele_class(row) in (None, probe_class)
+                        ]
+                    if not candidates:
+                        continue
+                    row = _pick_clinvar_row(candidates, genotype)
                     results[sample_rsid] = ClinVarAnnotation(
                         rsid=sample_rsid,
                         chrom=row.chrom,

@@ -68,6 +68,18 @@ annotations retain their original selection. Existing samples are not rewritten
 on open for this correction: re-run annotation with `POST /api/annotation/{sample_id}`
 to apply it before relying on their stored gene columns.
 
+ClinVar coordinate fallback filters reference records by the shared array-probe
+class before ranking candidates: an I/D call cannot inherit a co-located SNV's
+record, and a base call cannot inherit an indel's record. Own-rsID indels may use
+a ClinVar anchor exactly one base upstream on the same chromosome; this bounded
+compatibility rule does not apply to merged rsIDs, SNVs, or other offsets. The
+raw probe position stays unchanged, while downstream VEP joins use ClinVar's
+source-native `(chrom, pos, ref, alt)` identity and reselect any VEP record that
+was found at the raw position. This correction also requires re-annotation of
+existing samples; open the sample's Annotation Pipeline panel and run annotation
+again (see [updating](../install/updating.md)). Technical evidence and limits are
+recorded in the [issue #2391 evidence packet](https://github.com/bioedca/Yeliztli/blob/main/data/science-evidence/2026-10-23-issue-2391-clinvar-probe-identity/README.md).
+
 ## Entry points
 
 | Process | Command |
