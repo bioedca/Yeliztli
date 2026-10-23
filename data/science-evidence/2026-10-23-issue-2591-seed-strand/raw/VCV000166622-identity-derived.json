@@ -1,0 +1,132 @@
+{
+  "_retention": "DERIVED whitelist from Entrez efetch XML: archive attributes, record status, SimpleAllele SequenceLocations and HGVS expressions only. No submissions, observations, personal data or clinical interpretations retained.",
+  "accessed": "2026-10-23",
+  "request": {
+    "endpoint": "efetch",
+    "params": {
+      "db": "clinvar",
+      "rettype": "vcv",
+      "id": "VCV000166622",
+      "retmode": "xml"
+    }
+  },
+  "archive": {
+    "VariationID": "166622",
+    "VariationName": "NM_001348946.2(ABCB1):c.2677T>G (p.Ser893Ala)",
+    "VariationType": "single nucleotide variant",
+    "Accession": "VCV000166622",
+    "Version": "13",
+    "RecordType": "classified",
+    "NumberOfSubmissions": "7",
+    "NumberOfSubmitters": "7",
+    "DateLastUpdated": "2026-10-18",
+    "DateCreated": "2013-04-04",
+    "MostRecentSubmission": "2026-03-28"
+  },
+  "record_status": "current",
+  "locations": [
+    {
+      "Assembly": "GRCh38",
+      "AssemblyAccessionVersion": "GCF_000001405.38",
+      "forDisplay": "true",
+      "AssemblyStatus": "current",
+      "Chr": "7",
+      "Accession": "NC_000007.14",
+      "start": "87531302",
+      "stop": "87531302",
+      "display_start": "87531302",
+      "display_stop": "87531302",
+      "variantLength": "1",
+      "positionVCF": "87531302",
+      "referenceAlleleVCF": "A",
+      "alternateAlleleVCF": "C"
+    },
+    {
+      "Assembly": "GRCh37",
+      "AssemblyAccessionVersion": "GCF_000001405.25",
+      "AssemblyStatus": "previous",
+      "Chr": "7",
+      "Accession": "NC_000007.13",
+      "start": "87160618",
+      "stop": "87160618",
+      "display_start": "87160618",
+      "display_stop": "87160618",
+      "variantLength": "1",
+      "positionVCF": "87160618",
+      "referenceAlleleVCF": "A",
+      "alternateAlleleVCF": "C"
+    }
+  ],
+  "hgvs": [
+    {
+      "attributes": {
+        "Type": "protein"
+      },
+      "expressions": [
+        "P08183:p.Ser893Ala"
+      ]
+    },
+    {
+      "attributes": {
+        "Assembly": "GRCh37",
+        "Type": "genomic, top-level"
+      },
+      "expressions": [
+        "NC_000007.13:g.87160618A>C"
+      ]
+    },
+    {
+      "attributes": {
+        "Assembly": "GRCh38",
+        "Type": "genomic, top-level"
+      },
+      "expressions": [
+        "NC_000007.14:g.87531302A>C"
+      ]
+    },
+    {
+      "attributes": {
+        "Type": "genomic"
+      },
+      "expressions": [
+        "NG_011513.1:g.186947T>G"
+      ]
+    },
+    {
+      "attributes": {
+        "Type": "coding"
+      },
+      "expressions": [
+        "NM_000927.5:c.2677T>G",
+        "NP_000918.2:p.Ser893Ala"
+      ]
+    },
+    {
+      "attributes": {
+        "Type": "coding"
+      },
+      "expressions": [
+        "NM_001348944.2:c.2677T>G",
+        "NP_001335873.1:p.Ser893Ala"
+      ]
+    },
+    {
+      "attributes": {
+        "Type": "coding"
+      },
+      "expressions": [
+        "NM_001348945.2:c.2887T>G",
+        "NP_001335874.1:p.Ser963Ala"
+      ]
+    },
+    {
+      "attributes": {
+        "Type": "coding"
+      },
+      "expressions": [
+        "NM_001348946.2:c.2677T>G",
+        "NP_001335875.1:p.Ser893Ala"
+      ]
+    }
+  ]
+}

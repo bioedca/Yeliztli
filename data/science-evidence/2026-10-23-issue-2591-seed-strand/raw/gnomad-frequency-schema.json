@@ -1,0 +1,148 @@
+{
+  "data": {
+    "__type": {
+      "fields": [
+        {
+          "name": "ac",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "an",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "homozygote_count",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "hemizygote_count",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "faf95",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantFilteringAlleleFrequency",
+            "ofType": null
+          }
+        },
+        {
+          "name": "faf99",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantFilteringAlleleFrequency",
+            "ofType": null
+          }
+        },
+        {
+          "name": "filters",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "flags",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "NON_NULL",
+              "name": null
+            }
+          }
+        },
+        {
+          "name": "populations",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "VariantPopulation"
+            }
+          }
+        },
+        {
+          "name": "local_ancestry_populations",
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "VariantLocalAncestryPopulation"
+            }
+          }
+        },
+        {
+          "name": "age_distribution",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantAgeDistribution",
+            "ofType": null
+          }
+        },
+        {
+          "name": "quality_metrics",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantQualityMetrics",
+            "ofType": null
+          }
+        },
+        {
+          "name": "qualityMetrics",
+          "type": {
+            "kind": "OBJECT",
+            "name": "VariantQualityMetrics",
+            "ofType": null
+          }
+        },
+        {
+          "name": "af",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Float",
+            "ofType": null
+          }
+        },
+        {
+          "name": "ac_hom",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        },
+        {
+          "name": "ac_hemi",
+          "type": {
+            "kind": "SCALAR",
+            "name": "Int",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  }
+}

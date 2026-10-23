@@ -751,7 +751,6 @@ def test_cyp2c19_star4_stays_a_start_loss() -> None:
 _BUNDLE_SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_seed_bundle_snapshot.json"
 _MANIFEST = _ROOT / "bundles" / "manifest.json"
 
-_ANOTHER_ALLELE = "at its GRCh37 position, another allele (seed allele follow-up of #2375)"
 _REVERSED = "REF and ALT reversed relative to GRCh37 (rs6025 is #2541)"
 _ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
 
@@ -761,8 +760,6 @@ _ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
 # leave this map, which can therefore only shrink. #2375 moved the 48 rows that
 # sat at another assembly's or another locus's coordinate onto their bundle rows.
 _NOT_AT_A_BUNDLE_LOCUS = {
-    "rs1065852": _ANOTHER_ALLELE,
-    "rs2032582": _ANOTHER_ALLELE,
     "rs1800795": _REVERSED,
     "rs6025": _REVERSED,
     "rs113993960": _ABSENT,

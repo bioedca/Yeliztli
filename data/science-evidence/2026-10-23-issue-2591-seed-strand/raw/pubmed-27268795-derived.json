@@ -1,0 +1,39 @@
+{
+  "_retention": "DERIVED bibliographic metadata and typed corrections only; no abstract, affiliations or contact details.",
+  "accessed": "2026-10-23",
+  "request": {
+    "endpoint": "efetch",
+    "params": {
+      "db": "pubmed",
+      "id": "27268795",
+      "retmode": "xml"
+    }
+  },
+  "pmid": "27268795",
+  "title": "The Ensembl Variant Effect Predictor.",
+  "journal": "Genome biology",
+  "year": "2016",
+  "ids": [
+    {
+      "type": "pubmed",
+      "value": "27268795"
+    },
+    {
+      "type": "pmc",
+      "value": "PMC4893825"
+    },
+    {
+      "type": "doi",
+      "value": "10.1186/s13059-016-0974-4"
+    },
+    {
+      "type": "pii",
+      "value": "10.1186/s13059-016-0974-4"
+    }
+  ],
+  "publication_types": [
+    "Journal Article",
+    "Research Support, Non-U.S. Gov't"
+  ],
+  "comments_corrections": []
+}

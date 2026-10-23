@@ -1,8 +1,8 @@
 {
-  "source": "gnomAD v4.1.0 (GRCh38) via GraphQL API https://gnomad.broadinstitute.org/api",
+  "source": "gnomAD v4.1.0 (GRCh38) via GraphQL API https://gnomad.broadinstitute.org/api; record-level source/dataset/sequencing_type override these defaults where present (#2591).",
   "field": "af_asj",
   "population": "asj (Ashkenazi Jewish)",
-  "method": "combined exome+genome AC/AN per population; af = asj_ac/asj_an; resolved by rsID (gnomAD native), oriented to the fixture ref/alt allele by identity matching. A record with \"orientation\": \"reversed\" stores 1 - asj_ac/asj_an, because the fixture ALT is gnomAD's REF (#2375).",
+  "method": "Default legacy method (record-level method overrides where present): combined exome+genome AC/AN per population; af = asj_ac/asj_an; resolved by rsID (gnomAD native), oriented to the fixture ref/alt allele by identity matching. A record with \"orientation\": \"reversed\" stores 1 - asj_ac/asj_an, because the fixture ALT is gnomAD's REF (#2375).",
   "accessed": "2026-07-16",
   "records": {
     "rs429358": {
@@ -54,10 +54,17 @@
       "gnomad_variant_id": "10-112998590-C-T"
     },
     "rs1065852": {
-      "af_asj": 0.244919,
-      "asj_ac": 7231,
-      "asj_an": 29524,
-      "gnomad_variant_id": "22-42130692-G-A"
+      "af_asj": 0.24235720032180208,
+      "asj_ac": 2410,
+      "asj_an": 9944,
+      "gnomad_variant_id": "22-42526694-G-A",
+      "orientation": "same",
+      "source": "gnomAD r2.1.1 (GRCh37) GraphQL API",
+      "dataset": "gnomad_r2_1",
+      "sequencing_type": "exome",
+      "accessed": "2026-10-23",
+      "method": "Exact genomic REF/ALT identity; exome ASJ AC/AN without complementation or reversal.",
+      "evidence_packet": "data/science-evidence/2026-10-23-issue-2591-seed-strand"
     },
     "rs63750066": {
       "af_asj": 0.0,
@@ -355,10 +362,23 @@
       "asj_an": 29602,
       "gnomad_variant_id": "17-43094464-T-C",
       "orientation": "same"
+    },
+    "rs2032582": {
+      "af_asj": 0.6239817206437512,
+      "asj_ac": 6281,
+      "asj_an": 10066,
+      "gnomad_variant_id": "7-87160618-A-C",
+      "orientation": "same",
+      "source": "gnomAD r2.1.1 (GRCh37) GraphQL API",
+      "dataset": "gnomad_r2_1",
+      "sequencing_type": "exome",
+      "accessed": "2026-10-23",
+      "method": "Exact genomic REF/ALT identity; exome ASJ AC/AN without complementation or reversal.",
+      "evidence_packet": "data/science-evidence/2026-10-23-issue-2591-seed-strand"
     }
   },
   "withheld_rsids": {
-    "count": 40,
+    "count": 39,
     "reason": "variant identity/coordinates in this fixture row are unreliable (see #1949) or the rsID is multiallelic/absent in gnomAD r4; a correctly-oriented ASJ AF cannot be placed without first fixing the row's identity \u2014 withheld (NULL) rather than fabricated",
     "rsids": [
       "rs1051266",
@@ -377,7 +397,6 @@
       "rs1800795",
       "rs1805007",
       "rs1805009",
-      "rs2032582",
       "rs2060793",
       "rs2228479",
       "rs2306283",

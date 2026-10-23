@@ -1,0 +1,158 @@
+{
+  "accessed": "2026-10-23",
+  "consensus": {
+    "query": "Primary reference and curation sources for genomic GRCh37 positive-strand alleles of CYP2D6 rs1065852 and multi-allelic ABCB1 rs2032582, including ClinVar or PharmVar nomenclature and allele-specific gnomAD r2.1.1 frequencies. This is correction of public test-reference fixtures, not a clinical recommendation; do not infer intended ALT alleles from strand complementation.",
+    "papers": [
+      {
+        "title": "PharmVar GeneReview: CYP2D6",
+        "doi": "10.1002/cpt.1643",
+        "year": 2019,
+        "journal": "Clinical pharmacology and therapeutics",
+        "url": "https://consensus.app/papers/details/2a4691ad00fb59bdaf5141ec30232849/?utm_source=chatgpt"
+      },
+      {
+        "title": "Characterization of Reference Materials for Genetic Testing of CYP2D6 Alleles A GeT-RM Collaborative Project.",
+        "doi": "10.1016/j.jmoldx.2019.06.007",
+        "year": 2019,
+        "journal": "The Journal of molecular diagnostics : JMD",
+        "url": "https://consensus.app/papers/details/3d271ccee3bf5b8a9c871a6e5064b021/?utm_source=chatgpt"
+      },
+      {
+        "title": "PharmVar: A Global Resource and Repository for Pharmacogene Variation",
+        "doi": "10.1002/cpt.2321",
+        "year": 2021,
+        "journal": "Clinical pharmacology and therapeutics",
+        "url": "https://consensus.app/papers/details/95cbb1cb819b5508bb2fb47d260a9bba/?utm_source=chatgpt"
+      },
+      {
+        "title": "The Pharmacogene Variation (PharmVar) Consortium: Incorporation of the Human Cytochrome P450 (CYP) Allele Nomenclature Database",
+        "doi": "10.1002/cpt.910",
+        "year": 2017,
+        "journal": "Clinical Pharmacology and Therapeutics",
+        "url": "https://consensus.app/papers/details/7333ac501d0a5f9f83a38b60e3f90f72/?utm_source=chatgpt"
+      },
+      {
+        "title": "PharmVar Tutorial on CYP2D6 Structural Variation Testing and Recommendations on Reporting",
+        "doi": "10.1002/cpt.3044",
+        "year": 2023,
+        "journal": "Clinical pharmacology and therapeutics",
+        "url": "https://consensus.app/papers/details/c769a4273f5a5992bb1b2e05920e331a/?utm_source=chatgpt"
+      },
+      {
+        "title": "Recommendations for Clinical CYP2D6 Genotyping Allele Selection: A Joint Consensus Recommendation of the Association for Molecular Pathology, College of American Pathologists, Dutch Pharmacogenetics Working Group of the Royal Dutch Pharmacists Association, and European Society for Pharmacogenomics a",
+        "doi": "10.1016/j.jmoldx.2021.05.013",
+        "year": 2021,
+        "journal": "The Journal of molecular diagnostics : JMD",
+        "url": "https://consensus.app/papers/details/b00cdedeb86b50459a17aab50122d8b5/?utm_source=chatgpt"
+      },
+      {
+        "title": "Frequencies of CYP2D6 genetic polymorphisms in Arab populations",
+        "doi": "10.1186/s40246-022-00378-z",
+        "year": 2022,
+        "journal": "Human Genomics",
+        "url": "https://consensus.app/papers/details/d9ba83961d1b5a6a95ada761a441aa4e/?utm_source=chatgpt"
+      },
+      {
+        "title": "Opportunities to improve open All of Us data to convey CYP2D6 pharmacological relevance and interpretation overall and according to ancestry",
+        "doi": "10.3389/fphar.2026.1760362",
+        "year": 2026,
+        "journal": "Frontiers in Pharmacology",
+        "url": "https://consensus.app/papers/details/9db0ba1b19165442936e458c63736c7f/?utm_source=chatgpt"
+      },
+      {
+        "title": "Frequencies of clinically important CYP2C19 and CYP2D6 alleles are graded across Europe",
+        "doi": "10.1038/s41431-019-0480-8",
+        "year": 2019,
+        "journal": "European Journal of Human Genetics",
+        "url": "https://consensus.app/papers/details/9a86bc46f911582397c4e5544bfbda1d/?utm_source=chatgpt"
+      },
+      {
+        "title": "Comprehensive Allele Genotyping in Critical Pharmacogenes Reduces Residual Clinical Risk in Diverse Populations",
+        "doi": "10.1002/cpt.2279",
+        "year": 2021,
+        "journal": "Clinical Pharmacology and Therapeutics",
+        "url": "https://consensus.app/papers/details/685ccbcba00e5374bfad30afc989f8bc/?utm_source=chatgpt"
+      },
+      {
+        "title": "Frequency of CYP2D6 Alleles Including Structural Variants in the United States",
+        "doi": "10.3389/fphar.2018.00305",
+        "year": 2018,
+        "journal": "Frontiers in Pharmacology",
+        "url": "https://consensus.app/papers/details/7eb4628fc26c5b888e8752fec9aaf13d/?utm_source=chatgpt"
+      },
+      {
+        "title": "Characterization of ADME Gene Variation in Colombian Population by Exome Sequencing",
+        "doi": "10.3389/fphar.2022.931531",
+        "year": 2022,
+        "journal": "Frontiers in Pharmacology",
+        "url": "https://consensus.app/papers/details/4ee6861e3fc55e73acff1f653aeb4e37/?utm_source=chatgpt"
+      },
+      {
+        "title": "PharmVar GeneFocus: CYP2A6",
+        "doi": "10.1002/cpt.3387",
+        "year": 2024,
+        "journal": "Clinical pharmacology and therapeutics",
+        "url": "https://consensus.app/papers/details/ae546071dce8524e8d744e7056a0e378/?utm_source=chatgpt"
+      },
+      {
+        "title": "Worldwide Distribution of Cytochrome P450 Alleles: A Meta‐analysis of Population‐scale Sequencing Projects",
+        "doi": "10.1002/cpt.690",
+        "year": 2017,
+        "journal": "Clinical Pharmacology and Therapeutics",
+        "url": "https://consensus.app/papers/details/1c7c8f212c0550feb31c29e865bcac96/?utm_source=chatgpt"
+      },
+      {
+        "title": "Patterns of pharmacogenetic variation in nine biogeographic groups",
+        "doi": "10.1111/cts.70017",
+        "year": 2024,
+        "journal": "Clinical and Translational Science",
+        "url": "https://consensus.app/papers/details/b39cd802591c5b96852a775587c87ab0/?utm_source=chatgpt"
+      },
+      {
+        "title": "Prediction of CYP2D6 phenotype from genotype across world populations",
+        "doi": "10.1038/gim.2016.80",
+        "year": 2016,
+        "journal": "Genetics in Medicine",
+        "url": "https://consensus.app/papers/details/d1c9ead89a1c54b6aba39a4c3cb73864/?utm_source=chatgpt"
+      },
+      {
+        "title": "Clinically Relevant Pharmacogenomic Variant Frequencies in Kazakh, Russian, and Uzbek Population Groups Residing in Kazakhstan",
+        "doi": "10.3390/biology15171477",
+        "year": 2026,
+        "journal": "Biology",
+        "url": "https://consensus.app/papers/details/1ebe5daf31bc567fa0f87d9962dd6e78/?utm_source=chatgpt"
+      },
+      {
+        "title": "Characterization of 137 genomic DNA reference materials for 28 pharmacogenetic genes: A GeT-RM collaborative project",
+        "doi": "10.1016/j.jmoldx.2015.08.005",
+        "year": 2015,
+        "journal": "The Journal of molecular diagnostics : JMD",
+        "url": "https://consensus.app/papers/details/dd4f6d1bd40654b8a11635dc9cccc6ed/?utm_source=chatgpt"
+      },
+      {
+        "title": "386 Opportunities to improve open All of Us data to convey CYP2D6 pharmacological relevance and interpretation overall and according to ancestry",
+        "doi": "10.1017/cts.2026.10549",
+        "year": 2026,
+        "journal": "Journal of Clinical and Translational Science",
+        "url": "https://consensus.app/papers/details/973d72825b125a3aadc6f4607937493b/?utm_source=chatgpt"
+      },
+      {
+        "title": "PharmVar GeneFocus: NAT2—Genetic Variation and Updated Nomenclature",
+        "doi": "10.1002/cpt.70168",
+        "year": 2025,
+        "journal": "Clinical Pharmacology and Therapeutics",
+        "url": "https://consensus.app/papers/details/29cd7acc482f52e4836e01fb6c4ef678/?utm_source=chatgpt"
+      }
+    ],
+    "disposition": "Discovery only; no paper promoted to allele or frequency evidence. The selected PharmVar review was fetched, but fixture values come from primary database records and the pinned bundle snapshot."
+  },
+  "scite": {
+    "query": "(rs1065852 OR rs2032582) AND (PharmVar OR ClinVar OR GRCh37 OR \"reference allele\" OR gnomAD)",
+    "availability": "Monthly MCP limit of 250 calls reached; reset reported 2026-11-03 UTC. No Scite claim or editorial-notice result available. No billing/settings change made."
+  },
+  "fallbacks": [
+    "Ensembl GRCh37 rather than current-assembly base URL to honor the repository build contract.",
+    "NCBI Variation beta RefSNP and ClinVar URLs returned HTTP 404; Entrez efetch with VCV identifiers succeeded. Numeric multi-ID efetch returned an empty set and was not used.",
+    "Context7 resolved official Ensembl and NCBI ClinVar documentation. Two gnomAD library lookups returned unrelated projects; live public GraphQL introspection supplied the exact schema instead."
+  ]
+}

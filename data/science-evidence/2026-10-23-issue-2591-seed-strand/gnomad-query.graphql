@@ -1,0 +1,1 @@
+query Variant($variantId: String!, $dataset: DatasetId!) { variant(variantId: $variantId, dataset: $dataset) { variant_id reference_genome chrom pos ref alt rsids exome { ac an af homozygote_count filters populations { id ac an homozygote_count } } genome { ac an af homozygote_count filters populations { id ac an homozygote_count } } } }
