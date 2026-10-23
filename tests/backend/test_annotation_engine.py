@@ -4508,3 +4508,28 @@ def test_settled_vep_aliases_at_different_loci_use_their_own_clinvar_identity(
     assert result.vep_matched == 2
     assert result.vep_allele_ambiguous == 0
     assert not result.errors
+
+
+@pytest.mark.parametrize("genotype", ["DD", "DI"])
+@pytest.mark.parametrize("by_rsid", [True, False])
+def test_settled_snv_identity_does_not_annotate_an_indel_probe(
+    sample_engine, mock_registry, reference_engine, vep_engine_inmemory, genotype, by_rsid
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype=genotype,
+        source_rsid=_SETTLED_VEP_RSID if by_rsid else _SETTLED_VEP_OTHER_RSID,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.genotype == genotype
+    assert row.gene_symbol is None
+    assert row.transcript_id is None
+    assert row.consequence is None
+    assert row.hgvs_coding is None
+    assert row.hgvs_protein is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0

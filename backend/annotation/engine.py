@@ -27,6 +27,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
@@ -328,6 +329,8 @@ def _lookup_vep_after_clinvar(
     Existing VEP annotations are never replaced. Remaining misses can still
     use the coordinate fallback with these same exact identities.
     """
+    from backend.annotation.vep_bundle import _genotype_allele_class, _row_allele_class
+
     identities: dict[str, tuple[str, int, str, str]] = {}
     pending: dict[str, dict[tuple[str, int, str, str], list[str]]] = {}
     for rsid, raw in raw_by_rsid.items():
@@ -341,6 +344,10 @@ def _lookup_vep_after_clinvar(
             or not isinstance(alt, str)
             or not alt.strip()
         ):
+            continue
+        probe_class = _genotype_allele_class(raw.genotype)
+        identity_class = _row_allele_class(SimpleNamespace(ref=ref, alt=alt))
+        if probe_class is not None and identity_class not in (None, probe_class):
             continue
         identity = (str(raw.chrom), int(raw.pos), str(ref), str(alt))
         identities[rsid] = identity
