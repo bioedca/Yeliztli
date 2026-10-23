@@ -49,13 +49,17 @@ backstop, and a 120-minute whole-job budget for setup, installation, tests and
 diagnostics. The installation allowance retains headroom over the successful
 33m09s WebKit install recorded in [#2600](https://github.com/bioedca/Yeliztli/issues/2600).
 The command bounds the whole logging
-pipeline and its process group; any nonzero phase exit still fails the gate.
+pipeline and its process group, with a 30-second TERM-to-KILL grace period.
+The supervisor stays alive through escalation so descendants that ignore TERM
+are killed before diagnostics upload. Any nonzero phase exit still fails the gate.
 
 Each browser/run attempt retains a `playwright-install-<browser>-<attempt>`
 artifact for seven days, including installer stdout/stderr and JSON outcome,
-exit code, elapsed seconds and configured budget. Exit 124 is labelled
-`timeout_status`; 137 is labelled `kill_status`, since a KILL signal alone does
-not identify its cause. These diagnostics upload even when browser tests never
+exit code, elapsed seconds, configured budget, kill grace and whether the
+supervisor observed TERM. Exit 124 is labelled `timeout_status`. Exit 137 is
+also labelled `timeout_status` when the supervisor recorded TERM during the
+deadline cleanup; otherwise it is labelled `kill_status`, since KILL alone
+does not identify its cause. These diagnostics upload even when browser tests never
 start. All three browser projects remain required.
 
 !!! tip "Verify UI changes before merging"

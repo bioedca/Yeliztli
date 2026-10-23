@@ -527,47 +527,63 @@ jobs:
         env:
           PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
           PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS: "3600"
+          PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS: "30"
         run: |
           set -euo pipefail
           mkdir -p output/playwright
           install_log="output/playwright/install-${PLAYWRIGHT_BROWSER}.log"
           install_status="output/playwright/install-${PLAYWRIGHT_BROWSER}.json"
+          install_term="${install_status}.$$.term"
           install_started=$SECONDS
           : > "$install_log"
+          rm -f "$install_term"
           write_install_status() {
-            python - "$install_status" "$1" "$2" "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" "$((SECONDS - install_started))" <<'PY'
+            python - "$install_status" "$1" "$2" "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" "$((SECONDS - install_started))" "$PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS" "$install_term" <<'PY'
           import json
           import sys
           from pathlib import Path
-          path, outcome, code, budget, elapsed = sys.argv[1:]
+          path, outcome, code, budget, elapsed, grace, term = sys.argv[1:]
           Path(path).write_text(json.dumps({
               "outcome": outcome,
               "exit_code": None if code == "null" else int(code),
               "timeout_seconds": int(budget) if budget.isdecimal() else None,
               "elapsed_seconds": int(elapsed),
+              "kill_grace_seconds": int(grace) if grace.isdecimal() else None,
+              "termination_observed": Path(term).exists(),
           }, indent=2) + "\n", encoding="utf-8")
           PY
           }
-          if [[ ! "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error title=Invalid Playwright installation budget::Budget must be a positive integer." | tee -a "$install_log"
+          if [[ ! "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ || ! "$PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Invalid Playwright installation budget::Budget and kill grace must be positive integers." | tee -a "$install_log"
             write_install_status invalid_budget 2
             exit 2
           fi
           write_install_status running null
           set +e
-          # Bound the entire pipeline/process group, including tee and children.
-          timeout --kill-after=30s "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
-            bash -o pipefail -c 'npx playwright install --with-deps "$1" 2>&1 | tee "$2"' \
-            _ "$PLAYWRIGHT_BROWSER" "$install_log"
+          # Keep the supervisor alive after TERM so timeout cannot cancel KILL
+          # escalation while a descendant that ignores TERM still runs.
+          timeout --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
+            bash -o pipefail -c '
+              trap '\''printf "TERM received; awaiting group cleanup\n" > "$3"; while :; do sleep 1; done'\'' TERM
+              npx playwright install --with-deps "$1" 2>&1 | tee "$2" &
+              wait "$!"
+            ' _ "$PLAYWRIGHT_BROWSER" "$install_log" "$install_term"
           install_exit=$?
           set -e
           case "$install_exit" in
             0) outcome=succeeded ;;
             124) outcome=timeout_status ;;
-            137) outcome=kill_status ;;
+            137)
+              if [[ -f "$install_term" && $((SECONDS - install_started)) -ge "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" ]]; then
+                outcome=timeout_status
+              else
+                outcome=kill_status
+              fi
+              ;;
             *) outcome=failed ;;
           esac
           write_install_status "$outcome" "$install_exit"
+          rm -f "$install_term"
           if [[ "$install_exit" != 0 ]]; then
             echo "::error title=Playwright installation $outcome::Exit $install_exit; budget ${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s. See installation diagnostics." | tee -a "$install_log"
           fi

@@ -61,10 +61,18 @@ def test_e2e_installer_budget_keeps_measured_headroom_and_all_browsers() -> None
         install,
         re.MULTILINE,
     )
+    grace = re.search(
+        r"^          PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS:\s*['\"]?(\d+)['\"]?\s*$",
+        install,
+        re.MULTILINE,
+    )
+    assert grace and int(grace[1]) > 0, "cleanup escalation must remain enabled"
     assert step_timeout, "installer needs an outer step backstop"
     assert budget, "installer needs a declared command budget"
     assert int(budget[1]) >= 45 * 60, "retain headroom over the successful 33m09s baseline"
-    assert int(step_timeout[1]) * 60 >= int(budget[1]) + 60, "allow timeout cleanup/reporting"
+    assert int(step_timeout[1]) * 60 >= int(budget[1]) + int(grace[1]) + 30, (
+        "allow timeout cleanup/reporting"
+    )
     assert int(job_timeout[1]) >= int(step_timeout[1]) + 30, "leave room for setup and E2E"
     matrix = re.search(r"^        browser:\s*\[([^]]+)\]", job, re.MULTILINE)
     assert matrix, "keep an explicit browser matrix"
@@ -122,7 +130,9 @@ def installer_probe(tmp_path: Path):
             import time
             from pathlib import Path
 
-            assert sys.argv[1:] == ["playwright", "install", "--with-deps", "webkit"]
+            expected = ["playwright", "install", "--with-deps"]
+            expected.append(os.environ["INSTALL_PROBE_BROWSER"])
+            assert sys.argv[1:] == expected
             print("installer stdout", flush=True)
             print("installer stderr", file=sys.stderr, flush=True)
             mode = os.environ["INSTALL_PROBE_MODE"]
@@ -130,7 +140,7 @@ def installer_probe(tmp_path: Path):
                 raise SystemExit(42)
             if mode == "kill_status":
                 raise SystemExit(137)
-            if mode == "child_timeout":
+            if mode in ("child_timeout", "stubborn_child"):
                 child = (
                     "import os,signal,time; from pathlib import Path; "
                     "signal.signal(signal.SIGTERM, lambda *_: "
@@ -139,8 +149,16 @@ def installer_probe(tmp_path: Path):
                     "Path(os.environ['INSTALL_PROBE_READY']).write_text('ready'); "
                     "time.sleep(120)"
                 )
+                if mode == "stubborn_child":
+                    child = (
+                        "import os,signal,time; from pathlib import Path; "
+                        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                        "Path(os.environ['INSTALL_PROBE_READY']).write_text('ready'); "
+                        "time.sleep(5); "
+                        "Path(os.environ['INSTALL_PROBE_ESCAPED']).write_text('escaped')"
+                    )
                 subprocess.Popen([sys.executable, "-c", child])
-            if mode in ("timeout", "child_timeout"):
+            if mode in ("timeout", "child_timeout", "stubborn_child"):
                 time.sleep(120)
             """
         ),
@@ -148,11 +166,14 @@ def installer_probe(tmp_path: Path):
     )
     npx.chmod(0o755)
 
-    def run(mode: str, budget: str = "30"):
+    def run(mode: str, budget: str = "30", browser: str = "webkit", grace: str = "1"):
         env = {
             **os.environ,
             "PATH": str(tools) + os.pathsep + os.environ["PATH"],
-            "PLAYWRIGHT_BROWSER": "webkit",
+            "PLAYWRIGHT_BROWSER": browser,
+            "PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS": grace,
+            "INSTALL_PROBE_BROWSER": browser,
+            "INSTALL_PROBE_ESCAPED": str(tmp_path / "child.escaped"),
             "PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS": budget,
             "INSTALL_PROBE_MODE": mode,
             "INSTALL_PROBE_READY": str(tmp_path / "child.ready"),
@@ -168,26 +189,28 @@ def installer_probe(tmp_path: Path):
             check=False,
         )
         output = tmp_path / "output" / "playwright"
-        status = json.loads((output / "install-webkit.json").read_text(encoding="utf-8"))
-        log = (output / "install-webkit.log").read_text(encoding="utf-8")
+        status = json.loads((output / f"install-{browser}.json").read_text(encoding="utf-8"))
+        log = (output / f"install-{browser}.log").read_text(encoding="utf-8")
         return result, status, log
 
     return run
 
 
 @pytest.mark.parametrize(
-    ("mode", "code", "outcome"),
-    [("success", 0, "succeeded"), ("failure", 42, "failed"), ("kill_status", 137, "kill_status")],
+    ("mode", "code", "outcome", "browser"),
+    [("success", 0, "succeeded", browser) for browser in ("chromium", "firefox", "webkit")]
+    + [("failure", 42, "failed", "webkit"), ("kill_status", 137, "kill_status", "webkit")],
 )
 def test_installer_retains_output_and_propagates_phase_status(
-    installer_probe, mode, code, outcome
+    installer_probe, mode, code, outcome, browser
 ):
-    result, status, log = installer_probe(mode)
+    result, status, log = installer_probe(mode, browser=browser)
     assert result.returncode == code, result.stdout + result.stderr
     assert status["exit_code"] == code
     assert status["outcome"] == outcome
     assert status["timeout_seconds"] == 30
     assert status["elapsed_seconds"] >= 0
+    assert status["termination_observed"] is False
     assert "installer stdout" in log and "installer stderr" in log
     assert "installer stdout" in result.stdout and "installer stderr" in result.stdout
     if code:
@@ -198,18 +221,20 @@ def test_installer_retains_output_and_propagates_phase_status(
 
 def test_installer_timeout_fails_with_retained_diagnostics(installer_probe):
     result, status, log = installer_probe("timeout", "1")
-    assert result.returncode == 124, result.stdout + result.stderr
+    assert result.returncode == 137, result.stdout + result.stderr
     assert status["outcome"] == "timeout_status"
-    assert status["exit_code"] == 124
+    assert status["exit_code"] == 137
     assert status["timeout_seconds"] == 1
-    assert status["elapsed_seconds"] >= 1
+    assert status["elapsed_seconds"] >= 2
+    assert status["termination_observed"] is True
+    assert status["kill_grace_seconds"] == 1
     assert "installer stdout" in log and "installer stderr" in log
     assert "::error title=Playwright installation timeout_status::" in log
 
 
 def test_installer_deadline_signals_descendants(installer_probe, tmp_path: Path):
     result, status, _log = installer_probe("child_timeout", "3")
-    assert result.returncode == 124, result.stdout + result.stderr
+    assert result.returncode == 137, result.stdout + result.stderr
     assert status["outcome"] == "timeout_status"
     assert (tmp_path / "child.ready").read_text() == "ready"
     terminated = tmp_path / "child.terminated"
@@ -217,6 +242,18 @@ def test_installer_deadline_signals_descendants(installer_probe, tmp_path: Path)
     while not terminated.exists() and time.monotonic() < deadline:
         time.sleep(0.01)
     assert terminated.read_text() == "terminated"
+
+
+def test_installer_deadline_kills_a_term_ignoring_descendant(installer_probe, tmp_path: Path):
+    result, status, _log = installer_probe("stubborn_child", "2")
+    assert (tmp_path / "child.ready").read_text() == "ready"
+    # The child tries to write at t=5s; the deadline plus kill grace is 3s.
+    # Waiting past its finite fallback also leaves no synthetic process behind.
+    time.sleep(5)
+    assert not (tmp_path / "child.escaped").exists(), "installer child survived cleanup"
+    assert result.returncode == 137, result.stdout + result.stderr
+    assert status["outcome"] == "timeout_status"
+    assert status["termination_observed"] is True
 
 
 @pytest.mark.parametrize("budget", ["0", "-1", "invalid"])
@@ -227,6 +264,14 @@ def test_installer_rejects_an_unbounded_or_invalid_budget(installer_probe, budge
     assert status["exit_code"] == 2
     assert "installer stdout" not in result.stdout + log
     assert "::error title=Invalid Playwright installation budget::" in log
+
+
+@pytest.mark.parametrize("grace", ["0", "-1", "invalid"])
+def test_installer_rejects_disabled_or_invalid_kill_grace(installer_probe, grace):
+    result, status, log = installer_probe("success", grace=grace)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert status["outcome"] == "invalid_budget"
+    assert "installer stdout" not in result.stdout + log
 
 
 def test_backend_job_timeout_clears_an_honest_slow_run() -> None:
