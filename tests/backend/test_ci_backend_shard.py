@@ -224,6 +224,10 @@ def _collect(root: Path, *extra: str) -> subprocess.CompletedProcess[str]:
             sys.executable,
             "-m",
             "pytest",
+            # Node IDs must be relative to the generated suite, independent of
+            # inferred configuration roots or inherited PYTEST_ADDOPTS (#2598).
+            "--rootdir",
+            str(root),
             str(root),
             "-q",
             "--collect-only",
@@ -242,8 +246,15 @@ def _nodeids(result: subprocess.CompletedProcess[str]) -> set[str]:
     return {line.strip() for line in result.stdout.splitlines() if _NODEID.match(line.strip())}
 
 
-def test_the_ci_command_line_partitions_a_real_pytest_run(tmp_path: Path) -> None:
+@pytest.mark.parametrize("parent_rootdir", [False, True], ids=["default", "parent-rootdir"])
+def test_the_ci_command_line_partitions_a_real_pytest_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parent_rootdir: bool
+) -> None:
     """End-to-end: the flags ci.yml passes reach the plugin and split the run."""
+    if parent_rootdir:
+        # Force directory-prefixed node IDs unless the mini-suite pins its own
+        # root, independently of the host's temporary-directory ancestry (#2598).
+        monkeypatch.setenv("PYTEST_ADDOPTS", f"--rootdir={tmp_path.parent}")
     expected = _write_mini_suite(tmp_path)
 
     baseline = _collect(tmp_path)
