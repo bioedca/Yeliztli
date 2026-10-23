@@ -1,0 +1,837 @@
+{
+  "_provenance": {
+    "issue": "#2582",
+    "source_commit": "5a7557543debfc4d8c66ebf7466fc7330ab67f34",
+    "scope": "24 synthetic parser behavior scenarios shared by the three AncestryDNA companions and unannotated mini-VEP rows. Values are test inputs, not dbSNP loci, biological annotations or participant data. Matching identifiers in the other parser counterparts are relabelled too, preserving each file's declared build and all non-identifier fields.",
+    "namespace": "rsYELIZTLI2001 through rsYELIZTLI2024",
+    "selection": "Preserve source row order, raw coordinates/calls and mock VEP fields; change identifiers only. previous_rsid is historical migration context, never a biological alias.",
+    "fixtures": [
+      "sample_ancestrydna_v2.txt",
+      "sample_ancestrydna_crlf.txt",
+      "sample_ancestrydna_non_utf8_byte.txt"
+    ],
+    "scientific_provenance": "N/A: synthetic behavior fixtures; no new biological claim. Historical coordinate audit remains in the #2375 evidence packet."
+  },
+  "scenarios": {
+    "rsYELIZTLI2001": {
+      "previous_rsid": "rs12124819",
+      "raw": {
+        "chromosome": "1",
+        "position": 768448,
+        "allele1": "A",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 768448,
+        "genotype": "AA"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "768448",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2002": {
+      "previous_rsid": "rs8176318",
+      "raw": {
+        "chromosome": "17",
+        "position": 41277381,
+        "allele1": "G",
+        "allele2": "G"
+      },
+      "parsed": {
+        "chrom": "17",
+        "pos": 41277381,
+        "genotype": "GG"
+      },
+      "vep": {
+        "chrom": "17",
+        "pos": "41277381",
+        "ref": "G",
+        "alt": "A",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2003": {
+      "previous_rsid": "rs2032597",
+      "raw": {
+        "chromosome": "Y",
+        "position": 6873643,
+        "allele1": "C",
+        "allele2": "0"
+      },
+      "parsed": {
+        "chrom": "Y",
+        "pos": 6873643,
+        "genotype": "--"
+      },
+      "vep": {
+        "chrom": "Y",
+        "pos": "6873643",
+        "ref": "C",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2004": {
+      "previous_rsid": "rs6655587",
+      "raw": {
+        "chromosome": "X",
+        "position": 2699555,
+        "allele1": "A",
+        "allele2": "G"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 2699555,
+        "genotype": "AG"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "2699555",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2005": {
+      "previous_rsid": "rs9999001",
+      "raw": {
+        "chromosome": "1",
+        "position": 900000,
+        "allele1": "0",
+        "allele2": "0"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 900000,
+        "genotype": "--"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "900000",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2006": {
+      "previous_rsid": "rs5778923",
+      "raw": {
+        "chromosome": "25",
+        "position": 60123,
+        "allele1": "G",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 60123,
+        "genotype": "AG"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "60123",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2007": {
+      "previous_rsid": "rs9999003",
+      "raw": {
+        "chromosome": "26",
+        "position": 7028,
+        "allele1": "A",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "MT",
+        "pos": 7028,
+        "genotype": "AA"
+      },
+      "vep": {
+        "chrom": "MT",
+        "pos": "7028",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2008": {
+      "previous_rsid": "rs9999004",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000000,
+        "allele1": "I",
+        "allele2": "D"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000000,
+        "genotype": "DI"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000000",
+        "ref": "I",
+        "alt": "D",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2009": {
+      "previous_rsid": "rs9999005",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000100,
+        "allele1": "D",
+        "allele2": "I"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000100,
+        "genotype": "DI"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000100",
+        "ref": "I",
+        "alt": "D",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2010": {
+      "previous_rsid": "rs9999006",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000200,
+        "allele1": "I",
+        "allele2": "I"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000200,
+        "genotype": "II"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000200",
+        "ref": "I",
+        "alt": "D",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2011": {
+      "previous_rsid": "rs9999007",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000300,
+        "allele1": "D",
+        "allele2": "D"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000300,
+        "genotype": "DD"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000300",
+        "ref": "I",
+        "alt": "D",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2012": {
+      "previous_rsid": "rs9999050",
+      "raw": {
+        "chromosome": "Y",
+        "position": 6873700,
+        "allele1": "A",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "Y",
+        "pos": 6873700,
+        "genotype": "AA"
+      },
+      "vep": {
+        "chrom": "Y",
+        "pos": "6873700",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2013": {
+      "previous_rsid": "rs9999008",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000400,
+        "allele1": "A",
+        "allele2": "G"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000400,
+        "genotype": "AG"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000400",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2014": {
+      "previous_rsid": "rs9999009",
+      "raw": {
+        "chromosome": "1",
+        "position": 1000500,
+        "allele1": "C",
+        "allele2": "T"
+      },
+      "parsed": {
+        "chrom": "1",
+        "pos": 1000500,
+        "genotype": "CT"
+      },
+      "vep": {
+        "chrom": "1",
+        "pos": "1000500",
+        "ref": "C",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2015": {
+      "previous_rsid": "rs9999010",
+      "raw": {
+        "chromosome": "2",
+        "position": 1000600,
+        "allele1": "G",
+        "allele2": "T"
+      },
+      "parsed": {
+        "chrom": "2",
+        "pos": 1000600,
+        "genotype": "GT"
+      },
+      "vep": {
+        "chrom": "2",
+        "pos": "1000600",
+        "ref": "G",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2016": {
+      "previous_rsid": "rs9999011",
+      "raw": {
+        "chromosome": "3",
+        "position": 1000700,
+        "allele1": "A",
+        "allele2": "C"
+      },
+      "parsed": {
+        "chrom": "3",
+        "pos": 1000700,
+        "genotype": "AC"
+      },
+      "vep": {
+        "chrom": "3",
+        "pos": "1000700",
+        "ref": "A",
+        "alt": "C",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2017": {
+      "previous_rsid": "rs9999012",
+      "raw": {
+        "chromosome": "4",
+        "position": 1000800,
+        "allele1": "C",
+        "allele2": "T"
+      },
+      "parsed": {
+        "chrom": "4",
+        "pos": 1000800,
+        "genotype": "CT"
+      },
+      "vep": {
+        "chrom": "4",
+        "pos": "1000800",
+        "ref": "C",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2018": {
+      "previous_rsid": "rs786203760",
+      "raw": {
+        "chromosome": "5",
+        "position": 112175098,
+        "allele1": "G",
+        "allele2": "T"
+      },
+      "parsed": {
+        "chrom": "5",
+        "pos": 112175098,
+        "genotype": "GT"
+      },
+      "vep": {
+        "chrom": "5",
+        "pos": "112175098",
+        "ref": "G",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2019": {
+      "previous_rsid": "rs28736870",
+      "raw": {
+        "chromosome": "25",
+        "position": 170770,
+        "allele1": "T",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 170770,
+        "genotype": "AT"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "170770",
+        "ref": "A",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2020": {
+      "previous_rsid": "rs397514462",
+      "raw": {
+        "chromosome": "25",
+        "position": 551578,
+        "allele1": "G",
+        "allele2": "T"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 551578,
+        "genotype": "GT"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "551578",
+        "ref": "G",
+        "alt": "T",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2021": {
+      "previous_rsid": "rs7205",
+      "raw": {
+        "chromosome": "25",
+        "position": 1458324,
+        "allele1": "A",
+        "allele2": "G"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 1458324,
+        "genotype": "AG"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "1458324",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2022": {
+      "previous_rsid": "rs17842875",
+      "raw": {
+        "chromosome": "25",
+        "position": 2354855,
+        "allele1": "C",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "X",
+        "pos": 2354855,
+        "genotype": "AC"
+      },
+      "vep": {
+        "chrom": "X",
+        "pos": "2354855",
+        "ref": "A",
+        "alt": "C",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2023": {
+      "previous_rsid": "rs78907894",
+      "raw": {
+        "chromosome": "26",
+        "position": 523,
+        "allele1": "A",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "MT",
+        "pos": 523,
+        "genotype": "AA"
+      },
+      "vep": {
+        "chrom": "MT",
+        "pos": "523",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    },
+    "rsYELIZTLI2024": {
+      "previous_rsid": "rs369202065",
+      "raw": {
+        "chromosome": "26",
+        "position": 8839,
+        "allele1": "A",
+        "allele2": "A"
+      },
+      "parsed": {
+        "chrom": "MT",
+        "pos": 8839,
+        "genotype": "AA"
+      },
+      "vep": {
+        "chrom": "MT",
+        "pos": "8839",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "",
+        "transcript_id": "",
+        "consequence": "intron_variant",
+        "hgvs_coding": "",
+        "hgvs_protein": "",
+        "strand": "+",
+        "exon_number": "",
+        "intron_number": "",
+        "mane_select": "0"
+      }
+    }
+  },
+  "counterparts": {
+    "sample_23andme_v3.txt": {
+      "identifier_column": 0,
+      "rows": [
+        {
+          "rsid": "rsYELIZTLI2003",
+          "previous_rsid": "rs2032597",
+          "columns": [
+            "rs2032597",
+            "24",
+            "6873643",
+            "G"
+          ]
+        }
+      ],
+      "build": "GRCh36",
+      "parsed": {
+        "rsYELIZTLI2003": {
+          "chrom": "Y",
+          "pos": 6873643,
+          "genotype": "G"
+        }
+      }
+    },
+    "sample_23andme_v4.txt": {
+      "identifier_column": 0,
+      "rows": [
+        {
+          "rsid": "rsYELIZTLI2003",
+          "previous_rsid": "rs2032597",
+          "columns": [
+            "rs2032597",
+            "Y",
+            "6873643",
+            "C"
+          ]
+        }
+      ],
+      "build": "GRCh37",
+      "parsed": {
+        "rsYELIZTLI2003": {
+          "chrom": "Y",
+          "pos": 6873643,
+          "genotype": "C"
+        }
+      }
+    },
+    "sample_23andme_v5.txt": {
+      "identifier_column": 0,
+      "rows": [
+        {
+          "rsid": "rsYELIZTLI2002",
+          "previous_rsid": "rs8176318",
+          "columns": [
+            "rs8176318",
+            "17",
+            "41277381",
+            "GG"
+          ]
+        }
+      ],
+      "build": "GRCh37",
+      "parsed": {
+        "rsYELIZTLI2002": {
+          "chrom": "17",
+          "pos": 41277381,
+          "genotype": "GG"
+        }
+      }
+    },
+    "sample_not_23andme.vcf": {
+      "identifier_column": 2,
+      "rows": [
+        {
+          "rsid": "rsYELIZTLI2001",
+          "previous_rsid": "rs12124819",
+          "columns": [
+            "1",
+            "768448",
+            "rs12124819",
+            "A",
+            "G",
+            "130",
+            "PASS",
+            "DP=52;AF=0.4",
+            "GT:DP",
+            "0/1:52"
+          ]
+        },
+        {
+          "rsid": "rsYELIZTLI2002",
+          "previous_rsid": "rs8176318",
+          "columns": [
+            "17",
+            "41277381",
+            "rs8176318",
+            "G",
+            "T",
+            "200",
+            "PASS",
+            "DP=78;AF=0.3",
+            "GT:DP",
+            "0/0:78"
+          ]
+        },
+        {
+          "rsid": "rsYELIZTLI2004",
+          "previous_rsid": "rs6655587",
+          "columns": [
+            "X",
+            "2699555",
+            "rs6655587",
+            "A",
+            "G",
+            "130",
+            "PASS",
+            "DP=55;AF=0.5",
+            "GT:DP",
+            "0/1:55"
+          ]
+        }
+      ]
+    }
+  }
+}

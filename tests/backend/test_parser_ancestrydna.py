@@ -147,11 +147,11 @@ class TestParseV2Fixture:
         ``nocall_count``."""
         result = parse_ancestrydna(FIXTURE_V2)
         nocalls = {v.rsid for v in result.variants if v.genotype == "--"}
-        assert nocalls == {"rs2032597", "rs9999001"}
+        assert nocalls == {"rsYELIZTLI2003", "rsYELIZTLI2005"}
         assert result.nocall_count == 2
         by_rsid = {v.rsid: v for v in result.variants}
-        assert by_rsid["rs2032597"].chrom == "Y"
-        assert by_rsid["rs9999001"].chrom == "1"
+        assert by_rsid["rsYELIZTLI2003"].chrom == "Y"
+        assert by_rsid["rsYELIZTLI2005"].chrom == "1"
 
     def test_apoe_rsids_present(self) -> None:
         result = parse_ancestrydna(FIXTURE_V2)
@@ -162,11 +162,11 @@ class TestParseV2Fixture:
         assert by_rsid["rs7412"].genotype == "CC"
 
     def test_chr_x_call_preserved(self) -> None:
-        """rs6655587 (chrX 2699555 A G) is sorted to "AG" on chromosome X."""
+        """rsYELIZTLI2004 (chrX 2699555 A G) is sorted to "AG" on chromosome X."""
         result = parse_ancestrydna(FIXTURE_V2)
         by_rsid = {v.rsid: v for v in result.variants}
-        assert by_rsid["rs6655587"].chrom == "X"
-        assert by_rsid["rs6655587"].genotype == "AG"
+        assert by_rsid["rsYELIZTLI2004"].chrom == "X"
+        assert by_rsid["rsYELIZTLI2004"].genotype == "AG"
 
     def test_sorted_pair_canonicalization_on_data(self) -> None:
         """rs3892097 (G, A) must canonicalize to "AG" (sorted)."""
@@ -177,17 +177,17 @@ class TestParseV2Fixture:
     def test_chr25_par_rows_collapse_to_x(self) -> None:
         """Plan §8.6 #4 — every chr25 PAR row in the fixture lands on chrX.
 
-        The fixture carries five PAR rows (rs5778923, rs28736870, rs397514462,
-        rs7205, rs17842875). None should appear as chrom "25" after parsing.
+        The fixture carries five PAR rows (rsYELIZTLI2006, rsYELIZTLI2019, rsYELIZTLI2020,
+        rsYELIZTLI2021, rsYELIZTLI2022). None should appear as chrom "25" after parsing.
         """
         result = parse_ancestrydna(FIXTURE_V2)
         by_rsid = {v.rsid: v for v in result.variants}
         par_rsids = (
-            "rs5778923",
-            "rs28736870",
-            "rs397514462",
-            "rs7205",
-            "rs17842875",
+            "rsYELIZTLI2006",
+            "rsYELIZTLI2019",
+            "rsYELIZTLI2020",
+            "rsYELIZTLI2021",
+            "rsYELIZTLI2022",
         )
         for rsid in par_rsids:
             assert by_rsid[rsid].chrom == "X", rsid
@@ -202,13 +202,13 @@ class TestParseV2Fixture:
         """
         result = parse_ancestrydna(FIXTURE_V2)
         mt_rsids = (
-            "rs9999003",
-            "rs78907894",
+            "rsYELIZTLI2007",
+            "rsYELIZTLI2023",
             "rs199474657",
             "rs199476119",
             "rs199474672",
             "rs111033173",
-            "rs369202065",
+            "rsYELIZTLI2024",
             "rs3899188",
             "rs2853497",
             "rs28359175",
@@ -223,13 +223,13 @@ class TestParseV2Fixture:
         """Plan §8.6 #1 — explicit full-`0`/`0` row contributes to nocall_count.
 
         Sibling of `test_no_calls_canonicalized`; locks the specific full-no-call
-        row (rs9999001 on chr1 with raw alleles `0`/`0`) so a regression that
+        row (rsYELIZTLI2005 on chr1 with raw alleles `0`/`0`) so a regression that
         flips the count without changing the canonical "--" output still trips.
         """
         result = parse_ancestrydna(FIXTURE_V2)
         by_rsid = {v.rsid: v for v in result.variants}
-        assert by_rsid["rs9999001"].genotype == "--"
-        assert by_rsid["rs9999001"].chrom == "1"
+        assert by_rsid["rsYELIZTLI2005"].genotype == "--"
+        assert by_rsid["rsYELIZTLI2005"].chrom == "1"
         # nocall_count covers BOTH no-call rows (full `0`/`0` + partial `C`/`0`).
         assert result.nocall_count == 2
 

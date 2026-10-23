@@ -71,11 +71,29 @@ every dbSNP-form rsID in the four coordinate seeds, with its single Ensembl
 GRCh37 primary mapping. `tests/backend/test_seed_grch37_coordinates.py` holds
 every located seed row to it, loci only. Rows writing an un-padded `-` allele sit
 at Ensembl's start; VCF-form indels sit one base earlier. Its exceptions are
-explicit sets that can only shrink: #2345's `rs12345`, and the unannotated rows
-that mirror the vendor parser fixtures, which are a follow-up. The rsID is a
+explicit set that can only shrink: #2345's `rs12345`. The rsID is a
 row's identity, so a corrected row takes its rsID's locus and alleles, and an
 annotated row then mirrors the pinned production bundle (#2562). Evidence:
 `data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates/`.
+
+#2582 replaced the 24 borrowed dbSNP identities used for parser scenarios with
+`rsYELIZTLI2001` through `rsYELIZTLI2024`. Their complete, finite contract is
+`../parser_synthetic_scenarios.json`: raw AncestryDNA columns, expected parsed
+calls and mock VEP fields, plus matching identifiers in the other parser
+counterparts. The LF, CRLF and invalid-UTF-8 companions retain the same 589 rows,
+PAR-to-X and chromosome-26-to-MT conversions, Y/X cases, indels and two no-calls.
+The 23andMe counterparts keep their original declared builds, including build
+36, and the VCF remains a negative format-detection fixture. Only identifiers
+change; coordinates, calls, comments, row order and byte-format cases are kept.
+
+These reserved rows are **synthetic behavior fixtures**, not biological loci or
+annotations: their coordinates, alleles and mock `intron_variant` values make no
+sequence/consequence claim. Their `gene_symbol`, transcript and HGVS fields
+stay empty. The offline contract rejects unreviewed synthetic VEP rows and
+checks the production parser and mini-VEP rsID lookup paths. `previous_rsid`
+records migration history only; it is not a biological alias. Real dbSNP rows
+continue to obey the coordinate and allele oracles, with no parser-row
+exception set. The separate `rs12345` issue remains tracked by #2345.
 
 The loci guard does not look at alleles, and the REF pin of #2344 reaches only
 the 38 panel rsIDs. `tests/backend/test_seed_grch37_alleles.py` holds every
