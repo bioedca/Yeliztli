@@ -30,38 +30,8 @@ _SEEDS = ("vep_seed", "clinvar_seed", "gnomad_seed", "gwas_seed")
 # #2345's synthetic GENE1 row borrows the real dbSNP ID rs12345; that issue owns it.
 _OUT_OF_SCOPE = {"rs12345"}
 
-# Rows that mirror the vendor parser fixtures (sample_ancestrydna_v2.txt and its CRLF twin):
-# the rs9999xxx placeholder family, the PAR/MT/Y scenarios and the IDs with no GRCh37 record.
-# Correcting them changes those fixtures and the parser tests that rely on their synthetic
-# loci, so they are a separate change, filed as #2375's follow-up. This set can only shrink.
-# (rs199474672 and rs794728091, both "-/T" insertions, already sit at their VCF anchor; only
-# their alleles are wrong, which is the allele guard's concern, not this one.)
-_PARSER_FIXTURE_ROWS = {
-    "rs12124819",
-    "rs17842875",
-    "rs2032597",
-    "rs28736870",
-    "rs369202065",
-    "rs397514462",
-    "rs5778923",
-    "rs6655587",
-    "rs7205",
-    "rs786203760",
-    "rs78907894",
-    "rs8176318",
-    "rs9999001",
-    "rs9999003",
-    "rs9999004",
-    "rs9999005",
-    "rs9999006",
-    "rs9999007",
-    "rs9999008",
-    "rs9999009",
-    "rs9999010",
-    "rs9999011",
-    "rs9999012",
-    "rs9999050",
-}
+# The 24 synthetic parser rows use reviewed rsYELIZTLI IDs (#2582). Their exact
+# scenarios are guarded by test_parser_synthetic_scenarios.py, not exempted as dbSNP loci.
 
 
 def _oracle() -> dict:
@@ -138,13 +108,9 @@ def test_every_seed_row_sits_at_its_grch37_locus() -> None:
         if reason is not None:
             misplaced.setdefault(row["rsid"], []).append(f"{seed}: {reason}")
 
-    excepted = _OUT_OF_SCOPE | _PARSER_FIXTURE_ROWS
+    excepted = _OUT_OF_SCOPE
     unexpected = {rsid: why for rsid, why in misplaced.items() if rsid not in excepted}
     assert unexpected == {}, f"seed rows not at their rsID's GRCh37 locus: {unexpected}"
-    now_placed = sorted(_PARSER_FIXTURE_ROWS - set(misplaced))
-    assert now_placed == [], (
-        f"now at their GRCh37 locus; drop from _PARSER_FIXTURE_ROWS: {now_placed}"
-    )
 
 
 @pytest.mark.parametrize(

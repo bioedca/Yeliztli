@@ -34,11 +34,16 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 # rsid → (gene, clinvar_significance, popmax_af-or-None, expected band)
 _SEED = {
     "rs1800562": ("HFE", "Pathogenic", 0.05, "high"),  # common — array-reliable
-    "rs9999001": ("GENEM", "Likely pathogenic", 5e-4, "moderate"),  # rare
+    "synthetic-moderate-frequency-variant": (
+        "GENEM",
+        "Likely pathogenic",
+        5e-4,
+        "moderate",
+    ),  # rare
     # Explicitly synthetic: this row exercises the frequency threshold rather
     # than asserting a real variant's current gnomAD frequency.
     "synthetic-low-frequency-variant": ("SYNTH1", "Pathogenic", 1e-6, "low"),
-    "rs9999002": ("GENEU", "Pathogenic", None, "unknown"),  # no annotation row
+    "synthetic-unannotated-variant": ("GENEU", "Pathogenic", None, "unknown"),  # no annotation row
     # Common AF (0.15) but a locus-specific array weak spot → locus_low, not high (#636).
     "rs429358": ("APOE", "Pathogenic", 0.15, "locus_low"),
 }
@@ -108,8 +113,8 @@ def ac_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
                     category="monogenic_variant",
                     evidence_level=1,
                     gene_symbol="NEGCTL",
-                    rsid="rs9999003",
-                    finding_text=f"NEGCTL rs9999003 — {sig}",
+                    rsid="synthetic-non-plp-variant",
+                    finding_text=f"NEGCTL synthetic-non-plp-variant — {sig}",
                     clinvar_significance=sig,
                 )
             )
@@ -202,7 +207,7 @@ class TestArrayConfidenceEndpoint:
         data = ac_client.get("/api/analysis/array-confidence?sample_id=1").json()
         returned_sigs = {d["clinvar_significance"] for d in data}
         assert returned_sigs.isdisjoint(_NON_PLP_SIGNIFICANCES)
-        assert "rs9999003" not in {d["rsid"] for d in data}
+        assert "synthetic-non-plp-variant" not in {d["rsid"] for d in data}
 
     def test_reliability_bands_match_frequency(self, ac_client: TestClient) -> None:
         resp = ac_client.get("/api/analysis/array-confidence?sample_id=1")
@@ -228,9 +233,9 @@ class TestArrayConfidenceEndpoint:
             d["rsid"]: d
             for d in ac_client.get("/api/analysis/array-confidence?sample_id=1").json()
         }
-        assert by_rsid["rs9999002"]["reliability"] == "unknown"
-        assert by_rsid["rs9999002"]["gnomad_af_popmax"] is None
-        assert by_rsid["rs9999002"]["confirm_in_clia_recommended"] is True
+        assert by_rsid["synthetic-unannotated-variant"]["reliability"] == "unknown"
+        assert by_rsid["synthetic-unannotated-variant"]["gnomad_af_popmax"] is None
+        assert by_rsid["synthetic-unannotated-variant"]["confirm_in_clia_recommended"] is True
 
     def test_badge_carries_context_only_disclosure(self, ac_client: TestClient) -> None:
         from backend.analysis.array_confidence import WEEDON_PMID
