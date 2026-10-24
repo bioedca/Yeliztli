@@ -4170,3 +4170,852 @@ class TestGenePhenotypeAnnotation:
         # will have gene-phenotype data
         for row in rows:
             assert row.annotation_coverage & GENE_PHENOTYPE_BIT == 0
+
+
+# Issue #2388: chip calls have no ref/alt until ClinVar identifies the marker.
+# All IDs, transcripts and phenotype payloads below are explicitly synthetic.
+_SETTLED_VEP_RSID = "rsYELIZTLI2388001"
+_SETTLED_VEP_OTHER_RSID = "rsYELIZTLI2388002"
+_SETTLED_VEP_POS = 2388001
+
+
+def _seed_settled_vep_case(
+    sample_engine: sa.Engine,
+    reference_engine: sa.Engine,
+    vep_engine: sa.Engine,
+    *,
+    genotype: str = "CC",
+    clinvar_alt: str | None = "T",
+    source_rsid: str = _SETTLED_VEP_RSID,
+    source_chrom: str = "1",
+    source_pos: int = _SETTLED_VEP_POS,
+    source_ref: str = "C",
+) -> None:
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_RSID,
+                chrom="1",
+                pos=_SETTLED_VEP_POS,
+                genotype=genotype,
+            )
+        )
+    if clinvar_alt is not None:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert().values(
+                    rsid=_SETTLED_VEP_RSID,
+                    chrom="1",
+                    pos=_SETTLED_VEP_POS,
+                    ref="C",
+                    alt=clinvar_alt,
+                    significance="Uncertain_significance",
+                    review_stars=1,
+                    accession="VCV_SYNTHETIC_2388",
+                    conditions="Synthetic fixture condition",
+                    gene_symbol="SYNTHETIC_TARGET",
+                    variation_id=2388001,
+                )
+            )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            gene_phenotype.insert().values(
+                gene_symbol="SYNTHETIC_TARGET",
+                disease_id="SYNTHETIC:2388",
+                disease_name="Synthetic exact-allele association",
+                source="synthetic",
+                hpo_terms=json.dumps(["HP:0000001"]),
+            )
+        )
+    rows = []
+    for alt, transcript, consequence, mane in [
+        ("T", "ENST_SYNTHETIC_SEVERE", "stop_gained", 0),
+        ("T", "ENST_SYNTHETIC_PRIMARY", "missense_variant", 1),
+        ("G", "ENST_SYNTHETIC_OTHER_ALT", "stop_gained", 1),
+    ]:
+        rows.append(
+            {
+                "rsid": source_rsid,
+                "chrom": source_chrom,
+                "pos": source_pos,
+                "ref": source_ref,
+                "alt": alt,
+                "gene": "SYNTHETIC_TARGET" if alt == "T" else "SYNTHETIC_OTHER",
+                "tx": transcript,
+                "consequence": consequence,
+                "mane": mane,
+                "coding": "synthetic-exact-coding" if alt == "T" else "synthetic-other-coding",
+                "protein": "synthetic-exact-protein" if alt == "T" else "synthetic-other-protein",
+            }
+        )
+    with vep_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                "transcript_id, consequence, hgvs_coding, hgvs_protein, strand, "
+                "exon_number, intron_number, mane_select) VALUES "
+                "(:rsid, :chrom, :pos, :ref, :alt, :gene, :tx, :consequence, :coding, "
+                ":protein, '-', 7, NULL, :mane)"
+            ),
+            rows,
+        )
+
+
+@pytest.mark.parametrize(("genotype", "zygosity"), [("CC", "hom_ref"), ("CT", "het")])
+@pytest.mark.parametrize("by_rsid", [True, False])
+def test_settled_clinvar_identity_recovers_stored_vep_without_changing_carriage(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    genotype,
+    zygosity,
+    by_rsid,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype=genotype,
+        source_rsid=_SETTLED_VEP_RSID if by_rsid else _SETTLED_VEP_OTHER_RSID,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.zygosity) == ("C", "T", zygosity)
+    assert {
+        name: getattr(row, name)
+        for name in (
+            "gene_symbol",
+            "transcript_id",
+            "consequence",
+            "hgvs_coding",
+            "hgvs_protein",
+            "strand",
+            "exon_number",
+            "intron_number",
+            "mane_select",
+        )
+    } == {
+        "gene_symbol": "SYNTHETIC_TARGET",
+        "transcript_id": "ENST_SYNTHETIC_PRIMARY",
+        "consequence": "missense_variant",
+        "hgvs_coding": "synthetic-exact-coding",
+        "hgvs_protein": "synthetic-exact-protein",
+        "strand": "-",
+        "exon_number": 7,
+        "intron_number": None,
+        "mane_select": True,
+    }
+    assert row.disease_name == "Synthetic exact-allele association"
+    assert json.loads(row.hpo_terms) == ["HP:0000001"]
+    assert row.annotation_coverage == VEP_BIT | CLINVAR_BIT | GENE_PHENOTYPE_BIT
+    assert result.vep_matched == 1
+    assert result.vep_allele_ambiguous == 0
+    assert result.coverage_stats["vep_bundle_rsid_hits"] == int(by_rsid)
+    assert result.vep_coord_fallback_matched == int(not by_rsid)
+
+
+@pytest.mark.parametrize("clinvar_alt", [None, "A"])
+def test_unsettled_or_uncatalogued_identity_keeps_vep_withheld(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    clinvar_alt,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        clinvar_alt=clinvar_alt,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.gene_symbol is None
+    assert row.transcript_id is None
+    assert row.consequence is None
+    assert row.disease_name is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0
+    assert result.vep_allele_ambiguous == int(clinvar_alt is None)
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    [
+        {"source_chrom": "2"},
+        {"source_pos": _SETTLED_VEP_POS + 1},
+        {"source_ref": "A"},
+    ],
+)
+def test_settled_vep_recovery_requires_the_entire_coordinate_and_allele_identity(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    mismatch,
+):
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory, **mismatch)
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.zygosity) == ("C", "T", "hom_ref")
+    assert row.gene_symbol is None
+    assert row.consequence is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0
+
+
+@pytest.mark.parametrize("batch_size", [1, 1000])
+def test_a_hom_ref_alias_recovers_its_own_settled_identity(
+    batch_size,
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype="CT",
+    )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_SETTLED_VEP_OTHER_RSID,
+                current_rsid=_SETTLED_VEP_RSID,
+                build_id=155,
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID,
+                chrom="1",
+                pos=_SETTLED_VEP_POS,
+                genotype="CC",
+            )
+        )
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    with sample_engine.connect() as conn:
+        rows = conn.execute(sa.select(annotated_variants)).mappings().all()
+    assert len(rows) == 2
+    by_rsid = {row["rsid"]: row for row in rows}
+    assert set(by_rsid) == {_SETTLED_VEP_RSID, _SETTLED_VEP_OTHER_RSID}
+    for rsid, zygosity in [(_SETTLED_VEP_RSID, "het"), (_SETTLED_VEP_OTHER_RSID, "hom_ref")]:
+        row = by_rsid[rsid]
+        assert row["gene_symbol"] == "SYNTHETIC_TARGET"
+        assert row["transcript_id"] == "ENST_SYNTHETIC_PRIMARY"
+        assert (row["ref"], row["alt"], row["zygosity"]) == ("C", "T", zygosity)
+        assert row["annotation_coverage"] & VEP_BIT
+    assert result.vep_matched == 2
+    assert result.vep_allele_ambiguous == 0
+
+
+def test_settled_vep_alias_contexts_do_not_share_another_alleles_annotation(
+    sample_engine, reference_engine, vep_engine_inmemory
+):
+    from backend.annotation.engine import _lookup_vep_after_clinvar
+
+    query = "rsYELIZTLI2388010"
+    kept = "rsYELIZTLI2388003"
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory, source_rsid=query)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": rsid, "chrom": "1", "pos": _SETTLED_VEP_POS, "genotype": "CC"}
+                for rsid in (_SETTLED_VEP_OTHER_RSID, kept)
+            ],
+        )
+    with sample_engine.connect() as conn:
+        raw = {row.rsid: row for row in conn.execute(sa.select(raw_variants)).all()}
+    assert len(raw) == 3
+    existing = {kept: {"gene_symbol": "ALREADY_SELECTED"}}
+    recovered, identities = _lookup_vep_after_clinvar(
+        raw,
+        existing,
+        {
+            _SETTLED_VEP_RSID: {"ref": "C", "alt": "T"},
+            _SETTLED_VEP_OTHER_RSID: {"ref": "C", "alt": "G"},
+            kept: {"ref": "C", "alt": "G"},
+        },
+        {rsid: query for rsid in raw},
+        vep_engine_inmemory,
+    )
+    assert set(recovered) == {_SETTLED_VEP_RSID, _SETTLED_VEP_OTHER_RSID}
+    assert set(identities) == set(recovered)
+    assert recovered[_SETTLED_VEP_RSID]["gene_symbol"] == "SYNTHETIC_TARGET"
+    assert recovered[_SETTLED_VEP_RSID]["_vep_alt"] == "T"
+    assert recovered[_SETTLED_VEP_OTHER_RSID]["gene_symbol"] == "SYNTHETIC_OTHER"
+    assert recovered[_SETTLED_VEP_OTHER_RSID]["_vep_alt"] == "G"
+    assert existing == {kept: {"gene_symbol": "ALREADY_SELECTED"}}
+
+
+@pytest.mark.parametrize("batch_size", [1, 1000])
+def test_settled_vep_aliases_at_different_loci_use_their_own_clinvar_identity(
+    batch_size, sample_engine, mock_registry, reference_engine, vep_engine_inmemory
+):
+    _seed_settled_vep_case(sample_engine, reference_engine, vep_engine_inmemory)
+    other_pos = _SETTLED_VEP_POS + 1
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID, chrom="1", pos=other_pos, genotype="CC"
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_SETTLED_VEP_OTHER_RSID, current_rsid=_SETTLED_VEP_RSID, build_id=155
+            )
+        )
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid=_SETTLED_VEP_OTHER_RSID,
+                chrom="1",
+                pos=other_pos,
+                ref="C",
+                alt="G",
+                review_stars=1,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations SELECT rsid, chrom, pos+1, ref, alt, "
+                "gene_symbol, transcript_id, consequence, hgvs_coding, hgvs_protein, "
+                "strand, exon_number, intron_number, mane_select FROM vep_annotations "
+                "WHERE rsid=:rsid"
+            ),
+            {"rsid": _SETTLED_VEP_RSID},
+        )
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants)).all()}
+    assert len(rows) == 2
+    for rsid, pos, alt, gene, transcript in [
+        (_SETTLED_VEP_RSID, _SETTLED_VEP_POS, "T", "SYNTHETIC_TARGET", "ENST_SYNTHETIC_PRIMARY"),
+        (_SETTLED_VEP_OTHER_RSID, other_pos, "G", "SYNTHETIC_OTHER", "ENST_SYNTHETIC_OTHER_ALT"),
+    ]:
+        row = rows[rsid]
+        assert (row.pos, row.ref, row.alt, row.zygosity) == (pos, "C", alt, "hom_ref")
+        assert (row.gene_symbol, row.transcript_id) == (gene, transcript)
+        assert row.annotation_coverage & VEP_BIT
+    assert result.vep_matched == 2
+    assert result.vep_allele_ambiguous == 0
+    assert not result.errors
+
+
+@pytest.mark.parametrize("genotype", ["DD", "DI"])
+@pytest.mark.parametrize("by_rsid", [True, False])
+def test_settled_snv_identity_does_not_annotate_an_indel_probe(
+    sample_engine, mock_registry, reference_engine, vep_engine_inmemory, genotype, by_rsid
+):
+    _seed_settled_vep_case(
+        sample_engine,
+        reference_engine,
+        vep_engine_inmemory,
+        genotype=genotype,
+        source_rsid=_SETTLED_VEP_RSID if by_rsid else _SETTLED_VEP_OTHER_RSID,
+    )
+    result = run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.genotype == genotype
+    assert row.gene_symbol is None
+    assert row.transcript_id is None
+    assert row.consequence is None
+    assert row.hgvs_coding is None
+    assert row.hgvs_protein is None
+    assert row.annotation_coverage & VEP_BIT == 0
+    assert result.vep_matched == 0
+
+
+# #2391: all marker IDs and ClinVar payloads in these cases are synthetic.
+_CV_PROBE_RSID = "rsYELIZTLI2391001"
+_CV_OTHER_RSID = "rsYELIZTLI2391002"
+_CV_THIRD_RSID = "rsYELIZTLI2391003"
+_CV_PROBE_POS = 2391001
+
+
+def _synthetic_probe_clinvar_row(
+    *,
+    rsid=_CV_PROBE_RSID,
+    pos=_CV_PROBE_POS,
+    chrom="1",
+    ref="AT",
+    alt="A",
+    significance="Pathogenic",
+    review_stars=1,
+    accession="VCV_SYNTHETIC_2391_OWN",
+):
+    return {
+        "rsid": rsid,
+        "chrom": chrom,
+        "pos": pos,
+        "ref": ref,
+        "alt": alt,
+        "significance": significance,
+        "review_stars": review_stars,
+        "accession": accession,
+        "conditions": "Synthetic fixture condition",
+        "gene_symbol": "SYNTHETIC_CV_TARGET",
+        "variation_id": None,
+    }
+
+
+def _seed_clinvar_probe(sample_engine, reference_engine, genotype, records):
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid=_CV_PROBE_RSID,
+                chrom="1",
+                pos=_CV_PROBE_POS,
+                genotype=genotype,
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(clinvar_variants.insert(), records)
+
+
+def _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry):
+    if writer == "standalone":
+        from backend.annotation.clinvar import annotate_sample_clinvar
+
+        return annotate_sample_clinvar(sample_engine, reference_engine)
+    type(mock_registry).vep_engine = property(lambda self: None)
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    return result
+
+
+@pytest.mark.parametrize("writer", ["engine", "standalone"])
+@pytest.mark.parametrize("genotype", ["II", "DD"])
+def test_clinvar_own_upstream_indel_beats_a_colocated_snv(
+    writer,
+    genotype,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        genotype,
+        [
+            _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1),
+            _synthetic_probe_clinvar_row(
+                rsid=_CV_OTHER_RSID,
+                ref="C",
+                alt="T",
+                significance="Benign",
+                review_stars=4,
+                accession="VCV_SYNTHETIC_2391_OTHER",
+            ),
+        ],
+    )
+    result = _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.rsid, row.chrom, row.pos, row.genotype) == (
+        _CV_PROBE_RSID,
+        "1",
+        _CV_PROBE_POS,
+        genotype,
+    )
+    assert (row.ref, row.alt) == ("AT", "A")
+    # Issue #2391 preserves the existing unscoreable I/D-token contract (#256).
+    assert row.zygosity is None
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.clinvar_significance == "Pathogenic"
+    assert row.clinvar_review_stars == 1
+    assert row.annotation_coverage == CLINVAR_BIT
+    if writer == "standalone":
+        assert (result.matched_by_rsid, result.matched_by_position) == (1, 0)
+    else:
+        assert result.clinvar_matched == 1
+
+
+@pytest.mark.parametrize("writer", ["engine", "standalone"])
+@pytest.mark.parametrize(("genotype", "ref", "alt"), [("DI", "C", "T"), ("CC", "AT", "A")])
+def test_clinvar_coordinate_fallback_withholds_the_other_probe_class(
+    writer,
+    genotype,
+    ref,
+    alt,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        genotype,
+        [
+            _synthetic_probe_clinvar_row(rsid=_CV_OTHER_RSID, ref=ref, alt=alt),
+        ],
+    )
+    result = _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one_or_none()
+    if writer == "standalone":
+        assert row is None
+        assert result.total_matched == result.rows_written == 0
+    else:
+        assert row is not None
+        assert row.clinvar_significance is None
+        assert row.clinvar_accession is None
+        assert row.ref is None and row.alt is None
+        assert row.annotation_coverage & CLINVAR_BIT == 0
+        assert result.clinvar_matched == 0
+
+
+@pytest.mark.parametrize("writer", ["engine", "standalone"])
+@pytest.mark.parametrize(
+    ("genotype", "ref", "alt", "wrong_ref", "wrong_alt"),
+    [("II", "AT", "A", "C", "T"), ("CC", "C", "T", "AT", "A")],
+)
+def test_clinvar_coordinate_selection_keeps_a_lower_star_compatible_record(
+    writer,
+    genotype,
+    ref,
+    alt,
+    wrong_ref,
+    wrong_alt,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        genotype,
+        [
+            _synthetic_probe_clinvar_row(
+                rsid=_CV_OTHER_RSID,
+                ref=ref,
+                alt=alt,
+                significance="Uncertain_significance",
+                review_stars=1,
+            ),
+            _synthetic_probe_clinvar_row(
+                rsid=_CV_THIRD_RSID,
+                ref=wrong_ref,
+                alt=wrong_alt,
+                review_stars=4,
+                accession="VCV_SYNTHETIC_2391_OTHER",
+            ),
+        ],
+    )
+    _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt) == (ref, alt)
+    assert row.zygosity == (None if genotype == "II" else "hom_ref")
+    assert row.clinvar_significance == "Uncertain_significance"
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.clinvar_review_stars == 1
+    assert row.annotation_coverage == CLINVAR_BIT
+
+
+@pytest.mark.parametrize("writer", ["engine", "standalone"])
+def test_clinvar_ordinary_snv_coordinate_fallback_still_attaches(
+    writer,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        "CT",
+        [
+            _synthetic_probe_clinvar_row(rsid=_CV_OTHER_RSID, ref="C", alt="T"),
+        ],
+    )
+    result = _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.zygosity) == ("C", "T", "het")
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.clinvar_significance == "Pathogenic"
+    assert row.annotation_coverage == CLINVAR_BIT
+    if writer == "standalone":
+        assert (result.matched_by_rsid, result.matched_by_position) == (0, 1)
+
+
+@pytest.mark.parametrize("writer", ["engine", "standalone"])
+@pytest.mark.parametrize(
+    ("genotype", "ref", "alt", "delta", "chrom"),
+    [
+        ("CC", "AT", "A", -1, "1"),
+        ("II", "C", "T", -1, "1"),
+        ("II", "AT", "A", 1, "1"),
+        ("II", "AT", "A", -2, "1"),
+        ("II", "AT", "A", -1, "2"),
+    ],
+)
+def test_clinvar_offset_tolerance_rejects_incompatible_or_other_locus_records(
+    writer,
+    genotype,
+    ref,
+    alt,
+    delta,
+    chrom,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        genotype,
+        [
+            _synthetic_probe_clinvar_row(
+                ref=ref,
+                alt=alt,
+                pos=_CV_PROBE_POS + delta,
+                chrom=chrom,
+            ),
+        ],
+    )
+    result = _annotate_clinvar_probe(writer, sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one_or_none()
+    if writer == "standalone":
+        assert row is None
+        assert result.total_matched == 0
+    else:
+        assert row is not None
+        assert row.clinvar_accession is None
+        assert row.clinvar_significance is None
+        assert row.annotation_coverage & CLINVAR_BIT == 0
+        assert result.clinvar_matched == 0
+
+
+@pytest.mark.parametrize("genotype", ["II", "DD"])
+@pytest.mark.parametrize("source_rsid", [_CV_PROBE_RSID, _CV_OTHER_RSID])
+@pytest.mark.parametrize("source_present", [True, False])
+def test_clinvar_upstream_identity_drives_vep_and_downstream_context(
+    genotype,
+    source_rsid,
+    source_present,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+    monkeypatch,
+):
+    """The raw probe coordinate must never be paired with an upstream allele."""
+    import backend.annotation.engine as annotation_engine
+
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        genotype,
+        [
+            _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1),
+        ],
+    )
+    # An attractive, compatible indel exists at the raw probe position too.
+    # Two upstream alleles force use of the exact ClinVar identity despite
+    # unscoreable I/D carriage.
+    records = [
+        (_CV_PROBE_RSID, _CV_PROBE_POS, "AC", "A", "SYNTHETIC_WRONG_LOCUS"),
+        (source_rsid, _CV_PROBE_POS - 1, "AT", "A", "SYNTHETIC_CV_TARGET"),
+        (source_rsid, _CV_PROBE_POS - 1, "ATG", "A", "SYNTHETIC_OTHER_ALLELE"),
+    ]
+    if not source_present:
+        records = records[:1]
+    with mock_registry.vep_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid, chrom, pos, ref, alt, gene_symbol, "
+                "transcript_id, consequence, hgvs_coding, mane_select) VALUES "
+                "(:rsid, '1', :pos, :ref, :alt, :gene, :tx, 'frameshift_variant', :coding, 1)"
+            ),
+            [
+                {
+                    "rsid": rsid,
+                    "pos": pos,
+                    "ref": ref,
+                    "alt": alt,
+                    "gene": gene,
+                    "tx": "ENST_" + gene,
+                    "coding": "synthetic-coding-" + gene,
+                }
+                for rsid, pos, ref, alt, gene in records
+            ],
+        )
+    contexts = []
+    original_lookup = annotation_engine._lookup_alphamissense
+
+    def record_downstream_context(rsids, raw, vep, clinvar, engine):
+        contexts.append(dict(vep[_CV_PROBE_RSID]))
+        return original_lookup(rsids, raw, vep, clinvar, engine)
+
+    monkeypatch.setattr(annotation_engine, "_lookup_alphamissense", record_downstream_context)
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    assert result.clinvar_matched == 1
+    assert result.vep_coord_fallback_matched == int(source_present)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.rsid, row.pos, row.ref, row.alt) == (_CV_PROBE_RSID, _CV_PROBE_POS, "AT", "A")
+    assert row.zygosity is None
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    if not source_present:
+        assert row.gene_symbol is None
+        assert row.consequence is None
+        assert row.hgvs_coding is None
+        assert not row.annotation_coverage & VEP_BIT
+        assert not contexts
+        return
+    assert row.gene_symbol == "SYNTHETIC_CV_TARGET"
+    assert row.transcript_id == "ENST_SYNTHETIC_CV_TARGET"
+    assert row.hgvs_coding == "synthetic-coding-SYNTHETIC_CV_TARGET"
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.annotation_coverage & (VEP_BIT | CLINVAR_BIT) == VEP_BIT | CLINVAR_BIT
+    assert contexts
+    for context in contexts:
+        assert (context["_vep_ref"], context["_vep_alt"]) == ("AT", "A")
+        assert context["_vep_alleles_unambiguous"] is True
+
+
+def test_clinvar_upstream_tolerance_does_not_extend_to_a_merged_rsid(
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        "DI",
+        [
+            _synthetic_probe_clinvar_row(rsid=_CV_OTHER_RSID, pos=_CV_PROBE_POS - 1),
+        ],
+    )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_CV_PROBE_RSID,
+                current_rsid=_CV_OTHER_RSID,
+                build_id=151,
+            )
+        )
+    result = _annotate_clinvar_probe("engine", sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.dbsnp_rsid_current == _CV_OTHER_RSID
+    assert row.clinvar_significance is None
+    assert row.clinvar_accession is None
+    assert row.ref is None and row.alt is None
+    assert not row.annotation_coverage & CLINVAR_BIT
+    assert result.clinvar_matched == 0
+
+
+@pytest.mark.parametrize("batch_size", [1, 100])
+@pytest.mark.parametrize("own_first", [True, False])
+def test_clinvar_upstream_alias_eligibility_is_independent_of_batching(
+    batch_size,
+    own_first,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    records = [
+        {"rsid": rsid, "chrom": "1", "pos": _CV_PROBE_POS, "genotype": "II"}
+        for rsid in [_CV_PROBE_RSID, _CV_OTHER_RSID]
+    ]
+    with sample_engine.begin() as conn:
+        conn.execute(raw_variants.insert(), records if own_first else records[::-1])
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [
+                _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1),
+            ],
+        )
+        conn.execute(
+            dbsnp_merges.insert().values(
+                old_rsid=_CV_OTHER_RSID,
+                current_rsid=_CV_PROBE_RSID,
+                build_id=151,
+            )
+        )
+    type(mock_registry).vep_engine = property(lambda self: None)
+    result = run_annotation(sample_engine, mock_registry, batch_size=batch_size)
+    assert not result.errors
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants))}
+    assert len(rows) == 2
+    assert rows[_CV_PROBE_RSID].clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert rows[_CV_PROBE_RSID].annotation_coverage & CLINVAR_BIT
+    alias = rows[_CV_OTHER_RSID]
+    assert alias.clinvar_accession is None
+    assert alias.clinvar_significance is None
+    assert alias.ref is None and alias.alt is None
+    assert not alias.annotation_coverage & CLINVAR_BIT
+    assert result.clinvar_matched == 1
+
+
+@pytest.mark.parametrize("native_frequency", [True, False])
+def test_clinvar_upstream_identity_reselects_gnomad_at_the_native_coordinate(
+    native_frequency,
+    sample_engine,
+    reference_engine,
+    mock_registry,
+):
+    _seed_clinvar_probe(
+        sample_engine,
+        reference_engine,
+        "II",
+        [
+            _synthetic_probe_clinvar_row(pos=_CV_PROBE_POS - 1, ref="A", alt="AT"),
+        ],
+    )
+    # The two insertions have identical ref/alt strings but different loci.
+    # A lower native frequency must not inherit the neighbour's counts/flags.
+    frequencies = [
+        {"rsid": _CV_PROBE_RSID, "pos": _CV_PROBE_POS, "af": 0.42, "hom": 42},
+    ]
+    if native_frequency:
+        frequencies.append(
+            {
+                "rsid": _CV_OTHER_RSID,
+                "pos": _CV_PROBE_POS - 1,
+                "af": 0.000001,
+                "hom": 0,
+            }
+        )
+    with mock_registry.gnomad_engine.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO gnomad_af (rsid, chrom, pos, ref, alt, af_global, "
+                "homozygous_count) VALUES (:rsid, '1', :pos, 'A', 'AT', :af, :hom)"
+            ),
+            frequencies,
+        )
+    result = _annotate_clinvar_probe("engine", sample_engine, reference_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert (row.ref, row.alt, row.pos) == ("A", "AT", _CV_PROBE_POS)
+    assert row.clinvar_accession == "VCV_SYNTHETIC_2391_OWN"
+    assert row.zygosity is None
+    if native_frequency:
+        assert row.gnomad_af_global == pytest.approx(0.000001)
+        assert row.gnomad_homozygous_count == 0
+        assert row.rare_flag and row.ultra_rare_flag
+        assert row.gnomad_source_status == GNOMAD_SOURCE_OBSERVED
+        assert row.annotation_coverage & GNOMAD_BIT
+        assert result.gnomad_matched == 1
+    else:
+        assert row.gnomad_af_global is None
+        assert row.gnomad_homozygous_count is None
+        assert row.rare_flag is None and row.ultra_rare_flag is None
+        assert row.gnomad_source_status == "locus_unresolved"
+        assert not row.annotation_coverage & GNOMAD_BIT
+        assert result.gnomad_matched == 0

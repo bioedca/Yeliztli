@@ -1,0 +1,32 @@
+{
+  "accessed": "2026-10-23",
+  "endpoint": "efetch",
+  "database": "pubmed",
+  "pmid": "25701572",
+  "title": "Unified representation of genetic variants.",
+  "journal": "Bioinformatics (Oxford, England)",
+  "publication_types": [
+    "Journal Article",
+    "Research Support, N.I.H., Extramural"
+  ],
+  "article_ids": [
+    {
+      "type": "pubmed",
+      "value": "25701572"
+    },
+    {
+      "type": "pmc",
+      "value": "PMC4481842"
+    },
+    {
+      "type": "doi",
+      "value": "10.1093/bioinformatics/btv112"
+    },
+    {
+      "type": "pii",
+      "value": "btv112"
+    }
+  ],
+  "comments_corrections": [],
+  "sanitization": "Selected bibliographic fields only; abstract, affiliations, references and full text omitted."
+}

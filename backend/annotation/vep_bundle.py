@@ -25,6 +25,15 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, classify_zygosity
+from backend.annotation.allele_matching import (
+    genotype_allele_class as _genotype_allele_class,
+)
+from backend.annotation.allele_matching import (
+    normal_allele as _normal_allele,
+)
+from backend.annotation.allele_matching import (
+    row_allele_class as _row_allele_class,
+)
 from backend.db.tables import annotated_variants, raw_variants
 
 logger = logging.getLogger(__name__)
@@ -217,13 +226,6 @@ def _pick_best(
     return best
 
 
-def _normal_allele(value: str | None) -> str | None:
-    if value is None:
-        return None
-    value = str(value).strip().upper()
-    return value or None
-
-
 def _normal_chrom(value: str | None) -> str | None:
     if value is None:
         return None
@@ -250,47 +252,6 @@ def _rows_match_coordinate(rows: list[sa.Row], coordinate: CoordinateIdentity | 
         if _normal_chrom(getattr(row, "chrom", None)) != chrom_norm or row_pos != pos:
             return False
     return True
-
-
-_NUCLEOTIDES = frozenset("ACGT")
-_INDEL_TOKENS = frozenset("ID")
-
-
-def _genotype_allele_class(genotype: str | None) -> str | None:
-    """Classify a sample call as an ``"indel"`` or ``"snv"`` probe.
-
-    Consumer arrays call indel probes with vendor ``I``/``D`` tokens and SNP
-    probes with single bases. Anything else (no-calls, VCF allele strings) is
-    unclassified and returns ``None``.
-    """
-    if not genotype:
-        return None
-    tokens = [
-        token.strip().upper() for token in (genotype.split("/") if "/" in genotype else genotype)
-    ]
-    if tokens and all(token in _INDEL_TOKENS for token in tokens):
-        return "indel"
-    if tokens and all(token in _NUCLEOTIDES for token in tokens):
-        return "snv"
-    return None
-
-
-def _row_allele_class(row: sa.Row) -> str | None:
-    """Classify a VEP bundle row as an ``"indel"`` or ``"snv"`` record.
-
-    The bundle mixes indel representations (VCF-anchored, VEP-trimmed with
-    ``-``, and malformed same-base rows), so only the unambiguous shapes are
-    classified; the rest return ``None``.
-    """
-    ref = _normal_allele(getattr(row, "ref", None))
-    alt = _normal_allele(getattr(row, "alt", None))
-    if ref is None or alt is None:
-        return None
-    if ref in _NUCLEOTIDES and alt in _NUCLEOTIDES and ref != alt:
-        return "snv"
-    if "-" in (ref, alt) or len(ref) != len(alt):
-        return "indel"
-    return None
 
 
 def _filter_rows_for_sample_allele(
