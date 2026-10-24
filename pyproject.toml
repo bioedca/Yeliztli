@@ -24,6 +24,7 @@ dependencies = [
     "pydantic-settings",
     "huey",
     "httpx",
+    "certifi>=2026.10.23",
     "structlog",
     "bcrypt",
     "packaging",
