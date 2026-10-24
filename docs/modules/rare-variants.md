@@ -49,6 +49,11 @@ details, CADD/REVEL scores, zygosity, and inheritance. You can export results to
 
 ## Good to know
 
+- On first opening an upgraded sample with legacy MONDO/HPO annotations, stored rare-variant
+  findings are rebuilt from its existing annotated calls. This removes the old gene-wide
+  disease and inheritance fields and restores findings omitted by the old inheritance guard.
+  OMIM-sourced context is retained. The same corrected stored set feeds findings, reports,
+  and TSV/VCF exports; no reference download or re-annotation is needed for this repair.
 - Only variants you **carry** are shown — arrays report a call at every probe regardless of
   biology, so unscoreable and reference calls are filtered out.
 - Y-chromosome findings are dropped for XX samples.

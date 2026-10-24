@@ -492,8 +492,18 @@ class DBRegistry:
                     # Ensure schema is up to date (adds missing tables like
                     # haplogroup_assignments for pre-P3-33 sample databases).
                     from backend.db.sample_schema import ensure_sample_schema_current
+                    from backend.services.rare_variant_findings import (
+                        refresh_legacy_rare_variant_findings,
+                    )
 
                     ensure_sample_schema_current(engine)
+                    try:
+                        refresh_legacy_rare_variant_findings(
+                            engine, self.reference_engine, sample_db_path, self._settings.data_dir
+                        )
+                    except BaseException:
+                        engine.dispose()
+                        raise
                     self._sample_engines[key] = engine
         engine = self._sample_engines[key]
         if self._sample_prompt_sync_complete.get(key) is not engine:

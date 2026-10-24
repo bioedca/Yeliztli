@@ -41,7 +41,7 @@ LEGACY_SCOPED_PHENOTYPE_FIELDS: tuple[str, ...] = (
 _MONDO_HPO_SOURCE = "mondo_hpo"
 
 
-def sample_phenotype_scope_is_current(sample_engine: sa.Engine) -> bool:
+def sample_phenotype_scope_is_current(sample_engine: sa.Engine | sa.Connection) -> bool:
     """Whether this sample's stored phenotype columns came from a scoped install.
 
     Reads the sample's own recorded reference snapshot rather than the current
