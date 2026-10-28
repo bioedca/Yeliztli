@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import textwrap
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -953,6 +954,312 @@ class TestDownloadAndLoad:
             "backend.annotation.mondo_hpo.MINIMUM_HPO_GENES_TO_PHENOTYPE_BYTES",
             1,
         )
+
+    @pytest.fixture
+    def durability_downloads(
+        self, monkeypatch, mondo_tsv_file, hpo_phenotype_file, mondo_sssom_file, tmp_path
+    ):
+        """Exercise the real loader with deterministic miniature source files."""
+        monkeypatch.setattr(mondo_hpo, "MINIMUM_UNAMBIGUOUS_MONDO_XREFS", 2)
+        sources = {
+            "gene_disease.9606.tsv.gz": mondo_tsv_file,
+            "genes_to_phenotype.txt": hpo_phenotype_file,
+            "mondo.sssom.tsv": mondo_sssom_file,
+        }
+
+        def download(url, dest_dir, filename, **kwargs):
+            target = dest_dir / filename
+            if filename.endswith(".gz"):
+                with target.open("wb") as raw:
+                    with gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as output:
+                        output.write(sources[filename].read_bytes())
+            else:
+                target.write_bytes(sources[filename].read_bytes())
+            if kwargs.get("meta") is not None:
+                kwargs["meta"].update(version="20260415")
+            return target
+
+        monkeypatch.setattr(mondo_hpo, "download_file", download)
+        return tmp_path / "downloads"
+
+    @staticmethod
+    def _durability_fd_label(downloads, fd):
+        held = os.fstat(fd)
+        for path in [downloads, *downloads.rglob("*")]:
+            if not path.exists():
+                continue
+            current = path.stat()
+            if (current.st_dev, current.st_ino) == (held.st_dev, held.st_ino):
+                if stat.S_ISREG(held.st_mode):
+                    return path.name
+                if path == downloads:
+                    return "downloads"
+                if path.name == mondo_hpo.SOURCE_BUNDLE_DIRECTORY:
+                    return "bundle-root"
+                return "bundle"
+        return "ancestor"
+
+    @pytest.mark.parametrize("reuse", [False, True])
+    def test_source_durability_precedes_provenance_commit(
+        self, monkeypatch, reference_engine, durability_downloads, reuse
+    ):
+        downloads = durability_downloads
+        if reuse:
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        events = []
+        real_fsync, real_replace = os.fsync, os.replace
+
+        def sync(fd):
+            real_fsync(fd)
+            events.append(("sync", self._durability_fd_label(downloads, fd), os.fstat(fd).st_ino))
+
+        def replace(*args, **kwargs):
+            real_replace(*args, **kwargs)
+            events.append(("publish",))
+
+        def commit(conn):
+            events.append(("commit",))
+
+        monkeypatch.setattr(os, "fsync", sync)
+        monkeypatch.setattr(os, "replace", replace)
+        sa.event.listen(reference_engine, "commit", commit)
+        try:
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        finally:
+            sa.event.remove(reference_engine, "commit", commit)
+        assert events[-1] == ("commit",)
+        with reference_engine.connect() as conn:
+            recorded = Path(conn.execute(sa.select(database_versions.c.file_path)).scalar_one())
+        bundle = recorded.parent
+        for filename in (
+            recorded.name,
+            "genes_to_phenotype.txt",
+            "mondo.sssom.tsv",
+            mondo_hpo.SOURCE_BUNDLE_MANIFEST,
+        ):
+            expected = ("sync", filename, (bundle / filename).stat().st_ino)
+            assert expected in events, (filename, events)
+            if not reuse:
+                assert events.index(expected) < events.index(("publish",))
+        directory_events = [
+            ("sync", label, path.stat().st_ino)
+            for label, path in (
+                ("bundle", bundle),
+                ("bundle-root", bundle.parent),
+                ("downloads", downloads),
+            )
+        ]
+        for event in directory_events:
+            assert event in events, events
+            if not reuse:
+                assert max(i for i, e in enumerate(events) if e == event) > events.index(
+                    ("publish",)
+                )
+        assert (("publish",) in events) is not reuse
+
+    @pytest.mark.parametrize("reuse", [False, True])
+    @pytest.mark.parametrize(
+        "boundary",
+        [
+            "gene_disease.9606.tsv.gz",
+            "genes_to_phenotype.txt",
+            "mondo.sssom.tsv",
+            mondo_hpo.SOURCE_BUNDLE_MANIFEST,
+            "bundle",
+            "bundle-root",
+            "downloads",
+        ],
+    )
+    def test_durability_failure_preserves_installed_provenance(
+        self, monkeypatch, reference_engine, durability_downloads, reuse, boundary
+    ):
+        downloads = durability_downloads
+        download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            prior_versions = conn.execute(sa.select(database_versions)).all()
+            prior_rows = conn.execute(sa.select(gene_phenotype)).all()
+        prior_bundle = Path(prior_versions[0].file_path).parent
+        prior_bytes = {p.name: p.read_bytes() for p in prior_bundle.iterdir()}
+        if not reuse:
+            original_download = mondo_hpo.download_file
+
+            def changed_metadata(*args, **kwargs):
+                path = original_download(*args, **kwargs)
+                if kwargs.get("meta") is not None:
+                    kwargs["meta"]["etag"] = "new-source-validator"
+                return path
+
+            monkeypatch.setattr(mondo_hpo, "download_file", changed_metadata)
+        real_fsync = os.fsync
+        failures = []
+
+        def fail_sync(fd):
+            label = self._durability_fd_label(downloads, fd)
+            # On reuse, fail the retained bundle, not the disposable staging manifest.
+            in_retained_bundle = any(
+                (os.fstat(fd).st_dev, os.fstat(fd).st_ino) == (p.stat().st_dev, p.stat().st_ino)
+                for p in [prior_bundle, *prior_bundle.iterdir()]
+            )
+            if label == boundary and (
+                not reuse or label in {"bundle-root", "downloads"} or in_retained_bundle
+            ):
+                failures.append(label)
+                raise OSError("injected durability failure")
+            real_fsync(fd)
+
+        monkeypatch.setattr(os, "fsync", fail_sync)
+        with pytest.raises((OSError, ValueError), match="durab|synchron|manifest"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        assert failures == [boundary]
+        with reference_engine.connect() as conn:
+            assert conn.execute(sa.select(database_versions)).all() == prior_versions
+            assert conn.execute(sa.select(gene_phenotype)).all() == prior_rows
+        assert {p.name: p.read_bytes() for p in prior_bundle.iterdir()} == prior_bytes
+
+    @pytest.mark.parametrize("boundary", ["pending", "publish"])
+    def test_pending_flush_and_publication_fail_before_provenance(
+        self, monkeypatch, reference_engine, durability_downloads, boundary
+    ):
+        downloads = durability_downloads
+        load_mondo_hpo_rows(
+            [{"gene_symbol": "PRESERVE", "disease_name": "Prior disease", "source": "mondo_hpo"}],
+            reference_engine,
+            version="20260415+disease-scope-v2",
+            file_path="prior-source",
+            checksum="prior-checksum",
+        )
+        real_fsync = os.fsync
+
+        def sync(fd):
+            if self._durability_fd_label(downloads, fd) == mondo_hpo.SOURCE_BUNDLE_PENDING:
+                raise OSError("injected pending durability failure")
+            real_fsync(fd)
+
+        def replace(*args, **kwargs):
+            raise OSError("injected publication failure")
+
+        monkeypatch.setattr(
+            os,
+            "fsync" if boundary == "pending" else "replace",
+            sync if boundary == "pending" else replace,
+        )
+        with pytest.raises(ValueError, match="durability|publish"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            assert conn.execute(sa.select(gene_phenotype.c.gene_symbol)).all() == [("PRESERVE",)]
+            assert conn.execute(sa.select(database_versions.c.file_path)).all() == [
+                ("prior-source",)
+            ]
+
+    def test_source_substitution_during_flush_cannot_be_published(
+        self, monkeypatch, reference_engine, durability_downloads
+    ):
+        downloads = durability_downloads
+        real_fsync = os.fsync
+        swapped = []
+
+        def sync(fd):
+            real_fsync(fd)
+            if (
+                not swapped
+                and self._durability_fd_label(downloads, fd) == "genes_to_phenotype.txt"
+            ):
+                held = os.fstat(fd)
+                path = next(
+                    p
+                    for p in downloads.rglob("genes_to_phenotype.txt")
+                    if p.stat().st_ino == held.st_ino
+                )
+                content = path.read_bytes()
+                path.rename(path.with_suffix(".parked"))
+                path.write_bytes(content)
+                swapped.append(path)
+
+        monkeypatch.setattr(os, "fsync", sync)
+        with pytest.raises(ValueError, match="changed during synchronization"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        assert len(swapped) == 1
+        assert not list((downloads / mondo_hpo.SOURCE_BUNDLE_DIRECTORY).iterdir())
+        with reference_engine.connect() as conn:
+            assert conn.execute(sa.select(database_versions)).all() == []
+            assert conn.execute(sa.select(gene_phenotype)).all() == []
+
+    @pytest.mark.parametrize("boundary", ["new-child", "containing-parent"])
+    def test_missing_downloads_ancestor_sync_failure_stops_install(
+        self, monkeypatch, reference_engine, durability_downloads, boundary
+    ):
+        downloads = durability_downloads / "nested" / "downloads"
+        target = durability_downloads if boundary == "new-child" else durability_downloads.parent
+        real_fsync = os.fsync
+        failures = []
+
+        def sync(fd):
+            held = os.fstat(fd)
+            if target.exists() and held.st_ino == target.stat().st_ino:
+                failures.append(target)
+                raise OSError("injected ancestor durability failure")
+            real_fsync(fd)
+
+        monkeypatch.setattr(os, "fsync", sync)
+        with pytest.raises(ValueError, match="durability"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        assert failures == [target]
+        with reference_engine.connect() as conn:
+            assert conn.execute(sa.select(database_versions)).all() == []
+
+    def test_retry_persists_preexisting_downloads_parent_before_commit(
+        self, monkeypatch, reference_engine, durability_downloads
+    ):
+        # An earlier failed attempt (or an operator) may have created this
+        # namespace without persisting its containing entry. Existence alone
+        # must not bypass synchronization on a successful retry.
+        durability_downloads.mkdir()
+        parent_identity = durability_downloads.parent.stat().st_ino
+        flushed = []
+        real_fsync = os.fsync
+
+        def sync(fd):
+            real_fsync(fd)
+            flushed.append(os.fstat(fd).st_ino)
+
+        def commit(conn):
+            assert parent_identity in flushed
+
+        monkeypatch.setattr(os, "fsync", sync)
+        sa.event.listen(reference_engine, "commit", commit)
+        try:
+            download_and_load_mondo_hpo(reference_engine, durability_downloads)
+        finally:
+            sa.event.remove(reference_engine, "commit", commit)
+        assert parent_identity in flushed
+
+    @pytest.mark.parametrize("failure", [None, "unsupported", "io-error"])
+    def test_darwin_requires_fullfsync_without_weaker_fallback(
+        self, monkeypatch, tmp_path, failure
+    ):
+        import fcntl
+
+        events = []
+        monkeypatch.setattr(mondo_hpo.sys, "platform", "darwin")
+        monkeypatch.setattr(os, "fsync", lambda fd: events.append("fsync"))
+        monkeypatch.setattr(fcntl, "F_FULLFSYNC", 51, raising=False)
+
+        def fullsync(fd, command):
+            assert command == fcntl.F_FULLFSYNC
+            events.append("fullfsync")
+            if failure == "io-error":
+                raise OSError("injected device flush failure")
+
+        monkeypatch.setattr(fcntl, "fcntl", fullsync)
+        if failure == "unsupported":
+            monkeypatch.delattr(fcntl, "F_FULLFSYNC")
+        with (tmp_path / "source").open("wb") as source:
+            if failure:
+                with pytest.raises(ValueError, match="durability"):
+                    mondo_hpo._sync_source_bundle_fd(source.fileno())
+            else:
+                mondo_hpo._sync_source_bundle_fd(source.fileno())
+        assert events == (["fsync"] if failure == "unsupported" else ["fsync", "fullfsync"])
 
     def test_records_all_source_provenance_and_scoped_rows(
         self,

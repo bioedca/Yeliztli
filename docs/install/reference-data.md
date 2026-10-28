@@ -78,6 +78,28 @@ append-only provenance rather than recursively deleting a directory after a path
 Incomplete, malformed, or operator-created directories are also never automatically removed;
 inspect all bundle directories manually before any operator-directed cleanup.
 
+Before recording a source bundle as installed, the loader flushes each retained source,
+manifest and pending marker through verified file descriptors. For a new bundle it then
+publishes the directory, flushes the bundle directory, the managed source root and the
+downloads directory, and revalidates the retained contents before the provenance transaction
+can commit. An identical refresh synchronizes the existing bundle's files and directories,
+including its original manifest, rather than relying on the disposable staging copy.
+Newly created downloads ancestors and their containing directory entries are synchronized
+before their descriptors are released. A synchronization or publication failure aborts the
+refresh; previously installed rows and provenance remain intact. Failed bundles remain for
+inspection. Pending-marker reconciliation after a crash is tracked separately in #2614.
+
+On Linux this protocol requires successful file and directory `fsync` calls. On macOS it
+also requires `F_FULLFSYNC` to flush the device cache; an unsupported operation or I/O error
+fails the refresh instead of silently using a weaker guarantee. These are operating-system
+requests, not a power-loss certification: the configured storage, its existing ancestors
+and any symlink target must be persistent, and the filesystem/device must honor the flush
+requests. Temporary filesystems, dishonest device caches and storage that does not support
+these operations cannot provide this contract. See the [Linux `fsync` documentation](https://man7.org/linux/man-pages/man2/fsync.2.html)
+and Apple's [`fsync`](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fsync.2.html)
+and [`F_FULLFSYNC`](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/fcntl.2.html)
+documentation. The protocol does not change SQLite's configured synchronization policy.
+
 A MONDO/HPO installation carried over from a release that predates the disease-scoped
 ingestion is withheld from every phenotype lookup, because its rows cannot be proven to be
 scoped to the disease they were recorded against. Database health reports such an install as
