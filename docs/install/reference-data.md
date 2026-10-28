@@ -82,7 +82,8 @@ Before recording a source bundle as installed, the loader flushes each retained 
 manifest and pending marker through verified file descriptors. For a new bundle it then
 publishes the directory, flushes the bundle directory, the managed source root and the
 downloads directory, and revalidates the retained contents before the provenance transaction
-can commit. An identical refresh synchronizes the existing bundle's files and directories,
+can commit. Synchronized file descriptors stay open through the commit guard, which rejects
+even a byte-identical replacement of a previously flushed file. An identical refresh synchronizes the existing bundle's files and directories,
 including its original manifest, rather than relying on the disposable staging copy.
 Newly created downloads ancestors and their containing directory entries are synchronized
 before their descriptors are released. A synchronization or publication failure aborts the

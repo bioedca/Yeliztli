@@ -1233,6 +1233,67 @@ class TestDownloadAndLoad:
             sa.event.remove(reference_engine, "commit", commit)
         assert parent_identity in flushed
 
+    @pytest.mark.parametrize("reuse", [False, True])
+    @pytest.mark.parametrize("phase", ["later-file-flush", "before-commit"])
+    def test_identical_replacement_of_flushed_child_rolls_back(
+        self, monkeypatch, reference_engine, durability_downloads, reuse, phase
+    ):
+        downloads = durability_downloads
+        if reuse:
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        with reference_engine.connect() as conn:
+            prior_versions = conn.execute(sa.select(database_versions)).all()
+            prior_rows = conn.execute(sa.select(gene_phenotype)).all()
+        swaps = []
+
+        def replace_first(bundle):
+            original = bundle / "gene_disease.9606.tsv.gz"
+            original_identity = (original.stat().st_dev, original.stat().st_ino)
+            replacement = bundle / "identical-replacement"
+            replacement.write_bytes(original.read_bytes())
+            os.replace(replacement, original)
+            assert (original.stat().st_dev, original.stat().st_ino) != original_identity
+            swaps.append(original)
+
+        if phase == "later-file-flush":
+            real_sync = mondo_hpo._sync_source_bundle_fd
+
+            def sync(fd):
+                real_sync(fd)
+                if (
+                    not swaps
+                    and self._durability_fd_label(downloads, fd) == "genes_to_phenotype.txt"
+                ):
+                    held = os.fstat(fd)
+                    source = next(
+                        p
+                        for p in downloads.rglob("genes_to_phenotype.txt")
+                        if p.stat().st_ino == held.st_ino
+                    )
+                    replace_first(source.parent)
+
+            monkeypatch.setattr(mondo_hpo, "_sync_source_bundle_fd", sync)
+        else:
+            real_load = mondo_hpo.load_mondo_hpo_rows
+
+            def load(*args, **kwargs):
+                before_commit = kwargs["before_commit"]
+
+                def swap_after_body_guard():
+                    before_commit()
+                    replace_first(Path(kwargs["file_path"]).parent)
+
+                kwargs["before_commit"] = swap_after_body_guard
+                return real_load(*args, **kwargs)
+
+            monkeypatch.setattr(mondo_hpo, "load_mondo_hpo_rows", load)
+        with pytest.raises(ValueError, match="changed.*(?:finalization|synchronization)"):
+            download_and_load_mondo_hpo(reference_engine, downloads)
+        assert len(swaps) == 1
+        with reference_engine.connect() as conn:
+            assert conn.execute(sa.select(database_versions)).all() == prior_versions
+            assert conn.execute(sa.select(gene_phenotype)).all() == prior_rows
+
     @pytest.mark.parametrize("failure", [None, "unsupported", "io-error"])
     def test_darwin_requires_fullfsync_without_weaker_fallback(
         self, monkeypatch, tmp_path, failure
