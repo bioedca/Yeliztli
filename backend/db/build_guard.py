@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import errno
 import os
+import re
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -44,9 +45,23 @@ _registry_lock = threading.Lock()
 # is same-thread only — cross-thread mutual exclusion is identical to a plain Lock.
 _locks: dict[str, threading.RLock] = {}
 
+_CLAIM_KEY = re.compile(r"[a-z][a-z0-9_]{0,63}", re.ASCII)
+
+
+def validate_claim_key(db_name: str) -> None:
+    """Reject malformed keys before creating locks or touching the filesystem.
+
+    This is a filename-component contract, not a database registry: fixed
+    internal keys such as ``mondo_hpo_source_bundles`` also need claims. Worker
+    entrypoints separately validate which database operations they support.
+    """
+    if not isinstance(db_name, str) or _CLAIM_KEY.fullmatch(db_name) is None:
+        raise ValueError("Invalid database claim key")
+
 
 def _lock_for(db_name: str) -> threading.RLock:
     """Return the (lazily created) per-database reentrant lock for ``db_name``."""
+    validate_claim_key(db_name)
     with _registry_lock:
         lock = _locks.get(db_name)
         if lock is None:
@@ -126,6 +141,7 @@ def claims_dir(data_dir: Path) -> Path:
 
 
 def _claim_path(data_dir: Path, db_name: str) -> Path:
+    validate_claim_key(db_name)
     return claims_dir(data_dir) / f"{db_name}.claim"
 
 
@@ -143,6 +159,7 @@ def cross_process_build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     only the cross-process guarantee is unavailable there. The supported
     deployment targets (Linux/macOS, incl. WSL) all provide ``flock``.
     """
+    validate_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         yield True
         return
@@ -177,6 +194,7 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
     inside the build entrypoint — this probe is only a fast-path UX check, so a
     benign probe/acquire window is acceptable.
     """
+    validate_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         return False
     path = _claim_path(data_dir, db_name)
@@ -221,6 +239,7 @@ def build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     lock (only the holding thread ever reaches the ``flock``), so the
     ``flock`` arbitrates purely cross-process contention.
     """
+    validate_claim_key(db_name)
     held = getattr(_held_claims, "names", None)
     if held is None:
         held = set()

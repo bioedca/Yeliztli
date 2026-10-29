@@ -60,6 +60,17 @@ downloaded into the data directory — see [reference data](../install/reference
 
 Background jobs are tracked so an interrupted annotation is recovered on restart.
 
+Database build guards accept a single ASCII claim key: a lowercase letter followed
+by at most 63 lowercase letters, digits or underscores. Every guard validates the
+key before lock registration or filesystem access, including on the non-POSIX
+fallback. Internal keys such as `mondo_hpo_source_bundles` use the same contract;
+a syntactically valid key does not by itself authorize a database operation.
+
+The database-update worker independently checks queued keys before registry access
+and claim acquisition. Only registered pipeline builders, supported manifest bundles
+and the direct-download runners can proceed. Unsupported inputs fail the job without
+entering a build claim, even if a producer or a persisted queue supplied the input.
+
 When ClinVar supplies an exact allele identity for a marker whose multi-ALT VEP
 annotation was withheld, annotation now resolves its primary VEP transcript using
 that full `(chrom, pos, ref, alt)` identity. Gene-keyed views can then use the stored
