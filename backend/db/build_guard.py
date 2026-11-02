@@ -158,7 +158,7 @@ def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
 def _check_root_ancestors(root: Path) -> None:
     # A sticky shared ancestor (/tmp) protects each user-owned child against
     # other users' renames. A non-sticky shared ancestor does not.
-    trusted_owners = {0, os.geteuid(), os.stat("/").st_uid}
+    trusted_owners = {0, os.geteuid()}
     for parent in root.parents:
         try:
             info = parent.stat(follow_symlinks=False)

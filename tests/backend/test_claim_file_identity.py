@@ -103,6 +103,33 @@ def test_foreign_owned_storage_rejected(operation, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("operation", ["acquire", "probe"])
+def test_root_metadata_does_not_authenticate_a_foreign_ancestor(operation, tmp_path, monkeypatch):
+    parent = tmp_path / "foreign-parent"
+    parent.mkdir()
+    data = parent / "data"
+    data.mkdir()
+    _layout(data)
+    foreign_uid = os.geteuid() + 10000
+    real_stat = os.stat
+
+    def foreign_owner(path, *args, **kwargs):
+        info = real_stat(path, *args, **kwargs)
+        if (
+            kwargs.get("dir_fd") is None
+            and isinstance(path, (str, Path))
+            and Path(path) in (Path("/"), parent)
+        ):
+            fields = list(info)
+            fields[4] = foreign_uid
+            return os.stat_result(fields)
+        return info
+
+    monkeypatch.setattr(guard.os, "stat", foreign_owner)
+    with pytest.raises(OSError):
+        _operate(operation, data)
+
+
+@pytest.mark.parametrize("operation", ["acquire", "probe"])
 @pytest.mark.parametrize("kind", ["fifo", "directory", "writable", "hardlink"])
 def test_unsafe_marker_rejected(operation, kind, tmp_path):
     claims = tmp_path / ".claims"
