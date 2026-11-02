@@ -50,28 +50,30 @@ ENTRYPOINTS = [
 @pytest.mark.parametrize("key", INVALID_KEYS)
 @pytest.mark.parametrize("entrypoint", ENTRYPOINTS)
 def test_invalid_keys_fail_before_side_effects(key, entrypoint, tmp_path, monkeypatch):
-    monkeypatch.setattr(guard, "_locks", {})
-    monkeypatch.setattr(guard, "_held_claims", threading.local())
-
     def forbidden(*args, **kwargs):
         pytest.fail("Invalid claim key reached a filesystem operation")
 
-    monkeypatch.setattr(guard.os, "open", forbidden)
-    monkeypatch.setattr(Path, "mkdir", forbidden)
-    with pytest.raises(ValueError, match="claim key"):
-        if entrypoint == "_claim_path":
-            guard._claim_path(tmp_path, key)
-        elif entrypoint == "is_build_locked":
-            guard.is_build_locked(key)
-        elif entrypoint == "is_cross_process_build_claimed":
-            guard.is_cross_process_build_claimed(key, tmp_path)
-        else:
-            fn = getattr(guard, entrypoint)
-            args = (key, tmp_path) if "claim" in entrypoint else (key,)
-            with fn(*args):
-                pytest.fail("Invalid claim key entered a guarded operation")
-    assert guard._locks == {}
-    assert not hasattr(guard._held_claims, "names")
+    # Restore process-global filesystem APIs before pytest removes tmp_path
+    # under tmp_path_retention_policy=failed (shutil.rmtree itself uses open).
+    with monkeypatch.context() as patch:
+        patch.setattr(guard, "_locks", {})
+        patch.setattr(guard, "_held_claims", threading.local())
+        patch.setattr(guard.os, "open", forbidden)
+        patch.setattr(Path, "mkdir", forbidden)
+        with pytest.raises(ValueError, match="claim key"):
+            if entrypoint == "_claim_path":
+                guard._claim_path(tmp_path, key)
+            elif entrypoint == "is_build_locked":
+                guard.is_build_locked(key)
+            elif entrypoint == "is_cross_process_build_claimed":
+                guard.is_cross_process_build_claimed(key, tmp_path)
+            else:
+                fn = getattr(guard, entrypoint)
+                args = (key, tmp_path) if "claim" in entrypoint else (key,)
+                with fn(*args):
+                    pytest.fail("Invalid claim key entered a guarded operation")
+        assert guard._locks == {}
+        assert not hasattr(guard._held_claims, "names")
 
 
 @pytest.mark.parametrize(
