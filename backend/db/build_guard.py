@@ -324,6 +324,25 @@ class _ClaimFile:
             self.verify()
 
 
+def _create_private_root(root: Path) -> None:
+    """Create each missing component privately, without repairing existing paths."""
+    missing = []
+    component = root
+    while _named_stat(component, None) is None:
+        missing.append(component)
+        component = component.parent
+    for component in reversed(missing):
+        _check_root_ancestors(component)
+        try:
+            component.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        with _directory_fd(component, None, create=False) as fd:
+            if fd is None:
+                raise _storage_error()
+    _check_root_ancestors(root)
+
+
 @contextmanager
 def _claim_file(db_name: str, data_dir: Path, *, create: bool):
     # The operator-selected root may itself be a symlink. Its physical target
@@ -331,7 +350,7 @@ def _claim_file(db_name: str, data_dir: Path, *, create: bool):
     root = data_dir.resolve()
     _check_root_ancestors(root)
     if create:
-        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        _create_private_root(root)
     with ExitStack() as stack:
         root_fd = stack.enter_context(_directory_fd(root, None, create=False))
         if root_fd is None:

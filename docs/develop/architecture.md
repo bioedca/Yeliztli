@@ -97,6 +97,8 @@ except for sticky shared ancestors such as `/tmp`. The operator-selected root ma
 be a symlink to such a trusted physical location. Missing required filesystem
 operations or unsafe/changed storage fail closed. Native Windows retains the documented
 in-process-only fallback. Network-filesystem locking is not a supported guarantee.
+Missing root components are created individually with mode `0700`, and the completed
+ancestor chain is checked before a claim is granted. Existing permissions are not repaired.
 
 All API/worker processes must stop before upgrading or repairing claim storage.
 An administrator or process running as the same user can still remove both names

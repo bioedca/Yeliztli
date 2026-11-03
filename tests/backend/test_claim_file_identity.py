@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import subprocess
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -93,6 +95,35 @@ def test_non_sticky_shared_ancestor_rejected(operation, tmp_path):
             _operate(operation, data)
     finally:
         parent.chmod(0o700)
+
+
+@pytest.mark.parametrize("umask", [0o002, 0o000])
+def test_missing_storage_ancestors_are_private_on_every_acquisition(umask, tmp_path):
+    root = tmp_path / "first" / "second" / "data"
+    program = """
+import os, sys
+from pathlib import Path
+from backend.db.build_guard import cross_process_build_claim
+root = Path(sys.argv[1])
+os.umask(int(sys.argv[2], 8))
+for attempt in range(2):
+    with cross_process_build_claim('clinvar', root) as acquired:
+        assert acquired
+        modes = [p.stat().st_mode & 0o777 for p in (root.parent.parent, root.parent, root)]
+        assert modes == [0o700, 0o700, 0o700], modes
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(root), oct(umask)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert [p.stat().st_mode & 0o777 for p in (root.parent.parent, root.parent, root)] == [
+        0o700,
+        0o700,
+        0o700,
+    ]
 
 
 @pytest.mark.parametrize("operation", ["acquire", "probe"])
@@ -395,6 +426,7 @@ def test_selected_root_symlink_preserves_reentrancy(tmp_path):
 
 def _first_claim_contender(root, start, release, results):
     try:
+        os.umask(0o002)
         assert start.wait(10)
         with guard.cross_process_build_claim("clinvar", Path(root)) as acquired:
             results.put(acquired)
@@ -406,8 +438,7 @@ def _first_claim_contender(root, start, release, results):
 
 @pytest.mark.parametrize("iteration", range(8))
 def test_concurrent_first_creation_has_one_holder(tmp_path, iteration):
-    root = tmp_path / f"case-{iteration}"
-    root.mkdir(mode=0o700)
+    root = tmp_path / f"case-{iteration}" / "nested" / "data"
     context = multiprocessing.get_context("fork")
     start, release, results = context.Event(), context.Event(), context.Queue()
     workers = [
