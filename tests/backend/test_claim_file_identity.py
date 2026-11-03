@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+from contextlib import ExitStack
 from pathlib import Path
 
 import pytest
@@ -196,6 +197,100 @@ def test_absent_probe_has_no_side_effects(tmp_path):
     assert not data.exists()
     assert not guard.is_cross_process_build_claimed("clinvar", tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("other_key", "publication_phase", "expected"),
+    [
+        ("clinvar", "open", True),
+        ("cpic", "open", False),
+        ("cpic", "locked", False),
+        ("clinvar", "link-count", True),
+    ],
+)
+def test_probe_retries_concurrent_anchor_directory_publication(
+    other_key, publication_phase, expected, tmp_path, monkeypatch
+):
+    claims = tmp_path / ".claims"
+    claims.mkdir(mode=0o700)
+    marker = claims / "clinvar.claim"
+    marker.write_bytes(b"legacy marker")
+    marker.chmod(0o600)
+    published, verifications = [], []
+    original_open, original_verify = guard._open_marker, guard._ClaimFile.verify
+    original_stat, state = guard._named_stat, {"verifying": False}
+    with ExitStack() as holders, monkeypatch.context() as patch:
+
+        def publish():
+            published.append(True)
+            assert holders.enter_context(guard.cross_process_build_claim(other_key, tmp_path))
+
+        def open_marker(name, parent_fd, *, create):
+            fd = original_open(name, parent_fd, create=create)
+            if (
+                name == marker.name
+                and fd is not None
+                and not published
+                and publication_phase == "open"
+            ):
+                publish()
+            return fd
+
+        def verify(claim):
+            if claim.name == marker.name and not published and publication_phase == "locked":
+                verifications.append(True)
+                if len(verifications) == 2:
+                    publish()
+            previous = state["verifying"]
+            state["verifying"] = claim.name == marker.name
+            try:
+                return original_verify(claim)
+            finally:
+                state["verifying"] = previous
+
+        def named_stat(name, parent_fd):
+            info = original_stat(name, parent_fd)
+            if (
+                name == marker.name
+                and state["verifying"]
+                and not published
+                and publication_phase == "link-count"
+            ):
+                publish()
+            return info
+
+        patch.setattr(guard, "_open_marker", open_marker)
+        patch.setattr(guard._ClaimFile, "verify", verify)
+        patch.setattr(guard, "_named_stat", named_stat)
+        assert guard.is_cross_process_build_claimed("clinvar", tmp_path) is expected
+        assert published == [True]
+        if other_key == "cpic":
+            assert not (claims / ".anchors" / marker.name).exists()
+    assert marker.read_bytes() == b"legacy marker"
+    assert not guard.is_cross_process_build_claimed("clinvar", tmp_path)
+
+
+def test_probe_retry_rejects_a_new_symlinked_anchor_directory(tmp_path, monkeypatch):
+    claims = tmp_path / ".claims"
+    claims.mkdir(mode=0o700)
+    marker = claims / "clinvar.claim"
+    marker.touch(mode=0o600)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    original, published = guard._open_marker, []
+
+    def open_marker(name, parent_fd, *, create):
+        fd = original(name, parent_fd, create=create)
+        if name == marker.name and fd is not None and not published:
+            (claims / ".anchors").symlink_to(outside, target_is_directory=True)
+            published.append(True)
+        return fd
+
+    with monkeypatch.context() as patch:
+        patch.setattr(guard, "_open_marker", open_marker)
+        with pytest.raises(OSError):
+            guard.is_cross_process_build_claimed("clinvar", tmp_path)
+    assert published == [True] and list(outside.iterdir()) == []
 
 
 def test_probe_marker_swap_cannot_create_external_file(tmp_path, monkeypatch):

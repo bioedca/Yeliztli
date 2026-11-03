@@ -78,6 +78,10 @@ permission is rejected. Probes open existing markers only and never create or
 repair storage. Reentrancy is scoped to the selected physical storage root as well
 as the key.
 
+A probe retries once if an acquisition first publishes the shared `.anchors`
+directory during its observation. The retry reopens existing storage with the same
+ownership, no-follow and identity checks; it does not create or repair files.
+
 Each marker has a second internal hard link at `.claims/.anchors/<key>.claim`.
 Both names must refer to the same inode, with no external hard links. Removing
 one name during a held claim therefore leaves the original lock reachable; an

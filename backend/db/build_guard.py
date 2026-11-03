@@ -249,6 +249,10 @@ def _open_marker(name: str, parent_fd: int, *, create: bool) -> int | None:
         raise
 
 
+class _AnchorDirectoryPublished(Exception):
+    """A read-only probe must reopen the newly published shared directory."""
+
+
 @dataclass(frozen=True)
 class _ClaimFile:
     root: Path
@@ -264,7 +268,7 @@ class _ClaimFile:
         if self.anchors_fd is not None:
             _check_directory(".anchors", self.anchors_fd, self.claims_fd)
         elif _named_stat(".anchors", self.claims_fd) is not None:
-            raise _storage_error()
+            raise _AnchorDirectoryPublished
         for _ in range(2):
             marker = _named_stat(self.name, self.claims_fd)
             anchor = (
@@ -279,6 +283,8 @@ class _ClaimFile:
                     raise _storage_error()
             if present and opened.st_nlink == len(present):
                 return marker, anchor
+            if self.anchors_fd is None and _named_stat(".anchors", self.claims_fd) is not None:
+                raise _AnchorDirectoryPublished
             # Another first acquirer may publish the second name between stat
             # and fstat. Re-read once, still requiring exactly the internal links.
         raise _storage_error()
@@ -402,22 +408,30 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
     validate_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         return False
-    with _claim_file(db_name, data_dir, create=False) as claim:
-        if claim is None:
-            return False
+    for _ in range(2):
         try:
-            fcntl.flock(claim.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            if exc.errno in _FLOCK_HELD_ERRNOS:
-                claim.verify()
-                return True
-            raise
-        else:
-            try:
-                claim.verify()
-                return False
-            finally:
-                fcntl.flock(claim.fd, fcntl.LOCK_UN)
+            with _claim_file(db_name, data_dir, create=False) as claim:
+                if claim is None:
+                    return False
+                try:
+                    fcntl.flock(claim.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as exc:
+                    if exc.errno in _FLOCK_HELD_ERRNOS:
+                        claim.verify()
+                        return True
+                    raise
+                else:
+                    try:
+                        claim.verify()
+                        return False
+                    finally:
+                        fcntl.flock(claim.fd, fcntl.LOCK_UN)
+        except _AnchorDirectoryPublished:
+            # A first acquirer (including a different DB) may initialize the
+            # shared anchor directory. Reopen it with the same no-follow and
+            # identity checks; probing still never creates or repairs anything.
+            continue
+    raise _storage_error()
 
 
 # Per-thread set of (physical storage root, db_name) claims this thread already
