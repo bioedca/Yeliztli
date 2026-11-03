@@ -48,6 +48,16 @@ _registry_lock = threading.Lock()
 _locks: dict[str, threading.RLock] = {}
 
 _CLAIM_KEY = re.compile(r"[a-z][a-z0-9_]{0,63}", re.ASCII)
+_CLAIMS_DIRECTORY = ".claims"
+
+
+def _validated_claim_key(db_name: str) -> str:
+    match = _CLAIM_KEY.fullmatch(db_name) if isinstance(db_name, str) else None
+    if match is None:
+        raise ValueError("Invalid database claim key")
+    # Use the matched plain string, so caller-defined formatting/hash methods
+    # cannot change the key after its character contract has been checked.
+    return match.group(0)
 
 
 def validate_claim_key(db_name: str) -> None:
@@ -57,13 +67,12 @@ def validate_claim_key(db_name: str) -> None:
     internal keys such as ``mondo_hpo_source_bundles`` also need claims. Worker
     entrypoints separately validate which database operations they support.
     """
-    if not isinstance(db_name, str) or _CLAIM_KEY.fullmatch(db_name) is None:
-        raise ValueError("Invalid database claim key")
+    _validated_claim_key(db_name)
 
 
 def _lock_for(db_name: str) -> threading.RLock:
     """Return the (lazily created) per-database reentrant lock for ``db_name``."""
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     with _registry_lock:
         lock = _locks.get(db_name)
         if lock is None:
@@ -139,12 +148,23 @@ def try_acquire_build_lock(db_name: str) -> Iterator[bool]:
 
 def claims_dir(data_dir: Path) -> Path:
     """Directory holding per-DB cross-process claim lockfiles."""
-    return data_dir / ".claims"
+    return data_dir / _CLAIMS_DIRECTORY
+
+
+def _claim_filename(db_name: str) -> str:
+    key = _validated_claim_key(db_name)
+    prefix = os.path.join(_CLAIMS_DIRECTORY, "")
+    relative = os.path.normpath(os.path.join(_CLAIMS_DIRECTORY, f"{key}.claim"))
+    if not relative.startswith(prefix):
+        raise ValueError("Invalid database claim key")
+    # Keep the checked component as the value passed to descriptor-relative
+    # operations; never switch back to the original caller-controlled string.
+    return relative[len(prefix) :]
 
 
 def _claim_path(data_dir: Path, db_name: str) -> Path:
-    validate_claim_key(db_name)
-    return claims_dir(data_dir) / f"{db_name}.claim"
+    name = _claim_filename(db_name)
+    return claims_dir(data_dir) / name
 
 
 def _storage_error() -> OSError:
@@ -264,7 +284,7 @@ class _ClaimFile:
 
     def verify(self) -> tuple[os.stat_result | None, os.stat_result | None]:
         _check_directory(self.root, self.root_fd, None)
-        _check_directory(".claims", self.claims_fd, self.root_fd)
+        _check_directory(_CLAIMS_DIRECTORY, self.claims_fd, self.root_fd)
         if self.anchors_fd is not None:
             _check_directory(".anchors", self.anchors_fd, self.claims_fd)
         elif _named_stat(".anchors", self.claims_fd) is not None:
@@ -345,6 +365,7 @@ def _create_private_root(root: Path) -> None:
 
 @contextmanager
 def _claim_file(db_name: str, data_dir: Path, *, create: bool):
+    name = _claim_filename(db_name)
     # The operator-selected root may itself be a symlink. Its physical target
     # and ancestors are trusted; links inside the claims namespace are not.
     root = data_dir.resolve()
@@ -356,12 +377,11 @@ def _claim_file(db_name: str, data_dir: Path, *, create: bool):
         if root_fd is None:
             yield None
             return
-        claims_fd = stack.enter_context(_directory_fd(".claims", root_fd, create=create))
+        claims_fd = stack.enter_context(_directory_fd(_CLAIMS_DIRECTORY, root_fd, create=create))
         if claims_fd is None:
             yield None
             return
         anchors_fd = stack.enter_context(_directory_fd(".anchors", claims_fd, create=create))
-        name = f"{db_name}.claim"
         fd = _open_marker(name, anchors_fd, create=False) if anchors_fd is not None else None
         if fd is None:
             fd = _open_marker(name, claims_fd, create=create)
@@ -392,7 +412,7 @@ def cross_process_build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     only the cross-process guarantee is unavailable there. The supported
     deployment targets (Linux/macOS, incl. WSL) all provide ``flock``.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         yield True
         return
@@ -424,7 +444,7 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
     inside the build entrypoint — this probe is only a fast-path UX check, so a
     benign probe/acquire window is acceptable.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         return False
     for _ in range(2):
@@ -478,7 +498,7 @@ def build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     lock (only the holding thread ever reaches the ``flock``), so the
     ``flock`` arbitrates purely cross-process contention.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     identity = (data_dir.resolve(), db_name)
     held = getattr(_held_claims, "names", None)
     if held is None:

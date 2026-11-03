@@ -66,6 +66,11 @@ key before lock registration or filesystem access, including on the non-POSIX
 fallback. Internal keys such as `mondo_hpo_source_bundles` use the same contract;
 a syntactically valid key does not by itself authorize a database operation.
 
+Guards consume canonical plain-string keys, so caller-defined string formatting
+cannot redirect a validated name. Filenames are normalized within the relative
+`.claims` namespace and checked for containment before the resulting component is
+passed to descriptor-relative filesystem operations.
+
 The database-update worker independently checks queued keys before registry access
 and claim acquisition. Only registered pipeline builders, supported manifest bundles
 and the direct-download runners can proceed. Unsupported inputs fail the job without
