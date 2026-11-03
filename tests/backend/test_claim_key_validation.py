@@ -101,3 +101,32 @@ def test_legitimate_keys_remain_usable(key, tmp_path):
             assert nested
     assert not guard.is_cross_process_build_claimed(key, tmp_path)
     assert (tmp_path / ".claims" / f"{key}.claim").is_file()
+
+
+@pytest.mark.parametrize("operation", ["path", "acquire", "probe", "build"])
+def test_string_subclass_cannot_redirect_claim_namespace(operation, tmp_path):
+    formats = []
+
+    class RedirectedKey(str):
+        def __format__(self, spec):
+            formats.append(spec)
+            return "../redirected"
+
+    key = RedirectedKey("clinvar")
+    root = tmp_path / "data"
+    expected = root / ".claims" / "clinvar.claim"
+    if operation == "path":
+        assert guard._claim_path(root, key) == expected
+    elif operation == "probe":
+        with guard.cross_process_build_claim("clinvar", root) as held:
+            assert held
+            assert guard.is_cross_process_build_claimed(key, root)
+    else:
+        acquire = guard.cross_process_build_claim if operation == "acquire" else guard.build_claim
+        with acquire(key, root) as held:
+            assert held
+            assert expected.is_file()
+            assert guard.is_cross_process_build_claimed("clinvar", root)
+    assert formats == []
+    assert not (root / "redirected.claim").exists()
+    assert not (root / ".claims" / "redirected.claim").exists()

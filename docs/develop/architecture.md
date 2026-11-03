@@ -66,10 +66,49 @@ key before lock registration or filesystem access, including on the non-POSIX
 fallback. Internal keys such as `mondo_hpo_source_bundles` use the same contract;
 a syntactically valid key does not by itself authorize a database operation.
 
+Guards consume canonical plain-string keys, so caller-defined string formatting
+cannot redirect a validated name. Filenames are normalized within the relative
+`.claims` namespace and checked for containment before the resulting component is
+passed to descriptor-relative filesystem operations.
+
 The database-update worker independently checks queued keys before registry access
 and claim acquisition. Only registered pipeline builders, supported manifest bundles
 and the direct-download runners can proceed. Unsupported inputs fail the job without
 entering a build claim, even if a producer or a persisted queue supplied the input.
+
+Cross-process claims use descriptor-relative, no-follow opens under a verified
+`.claims` directory. Opened directories and regular marker files must match their
+named device/inode identities and belong to the effective user; group/other write
+permission is rejected. Probes open existing markers only and never create or
+repair storage. Reentrancy is scoped to the selected physical storage root as well
+as the key.
+
+A probe retries once if an acquisition first publishes the shared `.anchors`
+directory during its observation. The retry reopens existing storage with the same
+ownership, no-follow and identity checks; it does not create or repair files.
+
+Each marker has a second internal hard link at `.claims/.anchors/<key>.claim`.
+Both names must refer to the same inode, with no external hard links. Removing
+one name during a held claim therefore leaves the original lock reachable; an
+acquirer restores a missing legacy marker only after winning that same lock.
+Existing regular markers are adopted without replacing their inode. Normal
+release and process death leave both names in place for subsequent acquirers.
+
+The storage contract requires a local POSIX filesystem with descriptor-relative
+no-follow operations, hard links and working advisory `flock`. The selected root
+and claims directories must be user-owned and not writable by group/other users.
+Their physical ancestors must be owned by the user or root and not shared-writable,
+except for sticky shared ancestors such as `/tmp`. The operator-selected root may
+be a symlink to such a trusted physical location. Missing required filesystem
+operations or unsafe/changed storage fail closed. Native Windows retains the documented
+in-process-only fallback. Network-filesystem locking is not a supported guarantee.
+Missing root components are created individually with mode `0700`, and the completed
+ancestor chain is checked before a claim is granted. Existing permissions are not repaired.
+
+All API/worker processes must stop before upgrading or repairing claim storage.
+An administrator or process running as the same user can still remove both names
+or replace the whole namespace; advisory locking cannot defend against that actor.
+Never clean up claim markers while a builder may still be running.
 
 When ClinVar supplies an exact allele identity for a marker whose multi-ALT VEP
 annotation was withheld, annotation now resolves its primary VEP transcript using

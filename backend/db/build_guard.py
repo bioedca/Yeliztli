@@ -21,8 +21,10 @@ from __future__ import annotations
 import errno
 import os
 import re
+import stat
 import threading
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -46,6 +48,16 @@ _registry_lock = threading.Lock()
 _locks: dict[str, threading.RLock] = {}
 
 _CLAIM_KEY = re.compile(r"[a-z][a-z0-9_]{0,63}", re.ASCII)
+_CLAIMS_DIRECTORY = ".claims"
+
+
+def _validated_claim_key(db_name: str) -> str:
+    match = _CLAIM_KEY.fullmatch(db_name) if isinstance(db_name, str) else None
+    if match is None:
+        raise ValueError("Invalid database claim key")
+    # Use the matched plain string, so caller-defined formatting/hash methods
+    # cannot change the key after its character contract has been checked.
+    return match.group(0)
 
 
 def validate_claim_key(db_name: str) -> None:
@@ -55,13 +67,12 @@ def validate_claim_key(db_name: str) -> None:
     internal keys such as ``mondo_hpo_source_bundles`` also need claims. Worker
     entrypoints separately validate which database operations they support.
     """
-    if not isinstance(db_name, str) or _CLAIM_KEY.fullmatch(db_name) is None:
-        raise ValueError("Invalid database claim key")
+    _validated_claim_key(db_name)
 
 
 def _lock_for(db_name: str) -> threading.RLock:
     """Return the (lazily created) per-database reentrant lock for ``db_name``."""
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     with _registry_lock:
         lock = _locks.get(db_name)
         if lock is None:
@@ -137,12 +148,254 @@ def try_acquire_build_lock(db_name: str) -> Iterator[bool]:
 
 def claims_dir(data_dir: Path) -> Path:
     """Directory holding per-DB cross-process claim lockfiles."""
-    return data_dir / ".claims"
+    return data_dir / _CLAIMS_DIRECTORY
+
+
+def _claim_filename(db_name: str) -> str:
+    key = _validated_claim_key(db_name)
+    prefix = os.path.join(_CLAIMS_DIRECTORY, "")
+    relative = os.path.normpath(os.path.join(_CLAIMS_DIRECTORY, f"{key}.claim"))
+    if not relative.startswith(prefix):
+        raise ValueError("Invalid database claim key")
+    # Keep the checked component as the value passed to descriptor-relative
+    # operations; never switch back to the original caller-controlled string.
+    return relative[len(prefix) :]
 
 
 def _claim_path(data_dir: Path, db_name: str) -> Path:
-    validate_claim_key(db_name)
-    return claims_dir(data_dir) / f"{db_name}.claim"
+    name = _claim_filename(db_name)
+    return claims_dir(data_dir) / name
+
+
+def _storage_error() -> OSError:
+    return OSError(errno.EPERM, "Unsafe or changed build-claim storage; see the storage contract")
+
+
+def _same_inode(first: os.stat_result, second: os.stat_result) -> bool:
+    return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
+
+
+def _check_root_ancestors(root: Path) -> None:
+    # A sticky shared ancestor (/tmp) protects each user-owned child against
+    # other users' renames. A non-sticky shared ancestor does not.
+    trusted_owners = {0, os.geteuid()}
+    for parent in root.parents:
+        try:
+            info = parent.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid not in trusted_owners
+            or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
+        ):
+            raise _storage_error()
+
+
+def _named_stat(name: str | Path, parent_fd: int | None) -> os.stat_result | None:
+    try:
+        return os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+
+
+def _check_directory(name: str | Path, fd: int, parent_fd: int | None) -> None:
+    opened, named = os.fstat(fd), _named_stat(name, parent_fd)
+    if (
+        named is None
+        or not _same_inode(opened, named)
+        or not stat.S_ISDIR(named.st_mode)
+        or opened.st_uid != os.geteuid()
+        or opened.st_mode & 0o022
+    ):
+        raise _storage_error()
+
+
+@contextmanager
+def _directory_fd(name: str | Path, parent_fd: int | None, *, create: bool):
+    if create:
+        try:
+            os.mkdir(name, 0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+    try:
+        fd = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent_fd
+        )
+    except FileNotFoundError:
+        if create:
+            raise
+        yield None
+        return
+    try:
+        _check_directory(name, fd, parent_fd)
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def _check_marker(info: os.stat_result) -> None:
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+        raise _storage_error()
+
+
+def _open_marker(name: str, parent_fd: int, *, create: bool) -> int | None:
+    named = _named_stat(name, parent_fd)
+    if named is not None:
+        _check_marker(named)
+    elif not create:
+        return None
+    flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    if named is None:
+        flags |= os.O_CREAT | os.O_EXCL
+    try:
+        fd = os.open(name, flags, 0o600, dir_fd=parent_fd)
+    except FileExistsError:
+        # A concurrent first acquirer created the marker. Never overwrite it.
+        return _open_marker(name, parent_fd, create=False)
+    except FileNotFoundError:
+        if create:
+            raise
+        return None
+    try:
+        opened, current = os.fstat(fd), _named_stat(name, parent_fd)
+        _check_marker(opened)
+        if current is None or not _same_inode(opened, current):
+            raise _storage_error()
+        _check_marker(current)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+class _AnchorDirectoryPublished(Exception):
+    """A read-only probe must reopen the newly published shared directory."""
+
+
+@dataclass(frozen=True)
+class _ClaimFile:
+    root: Path
+    root_fd: int
+    claims_fd: int
+    anchors_fd: int | None
+    name: str
+    fd: int
+
+    def verify(self) -> tuple[os.stat_result | None, os.stat_result | None]:
+        _check_directory(self.root, self.root_fd, None)
+        _check_directory(_CLAIMS_DIRECTORY, self.claims_fd, self.root_fd)
+        if self.anchors_fd is not None:
+            _check_directory(".anchors", self.anchors_fd, self.claims_fd)
+        elif _named_stat(".anchors", self.claims_fd) is not None:
+            raise _AnchorDirectoryPublished
+        for _ in range(2):
+            marker = _named_stat(self.name, self.claims_fd)
+            anchor = (
+                _named_stat(self.name, self.anchors_fd) if self.anchors_fd is not None else None
+            )
+            opened = os.fstat(self.fd)
+            _check_marker(opened)
+            present = [entry for entry in (marker, anchor) if entry is not None]
+            for entry in present:
+                _check_marker(entry)
+                if not _same_inode(opened, entry):
+                    raise _storage_error()
+            if present and opened.st_nlink == len(present):
+                return marker, anchor
+            if self.anchors_fd is None and _named_stat(".anchors", self.claims_fd) is not None:
+                raise _AnchorDirectoryPublished
+            # Another first acquirer may publish the second name between stat
+            # and fstat. Re-read once, still requiring exactly the internal links.
+        raise _storage_error()
+
+    def link_missing_anchor(self) -> None:
+        marker, anchor = self.verify()
+        if anchor is None:
+            if marker is None or self.anchors_fd is None:
+                raise _storage_error()
+            try:
+                os.link(
+                    self.name,
+                    self.name,
+                    src_dir_fd=self.claims_fd,
+                    dst_dir_fd=self.anchors_fd,
+                    follow_symlinks=False,
+                )
+            except FileExistsError:
+                pass
+            self.verify()
+
+    def restore_marker(self) -> None:
+        marker, anchor = self.verify()
+        if marker is None:
+            if anchor is None or self.anchors_fd is None:
+                raise _storage_error()
+            try:
+                os.link(
+                    self.name,
+                    self.name,
+                    src_dir_fd=self.anchors_fd,
+                    dst_dir_fd=self.claims_fd,
+                    follow_symlinks=False,
+                )
+            except FileExistsError:
+                pass
+            self.verify()
+
+
+def _create_private_root(root: Path) -> None:
+    """Create each missing component privately, without repairing existing paths."""
+    missing = []
+    component = root
+    while _named_stat(component, None) is None:
+        missing.append(component)
+        component = component.parent
+    for component in reversed(missing):
+        _check_root_ancestors(component)
+        try:
+            component.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        with _directory_fd(component, None, create=False) as fd:
+            if fd is None:
+                raise _storage_error()
+    _check_root_ancestors(root)
+
+
+@contextmanager
+def _claim_file(db_name: str, data_dir: Path, *, create: bool):
+    name = _claim_filename(db_name)
+    # The operator-selected root may itself be a symlink. Its physical target
+    # and ancestors are trusted; links inside the claims namespace are not.
+    root = data_dir.resolve()
+    _check_root_ancestors(root)
+    if create:
+        _create_private_root(root)
+    with ExitStack() as stack:
+        root_fd = stack.enter_context(_directory_fd(root, None, create=False))
+        if root_fd is None:
+            yield None
+            return
+        claims_fd = stack.enter_context(_directory_fd(_CLAIMS_DIRECTORY, root_fd, create=create))
+        if claims_fd is None:
+            yield None
+            return
+        anchors_fd = stack.enter_context(_directory_fd(".anchors", claims_fd, create=create))
+        fd = _open_marker(name, anchors_fd, create=False) if anchors_fd is not None else None
+        if fd is None:
+            fd = _open_marker(name, claims_fd, create=create)
+        if fd is None:
+            if create:
+                raise _storage_error()
+            yield None
+            return
+        stack.callback(os.close, fd)
+        claim = _ClaimFile(root, root_fd, claims_fd, anchors_fd, name, fd)
+        claim.verify()
+        if create:
+            claim.link_missing_anchor()
+        yield claim
 
 
 @contextmanager
@@ -159,29 +412,26 @@ def cross_process_build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     only the cross-process guarantee is unavailable there. The supported
     deployment targets (Linux/macOS, incl. WSL) all provide ``flock``.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         yield True
         return
 
-    claims_dir(data_dir).mkdir(parents=True, exist_ok=True)
-    # O_CLOEXEC so a child process (e.g. a subprocess spawned mid-build) does
-    # not inherit the descriptor and accidentally extend the claim's lifetime.
-    fd = os.open(_claim_path(data_dir, db_name), os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
-    try:
+    with _claim_file(db_name, data_dir, create=True) as claim:
+        assert claim is not None
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(claim.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             if exc.errno in _FLOCK_HELD_ERRNOS:
                 yield False
                 return
             raise
         try:
+            claim.restore_marker()
+            claim.verify()
             yield True
         finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
+            fcntl.flock(claim.fd, fcntl.LOCK_UN)
 
 
 def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
@@ -194,27 +444,36 @@ def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
     inside the build entrypoint — this probe is only a fast-path UX check, so a
     benign probe/acquire window is acceptable.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
     if fcntl is None:  # pragma: no cover - exercised only on non-POSIX
         return False
-    path = _claim_path(data_dir, db_name)
-    if not path.exists():
-        return False
-    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o600)
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as exc:
-        if exc.errno in _FLOCK_HELD_ERRNOS:
-            return True
-        raise
-    else:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        return False
-    finally:
-        os.close(fd)
+    for _ in range(2):
+        try:
+            with _claim_file(db_name, data_dir, create=False) as claim:
+                if claim is None:
+                    return False
+                try:
+                    fcntl.flock(claim.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError as exc:
+                    if exc.errno in _FLOCK_HELD_ERRNOS:
+                        claim.verify()
+                        return True
+                    raise
+                else:
+                    try:
+                        claim.verify()
+                        return False
+                    finally:
+                        fcntl.flock(claim.fd, fcntl.LOCK_UN)
+        except _AnchorDirectoryPublished:
+            # A first acquirer (including a different DB) may initialize the
+            # shared anchor directory. Reopen it with the same no-follow and
+            # identity checks; probing still never creates or repairs anything.
+            continue
+    raise _storage_error()
 
 
-# Per-thread set of db_names whose cross-process claim this thread already
+# Per-thread set of (physical storage root, db_name) claims this thread already
 # holds. ``cross_process_build_claim`` opens a fresh fd per call, and flock
 # conflicts across fds *even within one thread* — so a nested (reentrant)
 # build_claim would self-deny. Tracking holds per-thread lets nested calls
@@ -239,14 +498,15 @@ def build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
     lock (only the holding thread ever reaches the ``flock``), so the
     ``flock`` arbitrates purely cross-process contention.
     """
-    validate_claim_key(db_name)
+    db_name = _validated_claim_key(db_name)
+    identity = (data_dir.resolve(), db_name)
     held = getattr(_held_claims, "names", None)
     if held is None:
         held = set()
         _held_claims.names = held
 
     with build_lock(db_name):
-        if db_name in held:
+        if identity in held:
             # This thread already holds the cross-process claim further up the
             # call stack; reuse it rather than re-flock a fresh fd (self-deny).
             yield True
@@ -255,8 +515,8 @@ def build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
             if not acquired:
                 yield False
                 return
-            held.add(db_name)
+            held.add(identity)
             try:
                 yield True
             finally:
-                held.discard(db_name)
+                held.discard(identity)

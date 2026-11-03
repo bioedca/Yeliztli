@@ -25,6 +25,28 @@ docker compose up -d --build
 !!! tip "Back up first"
     Snapshot your data before a significant update — see [backup & restore](backup-restore.md).
 
+### Build-claim storage compatibility
+
+Stop the API and every background worker before updating, then restart all of
+them on the same version. Keep `.claims` and its `.anchors` directory in the data
+root; normal operation reuses their marker files, including after a process exits.
+Do not delete markers while any build or download could still be running.
+
+Build claims require user-owned local POSIX storage with hard-link and advisory
+locking support. The data root and claim directories must not be writable by other
+users or groups. The selected root may point through an operator-configured
+symlink to a trusted physical location. Shared-writable non-sticky ancestors,
+symlinks inside `.claims`, foreign ownership, unexpected hard links and unsafe
+marker permissions produce an unsafe-storage error; permissions are not silently
+changed. See the [architecture storage contract](../develop/architecture.md).
+
+If the guard reports unsafe or changed storage, keep the API and workers stopped
+while checking the configured location, ownership, permissions and marker
+identities. Restore trusted storage before restarting; deleting a marker to bypass
+an active build does not release that build's lock. On WSL, choose a Linux
+filesystem that meets this contract. Native Windows provides only the in-process
+guard, and network-filesystem cross-process locking is not supported.
+
 ## Reference-database updates
 
 Reference data updates are managed from **Settings → Database Management** for the sources
