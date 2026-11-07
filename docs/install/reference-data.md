@@ -79,6 +79,9 @@ and malformed MC values remain unavailable. The variant APIs expose `consequence
 (`vep`, `clinvar`, or unknown); the detail API also exposes the raw
 `clinvar_molecular_consequence` for audit.
 
+A standalone ClinVar refresh also clears ClinVar fields and its effective fallback
+when a source record is withdrawn. Existing VEP annotations remain intact.
+
 Upgrading adds nullable reference/sample columns without inventing historical values.
 Use **Check for Updates** and install the offered ClinVar refresh, even when its displayed
 release date matches the current date: older installs did not ingest MC. Successful

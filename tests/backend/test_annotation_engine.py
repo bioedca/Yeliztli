@@ -5380,3 +5380,89 @@ def test_standalone_refresh_does_not_restore_mc_after_mismatched_vep(
         after = conn.execute(sa.select(annotated_variants)).one()
     assert after.consequence is None
     assert after.consequence_source is None
+
+
+@pytest.mark.parametrize("withdraw_all", [False, True])
+@pytest.mark.parametrize("with_vep", [False, True])
+def test_standalone_clinvar_withdrawal_clears_own_data_only(
+    sample_engine, reference_engine, vep_engine_inmemory, withdraw_all, with_vep, monkeypatch
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    monkeypatch.setattr("backend.annotation.clinvar.BATCH_SIZE", 1)
+    identifiers = ["rs900000040", "rs900000041"]
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": rsid, "chrom": "1", "pos": 99040 + i, "genotype": "CT"}
+                for i, rsid in enumerate(identifiers)
+            ],
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [
+                {
+                    "rsid": rsid,
+                    "chrom": "1",
+                    "pos": 99040 + i,
+                    "ref": "C",
+                    "alt": "T",
+                    "significance": "Pathogenic",
+                    "review_stars": 2,
+                    "accession": "VCV_SYNTHETIC_WITHDRAWAL",
+                    "conditions": "Synthetic condition",
+                    "molecular_consequence": "SO:0001587|nonsense",
+                }
+                for i, rsid in enumerate(identifiers)
+            ],
+        )
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 2
+    if with_vep:
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                    "VALUES ('rs900000040','1',99040,'C','T','SYNTHETIC_GENE','missense_variant')"
+                )
+            )
+        assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    with sample_engine.connect() as conn:
+        before = conn.execute(
+            sa.select(annotated_variants).where(annotated_variants.c.rsid == identifiers[0])
+        ).one()
+    assert before.clinvar_molecular_consequence == "SO:0001587|nonsense"
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.delete().where(
+                clinvar_variants.c.rsid.in_(identifiers if withdraw_all else identifiers[:1])
+            )
+        )
+    result = annotate_sample_clinvar(sample_engine, reference_engine)
+    assert result.total_matched == (0 if withdraw_all else 1)
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants))}
+    assert len(rows) == 2
+    lost = rows[identifiers[0]]
+    for field in (
+        "clinvar_molecular_consequence",
+        "clinvar_allele_identity",
+        "clinvar_significance",
+        "clinvar_review_stars",
+        "clinvar_accession",
+        "clinvar_conditions",
+    ):
+        assert getattr(lost, field) is None, field
+    assert lost.consequence == ("missense_variant" if with_vep else None)
+    assert lost.consequence_source == ("vep" if with_vep else None)
+    assert lost.gene_symbol == ("SYNTHETIC_GENE" if with_vep else None)
+    assert lost.vep_allele_identity == before.vep_allele_identity
+    assert not lost.annotation_coverage & CLINVAR_BIT
+    assert bool(lost.annotation_coverage & VEP_BIT) == with_vep
+    retained = rows[identifiers[1]]
+    assert retained.clinvar_molecular_consequence == (
+        None if withdraw_all else "SO:0001587|nonsense"
+    )
+    assert retained.consequence == (None if withdraw_all else "stop_gained")

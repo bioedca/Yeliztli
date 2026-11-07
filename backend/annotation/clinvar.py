@@ -1047,72 +1047,113 @@ def annotate_sample_clinvar(
             }
         )
 
-    if rows_to_upsert:
-        with sample_engine.begin() as conn:
-            for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
-                batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
+    with sample_engine.begin() as conn:
+        for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
+            batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
-                stmt = sqlite_insert(annotated_variants).values(batch)
-                replace_consequence = sa.or_(
-                    annotated_variants.c.consequence_source == "clinvar",
-                    annotated_variants.c.consequence.is_(None),
-                    annotated_variants.c.consequence == "",
-                )
-                same_gene_allele = sa.or_(
-                    sa.and_(
-                        annotated_variants.c.gene_symbol.is_(None),
-                        annotated_variants.c.transcript_id.is_(None),
-                        sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("&")(1)
-                        == 0,
+            stmt = sqlite_insert(annotated_variants).values(batch)
+            replace_consequence = sa.or_(
+                annotated_variants.c.consequence_source == "clinvar",
+                annotated_variants.c.consequence.is_(None),
+                annotated_variants.c.consequence == "",
+            )
+            same_gene_allele = sa.or_(
+                sa.and_(
+                    annotated_variants.c.gene_symbol.is_(None),
+                    annotated_variants.c.transcript_id.is_(None),
+                    sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("&")(1) == 0,
+                ),
+                annotated_variants.c.vep_allele_identity == stmt.excluded.clinvar_allele_identity,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["rsid"],
+                set_={
+                    "ref": stmt.excluded.ref,
+                    "alt": stmt.excluded.alt,
+                    "zygosity": stmt.excluded.zygosity,
+                    "clinvar_significance": stmt.excluded.clinvar_significance,
+                    "clinvar_review_stars": stmt.excluded.clinvar_review_stars,
+                    "clinvar_accession": stmt.excluded.clinvar_accession,
+                    "clinvar_conditions": stmt.excluded.clinvar_conditions,
+                    "clinvar_molecular_consequence": (stmt.excluded.clinvar_molecular_consequence),
+                    "clinvar_allele_identity": stmt.excluded.clinvar_allele_identity,
+                    # Retain a VEP (or unattributed legacy) consequence.
+                    # A removed MC clears only our own previous fallback.
+                    "consequence": sa.case(
+                        (
+                            replace_consequence,
+                            sa.case((same_gene_allele, stmt.excluded.consequence)),
+                        ),
+                        else_=annotated_variants.c.consequence,
                     ),
-                    annotated_variants.c.vep_allele_identity
-                    == stmt.excluded.clinvar_allele_identity,
-                )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["rsid"],
-                    set_={
-                        "ref": stmt.excluded.ref,
-                        "alt": stmt.excluded.alt,
-                        "zygosity": stmt.excluded.zygosity,
-                        "clinvar_significance": stmt.excluded.clinvar_significance,
-                        "clinvar_review_stars": stmt.excluded.clinvar_review_stars,
-                        "clinvar_accession": stmt.excluded.clinvar_accession,
-                        "clinvar_conditions": stmt.excluded.clinvar_conditions,
-                        "clinvar_molecular_consequence": (
-                            stmt.excluded.clinvar_molecular_consequence
+                    "consequence_source": sa.case(
+                        (
+                            replace_consequence,
+                            sa.case((same_gene_allele, stmt.excluded.consequence_source)),
                         ),
-                        "clinvar_allele_identity": stmt.excluded.clinvar_allele_identity,
-                        # Retain a VEP (or unattributed legacy) consequence.
-                        # A removed MC clears only our own previous fallback.
-                        "consequence": sa.case(
-                            (
-                                replace_consequence,
-                                sa.case((same_gene_allele, stmt.excluded.consequence)),
-                            ),
-                            else_=annotated_variants.c.consequence,
+                        else_=annotated_variants.c.consequence_source,
+                    ),
+                    # OR the ClinVar bit into existing coverage
+                    "annotation_coverage": sa.case(
+                        (
+                            annotated_variants.c.annotation_coverage.is_(None),
+                            stmt.excluded.annotation_coverage,
                         ),
-                        "consequence_source": sa.case(
-                            (
-                                replace_consequence,
-                                sa.case((same_gene_allele, stmt.excluded.consequence_source)),
-                            ),
-                            else_=annotated_variants.c.consequence_source,
-                        ),
-                        # OR the ClinVar bit into existing coverage
-                        "annotation_coverage": sa.case(
-                            (
-                                annotated_variants.c.annotation_coverage.is_(None),
-                                stmt.excluded.annotation_coverage,
-                            ),
-                            else_=annotated_variants.c.annotation_coverage.op("|")(
-                                CLINVAR_BITMASK
-                            ),
-                        ),
-                    },
-                )
-                conn.execute(stmt)
+                        else_=annotated_variants.c.annotation_coverage.op("|")(CLINVAR_BITMASK),
+                    ),
+                },
+            )
+            conn.execute(stmt)
 
-        result.rows_written = len(rows_to_upsert)
+        # A removed source record has no upsert row. Reconcile the current
+        # sample's previously matched ClinVar rows after both lookups succeed,
+        # including a refresh with zero remaining matches. Do not retain an
+        # old classification after removing the truncating fallback beside it.
+        stored_clinvar_rsids = conn.execute(
+            sa.select(annotated_variants.c.rsid).where(
+                sa.or_(
+                    annotated_variants.c.consequence_source == "clinvar",
+                    annotated_variants.c.clinvar_molecular_consequence.is_not(None),
+                    annotated_variants.c.clinvar_allele_identity.is_not(None),
+                    annotated_variants.c.clinvar_significance.is_not(None),
+                    annotated_variants.c.annotation_coverage.op("&")(CLINVAR_BITMASK) != 0,
+                )
+            )
+        ).scalars()
+        lost_matches = [
+            rsid
+            for rsid in stored_clinvar_rsids
+            if rsid in raw_by_rsid and rsid not in all_matches
+        ]
+        owns_consequence = annotated_variants.c.consequence_source == "clinvar"
+        for batch_start in range(0, len(lost_matches), BATCH_SIZE):
+            conn.execute(
+                annotated_variants.update()
+                .where(
+                    annotated_variants.c.rsid.in_(
+                        lost_matches[batch_start : batch_start + BATCH_SIZE]
+                    )
+                )
+                .values(
+                    clinvar_significance=None,
+                    clinvar_review_stars=None,
+                    clinvar_accession=None,
+                    clinvar_conditions=None,
+                    clinvar_molecular_consequence=None,
+                    clinvar_allele_identity=None,
+                    consequence=sa.case(
+                        (owns_consequence, None), else_=annotated_variants.c.consequence
+                    ),
+                    consequence_source=sa.case(
+                        (owns_consequence, None), else_=annotated_variants.c.consequence_source
+                    ),
+                    annotation_coverage=sa.func.coalesce(
+                        annotated_variants.c.annotation_coverage, 0
+                    ).op("&")(~CLINVAR_BITMASK),
+                )
+            )
+
+    result.rows_written = len(rows_to_upsert)
 
     # WAL checkpoint after annotation
     _wal_checkpoint(sample_engine)
