@@ -5507,6 +5507,61 @@ def test_standalone_clinvar_withdrawal_respects_sqlite_parameter_budget(
         assert row.ref == "C" and row.alt == "T" and row.zygosity == "het"
 
 
+@pytest.mark.parametrize("writer", ["vep", "engine"])
+@pytest.mark.parametrize("count", [64, 1000])
+def test_vep_provenance_writes_respect_sqlite_parameter_budget(
+    sample_engine, vep_engine_inmemory, mock_registry, monkeypatch, writer, count
+):
+    import sqlite3
+
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    monkeypatch.setattr("backend.annotation.sqlite_limits.SQLITE_MAX_VARIABLE_NUMBER", 999)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": f"rs991{i:06d}", "chrom": "1", "pos": 199000 + i, "genotype": "CT"}
+                for i in range(count)
+            ],
+        )
+        connection = conn.connection.driver_connection
+        previous_limit = connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+    try:
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid,chrom,pos,ref,alt,gene_symbol,consequence,mane_select) "
+                    "VALUES (:rsid,'1',:pos,'C','T','SYNTHETIC_GENE','missense_variant',1)"
+                ),
+                [{"rsid": f"rs991{i:06d}", "pos": 199000 + i} for i in range(count)],
+            )
+        for consequence in ("missense_variant", "stop_gained"):
+            with vep_engine_inmemory.begin() as conn:
+                conn.execute(
+                    sa.text("UPDATE vep_annotations SET consequence=:consequence"),
+                    {"consequence": consequence},
+                )
+            if writer == "vep":
+                result = annotate_sample_vep(sample_engine, vep_engine_inmemory)
+            else:
+                result = run_annotation(sample_engine, mock_registry)
+                assert result.errors == []
+            assert result.rows_written == count
+            with sample_engine.connect() as conn:
+                rows = conn.execute(sa.select(annotated_variants)).all()
+            assert len(rows) == count
+            for row in rows:
+                assert row.consequence == consequence
+                assert row.consequence_source == "vep"
+                assert json.loads(row.vep_allele_identity) == ["1", row.pos, "C", "T"]
+                assert row.gene_symbol == "SYNTHETIC_GENE"
+                assert row.annotation_coverage & VEP_BIT
+    finally:
+        connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, previous_limit)
+
+
 @pytest.mark.parametrize("withdraw_all", [False, True])
 @pytest.mark.parametrize("with_vep", [False, True])
 def test_standalone_clinvar_withdrawal_clears_own_data_only(

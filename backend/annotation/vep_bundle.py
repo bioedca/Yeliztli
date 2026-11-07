@@ -46,9 +46,9 @@ VEP_BITMASK = 0b000001  # bit 0 = 1
 # Batch size for SQLite IN clause (stay below 999 variable limit)
 _IN_BATCH_SIZE = 500
 
-# Batch size for upsert into annotated_variants.
-# VEP upserts ~13 columns/row; 999 // 13 ≈ 76 rows stays under macOS SQLite
-# variable limit. Use a moderate value that works cross-platform.
+# Parameter-set batch size for executemany upserts into annotated_variants.
+# Each row is a separate execution within the same transaction, so added
+# provenance columns do not multiply the per-statement variable count.
 BATCH_SIZE = 75
 
 # ── Consequence severity ranking (Ensembl SO terms) ──────────────────────
@@ -695,7 +695,7 @@ def annotate_sample_vep(
             for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
                 batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
-                stmt = sqlite_insert(annotated_variants).values(batch)
+                stmt = sqlite_insert(annotated_variants)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["rsid"],
                     set_={
@@ -720,7 +720,7 @@ def annotate_sample_vep(
                         ),
                     },
                 )
-                conn.execute(stmt)
+                conn.execute(stmt, batch)
 
         result.rows_written = len(rows_to_upsert)
 
