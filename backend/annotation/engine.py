@@ -1687,6 +1687,14 @@ def run_annotation(
     if not raw_rows:
         return result
 
+    # A queued worker can run before FastAPI upgrades an older reference DB.
+    # Finish the narrow additive migration before source errors can be caught
+    # as partial coverage or staging can replace prior ClinVar annotations.
+    from backend.db.reference_schema import ensure_clinvar_molecular_consequence
+
+    reference_engine = registry.reference_engine
+    ensure_clinvar_molecular_consequence(reference_engine)
+
     # 2. Crash recovery (F28): annotate into a fresh staging table, not in place.
     # The prior good annotation in ``annotated_variants`` is left untouched until
     # the atomic swap at the very end, so a crash mid-run loses nothing.
@@ -1700,7 +1708,6 @@ def run_annotation(
     # stamp coverage telemetry, annotation_state, and the reference snapshot
     # with a version newer than the artifact actually queried (#1953).
     pinned_vep_bundle_version = _read_bundle_version(registry)
-    reference_engine = registry.reference_engine  # always available
     gnomad_engine = _check_engine_available(lambda: registry.gnomad_engine, "gnomad", result)
     dbnsfp_engine = _check_engine_available(lambda: registry.dbnsfp_engine, "dbnsfp", result)
     alphamissense_engine = _check_engine_available(

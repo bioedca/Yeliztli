@@ -173,6 +173,42 @@ def test_sample_migration_does_not_invent_consequence_provenance():
     engine.dispose()
 
 
+def test_worker_and_web_clinvar_schema_checks_are_serialized(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    from backend.db.reference_schema import (
+        bootstrap_reference_schema_tables,
+        ensure_clinvar_molecular_consequence,
+    )
+
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
+    reference_metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql("ALTER TABLE clinvar_variants DROP COLUMN molecular_consequence")
+        conn.exec_driver_sql(
+            "INSERT INTO clinvar_variants(rsid,chrom,pos,ref,alt) "
+            "VALUES ('rs900000031','1',99031,'A','T')"
+        )
+    barrier = Barrier(2)
+
+    def migrate(fn):
+        barrier.wait(timeout=5)
+        fn(engine)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [
+            pool.submit(migrate, fn)
+            for fn in (bootstrap_reference_schema_tables, ensure_clinvar_molecular_consequence)
+        ]
+        for future in futures:
+            future.result(timeout=10)
+    with engine.connect() as conn:
+        assert conn.execute(sa.select(clinvar_variants.c.molecular_consequence)).one() == (None,)
+    assert not ensure_clinvar_molecular_consequence(engine)
+    engine.dispose()
+
+
 def test_standalone_refresh_clears_mc_when_gene_allele_no_longer_matches():
     from backend.annotation.clinvar import annotate_sample_clinvar
     from backend.db.sample_schema import create_sample_tables

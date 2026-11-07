@@ -71,7 +71,7 @@ transcript, HGVS, gene or inheritance.
 
 All tests use synthetic loci/calls. Indel I/D carriage remains unscoreable; an
 absent VEP gene is separately tracked in #2464. The production FH regression uses
-a synthetic sequence-resolved SNV with source `stop_gained`, an already-known
+a synthetic sequence-resolved SNV with source `nonsense` normalized to `stop_gained`, an already-known
 PCSK9 gene and an explicit hom-ref negative control. This tests the existing
 clinical software rule, not the biological truth of a synthetic variant.
 

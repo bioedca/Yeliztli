@@ -332,16 +332,32 @@ def _resolve_primary_annotation(
     nothing about whether VEP wrote the row), and with no resolvable allele
     ``transcripts`` is empty, so the withholding stands.
     """
-    if not transcripts or any(
-        data.get(field) is not None for field in _PRIMARY_VEP_FIELDS if field != "mane_select"
-    ):
+    clinvar_fallback = data.get("consequence_source") == "clinvar"
+    stored_fields = (
+        field
+        for field in _PRIMARY_VEP_FIELDS
+        if field != "mane_select" and not (field == "consequence" and clinvar_fallback)
+    )
+    if not transcripts or any(data.get(field) is not None for field in stored_fields):
         return
     primary = max(
         transcripts,
         key=lambda tx: primary_transcript_rank(tx.mane_select, tx.consequence),
     )
+    prior_consequence = data.get("consequence")
     for field in _PRIMARY_VEP_FIELDS:
         data[field] = getattr(primary, field)
+    data["consequence_source"] = "vep" if primary.consequence else None
+    if clinvar_fallback and not primary.consequence:
+        from backend.annotation.allele_matching import source_allele_identity
+
+        # MC belongs to its complete source allele, not merely this rsID.
+        identity = source_allele_identity(
+            data.get("chrom"), data.get("pos"), data.get("ref"), data.get("alt")
+        )
+        if identity is not None and identity == data.get("clinvar_allele_identity"):
+            data["consequence"] = prior_consequence
+            data["consequence_source"] = "clinvar" if prior_consequence else None
 
 
 def _fetch_gene_phenotypes(gene_symbol: str | None) -> list[GenePhenotypeRecord]:

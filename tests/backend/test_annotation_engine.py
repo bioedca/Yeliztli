@@ -88,6 +88,84 @@ from backend.db.tables import (
 )
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
+
+@pytest.mark.parametrize("worker_bootstrap", [False, True])
+def test_annotation_upgrades_legacy_clinvar_before_source_lookup(
+    sample_engine, reference_engine, mock_registry, worker_bootstrap
+):
+    from backend.db.reference_schema import bootstrap_reference_schema_tables
+
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000030",
+                chrom="1",
+                pos=99030,
+                ref="A",
+                alt="T",
+                significance="Pathogenic",
+                accession="VCV_SYNTHETIC_MC_UPGRADE",
+            )
+        )
+        conn.exec_driver_sql("ALTER TABLE clinvar_variants DROP COLUMN molecular_consequence")
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(rsid="rs900000030", chrom="1", pos=99030, genotype="AT")
+        )
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="rs900000030",
+                chrom="1",
+                pos=99030,
+                clinvar_significance="Pathogenic",
+                clinvar_accession="VCV_SYNTHETIC_MC_UPGRADE",
+            )
+        )
+    if worker_bootstrap:
+        bootstrap_reference_schema_tables(reference_engine)
+        with reference_engine.connect() as conn:
+            columns = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(clinvar_variants)")}
+        assert "molecular_consequence" in columns
+
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    assert result.clinvar_matched == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.clinvar_significance == "Pathogenic"
+    assert row.clinvar_accession == "VCV_SYNTHETIC_MC_UPGRADE"
+    assert row.clinvar_molecular_consequence is None
+    assert row.annotation_coverage & CLINVAR_BIT
+
+
+def test_clinvar_schema_failure_cannot_replace_prior_annotation(
+    sample_engine, mock_registry, monkeypatch
+):
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(rsid="rs900000032", chrom="1", pos=99032, genotype="AT")
+        )
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="rs900000032", chrom="1", pos=99032, clinvar_significance="Pathogenic"
+            )
+        )
+
+    def unavailable(engine):
+        raise RuntimeError("synthetic migration failure")
+
+    monkeypatch.setattr(
+        "backend.db.reference_schema.ensure_clinvar_molecular_consequence", unavailable
+    )
+    with pytest.raises(RuntimeError, match="synthetic migration failure"):
+        run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        assert conn.execute(sa.select(annotated_variants.c.clinvar_significance)).one() == (
+            "Pathogenic",
+        )
+    assert "annotated_variants_staging" not in sa.inspect(sample_engine).get_table_names()
+
+
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"

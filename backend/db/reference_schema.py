@@ -1075,10 +1075,37 @@ def bootstrap_reference_schema_tables(engine: sa.Engine) -> None:
         conn.exec_driver_sql("BEGIN IMMEDIATE")
         try:
             reference_metadata.create_all(conn, checkfirst=True)
+            _backfill_clinvar_molecular_consequence(conn)
             conn.commit()
         except Exception:
             conn.rollback()
             raise
+
+
+def _backfill_clinvar_molecular_consequence(conn: sa.Connection) -> bool:
+    """Backfill MC while the caller holds SQLite's schema write reservation."""
+    columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(clinvar_variants)")}
+    if columns and "molecular_consequence" not in columns:
+        conn.exec_driver_sql("ALTER TABLE clinvar_variants ADD COLUMN molecular_consequence TEXT")
+        return True
+    return False
+
+
+def ensure_clinvar_molecular_consequence(engine: sa.Engine) -> bool:
+    """Prepare old references before a worker queries ClinVar, without content repairs.
+
+    Serialize the check and additive DDL with web/worker bootstrap. A failure
+    propagates before annotation can replace any existing sample results.
+    """
+    with engine.connect() as conn:
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
+        try:
+            changed = _backfill_clinvar_molecular_consequence(conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return changed
 
 
 def ensure_log_entry_presentation_policy(engine: sa.Engine) -> bool:
@@ -1152,16 +1179,7 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
     """
     inspector = sa.inspect(engine)
     table_names = set(inspector.get_table_names())
-    changed = False
-
-    if "clinvar_variants" in table_names:
-        columns = {c["name"] for c in inspector.get_columns("clinvar_variants")}
-        if "molecular_consequence" not in columns:
-            with engine.begin() as conn:
-                conn.execute(
-                    sa.text("ALTER TABLE clinvar_variants ADD COLUMN molecular_consequence TEXT")
-                )
-            changed = True
+    changed = ensure_clinvar_molecular_consequence(engine)
 
     # ── samples.individual_id (Alembic 009 — AncestryDNA individuals grouping)
     # Nullable FK to individuals(id). SQLite permits ADD COLUMN with a
