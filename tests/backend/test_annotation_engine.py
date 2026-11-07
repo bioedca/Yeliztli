@@ -5162,7 +5162,35 @@ def test_clinvar_mc_consequence_fallback_production(
 
 @pytest.mark.parametrize("genotype", ["CT", "CC"])
 @pytest.mark.parametrize("vep_rsid", ["rs900000003", "rs900000099"])
-@pytest.mark.parametrize("mc", [None, "SO:0001587|nonsense"])
+@pytest.mark.parametrize(
+    ("mc", "fallback", "protects_fh"),
+    [
+        (None, None, False),
+        ("SO:0001587|nonsense", "stop_gained", True),
+        ("SO:0001574|splice_acceptor_variant", "splice_acceptor_variant", False),
+        (
+            "SO:0001587|nonsense,SO:0001574|splice_acceptor_variant",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001574|splice_acceptor_variant,SO:0001587|nonsense",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001589|frameshift_variant,SO:0001574|splice_acceptor_variant",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001587|nonsense,SO:0001575|splice_donor_variant",
+            "splice_donor_variant",
+            True,
+        ),
+        ("SO:0001587|nonsense,SO:9999999|unknown_variant", None, False),
+    ],
+)
 @pytest.mark.parametrize("vep_consequence", [None, "missense_variant"])
 def test_mc_reannotation_reaches_fh_with_carrier_controls(
     sample_engine,
@@ -5171,6 +5199,8 @@ def test_mc_reannotation_reaches_fh_with_carrier_controls(
     vep_engine_inmemory,
     genotype,
     mc,
+    fallback,
+    protects_fh,
     vep_consequence,
     vep_rsid,
 ):
@@ -5230,19 +5260,20 @@ def test_mc_reannotation_reaches_fh_with_carrier_controls(
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(annotated_variants)).one()
         assert row.zygosity == ("het" if genotype == "CT" else "hom_ref")
-        effective = vep_consequence or ("stop_gained" if current_mc else None)
+        effective = vep_consequence or (fallback if current_mc else None)
+        fh_suppressed = not vep_consequence and bool(current_mc) and protects_fh
         assert row.consequence == effective
         assert row.consequence_source == (
-            "vep" if vep_consequence else "clinvar" if current_mc else None
+            "vep" if vep_consequence else "clinvar" if effective else None
         )
         findings = extract_cardiovascular_variants(load_cardiovascular_panel(), sample_engine)
         assert len(findings.variants) == (1 if genotype == "CT" else 0)
         if genotype == "CT":
             assert findings.variants[0].cardiovascular_category == (
-                CATEGORY_LIPID if effective == "stop_gained" else CATEGORY_FH
+                CATEGORY_LIPID if fh_suppressed else CATEGORY_FH
             )
         assert determine_fh_status(findings).is_positive == (
-            genotype == "CT" and effective != "stop_gained"
+            genotype == "CT" and not fh_suppressed
         )
 
 
@@ -5389,6 +5420,91 @@ def test_standalone_refresh_does_not_restore_mc_after_mismatched_vep(
         after = conn.execute(sa.select(annotated_variants)).one()
     assert after.consequence is None
     assert after.consequence_source is None
+
+
+@pytest.mark.parametrize("retained_count", [0, 1000])
+def test_standalone_clinvar_withdrawal_respects_sqlite_parameter_budget(
+    sample_engine, reference_engine, monkeypatch, retained_count
+):
+    import sqlite3
+
+    from backend.annotation.clinvar import annotate_sample_clinvar
+
+    # Emulate a supported SQLite build with a 999-variable budget, both in
+    # the repository's compile-time probe and the actual sample connection.
+    monkeypatch.setattr("backend.annotation.sqlite_limits.SQLITE_MAX_VARIABLE_NUMBER", 999)
+    withdrawn_count = 1000
+    count = withdrawn_count + retained_count
+    if retained_count:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": f"rs990{i:06d}",
+                        "chrom": "1",
+                        "pos": 99000 + i,
+                        "ref": "C",
+                        "alt": "T",
+                        "significance": "Pathogenic",
+                        "molecular_consequence": "SO:0001587|nonsense",
+                    }
+                    for i in range(withdrawn_count, count)
+                ],
+            )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": f"rs990{i:06d}", "chrom": "1", "pos": 99000 + i, "genotype": "CT"}
+                for i in range(count)
+            ],
+        )
+        conn.execute(
+            annotated_variants.insert(),
+            [
+                {
+                    "rsid": f"rs990{i:06d}",
+                    "chrom": "1",
+                    "pos": 99000 + i,
+                    "ref": "C",
+                    "alt": "T",
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_molecular_consequence": "SO:0001587|nonsense",
+                    "consequence": "stop_gained",
+                    "consequence_source": "clinvar",
+                    "annotation_coverage": CLINVAR_BIT,
+                }
+                for i in range(count)
+            ],
+        )
+        connection = conn.connection.driver_connection
+        previous_limit = connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+    try:
+        result = annotate_sample_clinvar(sample_engine, reference_engine)
+    finally:
+        connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, previous_limit)
+    assert result.not_matched == withdrawn_count
+    assert result.total_matched == retained_count
+    with sample_engine.connect() as conn:
+        rows = conn.execute(sa.select(annotated_variants)).all()
+    assert len(rows) == count
+    for row in rows:
+        if row.pos >= 99000 + withdrawn_count:
+            assert row.clinvar_significance == "Pathogenic"
+            assert row.clinvar_molecular_consequence == "SO:0001587|nonsense"
+            assert row.consequence == "stop_gained"
+            assert row.consequence_source == "clinvar"
+            assert row.annotation_coverage == CLINVAR_BIT
+            continue
+        assert row.clinvar_significance is None
+        assert row.clinvar_molecular_consequence is None
+        assert row.consequence is None
+        assert row.consequence_source is None
+        assert row.annotation_coverage == 0
+        assert row.ref == "C" and row.alt == "T" and row.zygosity == "het"
 
 
 @pytest.mark.parametrize("withdraw_all", [False, True])

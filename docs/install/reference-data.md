@@ -84,6 +84,9 @@ term in the existing VEP consequence ordering. The complete source list stays in
 the audit field. A list containing an unrecognized term supplies no effective
 fallback. This prevents a synonymous or intronic term from masking a coding effect
 in downstream assessment or coverage labels; it does not select a transcript.
+When ClinVar supplies the fallback, the existing FH truncation safeguard checks
+the complete validated term list so a higher-ranked splice term cannot hide a
+truncating term. A VEP consequence still takes precedence for that check.
 
 A standalone ClinVar refresh also clears ClinVar fields and its effective fallback
 when a source record is withdrawn. Existing VEP annotations remain intact.

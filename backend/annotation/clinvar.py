@@ -1071,7 +1071,9 @@ def annotate_sample_clinvar(
         for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
             batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
-            stmt = sqlite_insert(annotated_variants).values(batch)
+            # Execute parameter sets separately instead of putting every row's
+            # columns into one statement's SQLite variable budget.
+            stmt = sqlite_insert(annotated_variants)
             replace_consequence = sa.or_(
                 annotated_variants.c.consequence_source == "clinvar",
                 annotated_variants.c.consequence.is_(None),
@@ -1123,7 +1125,7 @@ def annotate_sample_clinvar(
                     ),
                 },
             )
-            conn.execute(stmt)
+            conn.execute(stmt, batch)
 
         # A removed source record has no upsert row. Reconcile the current
         # sample's previously matched ClinVar rows after both lookups succeed,
@@ -1146,30 +1148,36 @@ def annotate_sample_clinvar(
             if rsid in raw_by_rsid and rsid not in all_matches
         ]
         owns_consequence = annotated_variants.c.consequence_source == "clinvar"
-        for batch_start in range(0, len(lost_matches), BATCH_SIZE):
+        withdrawal = annotated_variants.update().values(
+            clinvar_significance=None,
+            clinvar_review_stars=None,
+            clinvar_accession=None,
+            clinvar_conditions=None,
+            clinvar_molecular_consequence=None,
+            clinvar_allele_identity=None,
+            consequence=sa.case((owns_consequence, None), else_=annotated_variants.c.consequence),
+            consequence_source=sa.case(
+                (owns_consequence, None), else_=annotated_variants.c.consequence_source
+            ),
+            annotation_coverage=sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op(
+                "&"
+            )(~CLINVAR_BITMASK),
+        )
+        from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER
+
+        # SQLite positional placeholders count repeated binds separately.
+        # Reserve every SET placeholder before allocating the IN-clause batch.
+        compiled = withdrawal.compile(dialect=conn.dialect)
+        fixed_parameters = len(compiled.positiontup or compiled.params)
+        withdrawal_batch_size = min(BATCH_SIZE, SQLITE_MAX_VARIABLE_NUMBER - fixed_parameters)
+        if withdrawal_batch_size < 1:
+            raise ValueError("SQLite parameter budget cannot fit ClinVar withdrawal")
+        for batch_start in range(0, len(lost_matches), withdrawal_batch_size):
             conn.execute(
-                annotated_variants.update()
-                .where(
+                withdrawal.where(
                     annotated_variants.c.rsid.in_(
-                        lost_matches[batch_start : batch_start + BATCH_SIZE]
+                        lost_matches[batch_start : batch_start + withdrawal_batch_size]
                     )
-                )
-                .values(
-                    clinvar_significance=None,
-                    clinvar_review_stars=None,
-                    clinvar_accession=None,
-                    clinvar_conditions=None,
-                    clinvar_molecular_consequence=None,
-                    clinvar_allele_identity=None,
-                    consequence=sa.case(
-                        (owns_consequence, None), else_=annotated_variants.c.consequence
-                    ),
-                    consequence_source=sa.case(
-                        (owns_consequence, None), else_=annotated_variants.c.consequence_source
-                    ),
-                    annotation_coverage=sa.func.coalesce(
-                        annotated_variants.c.annotation_coverage, 0
-                    ).op("&")(~CLINVAR_BITMASK),
                 )
             )
 

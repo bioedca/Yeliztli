@@ -80,6 +80,14 @@ the extra term must not introduce BP7 benign evidence or an unsupported gnomAD
 exome-exclusion label. An unknown term withholds the effective consequence;
 hom-ref controls remain absent from the ACMG candidate list.
 
+The existing FH truncation safeguard consumes all validated MC terms only when
+ClinVar supplied the effective fallback. This preserves its existing compound-term
+semantics when a higher-ranked splice term would otherwise hide a truncating term;
+it does not add a clinical criterion. VEP provenance continues to take precedence,
+and a splice-only PCSK9 record does not acquire a truncating override. Synthetic
+production controls cover mixed terms in either order, both lookup paths,
+reference withdrawal, VEP precedence, unknown-term withholding and hom-ref calls.
+
 All tests use synthetic loci/calls. Indel I/D carriage remains unscoreable; an
 absent VEP gene is separately tracked in #2464. The production FH regression uses
 a synthetic sequence-resolved SNV with source `nonsense` normalized to `stop_gained`, an already-known
