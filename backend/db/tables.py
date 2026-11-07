@@ -685,6 +685,9 @@ annotated_variants = sa.Table(
     sa.Column("transcript_id", sa.Text),
     sa.Column("consequence", sa.Text),  # SO term
     sa.Column("consequence_source", sa.Text, comment="vep | clinvar; NULL on legacy rows"),
+    sa.Column(
+        "vep_allele_identity", sa.Text, comment="JSON [chrom,pos,ref,alt] from resolved VEP"
+    ),
     sa.Column("hgvs_coding", sa.Text),
     sa.Column("hgvs_protein", sa.Text),
     sa.Column("strand", sa.Text),
@@ -697,6 +700,7 @@ annotated_variants = sa.Table(
     sa.Column("clinvar_accession", sa.Text),
     sa.Column("clinvar_conditions", sa.Text),
     sa.Column("clinvar_molecular_consequence", sa.Text, comment="Exact-allele ClinVar VCF MC"),
+    sa.Column("clinvar_allele_identity", sa.Text, comment="JSON [chrom,pos,ref,alt] from ClinVar"),
     # gnomAD allele frequency (bitmask bit 2)
     sa.Column("gnomad_af_global", sa.Float),
     sa.Column("gnomad_af_afr", sa.Float),

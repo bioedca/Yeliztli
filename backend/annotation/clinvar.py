@@ -139,6 +139,13 @@ class ClinVarRecord:
 
 CLINVAR_INGESTION_REVISION = "mc-v1"
 
+# Canonical SO names for labels ClinVar spells differently. Definitions and
+# source-native examples: data/science-evidence/2026-11-07-clinvar-mc-2393.
+_MC_CANONICAL_TERMS = {
+    "SO:0001587": "stop_gained",
+    "SO:0001619": "non_coding_transcript_variant",
+}
+
 
 def clinvar_install_version(source_version: str) -> str:
     """Keep the source release and mark ingestion of the source-native MC field."""
@@ -155,10 +162,10 @@ def molecular_consequence_terms(value: str | None) -> str | None:
         return None
     terms = []
     for item in value.split(","):
-        match = re.fullmatch(r"SO:[0-9]{7}\|([a-z][a-z0-9_]*)", item)
+        match = re.fullmatch(r"(SO:[0-9]{7})\|([A-Za-z0-9][A-Za-z0-9_-]*)", item)
         if match is None:
             return None
-        term = match.group(1)
+        term = _MC_CANONICAL_TERMS.get(match.group(1), match.group(2))
         if term not in terms:
             terms.append(term)
     return "&".join(terms)
@@ -956,6 +963,8 @@ def annotate_sample_clinvar(
     Returns:
         AnnotationResult with match statistics.
     """
+    from backend.annotation.allele_matching import source_allele_identity
+
     result = AnnotationResult()
 
     # 1. Read all raw variants from the sample
@@ -1029,6 +1038,9 @@ def annotate_sample_clinvar(
                 "clinvar_accession": annot.clinvar_accession,
                 "clinvar_conditions": annot.clinvar_conditions,
                 "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+                "clinvar_allele_identity": source_allele_identity(
+                    annot.chrom, annot.pos, annot.ref, annot.alt
+                ),
                 "consequence": consequence,
                 "consequence_source": "clinvar" if consequence else None,
                 "annotation_coverage": CLINVAR_BITMASK,
@@ -1047,11 +1059,14 @@ def annotate_sample_clinvar(
                     annotated_variants.c.consequence == "",
                 )
                 same_gene_allele = sa.or_(
-                    annotated_variants.c.gene_symbol.is_(None),
                     sa.and_(
-                        annotated_variants.c.ref == stmt.excluded.ref,
-                        annotated_variants.c.alt == stmt.excluded.alt,
+                        annotated_variants.c.gene_symbol.is_(None),
+                        annotated_variants.c.transcript_id.is_(None),
+                        sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("&")(1)
+                        == 0,
                     ),
+                    annotated_variants.c.vep_allele_identity
+                    == stmt.excluded.clinvar_allele_identity,
                 )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["rsid"],
@@ -1066,6 +1081,7 @@ def annotate_sample_clinvar(
                         "clinvar_molecular_consequence": (
                             stmt.excluded.clinvar_molecular_consequence
                         ),
+                        "clinvar_allele_identity": stmt.excluded.clinvar_allele_identity,
                         # Retain a VEP (or unattributed legacy) consequence.
                         # A removed MC clears only our own previous fallback.
                         "consequence": sa.case(

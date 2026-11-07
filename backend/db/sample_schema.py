@@ -2523,7 +2523,12 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         if "annotated_variants" in inspector.get_table_names():
             existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
             with engine.begin() as conn:
-                for column in ("clinvar_molecular_consequence", "consequence_source"):
+                for column in (
+                    "clinvar_molecular_consequence",
+                    "consequence_source",
+                    "vep_allele_identity",
+                    "clinvar_allele_identity",
+                ):
                     if column not in existing_cols:
                         conn.execute(
                             sa.text(f"ALTER TABLE annotated_variants ADD COLUMN {column} TEXT")

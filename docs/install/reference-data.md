@@ -71,7 +71,9 @@ attribution list lives in the repository
 
 ClinVar installations now retain the VCF's source-native molecular consequence (`MC`).
 When a variant lacks a VEP consequence, a resolved ClinVar allele can supply that field;
-VEP keeps precedence. This does not infer consequences from indel length or establish
+VEP keeps precedence. SO identifiers normalize source labels such as `nonsense`
+to the existing `stop_gained` token; the raw source value is retained. This does not
+infer consequences from indel length or establish
 indel carriage, gene identity, inheritance, or a VEP transcript. Ambiguous allele matches
 and malformed MC values remain unavailable. The variant APIs expose `consequence_source`
 (`vep`, `clinvar`, or unknown); the detail API also exposes the raw

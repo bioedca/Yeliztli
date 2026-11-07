@@ -1,0 +1,78 @@
+! Source: The-Sequence-Ontology/SO-Ontologies, Ontology_Files/so.obo
+! Git blob: 8b9442f40c5eb2dc32e02c0d632c0301ba6fa2ea
+! Data version: 2026-08-07; accessed 2026-11-07
+! Extracted identifiers, labels and synonyms only.
+! License: CC-BY-SA-4.0; https://creativecommons.org/licenses/by-sa/4.0/
+
+[Term]
+id: SO:0001587
+name: stop_gained
+synonym: "ANNOVAR:stopgain" EXACT VAR [http://www.openbioinformatics.org/annovar/annovar_download.html]
+synonym: "Jannovar:stop_gained" EXACT VAR [http://doc-openbio.readthedocs.org/projects/jannovar/en/master/var_effects.html]
+synonym: "nonsense" EXACT dbsnp [ftp://ftp.ncbi.nih.gov/snp/specs/docsum_3.1.xsd]
+synonym: "nonsense codon" EXACT []
+synonym: "Seattleseq:stop-gained" EXACT VAR []
+synonym: "Seattleseq:stop-gained-near-splice" RELATED VAR []
+synonym: "snpEff:STOP_GAINED" EXACT VAR []
+synonym: "stop codon gained" RELATED []
+synonym: "stop gained" EXACT ebi_variants [http://ensembl.org/info/docs/variation/index.html]
+synonym: "VAAST:stop_gained" EXACT VAR []
+synonym: "VAT:prematureStop" EXACT VAR []
+synonym: "VEP:stop_gained" EXACT VAR []
+
+[Term]
+id: SO:0001589
+name: frameshift_variant
+synonym: "ANNOVAR:frameshift block substitution" RELATED VAR [http://www.openbioinformatics.org/annovar/annovar_download.html]
+synonym: "ANNOVAR:frameshift substitution" RELATED []
+synonym: "frameshift variant" EXACT []
+synonym: "frameshift_" EXACT dbsnp [ftp://ftp.ncbi.nih.gov/snp/specs/docsum_3.1.xsd]
+synonym: "frameshift_coding" EXACT ebi_variants [http://ensembl.org/info/docs/variation/index.html]
+synonym: "Jannovar:frameshift_variant" EXACT VAR [http://doc-openbio.readthedocs.org/projects/jannovar/en/master/var_effects.html]
+synonym: "Seattleseq:frameshift" EXACT VAR []
+synonym: "Seattleseq:frameshift-near-splice" RELATED VAR []
+synonym: "snpEff:FRAME_SHIFT" EXACT VAR []
+synonym: "VAAST:frameshift_variant" EXACT VAR []
+synonym: "VAT:deletionFS" NARROW VAR []
+synonym: "VAT:insertionFS" NARROW VAR []
+synonym: "VEP:frameshift_variant" EXACT VAR []
+
+[Term]
+id: SO:0001619
+name: non_coding_transcript_variant
+synonym: "ANNOVAR:ncRNA" NARROW VAR [http://annovar.openbioinformatics.org/en/latest/user-guide/gene/]
+synonym: "Jannovar:non_coding_transcript_variant" EXACT VAR [http://doc-openbio.readthedocs.org/projects/jannovar/en/master/var_effects.html]
+synonym: "nc transcript variant" EXACT []
+synonym: "non coding transcript variant" EXACT []
+synonym: "VEP:non_coding_transcript_variant" EXACT VAR []
+synonym: "within_non_coding_gene" EXACT dbsnp [http://ensembl.org/info/docs/variation/index.html]
+
+[Term]
+id: SO:0001623
+name: 5_prime_UTR_variant
+synonym: "5'UTR variant" EXACT []
+synonym: "5PRIME_UTR" EXACT ebi_variants [http://ensembl.org/info/docs/variation/index.html]
+synonym: "ANNOVAR:UTR5" RELATED VAR [http://www.openbioinformatics.org/annovar/annovar_download.html]
+synonym: "five prime UTR variant" EXACT []
+synonym: "Jannovar:5_prime_utr_variant" EXACT VAR [http://doc-openbio.readthedocs.org/projects/jannovar/en/master/var_effects.html]
+synonym: "Seattleseq:5-prime-UTR" EXACT VAR []
+synonym: "snpEff:UTR_5_PRIME" EXACT VAR []
+synonym: "untranslated-5" EXACT dbsnp [ftp://ftp.ncbi.nih.gov/snp/specs/docsum_3.1.xsd]
+synonym: "VAAST:5_prime_UTR_variant" EXACT VAR []
+synonym: "VAAST:five_prime_UTR_variant" EXACT VAR []
+synonym: "VEP:5_prime_UTR_variant" EXACT VAR []
+
+[Term]
+id: SO:0001624
+name: 3_prime_UTR_variant
+synonym: "3'UTR variant" EXACT []
+synonym: "3PRIME_UTR" EXACT ebi_variants [http://ensembl.org/info/docs/variation/index.html]
+synonym: "ANNOVAR:UTR3" RELATED VAR [http://www.openbioinformatics.org/annovar/annovar_download.html]
+synonym: "Jannovar:3_prime_utr_variant" EXACT VAR [http://doc-openbio.readthedocs.org/projects/jannovar/en/master/var_effects.html]
+synonym: "Seattleseq:3-prime-UTR" EXACT VAR []
+synonym: "snpEff:UTR_3_PRIME" EXACT VAR []
+synonym: "three prime UTR variant" EXACT []
+synonym: "untranslated-3" EXACT dbsnp [ftp://ftp.ncbi.nih.gov/snp/specs/docsum_3.1.xsd]
+synonym: "VAAST:3_prime_UTR_variant" EXACT VAR []
+synonym: "VAAST:three_prime_UTR_variant" EXACT VAR []
+synonym: "VEP:3_prime_UTR_variant" EXACT VAR []

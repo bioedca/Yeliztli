@@ -151,6 +151,8 @@ def test_sample_migration_does_not_invent_consequence_provenance():
     sample_metadata_obj.create_all(engine)
     with engine.begin() as conn:
         conn.exec_driver_sql("ALTER TABLE annotated_variants DROP COLUMN consequence_source")
+        conn.exec_driver_sql("ALTER TABLE annotated_variants DROP COLUMN vep_allele_identity")
+        conn.exec_driver_sql("ALTER TABLE annotated_variants DROP COLUMN clinvar_allele_identity")
         conn.exec_driver_sql(
             "ALTER TABLE annotated_variants DROP COLUMN clinvar_molecular_consequence"
         )
@@ -164,9 +166,10 @@ def test_sample_migration_does_not_invent_consequence_provenance():
     with engine.connect() as conn:
         assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SAMPLE_SCHEMA_VERSION
         assert conn.exec_driver_sql(
-            "SELECT consequence,consequence_source,clinvar_molecular_consequence "
+            "SELECT consequence,consequence_source,clinvar_molecular_consequence,"
+            "vep_allele_identity,clinvar_allele_identity "
             "FROM annotated_variants"
-        ).one() == ("missense_variant", None, None)
+        ).one() == ("missense_variant", None, None, None, None)
     engine.dispose()
 
 
@@ -220,3 +223,17 @@ def test_standalone_refresh_clears_mc_when_gene_allele_no_longer_matches():
     assert row.consequence_source is None
     sample.dispose()
     reference.dispose()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("SO:0001587|nonsense", "stop_gained"),
+        ("SO:0001623|5_prime_UTR_variant", "5_prime_UTR_variant"),
+        ("SO:0001624|3_prime_UTR_variant", "3_prime_UTR_variant"),
+        ("SO:0001619|non-coding_transcript_variant", "non_coding_transcript_variant"),
+        ("SO:0001587|nonsense,SO:0001623|5_prime_UTR_variant", "stop_gained&5_prime_UTR_variant"),
+    ],
+)
+def test_source_labels_normalize_without_discarding_valid_utr_terms(raw, expected):
+    assert molecular_consequence_terms(raw) == expected

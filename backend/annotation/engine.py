@@ -35,6 +35,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.insilico_tiers import is_missense_consequence
 from backend.analysis.zygosity import classify_zygosity, is_no_call
+from backend.annotation.allele_matching import source_allele_identity
 from backend.annotation.alphamissense import lookup_alphamissense_by_positions
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
@@ -305,6 +306,11 @@ def _lookup_vep(
             "exon_number": annot.exon_number,
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
+            "vep_allele_identity": (
+                source_allele_identity(annot.chrom, annot.pos, annot.ref, annot.alt)
+                if annot.allele_unambiguous
+                else None
+            ),
         }
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref
@@ -498,6 +504,9 @@ def _lookup_clinvar(
             "clinvar_accession": annot.clinvar_accession,
             "clinvar_conditions": annot.clinvar_conditions,
             "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+            "clinvar_allele_identity": source_allele_identity(
+                annot.chrom, annot.pos, annot.ref, annot.alt
+            ),
             # Preserve source-native identity for subsequent exact allele joins.
             "_clinvar_chrom": annot.chrom,
             "_clinvar_pos": annot.pos,
@@ -1013,9 +1022,8 @@ def _merge_annotations(
             # A selected VEP row with no consequence must still describe the
             # same allele. Do not attach another allele's MC to its gene.
             same_allele = vep is None or (
-                vep.get("_vep_alleles_unambiguous")
-                and (vep.get("_vep_ref"), vep.get("_vep_alt"))
-                == (row_data.get("ref"), row_data.get("alt"))
+                vep.get("vep_allele_identity") is not None
+                and vep["vep_allele_identity"] == row_data.get("clinvar_allele_identity")
             )
             consequence = molecular_consequence_terms(
                 row_data.get("clinvar_molecular_consequence")
@@ -1148,6 +1156,7 @@ _UPSERT_COLUMNS = [
     "transcript_id",
     "consequence",
     "consequence_source",
+    "vep_allele_identity",
     "hgvs_coding",
     "hgvs_protein",
     "strand",
@@ -1160,6 +1169,7 @@ _UPSERT_COLUMNS = [
     "clinvar_accession",
     "clinvar_conditions",
     "clinvar_molecular_consequence",
+    "clinvar_allele_identity",
     # dbSNP merge reconciliation (F18) — current rsid a deprecated id resolved to
     "dbsnp_rsid_current",
     # gnomAD
@@ -1394,6 +1404,11 @@ def _vep_coord_fallback(
             "exon_number": annot.exon_number,
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
+            "vep_allele_identity": (
+                source_allele_identity(annot.chrom, annot.pos, annot.ref, annot.alt)
+                if annot.allele_unambiguous
+                else None
+            ),
         }
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref

@@ -1,0 +1,13 @@
+{
+  "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/clinvar.vcf.gz",
+  "accessed": "2026-11-07",
+  "status": 206,
+  "bytes_read": 262144,
+  "last_modified": "Mon, 02 Nov 2026 12:26:53 GMT",
+  "header": [
+    "##fileDate=2026-11-01",
+    "##reference=GRCh37",
+    "##INFO=<ID=MC,Number=.,Type=String,Description=\"comma separated list of molecular consequence in the form of Sequence Ontology ID|molecular_consequence\">"
+  ],
+  "mc_examples": []
+}

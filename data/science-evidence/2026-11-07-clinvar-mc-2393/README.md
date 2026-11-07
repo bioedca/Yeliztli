@@ -61,8 +61,8 @@ expand their effect claims or treat a ClinVar classification as mechanistic proo
 ## Software contract and limits
 
 The VCF MC field is retained verbatim for a resolved single ALT. Valid
-`SO:NNNNNNN|term` entries are decoded into the existing consequence token format,
-without deriving consequences from indel lengths or selecting a transcript.
+`SO:NNNNNNN|term` entries are decoded into the existing consequence token format (with verified SO
+canonicalization), without deriving consequences from indel lengths or selecting a transcript.
 VEP's existing selected consequence takes precedence. Ambiguous allele selection,
 noncanonical multi-ALT records, malformed MC and mismatched VEP identities do not
 supply an effective fallback. Source attribution is `clinvar` or `vep`; historical
@@ -74,3 +74,47 @@ absent VEP gene is separately tracked in #2464. The production FH regression use
 a synthetic sequence-resolved SNV with source `stop_gained`, an already-known
 PCSK9 gene and an explicit hom-ref negative control. This tests the existing
 clinical software rule, not the biological truth of a synthetic variant.
+
+## Canonical terminology verification after local review
+
+Additional discovery queries were `Sequence Ontology SO:0001587 stop_gained
+nonsense ClinVar molecular consequence terminology` (Consensus) and
+`"Sequence Ontology" AND "ClinVar"` (Scite). Scite surfaced
+DOI:10.1186/s13326-015-0030-4 and the already-retrieved ClinVar paper; no new
+biological-effect claim was taken from either discovery result.
+
+The authoritative [Sequence Ontology source](https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/master/Ontology_Files/so.obo)
+(accessed 2026-11-07), data version **2026-08-07**, Git blob
+`8b9442f40c5eb2dc32e02c0d632c0301ba6fa2ea`, defines **SO:0001587** as
+`stop_gained` and includes `nonsense` as an exact synonym. It defines
+**SO:0001619** as `non_coding_transcript_variant`, **SO:0001623** as
+`5_prime_UTR_variant`, and **SO:0001624** as `3_prime_UTR_variant`.
+`raw/sequence-ontology-terms.obo` retains selected IDs, names and synonyms,
+including the existing frameshift token. Attribution: The Sequence Ontology;
+[CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/), as declared by
+its repository README (blob `24c383e00788f21ef61c4a58dc016f5a80fe13a3`). The
+extracted ontology metadata remains under that license.
+
+[ClinVar:VCV000135067.54](https://www.ncbi.nlm.nih.gov/clinvar/variation/135067/)
+(accessed 2026-11-07) confirms the source spelling `nonsense`
+alongside `non-coding transcript variant` in its molecular-consequence list.
+This is an implementation cross-check, **not independent evidence for an effect**:
+ClinVar uses the SO vocabulary. The defining ontology plus implementing registry
+meet the same narrow definitional exception. The Entrez query
+`RCV003997356[accession]` returned zero; the unfielded `RCV003997356` query resolved
+to variation 135067. `raw/clinvar-135067-esummary.json` contains only selected
+public identity and terminology fields. The web term/record pages were unavailable;
+the official GitHub ontology blob and NCBI Entrez responses supplied the evidence.
+
+A bounded 256 KiB HTTP range request to the official GRCh37 ClinVar VCF confirmed
+the current MC header syntax and source dates (fileDate 2026-11-01, Last-Modified
+2026-11-02). `raw/clinvar-vcf-mc-metadata.json` retains only headers and request
+metadata; this prefix contained no MC-bearing variant examples. No genotype or
+variant rows from the VCF were retained. Normalization keys on the SO identifier
+for the two differing source labels; raw MC is retained separately. Valid uppercase,
+digit-prefixed and hyphenated labels do not invalidate a combined consequence list.
+
+Resolved VEP and ClinVar identities are separately persisted as source-native
+(chromosome, position, reference, alternate) tuples. A standalone refresh cannot
+use ClinVar's own alleles as evidence that a retained VEP gene describes that same
+allele. Legacy rows without the identity stay unproven until re-annotation.

@@ -2,6 +2,26 @@
 
 from __future__ import annotations
 
+import json
+
+
+def source_allele_identity(
+    chrom: str | None, pos: int | None, ref: str | None, alt: str | None
+) -> str | None:
+    """Encode a complete source-native allele for persisted cross-source joins.
+
+    Normalize chromosome spelling and allele case, but never trim, left-align
+    or move an allele. A missing identity cannot authorize a fallback.
+    """
+    if chrom is None or pos is None or pos <= 0:
+        return None
+    chrom = str(chrom).upper().removeprefix("CHR")
+    chrom = "MT" if chrom == "M" else chrom
+    ref, alt = normal_allele(ref), normal_allele(alt)
+    if not chrom or ref is None or alt is None:
+        return None
+    return json.dumps([chrom, int(pos), ref, alt], separators=(",", ":"))
+
 
 def normal_allele(value: str | None) -> str | None:
     if value is None:
