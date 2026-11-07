@@ -497,6 +497,7 @@ def _lookup_clinvar(
             "clinvar_review_stars": annot.clinvar_review_stars,
             "clinvar_accession": annot.clinvar_accession,
             "clinvar_conditions": annot.clinvar_conditions,
+            "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
             # Preserve source-native identity for subsequent exact allele joins.
             "_clinvar_chrom": annot.chrom,
             "_clinvar_pos": annot.pos,
@@ -957,6 +958,7 @@ def _merge_annotations(
     gnomad_allele_ambiguous: set[str] | None = None,
     gnomad_locus_unresolved: set[str] | None = None,
     gnomad_alias_unresolved: set[str] | None = None,
+    vep_allele_ambiguous: set[str] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
 
@@ -1001,6 +1003,26 @@ def _merge_annotations(
                 if key not in {"_clinvar_chrom", "_clinvar_pos"}
             )
             bitmask |= CLINVAR_BIT
+
+        if row_data.get("consequence"):
+            row_data["consequence_source"] = "vep"
+        elif rsid not in (vep_allele_ambiguous or ()):
+            from backend.annotation.clinvar import molecular_consequence_terms
+
+            vep = vep_data.get(rsid)
+            # A selected VEP row with no consequence must still describe the
+            # same allele. Do not attach another allele's MC to its gene.
+            same_allele = vep is None or (
+                vep.get("_vep_alleles_unambiguous")
+                and (vep.get("_vep_ref"), vep.get("_vep_alt"))
+                == (row_data.get("ref"), row_data.get("alt"))
+            )
+            consequence = molecular_consequence_terms(
+                row_data.get("clinvar_molecular_consequence")
+            )
+            if same_allele and consequence:
+                row_data["consequence"] = consequence
+                row_data["consequence_source"] = "clinvar"
 
         if rsid in gnomad_data:
             row_data.update(gnomad_data[rsid])
@@ -1125,6 +1147,7 @@ _UPSERT_COLUMNS = [
     "gene_symbol",
     "transcript_id",
     "consequence",
+    "consequence_source",
     "hgvs_coding",
     "hgvs_protein",
     "strand",
@@ -1136,6 +1159,7 @@ _UPSERT_COLUMNS = [
     "clinvar_review_stars",
     "clinvar_accession",
     "clinvar_conditions",
+    "clinvar_molecular_consequence",
     # dbSNP merge reconciliation (F18) — current rsid a deprecated id resolved to
     "dbsnp_rsid_current",
     # gnomAD
@@ -2194,6 +2218,7 @@ def run_annotation(
                 gnomad_allele_ambiguous=gnomad_allele_ambiguous,
                 gnomad_locus_unresolved=gnomad_locus_unresolved,
                 gnomad_alias_unresolved=gnomad_alias_unresolved,
+                vep_allele_ambiguous=vep_allele_ambiguous,
             )
 
             # 6b. Ensemble pathogenicity flag (P2-13)

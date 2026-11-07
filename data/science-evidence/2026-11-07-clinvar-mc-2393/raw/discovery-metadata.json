@@ -1,0 +1,179 @@
+{
+  "accessed": "2026-11-07",
+  "queries": [
+    {
+      "provider": "Consensus",
+      "query": "ClinVar variant molecular consequence annotation VCF MC field Sequence Ontology source native allele specific consequence and interpretation primary database paper",
+      "status": "success"
+    },
+    {
+      "provider": "Scite",
+      "query": "ClinVar AND (\"molecular consequence\" OR \"variant interpretation\")",
+      "status": "success-after-invalid-user_intent-length-corrected"
+    }
+  ],
+  "consensus": [
+    {
+      "title": "ClinVar: improving access to variant interpretations and supporting evidence",
+      "doi": "10.1093/nar/gkx1153",
+      "url": "https://consensus.app/papers/details/c2deda6738735b5ab77cf3f8c88d7be7/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar: public archive of interpretations of clinically relevant variants",
+      "doi": "10.1093/nar/gkv1222",
+      "url": "https://consensus.app/papers/details/55d642145ba35fe08370f944374afca1/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar: public archive of relationships among sequence variation and human phenotype",
+      "doi": "10.1093/nar/gkt1113",
+      "url": "https://consensus.app/papers/details/54c42105e6b9525eb3ee8170d1ade9ed/?utm_source=chatgpt"
+    },
+    {
+      "title": "InterVar: Clinical Interpretation of Genetic Variants by the 2015 ACMG-AMP Guidelines.",
+      "doi": "10.1016/j.ajhg.2017.01.004",
+      "url": "https://consensus.app/papers/details/68d76d7b683c5ac781b03545e8e731cc/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar: improvements to accessing data",
+      "doi": "10.1093/nar/gkz972",
+      "url": "https://consensus.app/papers/details/16f01ebd7b1d5915bc57d5ea432dc83b/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar: updates to support classifications of both germline and somatic variants.",
+      "doi": "10.1093/nar/gkae1090",
+      "url": "https://consensus.app/papers/details/38bbbe334bc45f86b8fdcfb3e31dc480/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar at Five Years: Delivering on the Promise",
+      "doi": "10.1002/humu.23641",
+      "url": "https://consensus.app/papers/details/d0206b09bec25887adec4c3cf9dea407/?utm_source=chatgpt"
+    },
+    {
+      "title": "Using ClinVar as a Resource to Support Variant Interpretations",
+      "doi": "10.1002/0471142905.hg0816s89",
+      "url": "https://consensus.app/papers/details/68ed690545d0559685b5cdab4dfa2480/?utm_source=chatgpt"
+    },
+    {
+      "title": "Annotating and prioritizing genomic variants using the Ensembl Variant Effect Predictor\u2014A tutorial",
+      "doi": "10.1002/humu.24298",
+      "url": "https://consensus.app/papers/details/1fcc91dd93055765bb77be676a8b9d4a/?utm_source=chatgpt"
+    },
+    {
+      "title": "Toward streamline variant classification: discrepancies in variant nomenclature and syntax for ClinVar pathogenic variants across annotation tools",
+      "doi": "10.1186/s40246-025-00778-x",
+      "url": "https://consensus.app/papers/details/a910084a641b5deb9f3abfb772e54254/?utm_source=chatgpt"
+    },
+    {
+      "title": "A hybrid sequence\u2013annotation framework for clinvar variant pathogenicity prediction",
+      "doi": "10.1016/j.jestch.2026.102479",
+      "url": "https://consensus.app/papers/details/90dbd995dce75e159bd56d5cea5294e7/?utm_source=chatgpt"
+    },
+    {
+      "title": "Major Causes of Conflicting Interpretations of Variant Pathogenicity in Rare Disease: A Systematic Analysis",
+      "doi": "10.3390/jpm14080864",
+      "url": "https://consensus.app/papers/details/fdc32dc728815166b9dbada534b0183a/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinVar database of global familial hypercholesterolemia-associated DNA variants",
+      "doi": "10.1002/humu.23634",
+      "url": "https://consensus.app/papers/details/849e24a4c8c75550ad7405e20774ecc6/?utm_source=chatgpt"
+    },
+    {
+      "title": "Reinterpretation of common pathogenic variants in ClinVar revealed a high proportion of downgrades",
+      "doi": "10.1038/s41598-019-57335-5",
+      "url": "https://consensus.app/papers/details/ed2bf9034c11527fb6c4e99a27005560/?utm_source=chatgpt"
+    },
+    {
+      "title": "CMAT: ClinVar Mapping and Annotation Toolkit",
+      "doi": "10.1093/bioadv/vbae018",
+      "url": "https://consensus.app/papers/details/eb963d8a72fe54c99dfcd02affe3ec42/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinMAVE: a curated database for clinical application of data from multiplexed assays of variant effect",
+      "doi": "10.1093/nar/gkaf1102",
+      "url": "https://consensus.app/papers/details/043bfbbf10e55541941e69e9466aecc8/?utm_source=chatgpt"
+    },
+    {
+      "title": "Sources of discordance among germ-line variant classifications in ClinVar",
+      "doi": "10.1038/gim.2017.60",
+      "url": "https://consensus.app/papers/details/9ed6bf10bb1853f98765c138217dd413/?utm_source=chatgpt"
+    },
+    {
+      "title": "Toward Automatic Variant Interpretation: Discordant Genetic Interpretation Across Variant Annotations for ClinVar Pathogenic Variants",
+      "doi": "10.1101/2024.10.11.617756",
+      "url": "https://consensus.app/papers/details/4fce05d053345386a93f1ef931526040/?utm_source=chatgpt"
+    },
+    {
+      "title": "Informing variant assessment using structured evidence from prior classifications (PS1, PM5, and PVS1 sequence variant interpretation criteria)",
+      "doi": "10.1016/j.gim.2022.09.009",
+      "url": "https://consensus.app/papers/details/4c0deaa0594359f0b71d1f53e1bace8a/?utm_source=chatgpt"
+    },
+    {
+      "title": "ClinGen Variant Curation Expert Panel experiences and standardized processes for disease and gene-level specification of the ACMG/AMP guidelines for sequence variant interpretation.",
+      "doi": "10.1002/humu.23645",
+      "url": "https://consensus.app/papers/details/1874cf52274856c68abdb55cca23d32d/?utm_source=chatgpt"
+    }
+  ],
+  "scite": [
+    {
+      "title": "Using ClinVar as a Resource to Support Variant Interpretation",
+      "doi": "10.1002/0471142905.hg0816s89",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "ClinVar Is a Critical Resource to Advance Variant Interpretation",
+      "doi": "10.1634/theoncologist.2017-0246",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Variant interpretation: UCSC Genome Browser Recommended Track Sets",
+      "doi": "10.1002/humu.24335",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Genetic variant interpretation: a primer for clinicians",
+      "doi": "10.1111/imj.15485",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Unmet needs in human genomic variant interpretation",
+      "doi": "10.1038/gim.2017.187",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "VarGuideAtlas: a repository of variant interpretation guidelines",
+      "doi": "10.1093/database/baaf017",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Clinical variant interpretation and biologically relevant reference transcripts",
+      "doi": "10.1038/s41525-022-00329-6",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Variant Interpretation: Functional Assays to the Rescue",
+      "doi": "10.1016/j.ajhg.2017.07.014",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "Reasons and Resolutions for Inconsistent Variant Interpretation",
+      "doi": "10.1155/2023/4955235",
+      "editorialNotices": [],
+      "license": null
+    },
+    {
+      "title": "GAVIN - Gene-Aware Variant INterpretation for medical sequencing",
+      "doi": "10.1101/072330",
+      "editorialNotices": [],
+      "license": null
+    }
+  ]
+}

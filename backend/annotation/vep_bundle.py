@@ -630,9 +630,36 @@ def annotate_sample_vep(
     result.not_matched = result.total_variants - result.total_matched
 
     # 5. Upsert into annotated_variants
+    # A standalone VEP refresh can follow ClinVar. Retain its exact-allele MC
+    # only where the selected VEP transcript has no consequence of its own.
+    from backend.annotation.clinvar import molecular_consequence_terms
+
+    with sample_engine.connect() as conn:
+        existing_mc = {
+            row.rsid: row
+            for row in conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.ref,
+                    annotated_variants.c.alt,
+                    annotated_variants.c.clinvar_molecular_consequence,
+                ).where(annotated_variants.c.clinvar_molecular_consequence.is_not(None))
+            )
+        }
     rows_to_upsert = []
     for rsid, annot in all_matches.items():
         raw = raw_by_rsid[rsid]
+        consequence = annot.consequence
+        consequence_source = "vep" if consequence else None
+        mc_row = existing_mc.get(rsid)
+        if (
+            not consequence
+            and mc_row is not None
+            and annot.allele_unambiguous
+            and (annot.ref, annot.alt) == (mc_row.ref, mc_row.alt)
+        ):
+            consequence = molecular_consequence_terms(mc_row.clinvar_molecular_consequence)
+            consequence_source = "clinvar" if consequence else None
         rows_to_upsert.append(
             {
                 "rsid": rsid,
@@ -641,7 +668,8 @@ def annotate_sample_vep(
                 "genotype": raw.genotype,
                 "gene_symbol": annot.gene_symbol,
                 "transcript_id": annot.transcript_id,
-                "consequence": annot.consequence,
+                "consequence": consequence,
+                "consequence_source": consequence_source,
                 "hgvs_coding": annot.hgvs_coding,
                 "hgvs_protein": annot.hgvs_protein,
                 "strand": annot.strand,
@@ -664,6 +692,7 @@ def annotate_sample_vep(
                         "gene_symbol": stmt.excluded.gene_symbol,
                         "transcript_id": stmt.excluded.transcript_id,
                         "consequence": stmt.excluded.consequence,
+                        "consequence_source": stmt.excluded.consequence_source,
                         "hgvs_coding": stmt.excluded.hgvs_coding,
                         "hgvs_protein": stmt.excluded.hgvs_protein,
                         "strand": stmt.excluded.strand,

@@ -1154,6 +1154,15 @@ def ensure_reference_schema_current(engine: sa.Engine) -> bool:
     table_names = set(inspector.get_table_names())
     changed = False
 
+    if "clinvar_variants" in table_names:
+        columns = {c["name"] for c in inspector.get_columns("clinvar_variants")}
+        if "molecular_consequence" not in columns:
+            with engine.begin() as conn:
+                conn.execute(
+                    sa.text("ALTER TABLE clinvar_variants ADD COLUMN molecular_consequence TEXT")
+                )
+            changed = True
+
     # ── samples.individual_id (Alembic 009 — AncestryDNA individuals grouping)
     # Nullable FK to individuals(id). SQLite permits ADD COLUMN with a
     # REFERENCES clause when the column's default is NULL, which it is here.

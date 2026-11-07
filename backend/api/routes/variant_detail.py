@@ -135,6 +135,8 @@ class VariantDetailResponse(BaseModel):
     clinvar_review_stars: int | None = None
     clinvar_accession: str | None = None
     clinvar_conditions: str | None = None
+    clinvar_molecular_consequence: str | None = None
+    consequence_source: str | None = None
 
     # gnomAD
     gnomad_af_global: float | None = None

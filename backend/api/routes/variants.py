@@ -102,6 +102,7 @@ class VariantRow(BaseModel):
     zygosity: str | None = None
     gene_symbol: str | None = None
     consequence: str | None = None
+    consequence_source: str | None = None
     clinvar_significance: str | None = None
     clinvar_review_stars: int | None = None
     gnomad_af_global: float | None = None
@@ -378,6 +379,7 @@ def _row_to_variant(
             "zygosity",
             "gene_symbol",
             "consequence",
+            "consequence_source",
             "clinvar_significance",
             "clinvar_review_stars",
             "gnomad_af_global",

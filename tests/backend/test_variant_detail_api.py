@@ -1413,3 +1413,25 @@ class TestSpliceaiBadge:
         resp = tc.get(f"/api/variants/rs123456789?sample_id={sid}")
         assert resp.status_code == 200
         assert resp.json()["spliceai_badge"] is None
+
+
+def test_api_exposes_consequence_source_and_raw_mc(tmp_data_dir):
+    from contextlib import contextmanager
+
+    variant = {
+        **SAMPLE_VARIANT_BRCA1,
+        "consequence_source": "clinvar",
+        "clinvar_molecular_consequence": "SO:0001589|frameshift_variant",
+    }
+    with contextmanager(_setup_client)(tmp_data_dir, [variant]) as (api_client, sample_id):
+        response = api_client.get(f"/api/variants/{variant['rsid']}?sample_id={sample_id}")
+        assert response.status_code == 200
+        assert response.json()["consequence_source"] == "clinvar"
+        assert (
+            response.json()["clinvar_molecular_consequence"]
+            == variant["clinvar_molecular_consequence"]
+        )
+        listing = api_client.get(f"/api/variants?sample_id={sample_id}")
+        assert listing.status_code == 200
+        assert len(listing.json()["items"]) == 1
+        assert listing.json()["items"][0]["consequence_source"] == "clinvar"
