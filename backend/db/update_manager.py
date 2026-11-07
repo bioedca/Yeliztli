@@ -715,7 +715,7 @@ def check_clinvar_update(
     ``check_*_update`` callables registered in :data:`CHECK_FNS` and is unused.
     """
     del settings  # unused; kept for dispatch-signature parity
-    from backend.annotation.clinvar import CLINVAR_VCF_URL
+    from backend.annotation.clinvar import CLINVAR_INGESTION_REVISION, CLINVAR_VCF_URL
 
     current = get_current_version(reference_engine, "clinvar")
 
@@ -746,7 +746,13 @@ def check_clinvar_update(
         dt = parsedate_to_datetime(last_modified)
         remote_version = dt.strftime("%Y%m%d")
 
-        if current and current >= remote_version:
+        if current and (
+            current.partition("+")[0] > remote_version
+            or (
+                current.partition("+")[0] == remote_version
+                and CLINVAR_INGESTION_REVISION in current.split("+")[1:]
+            )
+        ):
             return None  # Already up to date
 
         return VersionInfo(
@@ -1853,6 +1859,7 @@ def run_clinvar_update(
     from backend.annotation.clinvar import (
         CLINVAR_VCF_URL,
         _get_clinvar_last_modified_version,
+        clinvar_install_version,
         download_clinvar_vcf,
         iter_clinvar_vcf,
         load_clinvar_from_iter,
@@ -1905,7 +1912,7 @@ def run_clinvar_update(
     # current < remote and the Update Manager re-offered the same update on every
     # subsequent check. Fall back to the VCF fileDate, then today, when the
     # Last-Modified header is unavailable. This mirrors download_and_load_clinvar.
-    new_version = (
+    new_version = clinvar_install_version(
         _get_clinvar_last_modified_version(CLINVAR_VCF_URL)
         or load_stats.file_date
         or datetime.now(UTC).strftime("%Y%m%d")

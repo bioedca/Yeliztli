@@ -1,0 +1,17 @@
+{
+  "summary": {
+    "verified": 1,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1093/nar/gkx1153",
+      "status": "verified",
+      "title": "ClinVar: improving access to variant interpretations and supporting evidence",
+      "year": 2017
+    }
+  ]
+}
