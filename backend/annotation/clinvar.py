@@ -171,6 +171,26 @@ def molecular_consequence_terms(value: str | None) -> str | None:
     return "&".join(terms)
 
 
+def molecular_consequence_fallback(value: str | None) -> str | None:
+    """Select one effective term using the repository's existing VEP priority.
+
+    MC aggregates record-wide terms, not one selected transcript. Supplying
+    that whole list to single-consequence consumers can turn a truncating
+    annotation into synonymous benign evidence or a noncoding coverage claim.
+    Keep the complete raw/decoded list separately; an unranked term withholds
+    the effective fallback rather than silently losing an unknown effect.
+    """
+    from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
+
+    decoded = molecular_consequence_terms(value)
+    if not decoded:
+        return None
+    terms = decoded.split("&")
+    if any(term not in CONSEQUENCE_SEVERITY for term in terms):
+        return None
+    return max(terms, key=lambda term: (CONSEQUENCE_SEVERITY[term], term))
+
+
 def _parse_info_field(info: str) -> dict[str, str]:
     """Parse a VCF INFO field into a dict of key=value pairs.
 
@@ -1023,7 +1043,7 @@ def annotate_sample_clinvar(
         # individual is homozygous reference (the carriage bug downstream
         # modules relied on). ``None`` means unscoreable (indel/no-call/strand).
         zygosity = classify_zygosity(raw.genotype, annot.ref, annot.alt)
-        consequence = molecular_consequence_terms(annot.clinvar_molecular_consequence)
+        consequence = molecular_consequence_fallback(annot.clinvar_molecular_consequence)
         rows_to_upsert.append(
             {
                 "rsid": rsid,

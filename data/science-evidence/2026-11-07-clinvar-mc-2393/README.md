@@ -69,6 +69,17 @@ supply an effective fallback. Source attribution is `clinvar` or `vep`; historic
 unknown provenance stays NULL. The MC fallback does not set a VEP coverage bit,
 transcript, HGVS, gene or inheritance.
 
+The decoded MC list is retained in full, but the **effective fallback** is one
+recognized term selected using the existing repository VEP consequence priority
+(`backend/annotation/vep_bundle.py`, `CONSEQUENCE_SEVERITY`). This is reuse of the
+software's existing ordering, not a new biological-effect claim or transcript
+selection. If any term is outside that ordering, the effective fallback is
+withheld. Raw MC remains unchanged. Production-path regressions cover a
+stop-gained term combined with synonymous/intronic terms in either source order:
+the extra term must not introduce BP7 benign evidence or an unsupported gnomAD
+exome-exclusion label. An unknown term withholds the effective consequence;
+hom-ref controls remain absent from the ACMG candidate list.
+
 All tests use synthetic loci/calls. Indel I/D carriage remains unscoreable; an
 absent VEP gene is separately tracked in #2464. The production FH regression uses
 a synthetic sequence-resolved SNV with source `nonsense` normalized to `stop_gained`, an already-known

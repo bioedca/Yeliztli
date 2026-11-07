@@ -1016,7 +1016,7 @@ def _merge_annotations(
         if row_data.get("consequence"):
             row_data["consequence_source"] = "vep"
         elif rsid not in (vep_allele_ambiguous or ()):
-            from backend.annotation.clinvar import molecular_consequence_terms
+            from backend.annotation.clinvar import molecular_consequence_fallback
 
             vep = vep_data.get(rsid)
             # A selected VEP row with no consequence must still describe the
@@ -1025,7 +1025,7 @@ def _merge_annotations(
                 vep.get("vep_allele_identity") is not None
                 and vep["vep_allele_identity"] == row_data.get("clinvar_allele_identity")
             )
-            consequence = molecular_consequence_terms(
+            consequence = molecular_consequence_fallback(
                 row_data.get("clinvar_molecular_consequence")
             )
             if same_allele and consequence:

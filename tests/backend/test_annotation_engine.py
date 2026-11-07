@@ -5276,12 +5276,20 @@ def test_mc_fallback_respects_withholding_and_source_identity(reason):
 
 @pytest.mark.parametrize("vep_first", [False, True])
 @pytest.mark.parametrize("vep_consequence", [None, "missense_variant"])
+@pytest.mark.parametrize(
+    "source_mc",
+    [
+        "SO:0001587|nonsense",
+        "SO:0001587|nonsense,SO:0001627|intron_variant",
+    ],
+)
 def test_standalone_writers_keep_consequence_precedence_and_clear_mc(
     sample_engine,
     reference_engine,
     vep_engine_inmemory,
     vep_consequence,
     vep_first,
+    source_mc,
 ):
     from backend.annotation.clinvar import annotate_sample_clinvar
     from backend.annotation.vep_bundle import annotate_sample_vep
@@ -5303,7 +5311,7 @@ def test_standalone_writers_keep_consequence_precedence_and_clear_mc(
                 pos=99005,
                 ref="C",
                 alt="T",
-                molecular_consequence="SO:0001587|stop_gained",
+                molecular_consequence=source_mc,
             )
         )
     with vep_engine_inmemory.begin() as conn:
@@ -5320,7 +5328,7 @@ def test_standalone_writers_keep_consequence_precedence_and_clear_mc(
     else:
         assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
         assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
-    for mc in ("SO:0001587|stop_gained", None):
+    for mc in (source_mc, None):
         with reference_engine.begin() as conn:
             conn.execute(
                 clinvar_variants.update()
@@ -5332,6 +5340,7 @@ def test_standalone_writers_keep_consequence_precedence_and_clear_mc(
             row = conn.execute(sa.select(annotated_variants)).one()
         assert row.consequence == (vep_consequence or ("stop_gained" if mc else None))
         assert row.consequence_source == ("vep" if vep_consequence else "clinvar" if mc else None)
+        assert row.clinvar_molecular_consequence == mc
 
 
 def test_standalone_refresh_does_not_restore_mc_after_mismatched_vep(
@@ -5466,3 +5475,70 @@ def test_standalone_clinvar_withdrawal_clears_own_data_only(
         None if withdraw_all else "SO:0001587|nonsense"
     )
     assert retained.consequence == (None if withdraw_all else "stop_gained")
+
+
+@pytest.mark.parametrize(
+    "other_mc",
+    [
+        "SO:0001819|synonymous_variant",
+        "SO:0001627|intron_variant",
+        "SO:9999999|unknown_variant",
+    ],
+)
+@pytest.mark.parametrize("reverse_terms", [False, True])
+@pytest.mark.parametrize("genotype", ["CT", "CC"])
+def test_compound_mc_reaches_acmg_and_coverage_without_false_benign_evidence(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+    mock_registry,
+    other_mc,
+    reverse_terms,
+    genotype,
+):
+    from backend.analysis.acmg import UNCERTAIN, assess_sample_acmg
+
+    terms = ["SO:0001587|nonsense", other_mc]
+    mc = ",".join(reversed(terms) if reverse_terms else terms)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000050", chrom="1", pos=99050, genotype=genotype
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000050",
+                chrom="1",
+                pos=99050,
+                ref="C",
+                alt="T",
+                significance="Pathogenic",
+                molecular_consequence=mc,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                "VALUES ('rs900000050','1',99050,'C','T','SYNTHETIC_GENE',NULL)"
+            )
+        )
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    assessed = assess_sample_acmg(sample_engine, reference_engine)
+    assert len(assessed["variants"]) == int(genotype == "CT")
+    if genotype == "CT":
+        assessment = assessed["variants"][0]
+        assert assessment["points"] == 0
+        assert assessment["acmg_classification"] == UNCERTAIN
+        assert assessment["criteria"] == []
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.zygosity == ("het" if genotype == "CT" else "hom_ref")
+    assert row.gnomad_source_status is None
+    assert row.clinvar_molecular_consequence == mc
+    unknown = "unknown_variant" in other_mc
+    assert row.consequence == (None if unknown else "stop_gained")
+    assert row.consequence_source == (None if unknown else "clinvar")

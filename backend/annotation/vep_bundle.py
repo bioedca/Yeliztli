@@ -637,7 +637,7 @@ def annotate_sample_vep(
     # A standalone VEP refresh can follow ClinVar. Retain its exact-allele MC
     # only where the selected VEP transcript has no consequence of its own.
     from backend.annotation.allele_matching import source_allele_identity
-    from backend.annotation.clinvar import molecular_consequence_terms
+    from backend.annotation.clinvar import molecular_consequence_fallback
 
     with sample_engine.connect() as conn:
         existing_mc = {
@@ -667,7 +667,7 @@ def annotate_sample_vep(
             and identity is not None
             and identity == mc_row.clinvar_allele_identity
         ):
-            consequence = molecular_consequence_terms(mc_row.clinvar_molecular_consequence)
+            consequence = molecular_consequence_fallback(mc_row.clinvar_molecular_consequence)
             consequence_source = "clinvar" if consequence else None
         rows_to_upsert.append(
             {
