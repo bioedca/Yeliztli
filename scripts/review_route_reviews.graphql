@@ -25,6 +25,7 @@ query ReviewRouteReviewPages(
           }
           authorAssociation
           body
+          isCopilotCodeReview
           comments { totalCount }
           commit { oid }
           lastEditedAt

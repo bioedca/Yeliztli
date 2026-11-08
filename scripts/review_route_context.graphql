@@ -116,6 +116,7 @@ query ReviewRouteContext(
           }
           authorAssociation
           body
+          isCopilotCodeReview
           comments { totalCount }
           commit { oid }
           lastEditedAt

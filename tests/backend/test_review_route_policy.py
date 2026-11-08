@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -131,6 +132,7 @@ def _review(
         "authorAssociation": association,
         "body": body,
         "comments": {"totalCount": review_comment_count},
+        "isCopilotCodeReview": database_id == BOT_ACTOR_IDS[COPILOT_GATE] and typename == "Bot",
         "commit": {"oid": head_sha},
         "lastEditedAt": last_edited_at,
         "state": state,
@@ -7582,7 +7584,13 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert HUMAN_GATE not in template
     assert "Developer Certificate of Origin" not in template
     assert "Agent claim ID:" in template
-    assert "zero-comment coverage verdict exactly once and zero attached comments" in template
+    assert "isCopilotCodeReview=true, COMMENTED state, zero attached comments" in template
+    assert (
+        "exactly one supported body format: the legacy zero-comment coverage sentence" in template
+    )
+    assert "Approval recommended assessment with a unique Review details block" in template
+    assert "positive file coverage and zero generated comments" in template
+    assert "Mixed or duplicate verdicts fail closed" in template
     assert "zero actionable/attached comments, no ignored files" in template
     assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
@@ -7639,6 +7647,8 @@ def test_graphql_context_tracks_comment_association_and_head_epoch() -> None:
         "latestHumanOpinions:", maxsplit=1
     )[0]
     assert "\n          id\n" in review_block
+    assert "\n          isCopilotCodeReview\n" in review_block
+    assert "\n          isCopilotCodeReview\n" in review_query
     assert query.count("updatedAt") == 4
     assert "\n          id\n          databaseId\n          author" in query
     assert query.count("lastEditedAt") == 3
@@ -9044,3 +9054,148 @@ def test_greptile_ledger_merge_allows_a_deliberate_early_stop() -> None:
     pages = [_ledger_page([42], has_next_page=True, end_cursor="cursor-1")]
     assert _merge_greptile_ledger_pages(context, pages) == []
     assert context["data"]["repository"]["greptileLedger"]["exhausted"] is False
+
+
+COPILOT_APPROVAL_FIXTURE = (
+    Path(__file__).resolve().parents[1] / "fixtures/review_route/copilot_approval_recommended.json"
+)
+COPILOT_APPROVAL_BODY = json.loads(COPILOT_APPROVAL_FIXTURE.read_text(encoding="utf-8"))["body"]
+
+
+def test_copilot_approval_fixture_preserves_authenticated_public_artifact() -> None:
+    evidence = json.loads(COPILOT_APPROVAL_FIXTURE.read_text(encoding="utf-8"))
+    assert evidence["review_id"] == 5098282786
+    assert evidence["head_sha"] == "f501b805a00e692f60d06ed3f0aa74094ef9700d"
+    assert evidence["submitted_at"] == "2026-09-03T05:52:16Z"
+    assert evidence["last_edited_at"] is None
+    assert evidence["author"]["__typename"] == "Bot"
+    assert evidence["author"]["databaseId"] == BOT_ACTOR_IDS[COPILOT_GATE]
+    assert evidence["is_copilot_code_review"] is True
+    assert evidence["attached_comments"] == 0
+    assert hashlib.sha256(evidence["body"].encode()).hexdigest() == evidence["body_sha256"]
+    assert evidence["body_sha256"] == (
+        "f8104f6b14ddd5fe9ef6a969dbf855ed22e086c17273f0011edbb62081d284bd"
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        COPILOT_APPROVAL_BODY,
+        COPILOT_APPROVAL_BODY.replace("\r\n", "\n").replace("\n", "\r\n"),
+        # Counts remain provider assertions, not compared with changedFiles.
+        COPILOT_APPROVAL_BODY.replace("2/2 changed files", "21/22 changed files"),
+        COPILOT_APPROVAL_BODY.replace("- **Review effort level:** Lite\n", ""),
+    ],
+    ids=["native", "crlf", "partial-coverage", "no-effort-display"],
+)
+def test_v3_copilot_approval_recommended_is_clean_evidence(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE}, schema_version=3)
+    review = _copilot_review_node(context)
+    # Transplant only the public body into a synthetic current-head snapshot;
+    # the separate fixture assertion pins the actual artifact's source identity.
+    review["body"] = body
+    assert review["isCopilotCodeReview"] is True
+    assert validate_context(context, files, now=NOW) == []
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+@pytest.mark.parametrize("provenance", [None, False, 0, 1, "true", {}, "missing"])
+def test_copilot_provenance_flag_is_required_only_by_v3(
+    schema_version: int, provenance: object
+) -> None:
+    files = [ChangedFile("README.md")]
+    context = _context(
+        "Load-bearing", files, automated_gates={COPILOT_GATE}, schema_version=schema_version
+    )
+    review = _copilot_review_node(context)
+    if provenance == "missing":
+        del review["isCopilotCodeReview"]
+    else:
+        review["isCopilotCodeReview"] = provenance
+    errors = validate_context(context, files, now=NOW)
+    if schema_version == 2:
+        assert errors == []
+    else:
+        assert (
+            _declined(COPILOT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict")
+            in errors
+        )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Summary before the assessment.\n" + COPILOT_APPROVAL_BODY,
+        COPILOT_APPROVAL_BODY.replace("🟢 Approval recommended", "🟠 Changes recommended"),
+        COPILOT_APPROVAL_BODY.replace("### 🟢 Approval recommended", "Approval recommended"),
+        "```markdown\n" + COPILOT_APPROVAL_BODY + "\n```",
+        "<!--\n" + COPILOT_APPROVAL_BODY + "\n-->",
+        textwrap.indent(COPILOT_APPROVAL_BODY, "> "),
+        textwrap.indent(COPILOT_APPROVAL_BODY, "    "),
+        COPILOT_APPROVAL_BODY + "\n### 🟢 Approval recommended\n",
+        COPILOT_APPROVAL_BODY.replace("- **Comments generated:** 0\n", ""),
+        COPILOT_APPROVAL_BODY.replace("Comments generated:** 0", "Comments generated:** 1"),
+        COPILOT_APPROVAL_BODY.replace("Comments generated:** 0", "Comments generated:** 0 new"),
+        COPILOT_APPROVAL_BODY.replace("Comments generated:** 0", "Comments generated:** -1"),
+        COPILOT_APPROVAL_BODY.replace("- **Files reviewed:** 2/2 changed files\n", ""),
+        COPILOT_APPROVAL_BODY.replace("2/2 changed files", "0/2 changed files"),
+        COPILOT_APPROVAL_BODY.replace("2/2 changed files", "3/2 changed files"),
+        COPILOT_APPROVAL_BODY.replace("2/2 changed files", "two/two changed files"),
+        COPILOT_APPROVAL_BODY.replace("2/2 changed files", "9" * 5000 + "/2 changed files"),
+        COPILOT_APPROVAL_BODY.replace(
+            "<summary>Review details</summary>", "<summary>Example</summary>"
+        ),
+        COPILOT_APPROVAL_BODY.replace(
+            "- **Comments generated:** 0", "<!-- - **Comments generated:** 0 -->"
+        ),
+        COPILOT_APPROVAL_BODY.replace(
+            "- **Comments generated:** 0", "> - **Comments generated:** 0"
+        ),
+        COPILOT_APPROVAL_BODY + "\n- **Comments generated:** 1\n",
+        COPILOT_APPROVAL_BODY + "\n- **Comments generated:** 0\n",
+        COPILOT_APPROVAL_BODY + "\n- **Files reviewed:** 2/2 changed files\n",
+        COPILOT_APPROVAL_BODY + "\n" + _copilot_v3_body(2),
+        COPILOT_APPROVAL_BODY + "\n" + _copilot_v3_body(2, generated_comments=1),
+        _copilot_v3_body(2) + "\n" + COPILOT_APPROVAL_BODY,
+        "Copilot could not complete this review because its AI credits are exhausted.",
+        "Your code review trial has ended. Upgrade to continue.",
+    ],
+)
+def test_v3_copilot_approval_recommended_rejects_incomplete_or_ambiguous_bodies(body: str) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE}, schema_version=3)
+    _copilot_review_node(context)["body"] = body
+    assert _declined(
+        COPILOT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict"
+    ) in validate_context(context, files, now=NOW)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("isCopilotCodeReview", False),
+        ("isCopilotCodeReview", 1),
+        ("comments", {"totalCount": 1}),
+        ("comments", {"totalCount": False}),
+        ("comments", {}),
+        ("lastEditedAt", "2026-07-21T12:11:00Z"),
+        ("commit", {"oid": "b" * 40}),
+        ("author", _actor(BOT_ACTOR_IDS[COPILOT_GATE], "User")),
+        ("author", _actor(987654321)),
+        ("state", "PENDING"),
+        ("state", "CHANGES_REQUESTED"),
+        # The observed envelope is COMMENTED; approval-mode is a separate format.
+        ("state", "APPROVED"),
+    ],
+)
+def test_v3_copilot_approval_recommended_keeps_authenticated_outer_gates(
+    field: str, value: object
+) -> None:
+    files = [ChangedFile("README.md"), ChangedFile("GOVERNANCE.md")]
+    context = _context("Load-bearing", files, automated_gates={COPILOT_GATE}, schema_version=3)
+    review = _copilot_review_node(context)
+    review["body"] = COPILOT_APPROVAL_BODY
+    review[field] = value
+    assert validate_context(context, files, now=NOW)
