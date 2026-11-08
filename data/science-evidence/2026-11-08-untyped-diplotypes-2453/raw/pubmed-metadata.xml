@@ -1,0 +1,117 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <PMID Version="1">29152729</PMID>
+    <ArticleTitle>Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1532-6535</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>103</Volume>
+        <Issue>2</Issue>
+        <PubDate>
+          <Year>2018</Year>
+          <Month>Feb</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Clinical pharmacology and therapeutics</Title>
+      <ISOAbbreviation>Clin Pharmacol Ther</ISOAbbreviation>
+    </Journal>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D017065">Practice Guideline</PublicationType>
+      <PublicationType UI="D000078182">Systematic Review</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">29152729</ArticleId>
+      <ArticleId IdType="mid">NIHMS912821</ArticleId>
+      <ArticleId IdType="pmc">PMC5760397</ArticleId>
+      <ArticleId IdType="doi">10.1002/cpt.911</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+  <PubmedArticle>
+    <PMID Version="1">31006110</PMID>
+    <ArticleTitle>Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2B6 and Efavirenz-Containing Antiretroviral Therapy.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1532-6535</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>106</Volume>
+        <Issue>4</Issue>
+        <PubDate>
+          <Year>2019</Year>
+          <Month>Oct</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Clinical pharmacology and therapeutics</Title>
+      <ISOAbbreviation>Clin Pharmacol Ther</ISOAbbreviation>
+    </Journal>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+      <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+      <PublicationType UI="D017065">Practice Guideline</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">31006110</ArticleId>
+      <ArticleId IdType="mid">NIHMS1025066</ArticleId>
+      <ArticleId IdType="pmc">PMC6739160</ArticleId>
+      <ArticleId IdType="doi">10.1002/cpt.1477</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+  <PubmedArticle>
+    <PMID Version="1">32779747</PMID>
+    <ArticleTitle>Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2C9 and HLA-B Genotypes and Phenytoin Dosing: 2020 Update.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1532-6535</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>109</Volume>
+        <Issue>2</Issue>
+        <PubDate>
+          <Year>2021</Year>
+          <Month>Feb</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Clinical pharmacology and therapeutics</Title>
+      <ISOAbbreviation>Clin Pharmacol Ther</ISOAbbreviation>
+    </Journal>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+      <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+      <PublicationType UI="D017065">Practice Guideline</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">32779747</ArticleId>
+      <ArticleId IdType="mid">NIHMS1656848</ArticleId>
+      <ArticleId IdType="pmc">PMC7831382</ArticleId>
+      <ArticleId IdType="doi">10.1002/cpt.2008</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+  <PubmedArticle>
+    <PMID Version="1">26417955</PMID>
+    <ArticleTitle>Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for UGT1A1 and Atazanavir Prescribing.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1532-6535</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>99</Volume>
+        <Issue>4</Issue>
+        <PubDate>
+          <Year>2016</Year>
+          <Month>Apr</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Clinical pharmacology and therapeutics</Title>
+      <ISOAbbreviation>Clin Pharmacol Ther</ISOAbbreviation>
+    </Journal>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D017065">Practice Guideline</PublicationType>
+      <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">26417955</ArticleId>
+      <ArticleId IdType="mid">NIHMS726925</ArticleId>
+      <ArticleId IdType="pmc">PMC4785051</ArticleId>
+      <ArticleId IdType="doi">10.1002/cpt.269</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+</PubmedArticleSet>

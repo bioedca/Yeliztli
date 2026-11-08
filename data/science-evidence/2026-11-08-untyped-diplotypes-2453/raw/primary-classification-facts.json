@@ -1,0 +1,36 @@
+[
+  {
+    "source": "PMID:32779747",
+    "doi": "DOI:10.1002/cpt.2008",
+    "accessed": "2026-11-08",
+    "table_id": "T2",
+    "diplotype": "*3/*3",
+    "classification": "Poor metabolizer"
+  },
+  {
+    "source": "PMID:29152729",
+    "doi": "DOI:10.1002/cpt.911",
+    "accessed": "2026-11-08",
+    "table_id": "T1",
+    "diplotype": "c.[1905+1G>A];[1905+1G>A]",
+    "classification": "Poor metabolizer"
+  },
+  {
+    "source": "PMID:31006110",
+    "doi": "DOI:10.1002/cpt.1477",
+    "accessed": "2026-11-08",
+    "table_id": "Table 1",
+    "diplotype": "*18/*18",
+    "classification": "Poor metabolizer",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6739160/"
+  },
+  {
+    "source": "PMID:26417955",
+    "doi": "DOI:10.1002/cpt.269",
+    "accessed": "2026-11-08",
+    "table_id": "Table 1",
+    "diplotype": "*28/*28",
+    "classification": "Poor metabolizer",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4785051/"
+  }
+]

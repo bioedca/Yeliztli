@@ -44,6 +44,12 @@ surfaces the relevant CPIC prescribing guidance.
   would change the call couldn't be typed, that drug's card labels the phenotype
   **Conservative** and shows your directly called result beside the explanation. The
   per-gene coverage panel always lists the direct call.
+  For *CYP2B6*, *CYP2C9*, *DPYD* and *UGT1A1*, if neither chromosome has an observed
+  non-reference allele, this comparison includes two copies of an untyped allele when
+  the bundled diplotype table defines that combination. An observed allele is preserved
+  when considering alternatives for the other chromosome. A **possible** diplotype is
+  not a confirmed genotype. Previously saved results need a new pharmacogenomics analysis
+  to use this updated comparison.
 
 ## Good to know
 
