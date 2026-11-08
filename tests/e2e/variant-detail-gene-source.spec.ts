@@ -1,11 +1,14 @@
 /** Synthetic gene-source presentation and accessibility controls (#2464). */
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup, waitForReactHydration } from './helpers'
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from './helpers'
 
 for (const source of ['clinvar', 'vep', null] as const) {
   test(`identifies gene source ${source ?? 'unknown'} without inventing a transcript`, async ({ page }) => {
     await bypassSetup(page)
+    await mockFreshSampleState(page)
+    await page.route(/\/api\/(samples|individuals)(\?|$)/, route => route.fulfill({ json: [] }))
+    await page.route('**/api/annotation/active/1', route => route.fulfill({ status: 404 }))
     await page.route('**/api/variants/rsYELIZTLI2464**', route => route.fulfill({
       json: {
         rsid: 'rsYELIZTLI2464', chrom: '1', pos: 992464,

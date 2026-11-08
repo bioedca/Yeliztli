@@ -90,9 +90,9 @@ function SectionHeader({ icon: Icon, label }: { icon: typeof Dna; label: string 
   return (
     <div className="flex items-center gap-2 mb-3 mt-6 first:mt-0">
       <Icon className="h-4 w-4 text-muted-foreground" />
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
-      </h3>
+      </h2>
     </div>
   )
 }

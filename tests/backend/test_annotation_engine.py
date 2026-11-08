@@ -1869,19 +1869,19 @@ class TestCoverageStatsSideEffects:
             ).fetchone()
         assert row is None
 
-    def test_annotation_state_untouched_by_engine(
+    def test_engine_records_only_atomic_row_provenance(
         self,
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """`run_annotation` alone writes no provenance into `annotation_state`.
+        """The engine records row identity/scope, not successful-analysis state.
 
-        The Huey-task wrapper is responsible for upserting provenance after
-        analysis returns. The engine's only key is the annotated-variants
-        generation token, written in the same transaction as the variant swap
-        so a run that fails after the swap still marks scores read from those
-        rows stale (#2118).
+        The worker still owns reference-version and successful-analysis
+        provenance. The generation token and phenotype scope describe the
+        atomically swapped rows even before that later analysis completes.
         """
+        from backend.services.sample_phenotype_scope import ANNOTATED_PHENOTYPE_SCOPE_KEY
+
         _stamp_bundle_version(mock_registry.reference_engine, "v2.0.0")
         _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
 
@@ -1895,8 +1895,12 @@ class TestCoverageStatsSideEffects:
         assert result.coverage_stats != {}
 
         with sample_with_variants.connect() as conn:
-            after_keys = conn.execute(sa.select(annotation_state.c.key)).scalars().all()
-        assert after_keys == [ANNOTATED_VARIANTS_GENERATION_KEY]
+            state = dict(
+                conn.execute(sa.select(annotation_state.c.key, annotation_state.c.value)).all()
+            )
+        assert set(state) == {ANNOTATED_VARIANTS_GENERATION_KEY, ANNOTATED_PHENOTYPE_SCOPE_KEY}
+        assert state[ANNOTATED_VARIANTS_GENERATION_KEY]
+        assert state[ANNOTATED_PHENOTYPE_SCOPE_KEY] == MONDO_HPO_INGESTION_REVISION
 
 
 # ═══════════════════════════════════════════════════════════════════════
