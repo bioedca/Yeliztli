@@ -1,0 +1,154 @@
+{
+  "derivation": "Whitelist identity fields from ClinVar Entrez XML; excludes observations, submissions, participant data and clinical assertions.",
+  "records": [
+    {
+      "archive": {
+        "VariationID": "642",
+        "VariationName": "NM_000130.4(F5):c.1601G>A (p.Arg534Gln)",
+        "VariationType": "single nucleotide variant",
+        "Accession": "VCV000000642",
+        "Version": "133",
+        "RecordType": "classified",
+        "NumberOfSubmissions": "34",
+        "NumberOfSubmitters": "29",
+        "DateLastUpdated": "2026-11-07",
+        "DateCreated": "2017-04-03",
+        "MostRecentSubmission": "2026-05-30"
+      },
+      "sequence_locations": [
+        {
+          "Assembly": "GRCh38",
+          "AssemblyAccessionVersion": "GCF_000001405.38",
+          "forDisplay": "true",
+          "AssemblyStatus": "current",
+          "Chr": "1",
+          "Accession": "NC_000001.11",
+          "start": "169549811",
+          "stop": "169549811",
+          "display_start": "169549811",
+          "display_stop": "169549811",
+          "variantLength": "1",
+          "positionVCF": "169549811",
+          "referenceAlleleVCF": "C",
+          "alternateAlleleVCF": "T"
+        },
+        {
+          "Assembly": "GRCh37",
+          "AssemblyAccessionVersion": "GCF_000001405.25",
+          "AssemblyStatus": "previous",
+          "Chr": "1",
+          "Accession": "NC_000001.10",
+          "start": "169519049",
+          "stop": "169519049",
+          "display_start": "169519049",
+          "display_stop": "169519049",
+          "variantLength": "0",
+          "positionVCF": "169519049",
+          "referenceAlleleVCF": "T",
+          "alternateAlleleVCF": "T"
+        }
+      ],
+      "hgvs": [
+        {
+          "attributes": {
+            "Type": "protein"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "P12259",
+              "sequenceAccession": "P12259",
+              "change": "p.Arg534Gln"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Assembly": "GRCh37",
+            "Type": "genomic, top-level"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NC_000001.10",
+              "sequenceAccession": "NC_000001",
+              "sequenceVersion": "10",
+              "change": "g.169519049=",
+              "Assembly": "GRCh37"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Assembly": "GRCh38",
+            "Type": "genomic, top-level"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NC_000001.11",
+              "sequenceAccession": "NC_000001",
+              "sequenceVersion": "11",
+              "change": "g.169549811C>T",
+              "Assembly": "GRCh38"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Type": "genomic"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NG_011806.1",
+              "sequenceAccession": "NG_011806",
+              "sequenceVersion": "1",
+              "change": "g.41721G>A"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Type": "coding"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NM_000130.5",
+              "sequenceAccession": "NM_000130",
+              "sequenceVersion": "5",
+              "change": "c.1601G>A",
+              "MANESelect": "true"
+            },
+            {
+              "sequenceAccessionVersion": "NP_000121.2",
+              "sequenceAccession": "NP_000121",
+              "sequenceVersion": "2",
+              "change": "p.Arg534Gln",
+              "singleLetterProteinChange": "R534Q"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Type": "genomic"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "LRG_553",
+              "sequenceAccession": "LRG_553"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Type": "coding"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "LRG_553t1",
+              "sequenceAccession": "LRG_553t1"
+            }
+          ]
+        }
+      ],
+      "rsids": []
+    }
+  ]
+}

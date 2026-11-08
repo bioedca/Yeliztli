@@ -1,0 +1,32 @@
+{
+  "accessed": "2026-11-08",
+  "consensus_query": "Factor V Leiden rs6025 GRCh37 reference genome allele T C reference carries Leiden variant ClinVar",
+  "scite_query": "\"rs6025\" AND (\"reference\" OR \"GRCh37\" OR \"genome\")",
+  "scite_result_identifiers": [
+    {
+      "doi": "10.1002/ana.23644",
+      "title": "Multiple loci influencing hippocampal degeneration identified by genome scan"
+    },
+    {
+      "doi": "10.1002/mgg3.86",
+      "title": "Disease variants in genomes of 44 centenarians"
+    },
+    {
+      "doi": "10.1186/s12864-018-4433-3",
+      "title": "Challenges imposed by minor reference alleles on the identification and reporting of clinical variants from exome data"
+    },
+    {
+      "doi": "10.1186/s12916-023-02844-4",
+      "title": "Genome-wide association analyses identified novel susceptibility loci for pulmonary embolism among Han Chinese population"
+    },
+    {
+      "doi": "10.1371/journal.pone.0108087",
+      "title": "Genome-Wide Investigation of DNA Methylation Marks Associated with FV Leiden Mutation"
+    }
+  ],
+  "selection": "Discovery records are not allele or clinical-effect evidence. Exact current database records determine fixture identity; the VEP resource paper identifies the software.",
+  "fallbacks": [
+    "ClinVar Variation beta VCV endpoint returned HTTP 404; the NCBI Entrez skill retrieved VCV XML and retained only identity fields.",
+    "NCBI ClinVar web page returned a browser challenge; Entrez source retrieval succeeded."
+  ]
+}

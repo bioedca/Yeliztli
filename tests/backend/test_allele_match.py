@@ -153,8 +153,8 @@ class TestRiskDosage:
         assert risk_dosage("GG", "A", "G") == 0
 
     def test_minus_strand_resolves(self) -> None:
-        # Factor V Leiden rs6025: risk A / ref G on +; chip reports minus strand.
-        # "TC" is the complement of "AG" → one copy of the risk allele.
+        # rs6025's curated risk pair is transcript-strand A/G, not genomic REF/ALT.
+        # Forward-genomic "TC" is the complement of "AG" → one risk copy.
         assert risk_dosage("TC", "A", "G") == 1
         # "TT" is the complement of homozygous-risk "AA" → dosage 2.
         assert risk_dosage("TT", "A", "G") == 2

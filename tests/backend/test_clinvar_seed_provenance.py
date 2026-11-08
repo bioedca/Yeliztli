@@ -195,7 +195,8 @@ def test_retinal_counter_block_and_long_consecutive_runs_are_absent() -> None:
         ("rs429358", 17_864),
         ("rs1801133", 3_520),
         ("rs113993960", 7_105),
-        ("rs6025", 642),
+        # #2541: GRCh37 T>C is VCV000226007; 642 identifies the reference T.
+        ("rs6025", 226_007),
         ("rs1799963", 13_310),
         ("rs78655421", 53_765),
         ("rs213950", 7_130),

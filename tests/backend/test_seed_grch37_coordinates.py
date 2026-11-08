@@ -10,8 +10,8 @@ coordinate-mismatch state nobody knew about.
 single Ensembl GRCh37 primary mapping, written from the evidence packet named in its
 provenance. These tests read it offline and never fetch.
 
-Only loci are checked here. Allele orientation is a separate guard; ``rs6025`` (#2541) is an
-example of a correctly placed row whose alleles are tracked on their own.
+Only loci are checked here. Allele orientation is a separate guard; #2541 corrected
+``rs6025``, a correctly placed row whose alleles and annotations were inconsistent.
 """
 
 from __future__ import annotations

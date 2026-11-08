@@ -1,0 +1,47 @@
+{
+  "derivation": "Unmodified rs6025 rows and provenance selected from the committed VEP snapshot.",
+  "_provenance": {
+    "build_date": "2026-07-02",
+    "bundle_version": "v4.0.0",
+    "ensembl_version": "112",
+    "generated": "2026-10-20",
+    "generator": "scripts/build_vep_seed_bundle_snapshot.py",
+    "scope": "every bundle row for each rsID with a gene_symbol in vep_seed.csv",
+    "sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+    "source": "production VEP bundle pinned by bundles/manifest.json"
+  },
+  "rows": {
+    "rs6025": [
+      {
+        "alt": "A",
+        "chrom": "1",
+        "consequence": "missense_variant",
+        "exon_number": "10",
+        "gene_symbol": "F5",
+        "hgvs_coding": "c.1601A>T",
+        "hgvs_protein": "p.Gln534Leu",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "169519049",
+        "ref": "T",
+        "strand": "-",
+        "transcript_id": "ENST00000367797"
+      },
+      {
+        "alt": "C",
+        "chrom": "1",
+        "consequence": "missense_variant",
+        "exon_number": "10",
+        "gene_symbol": "F5",
+        "hgvs_coding": "c.1601A>G",
+        "hgvs_protein": "p.Gln534Arg",
+        "intron_number": "",
+        "mane_select": "1",
+        "pos": "169519049",
+        "ref": "T",
+        "strand": "-",
+        "transcript_id": "ENST00000367797"
+      }
+    ]
+  }
+}
