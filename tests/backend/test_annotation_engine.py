@@ -5915,3 +5915,47 @@ def test_clinvar_gene_does_not_restore_withheld_legacy_inheritance(
     assert row.inheritance_pattern is None
     assert row.phenotype_source is None
     assert row.annotation_coverage == CLINVAR_BIT
+
+
+@pytest.mark.parametrize("gene", ["YELIZTLI2464", "YELIZTLI_VEP", None])
+def test_standalone_vep_refresh_transfers_gene_ownership_before_clinvar_refresh(
+    sample_engine, reference_engine, vep_engine_inmemory, mock_registry, gene
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    _seed_clinvar_gene_case(sample_engine, reference_engine, "AG")
+    assert run_annotation(sample_engine, mock_registry).rows_written == 1
+    with sample_engine.connect() as conn:
+        old = conn.execute(sa.select(annotated_variants)).one()
+    assert old.gene_source == "clinvar"
+    assert old.inheritance_pattern == "Autosomal recessive"
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations "
+                "(rsid,chrom,pos,ref,alt,gene_symbol,transcript_id,consequence) "
+                "VALUES ('rsYELIZTLI2464','1',992464,'A','G',:gene,"
+                "'ENST_SYNTHETIC_GENE','intergenic_variant')"
+            ),
+            {"gene": gene},
+        )
+    assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    with sample_engine.connect() as conn:
+        refreshed = conn.execute(sa.select(annotated_variants)).one()
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    retained = gene == "YELIZTLI2464"
+    for observed in (refreshed, row):
+        assert observed.gene_symbol == gene
+        assert observed.gene_source == ("vep" if gene else None)
+        assert observed.transcript_id == "ENST_SYNTHETIC_GENE"
+        assert observed.inheritance_pattern == ("Autosomal recessive" if retained else None)
+        assert observed.disease_id == ("MONDO:9002464" if retained else None)
+        assert observed.disease_name == (old.disease_name if retained else None)
+        assert observed.hpo_terms == (old.hpo_terms if retained else None)
+        assert observed.phenotype_source == ("mondo_hpo" if retained else None)
+        assert observed.annotation_coverage == VEP_BIT | CLINVAR_BIT | (
+            GENE_PHENOTYPE_BIT if retained else 0
+        )

@@ -106,7 +106,11 @@ inheritance while older, unproven MONDO/HPO joins remain withheld. Existing carr
 and homozygous-call safeguards continue to apply. A ClinVar-only refresh preserves
 an existing ClinVar gene only while its exact allele and single-gene assertion still
 agree; otherwise it clears that gene and its dependent phenotype fields. Run full
-re-annotation to establish a replacement gene context. Source-format evidence is in
+re-annotation to establish a replacement gene context. A later standalone VEP
+refresh takes ownership of the gene and clears the old phenotype join if the gene
+changes or disappears. Variant detail also allows resolved live VEP transcripts to
+replace a stored ClinVar fallback; it withholds the old gene's phenotype fields and
+fetches the new gene's associations. Source-format evidence is in
 `data/science-evidence/2026-11-08-clinvar-gene-2464/README.md`.
 
 Upgrading adds nullable reference/sample columns without inventing historical values.

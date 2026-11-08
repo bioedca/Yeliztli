@@ -676,6 +676,7 @@ def annotate_sample_vep(
                 "pos": raw.pos,
                 "genotype": raw.genotype,
                 "gene_symbol": annot.gene_symbol,
+                "gene_source": "vep" if annot.gene_symbol else None,
                 "transcript_id": annot.transcript_id,
                 "consequence": consequence,
                 "consequence_source": consequence_source,
@@ -696,10 +697,19 @@ def annotate_sample_vep(
                 batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
                 stmt = sqlite_insert(annotated_variants)
+                same_gene = sa.and_(
+                    annotated_variants.c.gene_symbol.is_not(None),
+                    annotated_variants.c.gene_symbol != "",
+                    annotated_variants.c.gene_symbol == stmt.excluded.gene_symbol,
+                )
+                coverage = sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("|")(
+                    VEP_BITMASK
+                )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["rsid"],
                     set_={
                         "gene_symbol": stmt.excluded.gene_symbol,
+                        "gene_source": stmt.excluded.gene_source,
                         "transcript_id": stmt.excluded.transcript_id,
                         "consequence": stmt.excluded.consequence,
                         "consequence_source": stmt.excluded.consequence_source,
@@ -710,13 +720,21 @@ def annotate_sample_vep(
                         "exon_number": stmt.excluded.exon_number,
                         "intron_number": stmt.excluded.intron_number,
                         "mane_select": stmt.excluded.mane_select,
-                        # OR the VEP bit into existing coverage
+                        # A changed/removed gene invalidates its old phenotype
+                        # join. Full annotation can establish the new join.
+                        **{
+                            field: sa.case((same_gene, annotated_variants.c[field]), else_=None)
+                            for field in (
+                                "disease_name",
+                                "disease_id",
+                                "phenotype_source",
+                                "hpo_terms",
+                                "inheritance_pattern",
+                            )
+                        },
                         "annotation_coverage": sa.case(
-                            (
-                                annotated_variants.c.annotation_coverage.is_(None),
-                                stmt.excluded.annotation_coverage,
-                            ),
-                            else_=(annotated_variants.c.annotation_coverage.op("|")(VEP_BITMASK)),
+                            (same_gene, coverage),
+                            else_=coverage.op("&")(~(1 << 4)),
                         ),
                     },
                 )

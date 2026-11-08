@@ -93,7 +93,7 @@ def test_v32_repairs_each_legacy_shape_only_when_percentile_withheld(old, new, s
     assert json.loads(after[0][2]) == {**json.loads(detail), "ancestry_warning_text": new + suffix}
     with engine.connect() as conn:
         assert (
-            conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SAMPLE_SCHEMA_VERSION == 34
+            conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SAMPLE_SCHEMA_VERSION == 35
         )
     assert ensure_sample_schema_current(engine) is False
     assert _rows(engine) == after
