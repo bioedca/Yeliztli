@@ -254,6 +254,9 @@ jobs:
       - name: TestClient startup witness (bounded)
         run: timeout 120 python scripts/ci_startup_witness.py
 
+      - name: Verify Java runtime for integration tests
+        run: java -version
+
       - name: Run pytest
         run: >-
           python -m pytest tests/backend/ -v --tb=short -m "not slow"
@@ -283,6 +286,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
+
+      - name: Verify Java runtime for integration tests
+        run: java -version
 
       - name: Run pytest
         run: python -m pytest tests/backend/ -v --tb=short -m "not slow"

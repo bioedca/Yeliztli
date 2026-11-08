@@ -5,8 +5,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import gzip
+import hashlib
+import importlib.metadata
 import importlib.util
 import json
+import platform
+import shutil
+import subprocess
 import sys
 from collections import Counter
 from decimal import Decimal
@@ -33,6 +38,47 @@ def _load_script_module():
 
 
 cal = _load_script_module()
+SYNTHETIC_JAVA_VERSION = 'openjdk version "synthetic-planner-fixture"'
+
+
+def _stub_java_probe(monkeypatch):
+    """Isolate only the external JVM probe, leaving the fingerprint logic live."""
+    result = subprocess.CompletedProcess(
+        ["java", "-version"], 0, stdout="", stderr=SYNTHETIC_JAVA_VERSION + "\n"
+    )
+
+    def run(command, *args, **kwargs):
+        if command == ["java", "-version"]:
+            return result
+        return subprocess.run(command, *args, **kwargs)
+
+    # Patch the harness's reference, not subprocess.run used by other modules.
+    monkeypatch.setattr(
+        cal,
+        "subprocess",
+        SimpleNamespace(run=run, CalledProcessError=subprocess.CalledProcessError),
+    )
+    return result
+
+
+def _assert_runtime_fingerprint(fingerprint, java_identity):
+    lock_bytes = (REPO_ROOT / "uv.lock").read_bytes()
+    assert java_identity
+    assert fingerprint == {
+        "python": {
+            "implementation": platform.python_implementation(),
+            "version": platform.python_version(),
+        },
+        "packages": {
+            name: importlib.metadata.version(name)
+            for name in ("numpy", "SQLAlchemy", "pysam", "xgboost")
+        },
+        "java_version_output": java_identity,
+        "uv_lock": {
+            "sha256": hashlib.sha256(lock_bytes).hexdigest(),
+            "size_bytes": len(lock_bytes),
+        },
+    }
 
 
 def _marker(
@@ -2570,7 +2616,9 @@ def _prepare_planner_case(
     calibration_iids: tuple[str, ...] = ("SIM1", "SIM2"),
     include_masks: bool = True,
     dataset_split: str = "calibration",
+    real_java: bool = False,
 ):
+    java_probe = None if real_java else _stub_java_probe(monkeypatch)
     calibration_donors = {
         label: (f"CAL_{label}_1", f"CAL_{label}_2") for label in cal.POPULATION_ORDER
     }
@@ -2833,6 +2881,7 @@ def _prepare_planner_case(
             run_common_args.extend((option, str(site_paths[option])))
     return {
         "planner_args": planner_args,
+        "java_probe": java_probe,
         "run_common_args": run_common_args,
         "simulation_manifest": simulation_manifest,
         "simulation_verification_path": simulation_verification_path,
@@ -2864,6 +2913,11 @@ def _selected_run_args(case, iid: str) -> list[str]:
 
 
 def test_main_lists_fully_wired_isolated_job_matrix(tmp_path, capsys, monkeypatch):
+    # This planning regression must also run on Java-enabled CI without a JVM.
+    empty_path = tmp_path / "empty-path"
+    empty_path.mkdir()
+    monkeypatch.setenv("PATH", str(empty_path))
+    assert shutil.which("java") is None
     case = _prepare_planner_case(tmp_path, monkeypatch)
 
     exit_code = cal.main([*case["planner_args"], "--list-jobs"])
@@ -2919,6 +2973,108 @@ def test_main_lists_fully_wired_isolated_job_matrix(tmp_path, capsys, monkeypatc
     }
     assert verification["selection_design"]["sha256"] == cal.sha256_file(selection_design_path)
     assert verification["selection_design"]["size_bytes"] == selection_design_path.stat().st_size
+    _assert_runtime_fingerprint(
+        configuration["inputs"]["runtime_environment"], SYNTHETIC_JAVA_VERSION
+    )
+
+
+def test_runtime_fingerprint_requires_java_when_not_isolated(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    assert shutil.which("java") is None
+
+    with pytest.raises(FileNotFoundError, match="java"):
+        cal.runtime_environment_fingerprint()
+
+
+@pytest.mark.parametrize(
+    ("returncode", "identity", "message"),
+    [(1, "failed JVM", "unable to identify"), (0, "", "identity is empty")],
+)
+def test_runtime_fingerprint_rejects_unusable_java(monkeypatch, returncode, identity, message):
+    probe = _stub_java_probe(monkeypatch)
+    probe.returncode = returncode
+    probe.stderr = identity
+
+    with pytest.raises(ValueError, match=message):
+        cal.runtime_environment_fingerprint()
+
+
+@pytest.mark.requires_java
+@pytest.mark.parametrize("dataset_split", ["calibration", "final_confirmation"])
+def test_planned_job_binds_real_java_fingerprint(tmp_path, capsys, monkeypatch, dataset_split):
+    case = _prepare_planner_case(
+        tmp_path, monkeypatch, dataset_split=dataset_split, real_java=True
+    )
+    java = subprocess.run(["java", "-version"], capture_output=True, text=True, check=True)
+    java_identity = (java.stderr or java.stdout).strip()
+
+    assert cal.main([*case["planner_args"], "--list-jobs"]) == 0
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert rows
+    selected = rows[0]
+    configuration, _job, _verification = cal.lai_coverage_plan.read_job_plan(
+        case["job_plan_path"], selected["configuration_sha256"], selected["job_index"]
+    )
+    fingerprint = configuration["inputs"]["runtime_environment"]
+    _assert_runtime_fingerprint(fingerprint, java_identity)
+    observed = []
+
+    def observed_run_job(job, **kwargs):
+        observed.append(kwargs["runtime_environment"])
+        return {"status": "ok", "job_index": job.index}
+
+    monkeypatch.setattr(cal, "run_job", observed_run_job)
+    output = tmp_path / "real-java-result.jsonl"
+    assert (
+        cal.main(
+            [
+                *_selected_run_args(case, selected["iid"]),
+                "--job-index",
+                str(selected["job_index"]),
+                "--expected-configuration-sha256",
+                selected["configuration_sha256"],
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert observed == [fingerprint]
+    assert json.loads(output.read_text(encoding="utf-8")) == {
+        "status": "ok",
+        "job_index": selected["job_index"],
+    }
+
+
+def test_planned_job_rejects_java_identity_drift_before_inference(tmp_path, capsys, monkeypatch):
+    case = _prepare_planner_case(tmp_path, monkeypatch)
+    assert cal.main([*case["planner_args"], "--list-jobs"]) == 0
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert rows
+    selected = rows[0]
+    case["java_probe"].stderr = 'openjdk version "changed-synthetic-runtime"'
+
+    def unexpected_run_job(*_args, **_kwargs):
+        pytest.fail("runtime drift must be rejected before inference")
+
+    monkeypatch.setattr(cal, "run_job", unexpected_run_job)
+    output = tmp_path / "must-not-exist.jsonl"
+    with pytest.raises(SystemExit) as exc_info:
+        cal.main(
+            [
+                *_selected_run_args(case, selected["iid"]),
+                "--job-index",
+                str(selected["job_index"]),
+                "--expected-configuration-sha256",
+                selected["configuration_sha256"],
+                "--output",
+                str(output),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "live Python/Java dependency environment differs" in capsys.readouterr().err
+    assert not output.exists()
 
 
 def test_final_confirmation_matrix_comes_only_from_frozen_policy(

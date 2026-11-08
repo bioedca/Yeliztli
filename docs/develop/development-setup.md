@@ -11,6 +11,15 @@ cd frontend && npm install && cd ..
 make dev
 ```
 
+For backend tests and strict documentation builds, install the development and
+documentation extras with `python -m pip install -e ".[dev,docs]"`. This installs
+Python dependencies; it does not install a Java runtime. Java remains optional
+for isolated tests, including LAI calibration planning. Tests that exercise the
+real JVM use `requires_java` and skip when `java` is absent from `PATH`. To run
+that integration coverage, make the supported [Java prerequisite](../install/system-requirements.md)
+available and confirm `java -version` succeeds before running pytest. See the
+[testing guide](testing.md) for coverage and CI expectations.
+
 `make dev` starts three processes together:
 
 - the **backend** (FastAPI with auto-reload) on **port 8000**,
