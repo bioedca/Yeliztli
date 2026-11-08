@@ -1,0 +1,6 @@
+{
+  "id": "chromosome:GRCh38:9:42852269:42852319:1",
+  "seq": "CAGAGCTGCAGCCCCACCTGCCGGCGCGCGCCGCCAGGGAGCGGTTTCCGG",
+  "query": "9:42852269..42852319:1",
+  "molecule": "dna"
+}

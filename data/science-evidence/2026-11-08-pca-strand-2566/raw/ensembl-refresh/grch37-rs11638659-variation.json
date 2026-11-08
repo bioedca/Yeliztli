@@ -1,0 +1,29 @@
+{
+  "synonyms": [],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "MAF": 0.366014,
+  "most_severe_consequence": "intron_variant",
+  "name": "rs11638659",
+  "ambiguity": "Y",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": "T",
+  "mappings": [
+    {
+      "start": 22980684,
+      "location": "15:22980684-22980684",
+      "coord_system": "chromosome",
+      "strand": 1,
+      "allele_string": "C/T",
+      "end": 22980684,
+      "seq_region_name": "15",
+      "ancestral_allele": "C",
+      "assembly_name": "GRCh37"
+    }
+  ]
+}

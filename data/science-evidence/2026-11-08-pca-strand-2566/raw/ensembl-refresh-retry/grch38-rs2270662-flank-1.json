@@ -1,0 +1,6 @@
+{
+  "molecule": "dna",
+  "query": "17:36861919..36861969:1",
+  "seq": "TGACTGGCCAAGGACTGTATCTCTCCGGGTCTCTGTTTCCTCATCTGTAAA",
+  "id": "chromosome:GRCh38:17:36861919:36861969:1"
+}

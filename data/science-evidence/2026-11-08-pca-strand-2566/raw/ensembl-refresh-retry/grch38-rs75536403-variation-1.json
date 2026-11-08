@@ -1,0 +1,28 @@
+{
+  "mappings": [
+    {
+      "assembly_name": "GRCh38",
+      "strand": 1,
+      "coord_system": "chromosome",
+      "location": "9:42985480-42985480",
+      "start": 42985480,
+      "allele_string": "A/C/T",
+      "seq_region_name": "9",
+      "ancestral_allele": null,
+      "end": 42985480
+    }
+  ],
+  "synonyms": [],
+  "ambiguity": "H",
+  "minor_allele": "A",
+  "name": "rs75536403",
+  "most_severe_consequence": "intron_variant",
+  "MAF": 0.398548,
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP"
+}

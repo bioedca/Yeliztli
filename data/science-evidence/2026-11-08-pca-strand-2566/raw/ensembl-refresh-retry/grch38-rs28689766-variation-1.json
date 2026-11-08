@@ -1,0 +1,32 @@
+{
+  "minor_allele": "A",
+  "ambiguity": "N",
+  "most_severe_consequence": "intron_variant",
+  "MAF": 0.477826,
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "synonyms": [
+    "rs59625157",
+    "rs386575813"
+  ],
+  "name": "rs28689766",
+  "mappings": [
+    {
+      "assembly_name": "GRCh38",
+      "ancestral_allele": "C",
+      "allele_string": "A/C/G/T",
+      "strand": 1,
+      "seq_region_name": "1",
+      "location": "1:206097461-206097461",
+      "coord_system": "chromosome",
+      "end": 206097461,
+      "start": 206097461
+    }
+  ]
+}

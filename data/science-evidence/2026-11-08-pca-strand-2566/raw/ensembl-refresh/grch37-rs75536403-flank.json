@@ -1,0 +1,6 @@
+{
+  "molecule": "dna",
+  "id": "chromosome:GRCh37:9:66333060:66333110:1",
+  "query": "9:66333060..66333110:1",
+  "seq": "GCCCCATTCCTCGGGAAAAAAAAATTTTTTTATTTTGTTAATACTTCCTGA"
+}

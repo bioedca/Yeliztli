@@ -1,0 +1,22 @@
+{
+  "mappings": [
+    {
+      "mapped": {
+        "seq_region_name": "HG1211_PATCH",
+        "coord_system": "chromosome",
+        "strand": 1,
+        "start": 46625620,
+        "end": 46625620,
+        "assembly": "GRCh37"
+      },
+      "original": {
+        "seq_region_name": "10",
+        "end": 46130172,
+        "assembly": "GRCh38",
+        "start": 46130172,
+        "strand": 1,
+        "coord_system": "chromosome"
+      }
+    }
+  ]
+}

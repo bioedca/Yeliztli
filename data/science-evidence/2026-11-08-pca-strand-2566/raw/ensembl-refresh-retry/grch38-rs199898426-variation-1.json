@@ -1,0 +1,32 @@
+{
+  "most_severe_consequence": "non_coding_transcript_exon_variant",
+  "MAF": null,
+  "minor_allele": null,
+  "name": "rs199898426",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "mappings": [
+    {
+      "ancestral_allele": null,
+      "end": 46130172,
+      "location": "10:46130172-46130172",
+      "strand": 1,
+      "start": 46130172,
+      "seq_region_name": "10",
+      "allele_string": "G/A/C",
+      "assembly_name": "GRCh38",
+      "coord_system": "chromosome"
+    }
+  ],
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "ExAC",
+    "gnomAD"
+  ],
+  "ambiguity": "V",
+  "var_class": "SNP",
+  "synonyms": [
+    "NM_002072.5:c.*2107TATTT[1]",
+    "NM_002072.4:c.*2107TATTT[1]"
+  ]
+}

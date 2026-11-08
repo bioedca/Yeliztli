@@ -1,0 +1,40 @@
+{
+  "mappings": [
+    {
+      "mapped": {
+        "end": 206161022,
+        "assembly": "GRCh37",
+        "coord_system": "chromosome",
+        "seq_region_name": "HG1293_PATCH",
+        "start": 206161022,
+        "strand": 1
+      },
+      "original": {
+        "strand": 1,
+        "start": 206097461,
+        "seq_region_name": "1",
+        "end": 206097461,
+        "assembly": "GRCh38",
+        "coord_system": "chromosome"
+      }
+    },
+    {
+      "original": {
+        "seq_region_name": "1",
+        "strand": 1,
+        "start": 206097461,
+        "coord_system": "chromosome",
+        "end": 206097461,
+        "assembly": "GRCh38"
+      },
+      "mapped": {
+        "start": 206243870,
+        "strand": -1,
+        "seq_region_name": "1",
+        "assembly": "GRCh37",
+        "end": 206243870,
+        "coord_system": "chromosome"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "accessed": "2026-11-08",
+  "queries": [
+    {
+      "url": "https://api.ncbi.nlm.nih.gov/variation/v0/beta/refsnp/2270662",
+      "ok": false,
+      "status": 404,
+      "client": "clinvar-variation-skill/scripts/clinvar_variation.py",
+      "fallback": "Official OpenAPI servers and /refsnp/{rsid} verify the stable URL. The installed helper was imported with VARIATION_BASE overridden in memory; installed files unchanged."
+    },
+    {
+      "url": "https://api.ncbi.nlm.nih.gov/variation/v0/var_service.yaml",
+      "ok": true,
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/raw/ncbi-var-service.yaml",
+      "sha256": "5c2f4d461804425fd7a87cb2550207e32c1399a28e2aba47647ae32aa131a1ed"
+    },
+    {
+      "url": "https://api.ncbi.nlm.nih.gov/variation/v0/refsnp/2270662",
+      "ok": true,
+      "client": "clinvar-variation-skill/scripts/clinvar_variation.py",
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/raw/refsnp-rs2270662.json",
+      "sha256": "6c3dfda05bea49a474c62eaca686e2509770d67b5ccff43c92fca54c50f1ce88"
+    }
+  ]
+}

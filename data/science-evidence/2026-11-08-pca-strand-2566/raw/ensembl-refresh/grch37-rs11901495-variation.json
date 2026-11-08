@@ -1,0 +1,34 @@
+{
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": "A",
+  "var_class": "SNP",
+  "most_severe_consequence": "intergenic_variant",
+  "synonyms": [
+    "rs59658788",
+    "rs17842455",
+    "rs60003534"
+  ],
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "ambiguity": "R",
+  "MAF": 0.204073,
+  "name": "rs11901495",
+  "mappings": [
+    {
+      "seq_region_name": "2",
+      "start": 98017804,
+      "location": "2:98017804-98017804",
+      "assembly_name": "GRCh37",
+      "allele_string": "G/A",
+      "coord_system": "chromosome",
+      "strand": 1,
+      "end": 98017804,
+      "ancestral_allele": null
+    }
+  ]
+}
