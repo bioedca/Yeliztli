@@ -35,9 +35,13 @@ Do not delete markers while any build or download could still be running.
 Build claims require user-owned local POSIX storage with hard-link and advisory
 locking support. The data root and claim directories must not be writable by other
 users or groups. The selected root may point through an operator-configured
-symlink to a trusted physical location. Shared-writable non-sticky ancestors,
-symlinks inside `.claims`, foreign ownership, unexpected hard links and unsafe
-marker permissions produce an unsafe-storage error; permissions are not silently
+symlink to a trusted physical location. The `.anchors` directory must additionally
+be owner-private (mode `0700`), including for read-only probes. New anchor
+directories already use that mode; check any manually provisioned directories
+while the API and workers are stopped. The guard does not repair permissions.
+Shared-writable non-sticky ancestors, symlinks inside `.claims`, foreign
+ownership, unexpected hard links and unsafe marker permissions produce an
+unsafe-storage error; permissions are not silently
 changed. See the [architecture storage contract](../develop/architecture.md).
 
 If the guard reports unsafe or changed storage, keep the API and workers stopped
