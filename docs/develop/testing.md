@@ -63,7 +63,7 @@ Before starting:
 
 - Use a clean, committed dedicated worktree and its active virtualenv, bootstrapped
   with `python -m pip install -e '.[dev,docs]'`. Keep the source SHA, dependencies,
-  interpreter, runtime availability (including Java and Node), marker expression,
+  interpreter, runtime availability (including Java), marker expression,
   and shard count identical throughout. Do not edit tests, assertions, timeouts,
   or selection to make a shard pass. Avoid other test jobs competing for the same
   CPU or storage; use the project's Slurm workflow for heavy cluster validation.
@@ -97,7 +97,6 @@ printf '%s\n' "$validation_python" > "$validation_evidence/python-path.txt"
 python --version > "$validation_evidence/python-version.txt" 2>&1
 python -m pip freeze > "$validation_evidence/packages.txt"
 java -version > "$validation_evidence/java-version.txt" 2>&1
-node --version > "$validation_evidence/node-version.txt" 2>&1
 
 # Capture the complete selected collection, without a shard filter.
 collection_scratch=$(mktemp -d "$validation_scratch_parent/backend-collection.XXXXXX")
