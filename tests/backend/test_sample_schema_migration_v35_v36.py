@@ -320,6 +320,54 @@ def test_v36_ignores_quarantined_local_ancestry(sample_engine):
     assert _rows(sample_engine) == before
 
 
+@pytest.mark.parametrize("nnls_uncertain", [True, False])
+def test_v36_older_nnls_takes_precedence_over_newer_conflicting_pca(sample_engine, nnls_uncertain):
+    _ancestry(
+        sample_engine,
+        category="nnls_admixture",
+        top_population="UNCERTAIN" if nnls_uncertain else "EUR",
+        is_sufficient=not nnls_uncertain,
+        classification_status="uncertain" if nnls_uncertain else "confident",
+    )
+    _ancestry(
+        sample_engine,
+        category="pca_projection",
+        top_population="EUR" if nnls_uncertain else "UNCERTAIN",
+        is_sufficient=nnls_uncertain,
+        classification_status="confident" if nnls_uncertain else "uncertain",
+    )
+    _legacy_prs(sample_engine)
+    ancestry_before = [dict(row) for row in _rows(sample_engine) if row["module"] == "ancestry"]
+    assert len(ancestry_before) == 2
+    assert ensure_sample_schema_current(sample_engine) is nnls_uncertain
+    assert _prs_rows(sample_engine)[0]["prs_percentile"] == (None if nnls_uncertain else 90.09)
+    assert [
+        dict(row) for row in _rows(sample_engine) if row["module"] == "ancestry"
+    ] == ancestry_before
+
+
+def test_v36_upgrade_chains_earlier_caveat_repairs_without_rescoring(sample_engine):
+    _ancestry(sample_engine)
+    _legacy_prs(
+        sample_engine,
+        ancestry_warning_text=WARNING + " Interpret the percentile with caution."
+        " Your ancestry composition is admixed (top ancestry 62%)."
+        " PRS accuracy may be reduced for admixed genetic backgrounds.",
+    )
+    with sample_engine.begin() as conn:
+        conn.exec_driver_sql("PRAGMA user_version = 28")
+    assert ensure_sample_schema_current(sample_engine) is True
+    row = _prs_rows(sample_engine)[0]
+    detail = json.loads(row["detail_json"])
+    assert row["prs_percentile"] is detail["percentile"] is detail["z_score"] is None
+    assert row["prs_score"] == 1.5
+    assert detail["coverage_fraction"] == 1.0 and detail["snps_used"] == 100
+    assert detail["ancestry_warning_text"] == WARNING
+    assert detail["future_metadata"] == {"preserve": True}
+    assert ensure_sample_schema_current(sample_engine) is False
+    assert _prs_rows(sample_engine) == [row]
+
+
 def test_v36_repairs_matching_current_diff_entries_atomically(sample_engine):
     _ancestry(sample_engine)
     _legacy_prs(sample_engine)
