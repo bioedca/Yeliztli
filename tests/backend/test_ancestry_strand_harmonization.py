@@ -8,6 +8,8 @@ import io
 import json
 import runpy
 import shutil
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -309,6 +311,33 @@ def test_scientific_packet_hashes_and_refresh_audit():
         assert hashlib.sha256((packet / relative).read_bytes()).hexdigest() == digest, relative
     audit = runpy.run_path(str(packet / "scripts/audit_refresh.py"))["audit"]()
     assert audit == json.loads((packet / "refresh-audit.json").read_text())
+    index = json.loads((packet / "source-response-index.json").read_text())
+    services = index["discovery_services"]
+    assert {s["service"] for s in services} == {"Consensus", "Scite"}
+    for service in services:
+        assert service["provider_output_retained"] is False
+        assert service["provider_output_used_as_evidence"] is False
+    assert not list((packet / "raw").glob("consensus-*.json"))
+    assert not (packet / "raw/scite-verify.json").exists()
+    papers = json.loads((packet / "raw/pubmed-primary-metadata.json").read_text())["records"]
+    assert {paper["pmid"] for paper in papers} == {"25236461", "25352552", "11125122"}
+    for paper in papers:
+        assert "doi" in paper["identifiers"]
+        assert "abstract" not in paper
+
+
+@pytest.mark.parametrize("script", ("build_mapping.py", "audit_refresh.py"))
+def test_evidence_audits_reject_disabled_assertions(script):
+    packet = BUNDLE.parents[3] / "data/science-evidence/2026-11-08-pca-strand-2566"
+    result = subprocess.run(
+        [sys.executable, "-O", str(packet / "scripts" / script)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode != 0
+    assert "requires enabled assertions" in result.stderr
 
 
 @pytest.mark.parametrize("table", (raw_variants, annotated_variants), ids=("raw", "annotated"))

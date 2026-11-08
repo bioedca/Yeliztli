@@ -36,6 +36,9 @@ COLUMNS = (
 
 
 def build() -> tuple[bytes, bytes]:
+    """Verify recorded sources and return the deterministic mapping artifacts."""
+    if not __debug__:
+        raise RuntimeError("Evidence validation requires enabled assertions; omit -O/-OO")
     historical_manifest = json.loads((HISTORICAL / "queries.json").read_text())
     assert len(historical_manifest["payloads"]) == historical_manifest["payload_count"] == 109
     for relative, digest in historical_manifest["payloads"].items():
@@ -64,9 +67,15 @@ def build() -> tuple[bytes, bytes]:
             for a in annot["seq_id_traits_by_assembly"]
         )
         assert {a["allele"]["spdi"]["position"] + 1 for a in p["alleles"]} == {position}
-        assert annot["is_aln_opposite_orientation"] is False
+        assert isinstance(annot["is_aln_opposite_orientation"], bool)
         selected[assembly] = p
     assert selected["GRCh38.p14"]["is_ptlp"] is True
+    assert selected["GRCh38.p14"]["placement_annot"]["is_aln_opposite_orientation"] is False
+    assembly_orientations = [
+        selected[build]["placement_annot"]["is_aln_opposite_orientation"]
+        for build in ("GRCh37.p13", "GRCh38.p14")
+    ]
+    alignment_strand = 1 if assembly_orientations[0] == assembly_orientations[1] else -1
 
     records = json.loads(
         gzip.decompress((HISTORICAL / "derived/grch37_positions.json.gz").read_bytes())
@@ -95,7 +104,7 @@ def build() -> tuple[bytes, bytes]:
             if rsid == "rs2270662":
                 assert r["grch37_position"] == 35219205 and strand == 1
                 assert r["flank_mismatches"] == {"same": 0, "reverse_complement": 34}
-                votes.append(1)  # Both assembly placements align forward to the PTLP.
+                votes.append(alignment_strand)
                 basis = "dbsnp-alignment+flank"
             assert len(votes) >= 2 and set(votes) == {strand}, rsid
             sample_pair = [a.translate(COMPLEMENT) if strand == -1 else str(a) for a in (ref, alt)]
@@ -122,6 +131,7 @@ def build() -> tuple[bytes, bytes]:
 
 
 def main() -> None:
+    """Check the committed mapping, or explicitly regenerate its two sidecars."""
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--write", action="store_true")

@@ -1,0 +1,77 @@
+{
+  "accessed": "2026-11-08",
+  "source": "NCBI PubMed EFetch",
+  "endpoint": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+  "params": {
+    "db": "pubmed",
+    "id": "25236461,25352552,11125122",
+    "retmode": "xml"
+  },
+  "response_sha256": "22decde3d8424fee9ae4d219b76f0d628c2cb66b06055978ff33617a152b4ef8",
+  "response_retention": "Only primary bibliographic identifiers, title/journal/date, publication types, and correction fields. Abstracts, author/affiliation data and full response XML are not retained.",
+  "records": [
+    {
+      "pmid": "25236461",
+      "title": "The Ensembl REST API: Ensembl Data for Any Language.",
+      "journal": "Bioinformatics (Oxford, England)",
+      "publication_date": {
+        "Year": "2015",
+        "Month": "Jan",
+        "Day": "01"
+      },
+      "identifiers": {
+        "pubmed": "25236461",
+        "pmc": "PMC4271150",
+        "doi": "10.1093/bioinformatics/btu613",
+        "pii": "btu613"
+      },
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "comments_corrections": []
+    },
+    {
+      "pmid": "25352552",
+      "title": "Ensembl 2015.",
+      "journal": "Nucleic acids research",
+      "publication_date": {
+        "Year": "2015",
+        "Month": "Jan"
+      },
+      "identifiers": {
+        "pubmed": "25352552",
+        "pmc": "PMC4383879",
+        "doi": "10.1093/nar/gku1010",
+        "pii": "gku1010"
+      },
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "comments_corrections": []
+    },
+    {
+      "pmid": "11125122",
+      "title": "dbSNP: the NCBI database of genetic variation.",
+      "journal": "Nucleic acids research",
+      "publication_date": {
+        "Year": "2001",
+        "Month": "Jan",
+        "Day": "01"
+      },
+      "identifiers": {
+        "pubmed": "11125122",
+        "pmc": "PMC29783",
+        "doi": "10.1093/nar/29.1.308"
+      },
+      "publication_types": [
+        "Journal Article",
+        "Research Support, U.S. Gov't, Non-P.H.S.",
+        "Research Support, U.S. Gov't, P.H.S."
+      ],
+      "comments_corrections": []
+    }
+  ]
+}

@@ -28,7 +28,7 @@ they do not establish ancestry accuracy or clinical validity.
 | C1: all 5,000 marker identities, GRCh37 positions and orientations | `data/science-evidence/2026-10-20-issue-2493-fixture-grch37-positions/derived/grch37_positions.json.gz` and its 109 hash-pinned payloads, scripts and source manifest; all hashes reverified. The generator checks ordered marker identity, GRCh38 position, allele pair and agreeing orientation routes for every row. |
 | C2: the six reversed markers and palindromic rs75536403 retain training allele identity | C1, plus the seven-locus refresh under `raw/ensembl-refresh/` and `raw/ensembl-refresh-retry/`; exact queries, successes and failures in `refresh-queries.jsonl` and `refresh-retry-queries.jsonl`; audited values in `refresh-audit.json`. |
 | C3: rs2270662 has strand +1 even though its quad-allelic strings do not establish orientation | Historical and fresh assembly flanks match with 0 mismatches as-is and 34 when reversed, excluding the centre. `raw/refsnp-rs2270662.json` independently reports both NC_000017.10 (GRCh37.p13, position 35219205) and NC_000017.11 (GRCh38.p14, position 36861944) aligned forward to the GRCh38 PTLP. The schema in `raw/ncbi-var-service.yaml` defines `is_aln_opposite_orientation`. SPDI positions are zero-based; the table is one-based. |
-| C4: reference versions are stable across this refresh | Current Ensembl release/assembly metadata under `raw/ensembl-refresh/`: release 116, GRCh37.p13 and GRCh38.p14. RefSNP's record reports last-update dbSNP build 157, 2024-11-1T21:14Z. |
+| C4: reference versions are stable across this refresh | Current Ensembl release/assembly metadata under `raw/ensembl-refresh/`: release 116, GRCh37.p13 and GRCh38.p14. RefSNP's last-update dbSNP build is 157; its update time is 2024-11-01T21:14Z (ISO-normalized display; the original unpadded value is preserved in the raw record). |
 
 The historical evidence has 4,972 orientations supported by identity plus assembly map,
 27 by flank plus one of those methods, and one previously supported by flank alone.
@@ -69,14 +69,20 @@ successfully; installed skill files were not changed. See `ncbi-queries.json`.
 
 ## Discovery, citations, corrections and licenses
 
-Consensus search and selected-paper fetches preceded the narrow Ensembl and NCBI
-Variation skills. Scite verified all three citations with no editorial notices;
-neither discovery tool was quota-blocked. See `discovery.json` and sanitized public
-bibliographic responses in `raw/consensus-*.json` and `raw/scite-verify.json`.
-Scite's contrasting citation for the dbSNP paper concerns clinical validation of ERMAP
-variants, not reference orientation. No clinical-validity claim is inferred from dbSNP
-membership. Historical PubMed records also reported no CommentsCorrections entries.
-Papers found through both discovery tools are counted once.
+Consensus search and selected-paper fetches, followed by Scite screening, preceded the
+narrow Ensembl and NCBI Variation skills. Neither discovery tool was quota-blocked.
+Only the public queries and handling notes are retained in `discovery.json` and
+`source-response-index.json`. Provider responses, generated summaries, abstracts,
+citation contexts and classifier results are neither retained in this packet nor used
+as evidence. Papers found through both discovery tools are counted once.
+
+The identifiers and correction check were independently refreshed through the NCBI
+Entrez skill: `raw/pubmed-primary-metadata.json` records primary bibliographic and
+publication-type fields and an empty CommentsCorrections list for each of the three
+papers (accessed 2026-11-08). Abstracts, author/affiliation data and the full response XML
+were excluded from the retained extract. This is a record of the available PubMed
+fields, not a guarantee against a future correction. No clinical-validity claim is
+inferred from dbSNP membership.
 
 - PMID:25236461; DOI:10.1093/bioinformatics/btu613 (accessed 2026-11-08):
   Yates et al., [The Ensembl REST API: Ensembl Data for Any Language](https://doi.org/10.1093/bioinformatics/btu613).
@@ -95,8 +101,11 @@ Papers found through both discovery tools are counted once.
 Ensembl data-use terms and NCBI distribution terms are preserved in the historical
 packet's `raw/terms/data_use_terms.json` (accessed 2026-10-20): no restrictions on access,
 use or distribution of those data. The current NCBI service schema explicitly declares
-Public Domain and links its policies. Public paper metadata and abstracts are retained
-for provenance, not relicensed as repository-authored text. No UCSC chain is used.
+Public Domain and links its policies. Primary PubMed metadata is retained without
+abstracts or full text. The discovery-service handling follows the recorded
+[Consensus terms](https://consensus.app/home/terms-of-service/) and
+[Scite terms](https://scite.ai/terms) (accessed 2026-11-08); no redistribution license
+for their response payloads is asserted. No UCSC chain is used.
 
 ## Reproduction and reanalysis
 
@@ -111,6 +120,9 @@ python -m pytest tests/backend/test_ancestry_strand_harmonization.py -q
 `build_mapping.py --write` regenerates only the two mapping sidecars. It never reads
 sample genotypes or the synthetic fixture oracle; tests compare against that separate
 oracle. The NPZ stays byte-identical. `manifest.json` records hashes for this packet.
+Both audit scripts explicitly reject `-O`/`-OO` so disabled assertions cannot produce
+a false validation pass. The rs2270662 alignment vote is computed from the two retained
+NCBI placement-orientation flags.
 
 Existing stored ancestry estimates are not automatically recalculated at update time.
 Rerun global ancestry to replace the PCA/NNLS/kNN findings and intervals; stored sample

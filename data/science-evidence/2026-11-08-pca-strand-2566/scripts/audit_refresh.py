@@ -14,6 +14,9 @@ COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
 
 def audit() -> dict:
+    """Verify successful response hashes and compare current reference records."""
+    if not __debug__:
+        raise RuntimeError("Evidence validation requires enabled assertions; omit -O/-OO")
     records = json.loads(gzip.decompress((OLD / "derived/grch37_positions.json.gz").read_bytes()))
     by_id = {r["id"]: r for r in records}
     queries = [

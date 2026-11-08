@@ -22,6 +22,7 @@
       ]
     }
   ],
-  "privacy": "Search response retains only selected public bibliographic records. Account usage and institutional-access URLs are omitted.",
-  "editorial_assessment": "Scite verified all three papers with no editorial notices. Its contrasting citation for the dbSNP paper concerns clinical validation of ERMAP variants, not assembly coordinate/orientation assertions. No clinical-effect or variant-validity claim is inferred from dbSNP membership."
+  "privacy": "Only public queries, source identifiers and execution/handling notes are retained in this packet. Discovery-provider response payloads, generated summaries, article abstracts, citation contexts and classifier results are not retained or used as evidence.",
+  "primary_verification": "NCBI PubMed EFetch independently verifies the three identifiers and returns no CommentsCorrections entries; see raw/pubmed-primary-metadata.json.",
+  "unavailable_or_quota_events": []
 }

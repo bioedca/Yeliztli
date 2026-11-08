@@ -49,8 +49,8 @@ mean-imputed and count as missing in coverage.
 The app ships a complete 5,000-marker mapping beside the NPZ, with hashes tying the
 mapping to that exact training bundle. Loading fails if the mapping is absent, incomplete,
 duplicated or inconsistent with the training markers. The derivation, source versions,
-limitations and offline reproduction commands are recorded in the
-[public reference evidence packet](https://github.com/bioedca/Yeliztli/tree/main/data/science-evidence/2026-11-08-pca-strand-2566).
+limitations and offline reproduction commands are recorded at
+`data/science-evidence/2026-11-08-pca-strand-2566/` in the same source revision.
 The `ref`/`alt` labels in this mapping preserve training allele identity; they do not
 relabel the GRCh37 reference base.
 
