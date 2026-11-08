@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "./test-utils"
 import SampleMetadataEditor from "@/components/settings/SampleMetadataEditor"
+import type { Sample } from "@/types/samples"
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
@@ -281,6 +282,72 @@ describe("SampleMetadataEditor", () => {
     })
 
     expect(screen.getByTestId("sample-save-btn")).not.toBeDisabled()
+  })
+
+  it.each([
+    { input: "", sent: null },
+    { input: "2025-02-20", sent: "2025-02-20" },
+  ])("saves a changed date as $sent and reloads it", async ({ input, sent }) => {
+    let stored: Sample = { ...SAMPLE_DETAIL }
+    const patches: unknown[] = []
+    mockFetch.mockImplementation(
+      makeRouter({
+        samples: () => jsonResponse(SAMPLE_LIST),
+        sampleDetail: (_id, init) => {
+          if (init?.method === "PATCH") {
+            const body = JSON.parse(String(init.body))
+            patches.push(body)
+            stored = { ...stored, ...body }
+          }
+          return jsonResponse(stored)
+        },
+      }),
+    )
+    render(<SampleMetadataEditor />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit genome_a.txt" }))
+    expect(await screen.findByLabelText("Date Collected")).toHaveValue("2025-01-15")
+    fireEvent.change(screen.getByLabelText("Date Collected"), { target: { value: input } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }))
+    await waitFor(() => expect(patches).toEqual([{ date_collected: sent }]))
+    await screen.findByTestId("save-success")
+    await waitFor(() => expect(screen.getByLabelText("Date Collected")).toHaveValue(input))
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit genome_a.txt" }))
+    expect(await screen.findByLabelText("Date Collected")).toHaveValue(input)
+    expect(screen.getByLabelText("Notes")).toHaveValue("Test note")
+    expect(screen.getByLabelText("Source / Lab")).toHaveValue("23andMe")
+  })
+
+  it("omits an untouched date when saving a note", async () => {
+    let stored = { ...SAMPLE_DETAIL }
+    const patches: unknown[] = []
+    mockFetch.mockImplementation(
+      makeRouter({
+        samples: () => jsonResponse(SAMPLE_LIST),
+        sampleDetail: (_id, init) => {
+          if (init?.method === "PATCH") {
+            const body = JSON.parse(String(init.body))
+            patches.push(body)
+            stored = { ...stored, ...body }
+          }
+          return jsonResponse(stored)
+        },
+      }),
+    )
+    render(<SampleMetadataEditor />)
+    fireEvent.click(await screen.findByRole("button", { name: "Edit genome_a.txt" }))
+    expect(await screen.findByLabelText("Date Collected")).toHaveValue("2025-01-15")
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Updated note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }))
+    await waitFor(() => expect(patches).toEqual([{ notes: "Updated note" }]))
+    await screen.findByTestId("save-success")
+    expect(screen.getByLabelText("Date Collected")).toHaveValue("2025-01-15")
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit genome_a.txt" }))
+    expect(await screen.findByLabelText("Notes")).toHaveValue("Updated note")
+    expect(screen.getByLabelText("Date Collected")).toHaveValue("2025-01-15")
   })
 })
 

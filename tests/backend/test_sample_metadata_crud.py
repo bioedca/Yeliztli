@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.db.tables import reference_metadata
+from backend.db.tables import reference_metadata, sample_metadata_table
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
 V5_FILE = FIXTURES / "sample_23andme_v5.txt"
@@ -121,6 +121,103 @@ class TestUpdateSampleMetadata:
         r = client.patch(f"/api/samples/{sid}", json={"date_collected": "2025-01-15"})
         assert r.status_code == 200
         assert r.json()["date_collected"] == "2025-01-15"
+
+    @pytest.mark.parametrize("field", ["date_collected", "notes", "source"])
+    def test_null_clears_only_the_supplied_nullable_field(self, client, field):
+        """Explicit null clears a stored value; omitted fields survive (#2354)."""
+        sid = _create_sample(client)
+        values = {"date_collected": "2025-01-15", "notes": "Keep note", "source": "Test lab"}
+        initial = client.patch(f"/api/samples/{sid}", json=values)
+        assert initial.status_code == 200
+        assert {key: initial.json()[key] for key in values} == values
+
+        cleared = client.patch(f"/api/samples/{sid}", json={field: None, "name": "Renamed"})
+        assert cleared.status_code == 200
+        expected = {**values, field: None}
+        assert {key: cleared.json()[key] for key in values} == expected
+        assert cleared.json()["name"] == "Renamed"
+        reloaded = client.get(f"/api/samples/{sid}")
+        assert reloaded.status_code == 200
+        assert {key: reloaded.json()[key] for key in values} == expected
+        assert reloaded.json()["name"] == "Renamed"
+
+    def test_omitted_nullable_fields_survive_a_rename(self, client):
+        sid = _create_sample(client)
+        values = {"date_collected": "2025-01-15", "notes": "Keep note", "source": "Test lab"}
+        initial = client.patch(f"/api/samples/{sid}", json=values)
+        assert initial.status_code == 200
+        assert {key: initial.json()[key] for key in values} == values
+        renamed = client.patch(f"/api/samples/{sid}", json={"name": "Renamed"})
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Renamed"
+        assert {key: renamed.json()[key] for key in values} == values
+        reloaded = client.get(f"/api/samples/{sid}")
+        assert reloaded.status_code == 200
+        assert {key: reloaded.json()[key] for key in values} == values
+
+    @pytest.mark.parametrize("field", ["notes", "source"])
+    def test_empty_text_remains_a_literal_stored_value(self, client, tmp_data_dir, field):
+        """The response normalizes empty text, but storage must not become NULL."""
+        sid = _create_sample(client)
+        initial = client.patch(f"/api/samples/{sid}", json={field: "Previous value"})
+        assert initial.status_code == 200
+        assert initial.json()[field] == "Previous value"
+        updated = client.patch(f"/api/samples/{sid}", json={field: ""})
+        assert updated.status_code == 200
+        assert updated.json()[field] is None
+        reloaded = client.get(f"/api/samples/{sid}")
+        assert reloaded.status_code == 200
+        assert reloaded.json()[field] is None
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / reloaded.json()['db_path']}")
+        try:
+            with engine.connect() as conn:
+                stored = conn.execute(
+                    sa.select(sample_metadata_table.c[field]).where(
+                        sample_metadata_table.c.id == 1
+                    )
+                ).scalar_one()
+            assert stored == ""
+        finally:
+            engine.dispose()
+
+    def test_null_name_and_extra_keep_their_existing_noop_semantics(self, client):
+        sid = _create_sample(client)
+        values = {"name": "Keep name", "extra": {"key": "value"}}
+        initial = client.patch(f"/api/samples/{sid}", json=values)
+        assert initial.status_code == 200
+        updated = client.patch(f"/api/samples/{sid}", json={"name": None, "extra": None})
+        assert updated.status_code == 200
+        assert {key: updated.json()[key] for key in values} == values
+        reloaded = client.get(f"/api/samples/{sid}")
+        assert reloaded.status_code == 200
+        assert {key: reloaded.json()[key] for key in values} == values
+
+    @pytest.mark.parametrize("invalid", ["", "invalid-date", "2025-02-30"])
+    def test_invalid_date_does_not_rename_or_clear_metadata(self, client, invalid):
+        sid = _create_sample(client)
+        initial = client.patch(
+            f"/api/samples/{sid}",
+            json={"date_collected": "2025-01-15", "notes": "Keep note", "source": "Test lab"},
+        )
+        assert initial.status_code == 200
+        before = client.get(f"/api/samples/{sid}")
+        assert before.status_code == 200
+        rejected = client.patch(
+            f"/api/samples/{sid}",
+            json={
+                "name": "Must not land",
+                "date_collected": invalid,
+                "notes": None,
+                "source": None,
+            },
+        )
+        assert rejected.status_code == 422
+        assert rejected.json()["detail"] == (
+            f"Invalid date format: {invalid}. Expected YYYY-MM-DD."
+        )
+        after = client.get(f"/api/samples/{sid}")
+        assert after.status_code == 200
+        assert after.json() == before.json()
 
     def test_update_extra_json(self, client):
         sid = _create_sample(client)
@@ -270,12 +367,8 @@ class TestUpdateSampleMetadata:
             "partial commit: PATCH returned 422 but updated_at was bumped"
         )
 
-    def test_clearing_the_date_does_not_commit_the_rename(self, client):
-        """An <input type="date"> emits "" when cleared, and "" never parses.
-
-        Same partial commit as the malformed-date case, reached without the
-        user typing anything wrong.
-        """
+    def test_empty_string_date_does_not_commit_the_rename(self, client):
+        """Empty-string dates stay invalid; clearing now uses explicit null (#2354)."""
         sid = _create_sample(client)
         before = client.get(f"/api/samples/{sid}").json()
 
