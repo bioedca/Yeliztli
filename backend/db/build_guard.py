@@ -284,6 +284,13 @@ def _anchor_namespace_lock(anchors_fd: int | None):
         # and reopens it; it must not create storage just to obtain this lock.
         yield
         return
+    namespace = os.fstat(anchors_fd)
+    if (
+        not stat.S_ISDIR(namespace.st_mode)
+        or namespace.st_uid != os.geteuid()
+        or namespace.st_mode & 0o077
+    ):
+        raise _storage_error()
     fcntl.flock(anchors_fd, fcntl.LOCK_EX)
     try:
         yield

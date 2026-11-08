@@ -85,6 +85,29 @@ def test_other_writable_storage_rejected(operation, directory, tmp_path):
 
 
 @pytest.mark.parametrize("operation", ["acquire", "probe"])
+@pytest.mark.parametrize("mode", [0o755, 0o750, 0o705, 0o710, 0o701])
+def test_anchor_directory_must_be_private_before_locking(operation, mode, tmp_path, monkeypatch):
+    _, anchors, marker, anchor = _layout(tmp_path)
+    anchors.chmod(mode)
+    real_flock, calls = guard.fcntl.flock, []
+
+    def flock(fd, flags):
+        calls.append((fd, flags))
+        return real_flock(fd, flags)
+
+    monkeypatch.setattr(guard.fcntl, "flock", flock)
+    try:
+        with pytest.raises(OSError):
+            _operate(operation, tmp_path)
+        assert calls == []
+        assert anchors.stat().st_mode & 0o777 == mode
+        assert marker.samefile(anchor) and marker.stat().st_nlink == 2
+        assert marker.read_bytes() == b"synthetic marker contents"
+    finally:
+        anchors.chmod(0o700)
+
+
+@pytest.mark.parametrize("operation", ["acquire", "probe"])
 def test_non_sticky_shared_ancestor_rejected(operation, tmp_path):
     parent = tmp_path / "shared"
     parent.mkdir()
