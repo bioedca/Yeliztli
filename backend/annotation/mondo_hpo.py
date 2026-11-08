@@ -30,8 +30,9 @@ import json
 import os
 import secrets
 import stat
+import sys
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
@@ -1004,6 +1005,26 @@ def _assert_source_bundle_ancestor_directory_is_trusted(
         )
 
 
+def _sync_source_bundle_fd(fd: int) -> None:
+    """Require storage synchronization; unsupported filesystems fail closed.
+
+    Darwin's fsync alone need not flush the device's volatile cache. Never
+    silently fall back to that weaker operation if F_FULLFSYNC is unavailable.
+    Callers use retained, verified regular-file or directory descriptors.
+    """
+    try:
+        os.fsync(fd)
+        if sys.platform == "darwin":
+            import fcntl
+
+            command = getattr(fcntl, "F_FULLFSYNC", None)
+            if command is None:
+                raise OSError("F_FULLFSYNC is unavailable")
+            fcntl.fcntl(fd, command)
+    except OSError as exc:
+        raise ValueError("Unable to synchronize MONDO/HPO source-bundle durability") from exc
+
+
 def _open_or_create_pinned_source_bundle_directory(dest_dir: Path) -> int:
     """Return a retained descriptor for ``dest_dir`` without recursive path writes.
 
@@ -1087,6 +1108,10 @@ def _open_or_create_pinned_source_bundle_directory(dest_dir: Path) -> int:
                         os.fstat(child_fd),
                         child_path,
                     )
+                    # Persist each newly-created downloads ancestor before
+                    # releasing the only descriptor for its containing entry.
+                    _sync_source_bundle_fd(child_fd)
+                    _sync_source_bundle_fd(parent_fd)
                 except OSError as exc:
                     raise ValueError(
                         f"Unable to inspect MONDO/HPO downloads directory: {child_path}"
@@ -1113,6 +1138,26 @@ def _open_or_create_pinned_source_bundle_directory(dest_dir: Path) -> int:
     except BaseException:
         os.close(parent_fd)
         raise
+
+
+def _sync_source_bundle_ancestor_entries(directory_fd: int) -> None:
+    """Persist containing entries, including directories left by a failed try.
+
+    Existing path components need the same treatment as newly created ones:
+    an earlier failed flush may have left them visible but not durable. Walk
+    physical parents through held descriptors, without reopening lexical paths.
+    """
+    with ExitStack() as stack:
+        current_fd = directory_fd
+        while True:
+            _sync_source_bundle_fd(current_fd)
+            parent_fd = os.open("..", _source_bundle_open_flags(directory=True), dir_fd=current_fd)
+            stack.callback(os.close, parent_fd)
+            if _source_bundle_identity(os.fstat(parent_fd)) == _source_bundle_identity(
+                os.fstat(current_fd)
+            ):
+                return
+            current_fd = parent_fd
 
 
 @dataclass(frozen=True)
@@ -1156,6 +1201,7 @@ class _PublishedSourceBundle:
     name: str
     fd: int
     identity: tuple[int, int]
+    synced_files: tuple[tuple[str, int], ...] = ()
 
 
 def _fd_backed_path(fd: int, lexical: Path) -> Path:
@@ -1673,6 +1719,15 @@ def _assert_published_source_bundle_matches_fd(
         ) from exc
     if not stat.S_ISDIR(current.st_mode) or _source_bundle_identity(current) != published.identity:
         raise ValueError(f"MONDO/HPO source bundle changed during finalization: {published.name}")
+    for name, fd in published.synced_files:
+        try:
+            named = os.stat(name, dir_fd=published.fd, follow_symlinks=False)
+        except OSError as exc:
+            raise ValueError("MONDO/HPO synchronized file changed during finalization") from exc
+        if not stat.S_ISREG(named.st_mode) or _source_bundle_identity(named) != (
+            _source_bundle_identity(os.fstat(fd))
+        ):
+            raise ValueError("MONDO/HPO synchronized file changed during finalization")
 
 
 def _assert_published_source_bundle_contents(
@@ -1821,6 +1876,43 @@ def _write_source_bundle_pending(staging: _StagedSourceBundle) -> None:
         os.close(pending_fd)
 
 
+def _sync_source_bundle_contents(
+    bundle_fd: int, sources: list[dict[str, str | int | None]], retained: ExitStack
+) -> tuple[tuple[str, int], ...]:
+    """Flush the exact retained files, including an existing reused manifest.
+
+    Pin each child without following links and recheck its name after the
+    flush. Keep every descriptor open through the caller's final commit guard;
+    hashes alone cannot detect an unsynchronized byte-identical replacement.
+    Full content/manifest checks bracket this operation at publication.
+    A missing pending marker is normal for an already-committed reused bundle.
+    """
+    names = [_source_bundle_expected_file_fields(source)[0] for source in sources]
+    synced = []
+    for name in [*names, SOURCE_BUNDLE_MANIFEST, SOURCE_BUNDLE_PENDING]:
+        try:
+            fd = os.open(name, _source_bundle_file_open_flags(), dir_fd=bundle_fd)
+        except FileNotFoundError:
+            if name == SOURCE_BUNDLE_PENDING:
+                continue
+            raise
+        retained.callback(os.close, fd)
+        before = os.fstat(fd)
+        named_before = os.stat(name, dir_fd=bundle_fd, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or (
+            _source_bundle_identity(before) != _source_bundle_identity(named_before)
+        ):
+            raise ValueError("MONDO/HPO source-bundle file changed before synchronization")
+        _sync_source_bundle_fd(fd)
+        named_after = os.stat(name, dir_fd=bundle_fd, follow_symlinks=False)
+        if not stat.S_ISREG(named_after.st_mode) or (
+            _source_bundle_identity(before) != _source_bundle_identity(named_after)
+        ):
+            raise ValueError("MONDO/HPO source-bundle file changed during synchronization")
+        synced.append((name, fd))
+    return tuple(synced)
+
+
 @contextmanager
 def _publish_staged_source_bundle(
     managed: _ManagedSourceBundleDir,
@@ -1828,37 +1920,59 @@ def _publish_staged_source_bundle(
     sources: list[dict[str, str | int | None]],
 ) -> Iterator[_PublishedSourceBundle]:
     """Publish inputs and retain an exact child descriptor through finalization."""
-    try:
-        existing = os.stat(bundle_id, dir_fd=managed.fd, follow_symlinks=False)
-    except FileNotFoundError:
-        _write_source_bundle_pending(managed.staging)
-        _assert_source_bundle_root_matches_fd(managed)
-        if not _staged_source_bundle_matches_fd(managed.staging):
-            raise ValueError(f"MONDO/HPO staging directory is unavailable: {managed.staging.name}")
+    with ExitStack() as retained:
+        synced_files: tuple[tuple[str, int], ...] = ()
         try:
-            os.replace(
-                managed.staging.name,
-                bundle_id,
-                src_dir_fd=managed.staging.parent_fd,
-                dst_dir_fd=managed.fd,
-            )
+            existing = os.stat(bundle_id, dir_fd=managed.fd, follow_symlinks=False)
+        except FileNotFoundError:
+            _write_source_bundle_pending(managed.staging)
+            synced_files = _sync_source_bundle_contents(managed.staging.fd, sources, retained)
+            _sync_source_bundle_fd(managed.staging.fd)
+            _assert_source_bundle_root_matches_fd(managed)
+            if not _staged_source_bundle_matches_fd(managed.staging):
+                raise ValueError(
+                    f"MONDO/HPO staging directory is unavailable: {managed.staging.name}"
+                )
+            try:
+                os.replace(
+                    managed.staging.name,
+                    bundle_id,
+                    src_dir_fd=managed.staging.parent_fd,
+                    dst_dir_fd=managed.fd,
+                )
+            except OSError as exc:
+                raise ValueError(
+                    f"Unable to publish MONDO/HPO source bundle: {bundle_id}"
+                ) from exc
+            published = _open_published_source_bundle(managed, bundle_id)
+            if published.identity != managed.staging.identity:
+                os.close(published.fd)
+                raise ValueError(f"MONDO/HPO source bundle changed while publishing: {bundle_id}")
         except OSError as exc:
-            raise ValueError(f"Unable to publish MONDO/HPO source bundle: {bundle_id}") from exc
-        published = _open_published_source_bundle(managed, bundle_id)
-        if published.identity != managed.staging.identity:
+            raise ValueError(f"Unable to inspect MONDO/HPO source bundle: {bundle_id}") from exc
+        else:
+            if stat.S_ISLNK(existing.st_mode) or not stat.S_ISDIR(existing.st_mode):
+                raise ValueError(
+                    f"Existing MONDO/HPO source bundle is not a directory: {bundle_id}"
+                )
+            published = _open_published_source_bundle(managed, bundle_id)
+        try:
+            _assert_published_source_bundle_contents(managed, published, sources)
+            if published.identity != managed.staging.identity:
+                # Identical retries keep the original files and manifest. Flushing
+                # disposable staging says nothing about those retained inputs.
+                synced_files = _sync_source_bundle_contents(published.fd, sources, retained)
+            published = replace(published, synced_files=synced_files)
+            # Persist the bundle's entries, the rename destination, and its source
+            # directory (also the parent of a newly-created managed root) before
+            # any database transaction may record the published path as installed.
+            _sync_source_bundle_fd(published.fd)
+            _sync_source_bundle_fd(managed.fd)
+            _sync_source_bundle_ancestor_entries(managed.staging.parent_fd)
+            _assert_published_source_bundle_contents(managed, published, sources)
+            yield published
+        finally:
             os.close(published.fd)
-            raise ValueError(f"MONDO/HPO source bundle changed while publishing: {bundle_id}")
-    except OSError as exc:
-        raise ValueError(f"Unable to inspect MONDO/HPO source bundle: {bundle_id}") from exc
-    else:
-        if stat.S_ISLNK(existing.st_mode) or not stat.S_ISDIR(existing.st_mode):
-            raise ValueError(f"Existing MONDO/HPO source bundle is not a directory: {bundle_id}")
-        published = _open_published_source_bundle(managed, bundle_id)
-    try:
-        _assert_published_source_bundle_contents(managed, published, sources)
-        yield published
-    finally:
-        os.close(published.fd)
 
 
 def _mondo_hpo_installation_state(
