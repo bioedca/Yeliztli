@@ -632,7 +632,7 @@ class TestRecordClinvarVersion:
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
         assert row is not None
-        assert row.version == "20260301"
+        assert row.version == "20260301+mc-v1"
 
     def test_update_existing_version(self, ref_engine: sa.Engine):
         record_clinvar_version(ref_engine, version="20260201")
@@ -642,7 +642,7 @@ class TestRecordClinvarVersion:
             row = conn.execute(
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
-        assert row.version == "20260301"
+        assert row.version == "20260301+mc-v1"
 
     def test_checksum_stored(self, ref_engine: sa.Engine):
         record_clinvar_version(
@@ -817,4 +817,15 @@ class TestDownloadAndLoadClinvar:
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
             assert ver is not None
-            assert ver.version == "20260301"
+            assert ver.version == "20260301+mc-v1"
+
+
+def test_parse_source_native_molecular_consequence():
+    record, skipped = parse_clinvar_vcf_line(
+        "1\t99001\t900000001\tA\tATG\t.\t.\t"
+        "RS=900000001;MC=SO:0001589|frameshift_variant,SO:0001627|intron_variant"
+    )
+    assert skipped is None and record is not None
+    assert getattr(record, "molecular_consequence", None) == (
+        "SO:0001589|frameshift_variant,SO:0001627|intron_variant"
+    )

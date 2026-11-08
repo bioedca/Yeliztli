@@ -709,7 +709,9 @@ def _ensure_search_indexes(engine: sa.Engine) -> bool:
 #      holding a withheld Indeterminate call, from before issue #2178's fix (#2207).
 # v32: Remove percentile guidance from exact legacy PRS caveats only when the
 #      stored result explicitly withholds its percentile (issue #2380).
-SAMPLE_SCHEMA_VERSION = 32
+# v33: Preserve source-native ClinVar MC and effective consequence provenance
+#      (#2393); existing rows remain unknown until re-annotation.
+SAMPLE_SCHEMA_VERSION = 33
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2515,6 +2517,23 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                 findings_count=repaired_findings,
                 from_version=from_version,
             )
+
+    if from_version < 33:
+        inspector = sa.inspect(engine)
+        if "annotated_variants" in inspector.get_table_names():
+            existing_cols = {c["name"] for c in inspector.get_columns("annotated_variants")}
+            with engine.begin() as conn:
+                for column in (
+                    "clinvar_molecular_consequence",
+                    "consequence_source",
+                    "vep_allele_identity",
+                    "clinvar_allele_identity",
+                ):
+                    if column not in existing_cols:
+                        conn.execute(
+                            sa.text(f"ALTER TABLE annotated_variants ADD COLUMN {column} TEXT")
+                        )
+                        added = True
 
     return added
 

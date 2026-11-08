@@ -46,9 +46,9 @@ VEP_BITMASK = 0b000001  # bit 0 = 1
 # Batch size for SQLite IN clause (stay below 999 variable limit)
 _IN_BATCH_SIZE = 500
 
-# Batch size for upsert into annotated_variants.
-# VEP upserts ~13 columns/row; 999 // 13 ≈ 76 rows stays under macOS SQLite
-# variable limit. Use a moderate value that works cross-platform.
+# Parameter-set batch size for executemany upserts into annotated_variants.
+# Each row is a separate execution within the same transaction, so added
+# provenance columns do not multiply the per-statement variable count.
 BATCH_SIZE = 75
 
 # ── Consequence severity ranking (Ensembl SO terms) ──────────────────────
@@ -146,6 +146,8 @@ class VEPAnnotation:
     ref: str | None = None
     alt: str | None = None
     allele_unambiguous: bool = False
+    chrom: str | None = None
+    pos: int | None = None
 
 
 @dataclass
@@ -220,6 +222,8 @@ def _pick_best(
                 allele_unambiguous=bool(
                     allele_unambiguous_by_key and allele_unambiguous_by_key.get(str(key), False)
                 ),
+                chrom=getattr(row, "chrom", None),
+                pos=getattr(row, "pos", None),
             )
             best_score[key] = score
 
@@ -630,9 +634,41 @@ def annotate_sample_vep(
     result.not_matched = result.total_variants - result.total_matched
 
     # 5. Upsert into annotated_variants
+    # A standalone VEP refresh can follow ClinVar. Retain its exact-allele MC
+    # only where the selected VEP transcript has no consequence of its own.
+    from backend.annotation.allele_matching import source_allele_identity
+    from backend.annotation.clinvar import molecular_consequence_fallback
+
+    with sample_engine.connect() as conn:
+        existing_mc = {
+            row.rsid: row
+            for row in conn.execute(
+                sa.select(
+                    annotated_variants.c.rsid,
+                    annotated_variants.c.clinvar_allele_identity,
+                    annotated_variants.c.clinvar_molecular_consequence,
+                ).where(annotated_variants.c.clinvar_molecular_consequence.is_not(None))
+            )
+        }
     rows_to_upsert = []
     for rsid, annot in all_matches.items():
         raw = raw_by_rsid[rsid]
+        identity = (
+            source_allele_identity(annot.chrom, annot.pos, annot.ref, annot.alt)
+            if annot.allele_unambiguous
+            else None
+        )
+        consequence = annot.consequence
+        consequence_source = "vep" if consequence else None
+        mc_row = existing_mc.get(rsid)
+        if (
+            not consequence
+            and mc_row is not None
+            and identity is not None
+            and identity == mc_row.clinvar_allele_identity
+        ):
+            consequence = molecular_consequence_fallback(mc_row.clinvar_molecular_consequence)
+            consequence_source = "clinvar" if consequence else None
         rows_to_upsert.append(
             {
                 "rsid": rsid,
@@ -641,7 +677,9 @@ def annotate_sample_vep(
                 "genotype": raw.genotype,
                 "gene_symbol": annot.gene_symbol,
                 "transcript_id": annot.transcript_id,
-                "consequence": annot.consequence,
+                "consequence": consequence,
+                "consequence_source": consequence_source,
+                "vep_allele_identity": identity,
                 "hgvs_coding": annot.hgvs_coding,
                 "hgvs_protein": annot.hgvs_protein,
                 "strand": annot.strand,
@@ -657,13 +695,15 @@ def annotate_sample_vep(
             for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
                 batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
-                stmt = sqlite_insert(annotated_variants).values(batch)
+                stmt = sqlite_insert(annotated_variants)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["rsid"],
                     set_={
                         "gene_symbol": stmt.excluded.gene_symbol,
                         "transcript_id": stmt.excluded.transcript_id,
                         "consequence": stmt.excluded.consequence,
+                        "consequence_source": stmt.excluded.consequence_source,
+                        "vep_allele_identity": stmt.excluded.vep_allele_identity,
                         "hgvs_coding": stmt.excluded.hgvs_coding,
                         "hgvs_protein": stmt.excluded.hgvs_protein,
                         "strand": stmt.excluded.strand,
@@ -680,7 +720,7 @@ def annotate_sample_vep(
                         ),
                     },
                 )
-                conn.execute(stmt)
+                conn.execute(stmt, batch)
 
         result.rows_written = len(rows_to_upsert)
 

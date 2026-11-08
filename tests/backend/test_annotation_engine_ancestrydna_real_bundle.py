@@ -190,6 +190,10 @@ def reference_engine_with_clinvar(real_vep_bundle_path: Path) -> sa.Engine:  # n
     the slow-tier test can compute a real P/LP intersection. Otherwise the
     table stays empty and the ClinVar assertion individually skips.
 
+    No MONDO/HPO rows are copied or seeded. An unstamped MONDO/HPO lookup may
+    therefore log a withholding warning, but it withholds no associations in
+    this fixture. Do not stamp an absent dataset as a serviceable install.
+
     Module-scoped so the (potentially multi-million-row) copy runs once per
     pytest session for this file, not once per test method.
     """
@@ -198,7 +202,7 @@ def reference_engine_with_clinvar(real_vep_bundle_path: Path) -> sa.Engine:  # n
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    # No ``database_versions`` stamp: the engine then resolves the version from
+    # No VEP ``database_versions`` stamp: the engine then resolves the version from
     # the staged bundle's own metadata, so the telemetry check below compares a
     # real value. A hard-coded stamp was what it used to read back (#2552).
     reference_metadata.create_all(engine)

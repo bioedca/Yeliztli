@@ -35,6 +35,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from backend.analysis.insilico_tiers import is_missense_consequence
 from backend.analysis.zygosity import classify_zygosity, is_no_call
+from backend.annotation.allele_matching import source_allele_identity
 from backend.annotation.alphamissense import lookup_alphamissense_by_positions
 from backend.annotation.dbnsfp import (
     DbNSFPAnnotation,
@@ -305,6 +306,11 @@ def _lookup_vep(
             "exon_number": annot.exon_number,
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
+            "vep_allele_identity": (
+                source_allele_identity(annot.chrom, annot.pos, annot.ref, annot.alt)
+                if annot.allele_unambiguous
+                else None
+            ),
         }
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref
@@ -497,6 +503,10 @@ def _lookup_clinvar(
             "clinvar_review_stars": annot.clinvar_review_stars,
             "clinvar_accession": annot.clinvar_accession,
             "clinvar_conditions": annot.clinvar_conditions,
+            "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+            "clinvar_allele_identity": source_allele_identity(
+                annot.chrom, annot.pos, annot.ref, annot.alt
+            ),
             # Preserve source-native identity for subsequent exact allele joins.
             "_clinvar_chrom": annot.chrom,
             "_clinvar_pos": annot.pos,
@@ -957,6 +967,7 @@ def _merge_annotations(
     gnomad_allele_ambiguous: set[str] | None = None,
     gnomad_locus_unresolved: set[str] | None = None,
     gnomad_alias_unresolved: set[str] | None = None,
+    vep_allele_ambiguous: set[str] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
 
@@ -1001,6 +1012,25 @@ def _merge_annotations(
                 if key not in {"_clinvar_chrom", "_clinvar_pos"}
             )
             bitmask |= CLINVAR_BIT
+
+        if row_data.get("consequence"):
+            row_data["consequence_source"] = "vep"
+        elif rsid not in (vep_allele_ambiguous or ()):
+            from backend.annotation.clinvar import molecular_consequence_fallback
+
+            vep = vep_data.get(rsid)
+            # A selected VEP row with no consequence must still describe the
+            # same allele. Do not attach another allele's MC to its gene.
+            same_allele = vep is None or (
+                vep.get("vep_allele_identity") is not None
+                and vep["vep_allele_identity"] == row_data.get("clinvar_allele_identity")
+            )
+            consequence = molecular_consequence_fallback(
+                row_data.get("clinvar_molecular_consequence")
+            )
+            if same_allele and consequence:
+                row_data["consequence"] = consequence
+                row_data["consequence_source"] = "clinvar"
 
         if rsid in gnomad_data:
             row_data.update(gnomad_data[rsid])
@@ -1125,6 +1155,8 @@ _UPSERT_COLUMNS = [
     "gene_symbol",
     "transcript_id",
     "consequence",
+    "consequence_source",
+    "vep_allele_identity",
     "hgvs_coding",
     "hgvs_protein",
     "strand",
@@ -1136,6 +1168,8 @@ _UPSERT_COLUMNS = [
     "clinvar_review_stars",
     "clinvar_accession",
     "clinvar_conditions",
+    "clinvar_molecular_consequence",
+    "clinvar_allele_identity",
     # dbSNP merge reconciliation (F18) — current rsid a deprecated id resolved to
     "dbsnp_rsid_current",
     # gnomAD
@@ -1370,6 +1404,11 @@ def _vep_coord_fallback(
             "exon_number": annot.exon_number,
             "intron_number": annot.intron_number,
             "mane_select": annot.mane_select,
+            "vep_allele_identity": (
+                source_allele_identity(annot.chrom, annot.pos, annot.ref, annot.alt)
+                if annot.allele_unambiguous
+                else None
+            ),
         }
         if annot.ref is not None and annot.alt is not None:
             row["_vep_ref"] = annot.ref
@@ -1648,6 +1687,14 @@ def run_annotation(
     if not raw_rows:
         return result
 
+    # A queued worker can run before FastAPI upgrades an older reference DB.
+    # Finish the narrow additive migration before source errors can be caught
+    # as partial coverage or staging can replace prior ClinVar annotations.
+    from backend.db.reference_schema import ensure_clinvar_molecular_consequence
+
+    reference_engine = registry.reference_engine
+    ensure_clinvar_molecular_consequence(reference_engine)
+
     # 2. Crash recovery (F28): annotate into a fresh staging table, not in place.
     # The prior good annotation in ``annotated_variants`` is left untouched until
     # the atomic swap at the very end, so a crash mid-run loses nothing.
@@ -1661,7 +1708,6 @@ def run_annotation(
     # stamp coverage telemetry, annotation_state, and the reference snapshot
     # with a version newer than the artifact actually queried (#1953).
     pinned_vep_bundle_version = _read_bundle_version(registry)
-    reference_engine = registry.reference_engine  # always available
     gnomad_engine = _check_engine_available(lambda: registry.gnomad_engine, "gnomad", result)
     dbnsfp_engine = _check_engine_available(lambda: registry.dbnsfp_engine, "dbnsfp", result)
     alphamissense_engine = _check_engine_available(
@@ -2194,6 +2240,7 @@ def run_annotation(
                 gnomad_allele_ambiguous=gnomad_allele_ambiguous,
                 gnomad_locus_unresolved=gnomad_locus_unresolved,
                 gnomad_alias_unresolved=gnomad_alias_unresolved,
+                vep_allele_ambiguous=vep_allele_ambiguous,
             )
 
             # 6b. Ensemble pathogenicity flag (P2-13)

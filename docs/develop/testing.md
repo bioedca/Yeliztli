@@ -29,6 +29,20 @@ command for iteration.
 The **slow tier** (`-m slow`) holds long-running benchmarks and accuracy validations; it runs
 **nightly**, not on every PR.
 
+The annotation benchmarks share `scripts/benchmark.py::seed_gene_phenotype`, which
+models a current MONDO/HPO install with synthetic associations and a version built
+by the production loader's stamp helper. The `synthetic-benchmark` source labels
+are fixture provenance, not an upstream release or scientific validation. Fast
+tests check exact returned associations and confirm that deleting or downgrading
+the stamp still withholds MONDO/HPO rows without hiding independent OMIM rows.
+The 10k smoke test and nightly 600k benchmark both require gene-phenotype matches;
+do not bypass the production gate or remove those assertions to repair a fixture.
+
+The AncestryDNA real-bundle fixture copies only ClinVar rows alongside the VEP
+bundle. It contains no MONDO/HPO associations, so its unstamped MONDO/HPO warning
+does not indicate lost fixture coverage and must not be silenced with invented
+installation provenance.
+
 ## CI tiers
 
 CI (`.github/workflows/ci.yml`) is organised so a single **`ci-required`** check aggregates

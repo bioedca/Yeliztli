@@ -1,0 +1,66 @@
+{
+  "uid": "431555",
+  "accession": "VCV000431555",
+  "accession_version": "VCV000431555.1",
+  "title": "NM_174936.4(PCSK9):c.42_43insTG (p.Leu15fs)",
+  "record_status": "",
+  "molecular_consequence_list": [
+    "frameshift variant"
+  ],
+  "variation_set": [
+    {
+      "measure_id": "424994",
+      "variation_xrefs": [
+        {
+          "db_source": "ClinGen",
+          "db_id": "CA645372371"
+        },
+        {
+          "db_source": "dbSNP",
+          "db_id": "371488778"
+        }
+      ],
+      "variation_name": "NM_174936.4(PCSK9):c.42_43insTG (p.Leu15fs)",
+      "variation_loc": [
+        {
+          "status": "current",
+          "assembly_name": "GRCh38",
+          "chr": "1",
+          "band": "1p32.3",
+          "start": "55039879",
+          "stop": "55039880",
+          "inner_start": "",
+          "inner_stop": "",
+          "outer_start": "",
+          "outer_stop": "",
+          "display_start": "55039879",
+          "display_stop": "55039880",
+          "assembly_acc_ver": "GCF_000001405.38",
+          "annotation_release": "",
+          "alt": "",
+          "ref": ""
+        },
+        {
+          "status": "previous",
+          "assembly_name": "GRCh37",
+          "chr": "1",
+          "band": "1p32.3",
+          "start": "55505552",
+          "stop": "55505553",
+          "inner_start": "",
+          "inner_stop": "",
+          "outer_start": "",
+          "outer_stop": "",
+          "display_start": "55505552",
+          "display_stop": "55505553",
+          "assembly_acc_ver": "GCF_000001405.25",
+          "annotation_release": "",
+          "alt": "",
+          "ref": ""
+        }
+      ],
+      "variant_type": "Insertion",
+      "canonical_spdi": "NC_000001.11:55039879::TG"
+    }
+  ]
+}
