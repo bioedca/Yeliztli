@@ -330,14 +330,12 @@ UTC_RESULT = re.compile(
 )
 TERMINAL_REVIEW_STATES = {"APPROVED", "COMMENTED"}
 HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
-# Copilot's review body is the ONLY thing distinguishing a review that found
-# nothing from one that never ran: a quota refusal is also a COMMENTED review
-# with zero attached comments, from the same authenticated app, immutable and
-# exact-head. 42 of the 46 Copilot submissions this repository has received are
-# that refusal, so accepting on authenticated fields alone would accept them.
+# Copilot's body still supplies the clean verdict. The authenticated
+# isCopilotCodeReview flag establishes provenance, not completion: an actual
+# quota refusal has that flag, COMMENTED state and zero attached comments too.
 #
-# Exactly one thing is therefore read from the body — the coverage sentence
-# Copilot closes with — and nothing about where it sits. An earlier revision of
+# The older envelope reads one coverage sentence, without locating its section.
+# An earlier revision of
 # this envelope tried to bind it to Copilot's "### Reviewed changes" section, to
 # stop a pull request whose own files contain the sentence from inducing Copilot
 # to echo it. Holding that line meant deciding where the section ended, which
@@ -348,7 +346,7 @@ HUMAN_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 # finding at a time, and each addition was a fresh chance to reject a real
 # review — one already did (#2248 review rounds 3-10).
 #
-# The file counts are deliberately NOT compared against changedFiles any more.
+# The file counts are deliberately NOT compared against changedFiles.
 # They were only ever asserted in that same prose, so a count taken from it is
 # not a stronger guarantee than the prose itself; keeping the comparison bought
 # no trust while forcing the parser that caused the churn. What remains is the
@@ -363,6 +361,20 @@ COPILOT_V3_COVERAGE_LINE = re.compile(
     r"(?P<verdict>no comments|[1-9][0-9]* comments?)\.[ \t]*$"
 )
 COPILOT_V3_CLEAN_VERDICT = "no comments"
+# The newer authenticated artifact (#2491) replaces the coverage sentence with
+# a leading assessment and a small Review details block. Recognize that exact
+# envelope, not arbitrary "approval" prose or a reconstruction of its overview
+# and file-summary sections. Exactly one format may be present. Effort is not a
+# verdict or a coverage guarantee; its optional display line is not a gate.
+COPILOT_V3_APPROVAL_HEADING = "### 🟢 Approval recommended"
+COPILOT_V3_REVIEW_DETAILS = re.compile(
+    r"(?m)^<details>[ \t]*\n<summary>Review details</summary>[ \t]*\n\n"
+    r"- \*\*Files reviewed:\*\* (?P<reviewed>[1-9][0-9]*)/(?P<total>[1-9][0-9]*) "
+    r"changed files[ \t]*\n"
+    r"- \*\*Comments generated:\*\* (?P<generated>0|[1-9][0-9]*)[ \t]*\n"
+    r"(?:- \*\*Review effort level:\*\* [^\n]+\n)?"
+    r"</details>[ \t]*$"
+)
 # Copilot can withhold low-confidence findings instead of posting them, and a
 # withheld finding never becomes an attached comment, so `comments.totalCount`
 # stays 0 and this envelope cannot see it. That gap is accepted, deliberately,
@@ -376,14 +388,11 @@ COPILOT_V3_CLEAN_VERDICT = "no comments"
 # `pending` with no visible cause, so a guessed pattern trades a documented
 # false negative for an undiagnosable false positive. Same class as #2248/#2255.
 #
-# An authenticated field would be trustworthy in the way prose is not. There
-# isn't one, measured 2026-08-05: no field on `PullRequestReview` reports a
-# withheld or suppressed count, a sweep of all 1821 GraphQL types matched
-# nothing on suppress/withheld/low-confidence, and the REST review object
-# carries only 11 keys, none related. `CopilotCodeReviewParameters` exposes just
-# `reviewDraftPullRequests` and `reviewOnPush`, so the analysis-depth setting is
-# not reachable through the API either -- requiring a depth is not enforceable
-# from here. Re-probe before assuming this is still true.
+# A 2026-11-08 re-probe (1873 GraphQL types, REST and authenticated reviews)
+# found isCopilotCodeReview and copilotCodeReviewEffort, but no structured
+# per-review clean verdict, coverage or withheld-finding count. Provenance is
+# required for v3; effort is observable but does not close the withheld-finding
+# gap. See docs/develop/copilot-reviews.md for reproducible source identifiers.
 #
 # So the residual exposure is real and bounded: a Copilot review that suppressed
 # a low-confidence finding can be recorded as clean route evidence. What the
@@ -394,7 +403,7 @@ COPILOT_V3_CLEAN_VERDICT = "no comments"
 # COMMENTED review from the authenticated app, unedited and exact-head, with no
 # attached comments and this sentence as its whole body. All 51 such
 # submissions this repository received between 2026-07-26 and 2026-10-18 were
-# byte-identical. v3 rejects it already, since it carries no coverage sentence,
+# byte-identical. v3 rejects it already, since it carries no clean envelope,
 # but v2 never reads a Copilot body, so the refusal used to satisfy the v2 gate
 # (#2496).
 #
@@ -1508,6 +1517,35 @@ def _is_copilot_refusal(body: object) -> bool:
     return isinstance(body, str) and " ".join(body.split()).startswith(COPILOT_REFUSAL_PREFIX)
 
 
+def _copilot_v3_body_is_clean(body: str) -> bool:
+    """Accept one observed completion format, with no mixed or duplicate verdicts."""
+    visible = _visible_markdown(body)
+    coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(visible))
+    new_markers = (
+        COPILOT_V3_APPROVAL_HEADING,
+        "<summary>Review details</summary>",
+        "**Files reviewed:**",
+        "**Comments generated:**",
+    )
+    if coverage:
+        return (
+            len(coverage) == 1
+            and coverage[0].group("verdict") == COPILOT_V3_CLEAN_VERDICT
+            and not any(marker in visible for marker in new_markers)
+        )
+    if not visible.startswith(COPILOT_V3_APPROVAL_HEADING + "\n"):
+        return False
+    if any(visible.count(marker) != 1 for marker in new_markers):
+        return False
+    details = list(COPILOT_V3_REVIEW_DETAILS.finditer(visible))
+    if len(details) != 1 or details[0].group("generated") != "0":
+        return False
+    reviewed, total = details[0].group("reviewed", "total")
+    # Canonical positive decimal strings compare by length, then digits. Avoid
+    # an integer-conversion exception on an oversized untrusted body field.
+    return (len(reviewed), reviewed) <= (len(total), total)
+
+
 def _v3_formal_review_is_clean(
     review: dict[str, Any],
     gate: str,
@@ -1532,12 +1570,7 @@ def _v3_formal_review_is_clean(
     if isinstance(changed_files, bool) or not isinstance(changed_files, int) or changed_files <= 0:
         return False
     if gate == COPILOT_GATE:
-        # Fenced/indented code and HTML comments are blanked first, so a
-        # sentence quoted in either cannot be read as the verdict. Position is
-        # not considered at all — see the note on COPILOT_V3_COVERAGE_LINE for
-        # why locating it structurally was abandoned.
-        coverage = list(COPILOT_V3_COVERAGE_LINE.finditer(_visible_markdown(body)))
-        return len(coverage) == 1 and coverage[0].group("verdict") == COPILOT_V3_CLEAN_VERDICT
+        return review.get("isCopilotCodeReview") is True and _copilot_v3_body_is_clean(body)
     if gate != CODERABBIT_GATE:
         return False
     actionable = list(CODERABBIT_ACTIONABLE_COUNT.finditer(body))

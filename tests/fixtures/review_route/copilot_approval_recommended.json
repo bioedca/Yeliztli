@@ -1,0 +1,18 @@
+{
+  "source_url": "https://github.com/bioedca/Yeliztli/pull/2355#pullrequestreview-5098282786",
+  "accessed_date": "2026-11-08",
+  "review_id": 5098282786,
+  "head_sha": "f501b805a00e692f60d06ed3f0aa74094ef9700d",
+  "submitted_at": "2026-09-03T05:52:16Z",
+  "last_edited_at": null,
+  "author": {
+    "__typename": "Bot",
+    "login": "copilot-pull-request-reviewer",
+    "databaseId": 175728472
+  },
+  "is_copilot_code_review": true,
+  "copilot_code_review_effort": "LITE",
+  "attached_comments": 0,
+  "body_sha256": "f8104f6b14ddd5fe9ef6a969dbf855ed22e086c17273f0011edbb62081d284bd",
+  "body": "### 🟢 Approval recommended\n\nThe change is narrowly scoped, correct for the documented Codex artifact behavior, and is bracketed by focused regression tests including an explicit guard against an over-broad “fix.”\n\n<details>\n<summary>Pull request overview</summary>\n\nFixes the v3 review-route validator’s Codex evidence collection so that Codex’s long-lived, in-place–edited summary comment no longer outranks the immutable clean verdict comment, unblocking the default hosted lane on schema v3 PRs.\n\n**Changes:**\n- Update `_bot_activity()` to key Codex *comment* signals on `createdAt` (not `max(createdAt, updatedAt)`) for schema v3.\n- Add regression tests covering (1) summary edited after verdict, (2) summary created before head but edited after, and (3) a guard test ensuring a *newly created* post-verdict Codex comment still invalidates an older clean verdict.\n</details>\n\n<details>\n<summary>File summaries</summary>\n\n| File | Description |\r\n| ---- | ----------- |\r\n| scripts/validate_review_route.py | Adjusts schema v3 Codex comment signal ordering to prevent in-place edits of a persistent summary comment from defeating clean verdict evidence. |\r\n| tests/backend/test_review_route_policy.py | Adds targeted tests that reproduce the live failure mode and assert the fix doesn’t weaken the “newer created artifact supersedes older verdict” rule. |\n</details>\n\n<details>\n<summary>Review details</summary>\n\n- **Files reviewed:** 2/2 changed files\n- **Comments generated:** 0\n- **Review effort level:** Lite\n</details>\n\n---\n\n💡 <a href=\"/bioedca/Yeliztli/new/main?filename=.github/skills/code-review/SKILL.md\" class=\"Link--inTextBlock\" target=\"_blank\" rel=\"noopener noreferrer\">Add a `code-review` agent skill</a> or configure MCP servers for context-aware, tailored reviews. <a href=\"https://docs.github.com/copilot/how-tos/use-copilot-agents/request-a-code-review/use-code-review?tool=webui#mcp-servers-and-agent-skills\" class=\"Link--inTextBlock\" target=\"_blank\" rel=\"noopener noreferrer\">Learn more in the docs.</a>"
+}
