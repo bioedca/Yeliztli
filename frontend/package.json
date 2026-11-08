@@ -60,7 +60,7 @@
     "happy-dom": "^21.0.4",
     "knip": "^6.16.1",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.48.0",
+    "typescript-eslint": "^8.72.1",
     "vite": "^8.1.6",
     "vitest": "^4.1.12"
   },
