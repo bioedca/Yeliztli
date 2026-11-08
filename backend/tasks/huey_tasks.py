@@ -916,12 +916,18 @@ def _queued_worker_job_ids() -> set[str] | None:
 def _recover_jobs_on_worker_startup() -> None:
     """Fence rows owned by the stopped predecessor worker."""
     from backend.db.connection import get_registry
+    from backend.db.reference_schema import bootstrap_reference_schema_tables
 
     queued_job_ids = _queued_worker_job_ids()
     if queued_job_ids is None:
         return
+    engine = get_registry().reference_engine
+    # A worker may start before (or without) the API, before any persisted log
+    # has bootstrapped reference.db. Share the API's serialized missing-table
+    # bootstrap without invoking its unrelated content repairs or logging sink.
+    bootstrap_reference_schema_tables(engine)
     recover_worker_orphaned_jobs(
-        get_registry().reference_engine,
+        engine,
         queued_job_ids=queued_job_ids,
         recovery_time=datetime.now(UTC),
         recover_running=True,
