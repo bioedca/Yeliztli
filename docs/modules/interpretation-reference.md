@@ -164,8 +164,9 @@ interpreted:
   on incomplete coverage (the card's coverage note says how many were off-chip vs. no-call).
 - **Not Assessed** — no variant in the pathway could be scored, so no level could be
   determined: either *none* of its tracked SNPs were callable from your array, or every one
-  that was typed is **Indeterminate**. The second case appears only on pages that report
-  indeterminate sites, and can occur even when every tracked SNP is on-chip.
+  that was typed is **Indeterminate**. This applies across all categorical pathway modules,
+  and can occur even when every tracked SNP is on-chip. Existing stored pathway summaries
+  with this scoring state are corrected when the sample database is opened.
 
 These differ from a plain **Standard** badge (every tracked SNP called) and from
 **Indeterminate** (individual typed sites that can't be resolved, withheld from a level computed

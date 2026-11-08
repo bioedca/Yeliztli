@@ -49,7 +49,7 @@ from backend.analysis.genotype_lookup import (
 )
 from backend.analysis.pathway_coverage import (
     coverage_detail,
-    coverage_interpretation,
+    pathway_summary_text,
     variant_label,
 )
 from backend.analysis.zygosity import is_no_call
@@ -179,6 +179,11 @@ class PathwayResult:
     def called_snps(self) -> list[SNPResult]:
         """SNPs that were present and genotyped in the sample."""
         return [s for s in self.snp_results if s.present_in_sample]
+
+    @property
+    def indeterminate_snps(self) -> list[SNPResult]:
+        """Observed SNPs withheld from interpretation."""
+        return [s for s in self.called_snps if s.category == INDETERMINATE]
 
     @property
     def missing_snps(self) -> list[SNPResult]:
@@ -712,33 +717,30 @@ def store_methylation_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
+        indeterminate = pr.indeterminate_snps
         moderate_count = sum(1 for snp in pr.called_snps if snp.category == MODERATE)
         multiple_moderate_findings = moderate_count >= _MULTIPLE_MODERATE_FINDINGS_THRESHOLD
 
-        if pr.level != STANDARD:
-            level_text = f"{pr.level} consideration"
-            if pr.level == MODERATE and multiple_moderate_findings:
-                level_text += " (multiple moderate findings)"
-        else:
-            level_text = (
-                coverage_interpretation(
-                    level=pr.level,
-                    called_count=called_count,
-                    missing_snps=pr.missing_snps,
-                )
-                or "Standard (no variants of concern)"
-            )
-
-        finding_text = f"{pr.pathway_name} — {level_text}"
+        finding_text = pathway_summary_text(
+            pathway_name=pr.pathway_name,
+            level=pr.level,
+            called_count=called_count,
+            missing_snps=pr.missing_snps,
+            indeterminate_count=len(indeterminate),
+        )
+        if pr.level == MODERATE and multiple_moderate_findings:
+            finding_text += " (multiple moderate findings)"
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
+            "indeterminate_snps": [s.rsid for s in indeterminate],
             **coverage_detail(
                 level=pr.level,
                 called_count=called_count,
                 missing_snps=pr.missing_snps,
+                indeterminate_count=len(indeterminate),
             ),
             "additive_promoted": pr.additive_promoted,
             "moderate_snp_count": moderate_count,

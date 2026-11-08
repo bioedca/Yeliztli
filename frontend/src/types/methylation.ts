@@ -27,6 +27,8 @@ export interface PathwaySummary {
   evidence_level: number
   called_snps: number
   total_snps: number
+  /** Observed SNPs withheld from interpretation. */
+  indeterminate_snps?: string[]
   missing_snps: string[]
   no_call_snps?: string[]
   pmids: string[]

@@ -8,7 +8,7 @@
 import { cn } from "@/lib/utils"
 import type { PathwaySummary } from "@/types/skin"
 import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
-import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
+import { pathwayCoverageCaveat, pathwayIndeterminateCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { ChevronRight, Info } from "lucide-react"
 
@@ -34,6 +34,7 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
   const description = PATHWAY_DESCRIPTIONS[pathway.pathway_id] || ""
   const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
   const coverageCaveat = pathwayCoverageCaveat(pathway)
+  const indeterminateCaveat = pathwayIndeterminateCaveat(pathway)
 
   return (
     <button
@@ -46,7 +47,7 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${pathway.pathway_name} — ${levelLabel}`}
+      aria-label={`${pathway.pathway_name} — ${levelLabel}${indeterminateCaveat ? `; ${indeterminateCaveat}` : ""}`}
       data-selected={selected || undefined}
     >
       {/* Header: pathway name + level badge */}
@@ -61,6 +62,15 @@ export default function PathwayCard({ pathway, onClick, selected }: PathwayCardP
           {levelLabel}
         </span>
       </div>
+
+      {indeterminateCaveat && (
+        <p
+          className="mb-3 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+          data-testid="pathway-indeterminate-caveat"
+        >
+          {indeterminateCaveat}
+        </p>
+      )}
 
       {coverageCaveat && (
         <p
