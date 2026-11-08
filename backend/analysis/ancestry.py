@@ -81,6 +81,7 @@ import sqlalchemy as sa
 import structlog
 from scipy.optimize import nnls as _scipy_nnls
 
+from backend.analysis.ancestry_mapping import COMPLEMENT, MAPPING_VERSION, load_grch37_mapping
 from backend.analysis.evidence import ANCESTRY_EVIDENCE_LEVEL
 from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
 from backend.analysis.zygosity import MERGE_AMBIGUITY_SENTINEL, is_no_call
@@ -177,7 +178,12 @@ def population_display_label(population: str) -> str:
 
 @dataclass
 class AncestryAIM:
-    """A single ancestry informative marker from the PCA bundle."""
+    """A PCA marker with source-native GRCh38 training alleles/position.
+
+    ``grch37_strand`` maps stored GRCh37 plus-strand calls to the training
+    orientation. Synthetic in-memory markers default to the same orientation;
+    file-loaded bundles require a validated mapping for every marker.
+    """
 
     rsid: str
     chrom: str
@@ -185,6 +191,8 @@ class AncestryAIM:
     ref: str
     alt: str
     ref_freq: float
+    grch37_pos: int | None = None
+    grch37_strand: int = 1
 
 
 @dataclass
@@ -232,6 +240,7 @@ class AncestryBundle:
     tw_pvalues: np.ndarray  # shape: (20,)
     n_total_snps: int
     n_selected_aims: int
+    genotype_mapping_version: str | None = None
 
     @property
     def snp_count(self) -> int:
@@ -287,6 +296,7 @@ class AncestryResult:
     # machine-readable reasons (e.g. "low_coverage", "low_centroid_margin").
     classification_status: str = "confident"
     quality_flags: list[str] = field(default_factory=list)
+    inference_provenance: dict[str, str] = field(default_factory=dict)
 
     @property
     def n_components(self) -> int:
@@ -335,7 +345,7 @@ def load_ancestry_bundle(bundle_path: Path | None = None) -> AncestryBundle:
 
     Raises:
         FileNotFoundError: If the bundle file does not exist.
-        ValueError: If the bundle structure is invalid.
+        ValueError: If the bundle or its complete GRCh37 mapping is invalid.
     """
     path = bundle_path or _BUNDLE_PATH
     if not path.exists():
@@ -368,6 +378,16 @@ def load_ancestry_bundle(bundle_path: Path | None = None) -> AncestryBundle:
     aim_a1 = data["aim_a1"]  # alt allele
     aim_a2 = data["aim_a2"]  # ref allele
 
+    markers = [
+        (str(rsid), str(chrom), int(pos), str(ref), str(alt))
+        for rsid, chrom, pos, ref, alt in zip(
+            aim_rsids_23andme, aim_chroms, aim_positions, aim_a2, aim_a1, strict=True
+        )
+    ]
+    if len(markers) != n_snps:
+        raise ValueError("PCA training markers do not match the loadings")
+    mapping = load_grch37_mapping(path, markers)
+
     snps: list[AncestryAIM] = []
     for i in range(n_snps):
         snps.append(
@@ -378,6 +398,8 @@ def load_ancestry_bundle(bundle_path: Path | None = None) -> AncestryBundle:
                 ref=str(aim_a2[i]),
                 alt=str(aim_a1[i]),
                 ref_freq=1.0 - float(means[i]) / 2.0,
+                grch37_pos=mapping[str(aim_rsids_23andme[i])][0],
+                grch37_strand=mapping[str(aim_rsids_23andme[i])][1],
             )
         )
 
@@ -421,6 +443,7 @@ def load_ancestry_bundle(bundle_path: Path | None = None) -> AncestryBundle:
         tw_pvalues=tw_pvalues,
         n_total_snps=n_total_snps,
         n_selected_aims=n_selected_aims,
+        genotype_mapping_version=MAPPING_VERSION,
     )
 
     logger.info(
@@ -468,6 +491,26 @@ def _encode_dosage(genotype: str | None, alt_allele: str) -> float | None:
 
 
 # ── PCA projection ────────────────────────────────────────────────────────
+
+
+def _encode_aim_dosage(genotype: str | None, snp: AncestryAIM) -> float | None:
+    """Score a diploid GRCh37 call on the AIM's GRCh38 training orientation.
+
+    Missing, malformed and out-of-pair calls all remain missing. In particular,
+    a third allele at a multiallelic reference locus is not a zero dosage for
+    this biallelic training marker. Never infer strand from the allele letters.
+    """
+    if not isinstance(genotype, str) or len(genotype) != 2 or is_no_call(genotype):
+        return None
+    if snp.grch37_strand not in (-1, 1):
+        raise ValueError(f"Unresolved ancestry AIM strand for {snp.rsid}")
+    call = genotype.upper()
+    if snp.grch37_strand == -1:
+        call = call.translate(COMPLEMENT)
+    if any(allele not in (snp.ref, snp.alt) for allele in call):
+        return None
+    return _encode_dosage(call, snp.alt)
+
 
 # Minimum fraction of AIMs that must be genotyped before a confident call. Real
 # 23andMe v5 covers ~98% of these AIMs; correct, stable calls in the validation
@@ -570,7 +613,7 @@ def _project_onto_pca(
 
     for i, snp in enumerate(bundle.snps):
         genotype = genotype_map.get(snp.rsid)
-        dosage = _encode_dosage(genotype, snp.alt)
+        dosage = _encode_aim_dosage(genotype, snp)
 
         if dosage is not None:
             # Standardize: (dosage - mean) / std
@@ -732,7 +775,7 @@ def bootstrap_admixture_nnls(
     dosages = np.full(n_snps, np.nan, dtype=np.float64)
     for i, snp in enumerate(bundle.snps):
         genotype = genotype_map.get(snp.rsid)
-        d = _encode_dosage(genotype, snp.alt)
+        d = _encode_aim_dosage(genotype, snp)
         if d is not None:
             dosages[i] = d
 
@@ -904,11 +947,8 @@ def compute_missing_aim_rate(
 
     missing = 0
     for snp in bundle.snps:
-        # Same shared no-call contract as _encode_dosage: an AIM that cannot be
-        # scored must count as missing here, or coverage is inflated and the
-        # sufficiency/confidence gate passes on absent data. The literal list
-        # this replaced omitted "??", "-" and "0" (#2180).
-        if is_no_call(genotype_map.get(snp.rsid)):
+        # Coverage and both projections must agree on which calls can be scored.
+        if _encode_aim_dosage(genotype_map.get(snp.rsid), snp) is None:
             missing += 1
 
     return missing / bundle.snp_count
@@ -1075,6 +1115,12 @@ def infer_ancestry(
         nnls_ci_high=ci_high,
         classification_status=classification_status,
         quality_flags=quality_flags,
+        inference_provenance={
+            "training_bundle_version": bundle.version,
+            "training_build": bundle.build,
+            "sample_build": "GRCh37",
+            "genotype_mapping_version": bundle.genotype_mapping_version or "in-memory",
+        },
     )
 
     logger.info(
@@ -1132,6 +1178,7 @@ def store_ancestry_findings(
             quality_flags.append("low_coverage")
 
     pca_detail = {
+        "inference_provenance": result.inference_provenance,
         "top_population": stored_top_population,
         "inferred_ancestry": stored_top_population,
         "classification_status": classification_status,
@@ -1214,6 +1261,7 @@ def store_ancestry_findings(
 
     # Row 2: NNLS admixture (primary — has top_population for get_inferred_ancestry)
     nnls_detail: dict = {
+        "inference_provenance": result.inference_provenance,
         "top_population": stored_top_population,
         "inferred_ancestry": stored_top_population,
         "classification_status": classification_status,
@@ -1245,6 +1293,7 @@ def store_ancestry_findings(
 
     # Row 3: kNN admixture (secondary)
     knn_detail = {
+        "inference_provenance": result.inference_provenance,
         "top_population": stored_top_population,
         "admixture_fractions": result.knn_fractions or {},
         "admixture_method": "knn",

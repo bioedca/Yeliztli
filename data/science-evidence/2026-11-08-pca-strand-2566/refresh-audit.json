@@ -1,0 +1,71 @@
+{
+  "request_attempts": 61,
+  "successful_distinct_urls": 36,
+  "unavailable_urls": [
+    "https://rest.ensembl.org/sequence/region/human/2:97355870..97355920:1",
+    "https://rest.ensembl.org/variation/human/rs11901495",
+    "https://rest.ensembl.org/variation/human/rs28493303"
+  ],
+  "markers": [
+    {
+      "id": "rs11638659",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 34,
+        "reverse_complement": 0
+      }
+    },
+    {
+      "id": "rs75536403",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 28,
+        "reverse_complement": 0
+      }
+    },
+    {
+      "id": "rs28493303",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 32,
+        "reverse_complement": 0
+      }
+    },
+    {
+      "id": "rs11901495",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": null
+    },
+    {
+      "id": "rs2270662",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 0,
+        "reverse_complement": 34
+      }
+    },
+    {
+      "id": "rs28689766",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 32,
+        "reverse_complement": 0
+      }
+    },
+    {
+      "id": "rs199898426",
+      "grch37_identity_matches": true,
+      "assembly_map_matches_recorded_payload": true,
+      "current_flank_mismatches": {
+        "same": 44,
+        "reverse_complement": 0
+      }
+    }
+  ]
+}

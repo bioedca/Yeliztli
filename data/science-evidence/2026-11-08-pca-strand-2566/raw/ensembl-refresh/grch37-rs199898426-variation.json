@@ -1,0 +1,43 @@
+{
+  "minor_allele": "T",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "ExAC",
+    "gnomAD"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "name": "rs199898426",
+  "var_class": "SNP",
+  "mappings": [
+    {
+      "end": 46625620,
+      "location": "HG1211_PATCH:46625620-46625620",
+      "start": 46625620,
+      "ancestral_allele": null,
+      "assembly_name": "GRCh37",
+      "allele_string": "G/A/C",
+      "coord_system": "chromosome",
+      "seq_region_name": "HG1211_PATCH",
+      "strand": 1
+    },
+    {
+      "seq_region_name": "10",
+      "coord_system": "chromosome",
+      "allele_string": "C/T/G",
+      "strand": 1,
+      "location": "10:51465650-51465650",
+      "end": 51465650,
+      "ancestral_allele": null,
+      "start": 51465650,
+      "assembly_name": "GRCh37"
+    }
+  ],
+  "MAF": 0.380591,
+  "ambiguity": "V",
+  "synonyms": [
+    "NM_002072.4:c.*2107TATTT[1]",
+    "NM_002072.5:c.*2107TATTT[1]"
+  ],
+  "most_severe_consequence": "missense_variant"
+}

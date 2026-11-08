@@ -1,0 +1,43 @@
+{
+  "most_severe_consequence": "intron_variant",
+  "MAF": null,
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "name": "rs28689766",
+  "minor_allele": null,
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "synonyms": [
+    "rs386575813",
+    "rs59625157"
+  ],
+  "ambiguity": "N",
+  "mappings": [
+    {
+      "location": "HG1293_PATCH:206161022-206161022",
+      "end": 206161022,
+      "ancestral_allele": null,
+      "start": 206161022,
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome",
+      "allele_string": "A/C/G/T",
+      "seq_region_name": "HG1293_PATCH",
+      "strand": 1
+    },
+    {
+      "location": "1:206243870-206243870",
+      "end": 206243870,
+      "ancestral_allele": "G",
+      "start": 206243870,
+      "seq_region_name": "1",
+      "allele_string": "G/T/C/A",
+      "strand": 1,
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome"
+    }
+  ]
+}

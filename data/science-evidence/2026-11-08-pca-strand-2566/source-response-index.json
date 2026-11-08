@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "accessed": "2026-11-08",
+  "purpose": "Primary/authoritative source evidence and bounded discovery-service handling metadata for PCA strand correction. Provider responses are not evidence.",
+  "entries": [
+    {
+      "key": "refsnp-alignment",
+      "claim_ids": [
+        "C3",
+        "C4"
+      ],
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/raw/refsnp-rs2270662.json",
+      "sha256": "6c3dfda05bea49a474c62eaca686e2509770d67b5ccff43c92fca54c50f1ce88"
+    },
+    {
+      "key": "refsnp-schema",
+      "claim_ids": [
+        "C3",
+        "C4"
+      ],
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/raw/ncbi-var-service.yaml",
+      "sha256": "5c2f4d461804425fd7a87cb2550207e32c1399a28e2aba47647ae32aa131a1ed"
+    },
+    {
+      "key": "pubmed-metadata-corrections",
+      "claim_ids": [
+        "citations"
+      ],
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/raw/pubmed-primary-metadata.json",
+      "sha256": "56be8f2361edc4bfacd8bf83271c52fbb7787179fdd79bf838ebf112478570bc"
+    },
+    {
+      "key": "ensembl-refresh-queries",
+      "claim_ids": [
+        "C2",
+        "C4"
+      ],
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/refresh-queries.jsonl",
+      "sha256": "678ff880a53c1323cf208b3770d437a585f4fd5c3c494ecfa46248c12a3c2fda"
+    },
+    {
+      "key": "ensembl-refresh-retries",
+      "claim_ids": [
+        "C2",
+        "C4"
+      ],
+      "payload_path": "data/science-evidence/2026-11-08-pca-strand-2566/refresh-retry-queries.jsonl",
+      "sha256": "2cdfa7e4c91f3f32b741357ab1f70b55648c651d7c1dff4d8e016b4569b549bc"
+    }
+  ],
+  "historical_primary_payload_manifest": "data/science-evidence/2026-10-20-issue-2493-fixture-grch37-positions/queries.json",
+  "discovery_services": [
+    {
+      "service": "Consensus",
+      "invoked_on": "2026-11-08",
+      "sanitized_query": "The Ensembl REST API Ensembl Data for Any Language Yates 2015 btu613 assembly mapping GRCh37 GRCh38 coordinate sequence strand",
+      "purpose": "Primary-source discovery and screening only",
+      "provider_output_retained": false,
+      "provider_output_used_as_evidence": false,
+      "retention_scope": "Current evidence packet; earlier PR commits are not rewritten.",
+      "unavailable_or_quota_events": [],
+      "primary_source_ids_checked_independently": [
+        "PMID:25236461",
+        "PMID:25352552",
+        "PMID:11125122"
+      ],
+      "documentation_url": "https://docs.consensus.app/docs/mcp",
+      "terms_url": "https://consensus.app/home/terms-of-service/",
+      "terms_accessed": "2026-11-08"
+    },
+    {
+      "service": "Scite",
+      "invoked_on": "2026-11-08",
+      "sanitized_query": "10.1093/bioinformatics/btu613; 10.1093/nar/gku1010; 10.1093/nar/29.1.308",
+      "purpose": "Primary-source discovery and screening only",
+      "provider_output_retained": false,
+      "provider_output_used_as_evidence": false,
+      "retention_scope": "Current evidence packet; earlier PR commits are not rewritten.",
+      "unavailable_or_quota_events": [],
+      "primary_source_ids_checked_independently": [
+        "PMID:25236461",
+        "PMID:25352552",
+        "PMID:11125122"
+      ],
+      "documentation_url": "https://api.scite.ai/docs",
+      "terms_url": "https://scite.ai/terms",
+      "terms_accessed": "2026-11-08"
+    }
+  ],
+  "sanitization": {
+    "retained": [
+      "Public queries and identifiers",
+      "Primary reference records, source versions, and metadata",
+      "Primary PubMed title/journal/date, publication types and correction fields",
+      "Agent-authored execution and handling notes; unavailable endpoint records"
+    ],
+    "excluded": [
+      "Discovery-provider response payloads and generated summaries",
+      "Article abstracts, full text, authors/affiliations, citation context and classifier results",
+      "Account, tracking, sample, personal genotype and credential data"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "accessed": "2026-11-08",
+  "scope": "Public reference assembly/variant provenance for issue #2566; no samples, personal genotypes or restricted inputs.",
+  "queries": [
+    {
+      "tool": "Consensus.search",
+      "query": "The Ensembl REST API Ensembl Data for Any Language Yates 2015 btu613 assembly mapping GRCh37 GRCh38 coordinate sequence strand"
+    },
+    {
+      "tool": "Consensus.fetch",
+      "ids": [
+        "f471188bee525d2c918aab088fda74b8",
+        "9b0e6ee01e305e0b82c33bc66ee4f3f6"
+      ]
+    },
+    {
+      "tool": "Scite.verify_papers",
+      "dois": [
+        "10.1093/bioinformatics/btu613",
+        "10.1093/nar/gku1010",
+        "10.1093/nar/29.1.308"
+      ]
+    }
+  ],
+  "privacy": "Only public queries, source identifiers and execution/handling notes are retained in this packet. Discovery-provider response payloads, generated summaries, article abstracts, citation contexts and classifier results are not retained or used as evidence.",
+  "primary_verification": "NCBI PubMed EFetch independently verifies the three identifiers and returns no CommentsCorrections entries; see raw/pubmed-primary-metadata.json.",
+  "unavailable_or_quota_events": []
+}

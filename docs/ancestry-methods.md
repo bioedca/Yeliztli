@@ -37,6 +37,32 @@ separate populations [^1]. Yeliztli does **not** re-run PCA on your data; instea
   (rather than re-deriving them) is an established, accurate approach to ancestry
   inference [^3].
 
+### Genome build and allele orientation
+
+Stored calls use the GRCh37 plus strand. The PCA bundle retains its GRCh38 training
+coordinates, ordered alleles, means, standard deviations and loadings. Before counting a
+training alternate allele, both the point projection and bootstrap apply an explicit
+per-marker orientation mapping. This also handles A/T and C/G markers, whose allele
+letters alone cannot determine orientation. Missing, malformed or incompatible calls are
+mean-imputed and count as missing in coverage.
+
+The app ships a complete 5,000-marker mapping beside the NPZ, with hashes tying the
+mapping to that exact training bundle. Loading fails if the mapping is absent, incomplete,
+duplicated or inconsistent with the training markers. The derivation, source versions,
+limitations and offline reproduction commands are recorded at
+`data/science-evidence/2026-11-08-pca-strand-2566/` in the same source revision.
+The `ref`/`alt` labels in this mapping preserve training allele identity; they do not
+relabel the GRCh37 reference base.
+
+Existing ancestry findings from before this correction must be rerun to receive corrected
+PCA coordinates, admixture estimates and bootstrap intervals. Updating the app does not
+automatically recompute saved findings. Rerunning ancestry replaces the three global
+ancestry finding categories and leaves stored GRCh37 calls unchanged. New findings record
+`inference_provenance.genotype_mapping_version = grch37-pca-v1`; older findings lack this
+field. The existing `POST /api/analysis/ancestry/run?sample_id=…` route runs the recalculation for a
+fresh sample. Any previously saved downstream analysis using ancestry must also be rerun
+if its input estimate changes. This correction makes no new population-accuracy claim.
+
 !!! warning "Projection shrinkage on sparse data"
     Markers your file doesn't cover are mean-imputed before projection. Projected PCs are
     known to suffer a **shrinkage bias toward the origin**, which grows as coverage drops [^4].

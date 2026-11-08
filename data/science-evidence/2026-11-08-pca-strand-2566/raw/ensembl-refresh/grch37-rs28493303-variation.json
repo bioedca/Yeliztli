@@ -1,0 +1,29 @@
+{
+  "most_severe_consequence": "TF_binding_site_variant",
+  "ambiguity": "B",
+  "MAF": 0.328674,
+  "synonyms": [],
+  "mappings": [
+    {
+      "strand": 1,
+      "ancestral_allele": null,
+      "end": 44118825,
+      "coord_system": "chromosome",
+      "allele_string": "C/T/G",
+      "seq_region_name": "9",
+      "assembly_name": "GRCh37",
+      "location": "9:44118825-44118825",
+      "start": 44118825
+    }
+  ],
+  "minor_allele": "C",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "name": "rs28493303"
+}

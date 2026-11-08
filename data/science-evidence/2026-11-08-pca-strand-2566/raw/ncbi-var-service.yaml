@@ -1,0 +1,3079 @@
+---
+openapi: 3.0.0
+info:
+  title: Variation Services
+  description: |
+    Services for variation data processing<p>
+    <div style="font-size:1.1em;font-weight:normal">
+    Note: Please limit your request rate to 1 request/second.
+
+    dbSNP provides bulk download in VCF and JSON on the
+    <a href="https://ftp.ncbi.nih.gov/snp/latest_release/">FTP site</a>
+    for users with a large number of RefSNPs (>100K) to process.</div>
+
+  termsOfService: "https://www.ncbi.nlm.nih.gov/home/about/policies/"
+  version: 0.0.0-dev
+  contact:
+    name: NCBI Variation Services Team
+    email: variation-services@ncbi.nlm.nih.gov
+  license:
+    name: Public Domain
+    url: "https://www.ncbi.nlm.nih.gov/home/about/policies/"
+servers:
+  - url: https://api.ncbi.nlm.nih.gov/variation/v0
+tags:
+  - name: SPDI
+    description: >-
+      Services receiving input alleles as SPDI objects in colon-separated format
+      using IUPAC single-letter codes
+  - name: HGVS
+    description: Services receiving input alleles in HGVS notation
+  - name: VCF
+    description: Services receiving input alleles in VCF notation
+  - name: RefSNP
+    description: Services accessing RefSNP properties
+  - name: ALFA Frequency
+    description: >-
+      Services returning
+      [ALFA](https://www.ncbi.nlm.nih.gov/snp/docs/gsr/alfa/) frequency data
+  - name: GA4GH-VR
+    description: >-
+      <p>Services accepting input in the Variation Representation (VR) format
+      created by the Global Alliance for Genomics and Health (GA4GH).</p>
+      <p>See their latest schema at:</p>
+      <p><a href="https://github.com/ga4gh/vr-spec/tree/master/schema">
+      https://github.com/ga4gh/vr-spec/tree/master/schema</a></p>
+
+externalDocs:
+  description: >-
+    Learn more about Variation Services
+  url: https://www.ncbi.nlm.nih.gov/variation/services/
+paths:
+  /spdi/{spdi}/:
+    get:
+      tags:
+        - SPDI
+      summary: >-
+        Retrieve the validated input SPDI and a list of associated resources.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            example: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: >-
+            The validated input SPDI and a list of associated resources.
+          content:
+            application/hal+json:
+              schema:
+                $ref: "#/components/schemas/spdi_resources_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/contextual:
+    get:
+      tags:
+        - SPDI
+      summary: Retrieve contextual allele in SPDI syntax for provided allele
+      description: >-
+        An allele in SPDI syntax may be over-precise. This service
+        returns the same result as applying the Blossom Precision
+        Correction Algorithm to the input allele.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: The contextual allele for provided SPDI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdi_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/vcf_fields:
+    get:
+      tags:
+        - SPDI
+      summary: Retrieve fields suitable for representing the input allele in VCF
+      description: >-
+        Return allele-description fields of a VCF entry (CHROM, POS,
+        REF, ALT) for the contextual allele corresponding to the input
+        SPDI
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:12345:1:CC"
+      responses:
+        200:
+          description: The VCF CHROM, POS, REF, and ALT fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/vcf_fields_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/canonical_representative:
+    get:
+      tags:
+        - SPDI
+      summary: Retrieve canonical allele representative
+      description: >-
+        Get the canonical allele representative for a
+        contextual allele, using the latest alignment data.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: The canonical allele representative for the provided SPDI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdi_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/all_equivalent_contextual:
+    get:
+      tags:
+        - SPDI
+      summary: Retrieve equivalent contextual allele on all aligned sequences
+      description: >-
+        Let S be the set of all sequences where the latest alignment
+        specifies a region equivalent to the deletion region of the
+        input allele. For each sequence s in S, calculates a
+        contextual allele equivalent to the input but located on
+        s. The retrieved list cannot be empty because S contains the
+        reference sequence for the input allele and therefore, the
+        retrieved list will contain the contextual allele for the
+        input allele.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: >-
+            The list of equivalent alleles. The list cannot be empty
+            because it will always contain at least the contextual
+            allele for the input allele.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdis_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/rsids:
+    get:
+      tags:
+        - SPDI
+      summary: >-
+        Lookup the RSIDs (if any) associated with the input allele
+      description: >-
+        Given a contextual allele, return the ID numbers of the
+        RefSNPs that include that contextual allele (if there are any).
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000008.11:19956017:1:G"
+      responses:
+        200:
+          description: >-
+            The RSIDs (if any) associated with the particular allele.
+            Will be the empty list if there is no associated RSID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/rsids_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/hgvs:
+    get:
+      tags:
+        - SPDI
+      summary: Retrieve HGVS notation for contextual allele in SPDI Syntax
+      description: >-
+        Convert the contextual allele in SPDI syntax to the right-shifted
+        HGVS notation.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:12345:1:A"
+      responses:
+        200:
+          description: >-
+            The right-shifted HGVS expression associated with the contextual
+            allele.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/hgvs_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/ga4gh-vr:
+    get:
+      tags:
+        - SPDI
+      summary: >-
+        Retrieve an allele in GA4GH VR format for the input allele in SPDI
+        syntax. The SPDI is normalized (disambiguated) before the conversion.
+      description: >-
+        Convert the contextual allele in SPDI syntax to GA4GH VR format.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            format: ascii
+            example: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: The GA4GH VR for the provided SPDI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ga4gh-vr_success"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/{spdi}/ga4gh-vr-unnormalized:
+    get:
+      tags:
+        - SPDI
+      summary: >-
+        Retrieve an allele in GA4GH VR format for the input allele in SPDI
+        syntax. The SPDI is not disambiguated before the conversion.
+      parameters:
+        - name: spdi
+          in: path
+          description: >-
+            Allele in SPDI syntax of
+            SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE
+            (or just deletion length: SEQUENCE-ID:POSITION:DEL-LEN:INS-SEQUENCE)
+          required: true
+          schema:
+            type: string
+            format: ascii
+            example: "NC_000001.10:12345:0:C"
+      responses:
+        200:
+          description: The GA4GH VR for the provided SPDI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ga4gh-vr_success"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /spdi/:
+    post:
+      tags:
+        - SPDI
+      summary: >-
+        Retrieve the contextual allele in SPDI notation equivalent
+        to the input allele in GA4GH VR format.
+      requestBody:
+        content:
+          application/vnd.ga4gh.vr+json:
+            schema:
+              $ref: "#/components/schemas/ga4gh_vr_allele"
+        description: >-
+          JSON object in GA4GH VR format
+        required: true
+      responses:
+        200:
+          description: The contextual allele in SPDI notation equivalent
+            to the provided allele in GA4GH VR format.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdi_success"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+
+  /ga4gh-vr/:
+    post:
+      tags:
+        - GA4GH-VR
+      summary: >-
+        Retrieve the GA4GH VR Computed Identifier for the input allele
+        in GA4GH VR format
+      requestBody:
+        content:
+          application/vnd.ga4gh.vr+json:
+            schema:
+              $ref: "#/components/schemas/ga4gh_vr_allele"
+        description: >-
+          JSON object in GA4GH VR format
+        required: true
+      responses:
+        200:
+          description: The contextual allele in SPDI notation equivalent
+            to the provided allele in GA4GH VR format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ga4gh-vr-id_success"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+
+  /hgvs/{hgvs}/contextuals:
+    get:
+      tags:
+        - HGVS
+      summary: >-
+        Retrieve the contextual alleles equivalent to the HGVS notation input
+      description: >-
+        For the input HGVS notation, retrieve all contextual alleles
+        in SPDI syntax. (There can be more than one because of
+        differences in the way the two models represent variation. For
+        example, NC_012920.1:m.961delTinsC(2_7) requires one SPDI for
+        each number of cytosines inserted.)
+        Also returns the validity of the input HGVS expression when there is
+        an error.
+      parameters:
+        - name: hgvs
+          in: path
+          description: Allele in HGVS notation
+          required: true
+          schema:
+            type: string
+            default: "NC_000001.10:g.12345T>A"
+        - name: assembly
+          in: query
+          description: >-
+            The Genomic Collection (<a
+            href="https://www.ncbi.nlm.nih.gov/datasets/genome/">GenColl</a>)
+            accession for the human GenBank or RefSeq assembly for a provided
+            list of HGVS (i.e., GRCh38.p14 = GCF_000001405.40). Required only if
+            the hgvs uses a chr location like chr1:g.12345A>T or chrX:g.234C>G
+          required: false
+          schema:
+            type: string
+            default: GCF_000001405.40
+      responses:
+        200:
+          description: The contextual alleles for provided HGVS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdis_from_hgvs_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/hgvs_error"
+  /hgvs/batch/contextuals:
+    post:
+      tags:
+        - HGVS
+      summary: >-
+        Retrieve contextual alleles for each input
+      description: >-
+        For the input HGVS notation, retrieve all contextual alleles
+        in SPDI syntax. (There can be more than one because of
+        differences in the way the two models represent variation. For
+        example, NC_012920.1:m.961delTinsC(2_7) requires one SPDI for
+        each number of cytosines inserted).
+        Also returns the validity of the input HGVS expression when there is
+        an error.
+      parameters:
+        - name: assembly
+          in: query
+          description: >-
+            The Genomic Collection (<a
+            href="https://www.ncbi.nlm.nih.gov/datasets/genome/">GenColl</a>)
+            accession for the human GenBank or RefSeq assembly for a provided
+            list of HGVS (i.e., GRCh38.p14 = GCF_000001405.40). Required only if
+            the hgvs uses a chr location like chr1:g.12345A>T or chrX:g.234C>G
+          required: false
+          schema:
+            type: string
+            default: GCF_000001405.40
+      responses:
+        200:
+          description: >-
+            The contextual alleles for provided HGVS. The HTTP success
+            code refers to the whole operation. Some or all of the
+            individual expressions may have errors that will each be
+            reported separately.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/hgvs_batch_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+                format: hgvs
+              example: >
+                { "hgvs": ["NC_000001.10:g.12345T>A",
+                  "NT_005612.16:g.36609556delC"] }
+        description: >-
+          JSON object containing a single field "hgvs" which contains
+          an array of the variants to process, each in HGVS notation.
+          Up to 50,000 expressions may be included in a single request.
+        required: true
+  /vcf/{chrom}/{pos}/{ref}/{alts}/contextuals:
+    get:
+      tags:
+        - VCF
+      summary: >-
+        Retrieve contextual alleles for the reference allele and each
+        alternate allele
+      description: >-
+        Returns a list of SPDI format alleles containing one
+        contextual allele for each reference and alternate allele
+        specified by the input VCF fields.
+      parameters:
+        - name: chrom
+          in: path
+          description: >-
+            Usually this is the RefSeq/Genbank Accession.Version for
+            the reference sequence. Despite the name (taken from the
+            VCF standard) this does not need to be a chromosome. But
+            this field can also be an integer 1..22 or a string. The
+            string can be "X", "Y", or be of the form like "chr2". In
+            those cases the assembly parameter must be supplied to
+            tell from what assembly the chromosome comes.
+          required: true
+          schema:
+            type: string
+            default: NC_000001.10
+        - name: pos
+          in: path
+          description: >-
+            The 1-based position on the reference sequence of the first
+            nucleotide in the reference allele string
+          required: true
+          schema:
+            type: integer
+            default: 12345
+        - name: ref
+          in: path
+          description: >-
+            The reference allele, in IUPAC notation, with padding
+            nucleotide when required
+          required: true
+          schema:
+            type: string
+            default: T
+        - name: alts
+          in: path
+          description: >-
+            Comma delimited list of alternate alleles, in IUPAC notation,
+            with padding nucleotide when required
+          required: true
+          schema:
+            type: string
+            default: "A,G"
+        - name: assembly
+          in: query
+          description: >-
+            The Genomic Collection (<a
+            href="https://www.ncbi.nlm.nih.gov/datasets/genome/">GenColl</a>)
+            accession for the human GenBank or RefSeq assembly for a provided
+            list of HGVS (i.e., GRCh38.p14 = GCF_000001405.40). Required only if
+            using a chr location like chr1 or chrX.
+          required: false
+          schema:
+            type: string
+            default: GCF_000001405.40
+      responses:
+        200:
+          description: Contextual alleles equivalent to all the alleles (ref
+            and alt) given in the input VCF fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/spdis_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+  /vcf/file/set_rsids:
+    post:
+      tags:
+        - VCF
+      summary: >-
+        For provided VCF data, add RSIDs in the ID field
+      description: >-
+        Where there are matches to dbSNP, update the ID column of the VCF
+        file with the matching RefSNP Identifiers (RSIDs), overwriting any
+        pre-existing data.
+      parameters:
+        - name: assembly
+          in: query
+          description: >-
+            The Genomic Collection (<a
+            href="https://www.ncbi.nlm.nih.gov/datasets/genome/">GenColl</a>)
+            accession for the human GenBank or RefSeq assembly for a provided
+            list of HGVS (i.e., GRCh38.p14 = GCF_000001405.40). Required only if
+            using a chr location like chr1 or chrX.
+          required: false
+          schema:
+            type: string
+            default: GCF_000001405.40
+      responses:
+        200:
+          description: VCF file with ID column updated with matching RSIDs
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                type: string
+                format: binary
+        default:
+          description: Unexpected error
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                $ref: "#/components/schemas/error"
+      requestBody:
+        required: true
+        content:
+          text/plain; charset=utf-8:
+            schema:
+              type: string
+              example: " "
+        description: >-
+          Up to 50,000 VCF rows may be included in a single request.
+          Only four fields will be used - CHROM, POS, REF and ALT.
+  /refsnp/{rsid}:
+    get:
+      tags:
+        - RefSNP
+      summary: >-
+        Lookup RefSNP object by RSID
+      description: >-
+        Retrieve data object associated with a RefSNP identifier for the
+        current revision.
+      parameters:
+        - name: rsid
+          in: path
+          description: 64-bit RefSNP ID (integer)
+          required: true
+          schema:
+            type: string
+            default: "268"
+      responses:
+        200:
+          description: The RefSnp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/refsnp_snapshot_success"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/error"
+
+  "/metadata/frequency":
+    get:
+      tags:
+        - ALFA Frequency
+      operationId: frequencyMetadata
+      summary: Retrieve ALFA frequency metadata
+      description: >-
+        Retrieve information that describes all studies and populations
+        used by frequency endpoint.
+      responses:
+        "200":
+          description: Frequency metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/frequency_metadata"
+
+  "/interval/{seq_id}:{position}:{length}/overlapping_frequency_records":
+    get:
+      tags:
+        - ALFA Frequency
+      operationId: frequencyByInterval
+      summary: >-
+        Retrieve ALFA frequencies for variants overlapping a position range
+      description: >
+        Retrieve frequencies for variants whose Contextual SPDI
+        overlaps the sequence interval in the query.
+        Detailed information about ids used in reply could be retrieved using
+        "/metadata/frequency" endpoint.
+      responses:
+        "200":
+          description: Variant frequencies within requested sequence interval
+          content:
+            application/json:
+              schema:
+                properties:
+                  results:
+                    $ref: "#/components/schemas/\
+                      overlapping_frequency_records_results"
+                  build_id:
+                    type: string
+                    description: >-
+                      The identifier of the build that produced
+                      the data in the response.
+                    example: "2011-11-11T11:11:11.111Z"
+        "206":
+          description: Too many results. Only 250 returned.
+          content:
+            application/json:
+              schema:
+                properties:
+                  results:
+                    $ref: "#/components/schemas/\
+                      overlapping_frequency_records_results"
+                  warning:
+                    $ref: "#/components/schemas/warning"
+                  build_id:
+                    type: string
+                    description: >-
+                      The identifier of the build that produced
+                      the data in the response.
+                    example: "2011-11-11T11:11:11.111Z"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        "404":
+          description: "Not Found: e.g. request using unsupported _seq_id_"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 404
+                  message: Unsupported sequence
+                  errors:
+                    - reason: Unsupported sequence
+                      message: Requested sequence is not supported
+              schema:
+                $ref: "#/components/schemas/error"
+        "405":
+          description: "Method Not Allowed: request used POST rather than GET"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 405
+                  message: Method not allowed
+              schema:
+                $ref: "#/components/schemas/error"
+      parameters:
+        - name: seq_id
+          in: path
+          description: Sequence id in 'accession.version' format
+          required: true
+          schema:
+            type: string
+          example: NC_000001.11
+        - name: position
+          in: path
+          description: >-
+            Zero-based SPDI-like start position. The number of
+            nucleotides to advance from the position before the first
+            nucleotides before starting the interval.
+          required: true
+          example: 69269
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+        - name: length
+          in: path
+          description: SPDI-like length of interval in units of nucleotides
+          required: true
+          example: 1000
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+
+  "/refsnp/{rsid}/frequency":
+    get:
+      tags:
+        - ALFA Frequency
+      operationId: frequencyByRsId
+      summary: Lookup ALFA frequency data for specified RSID
+      description: >
+        Retrieve frequencies associated with a RefSNP identifier for the
+        current revision.
+        Detailed information about ids used in reply could be retrieved using
+        "/metadata/frequency" endpoint.
+      responses:
+        "200":
+          description: Variant frequency for requested rsid.
+          content:
+            application/json:
+              schema:
+                properties:
+                  results:
+                    $ref: "#/components/schemas/\
+                      overlapping_frequency_records_results"
+        "400":
+          description: "Bad Request: syntax error in request string"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 400
+                  message: Bad arguments
+                  errors:
+                    - reason: Bad arguments
+                      message: start position is not an integer
+              schema:
+                $ref: "#/components/schemas/error"
+        "404":
+          description: "RSID Not Found."
+          content:
+            application/json:
+              example:
+                error:
+                  code: 404
+                  message: Not found
+                  errors:
+                    - reason: Not found
+                      message: RefSNP not found
+              schema:
+                $ref: "#/components/schemas/error"
+        "405":
+          description: "Method Not Allowed: request used POST rather than GET"
+          content:
+            application/json:
+              example:
+                error:
+                  code: 405
+                  message: Method not allowed
+              schema:
+                $ref: "#/components/schemas/error"
+      parameters:
+        - name: rsid
+          in: path
+          description: 64-bit RefSNP ID (integer)
+          required: true
+          schema:
+            type: string
+            default: "12681727"
+
+components:
+  schemas:
+    refsnp_snapshot_success:
+      type: object
+      required: [data]
+      description: >-
+        Successful response to a request for a single RefSnp snapshot object
+      properties:
+        data:
+          $ref: "#/components/schemas/refsnp_snapshot"
+
+    refsnp_snapshot:
+      type: object
+      required:
+        [
+          refsnp_id,
+          create_date,
+          last_update_date,
+          last_update_build_id,
+          dbsnp1_merges,
+          lost_obs_movements,
+          present_obs_movements,
+          citations,
+          mane_select_ids,
+        ]
+      description: >-
+        The characteristics of a single group of short variants equivalent by
+        type and position over several sequences as calculated based on the
+        information available at a particular point in time. It is a snapshot at
+        a particular point in time of the ever-evolving knowledge of a
+        particular class of variants.
+
+        "refsnp_snapshot" has four subclasses: primary_snapshot,
+        merged_snapshot, unsupported_snapshot,
+        and nosnppos_snapshot (deprecated).
+        They are each represented by an instance of this object with the
+        appropriate data field (primary_snapshot_data, merged_snapshot_data,
+        unsupported_snapshot or nosnppos_snapshot_data) filled in. It is an
+        error to have more than one of these filled in (though our C++ code
+        generator cannot parse the YAML necessary to specify this constraint,
+        so we do not enforce it).
+      properties:
+        refsnp_id:
+          type: string
+          format: uint64
+          description: >-
+            A 64 bit positive integer that is uniquely and forever assigned to
+            this RefSNP object
+        create_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date the RefSNP was created
+          example: >-
+            2001-01-15T00:00Z
+        last_update_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date the RefSNP was last updated or create_date if never updated
+          example: >-
+            2001-01-15T00:00Z
+        last_update_build_id:
+          type: string
+          format: ascii
+          description: >-
+            The id of the last dbSNP build in which this RefSNP was created or
+            updated
+        dbsnp1_merges:
+          type: array
+          description: >-
+            Note: this field is for dbsnp1 merge only.
+            Record of each time another RefSNP objects merged into this RefSNP
+            because the RsAnchors of each were the same.  If the recipient of
+            a merge then merges into yet a third RefSNP, the list is flattened.
+          items:
+            $ref: "#/components/schemas/dbsnp1_merge_event"
+        citations:
+          type: array
+          description: >-
+            Set of PubMed IDs (PMIDs) for this RefSNP or its supporting
+            submissions
+          items:
+            type: integer
+        lost_obs_movements:
+          type: array
+          description: >-
+            Movements recording observations lost between the previous release
+            and this release
+          items:
+            $ref: "#/components/schemas/lost_obs_movement"
+        present_obs_movements:
+          type: array
+          description: >-
+            The record of movements between the previous and current release
+            for observations mapped to this RefSNP by the Alignment Data Set
+            used in this release
+          items:
+            $ref: "#/components/schemas/present_obs_movement"
+        nosnppos_snapshot_data:
+          $ref: "#/components/schemas/nosnppos_snapshot_data"
+        withdrawn_snapshot_data:
+          $ref: "#/components/schemas/withdrawn_snapshot_data"
+        primary_snapshot_data:
+          $ref: "#/components/schemas/primary_snapshot_data"
+        merged_snapshot_data:
+          $ref: "#/components/schemas/merged_snapshot_data"
+        unsupported_snapshot_data:
+          $ref: "#/components/schemas/unsupported_snapshot_data"
+        mane_select_ids:
+          type: array
+          description: >-
+            Sequence IDs used in the snapshot that are
+            from the "Select" set provided by the
+            Matched Annotation from NCBI and EMBL-EBI (MANE) project.
+          items:
+            type: string
+            format: ascii
+
+    merged_snapshot_data:
+      description: >-
+        Data specific to merged snapshots; cannot be present at the same time as
+        primary_snapshot_data or nosnppos_snapshot_data
+      type: object
+      required: [proxy_time, proxy_build_id, merged_into]
+      properties:
+        proxy_time:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date and time this RefSnp was merged
+          example: >-
+            2001-01-15T00:00Z
+        proxy_build_id:
+          type: string
+          format: ascii
+          description: >-
+            The number of the dbSNP build in which this RefSnp was merged
+        merged_into:
+          type: array
+          description: >-
+            The RefSnp id(s) that this RefSnp was merged into. In dbsnp1 a
+            RefSnp can only be merged into one RefSnp; however in dbsnp2
+            it is possible to merge into multiple RefSnps.
+          items:
+            type: string
+            description: >-
+              The RefSnp id that the current RefSnp was merged into
+
+    withdrawn_snapshot_data:
+      description: >-
+        Data specific to withdrawn snapshots
+      type: object
+      required: [withdrawn_time, support]
+      properties:
+        withdrawn_time:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date and time this RefSnp was withdrawn
+          example: >-
+            2001-01-15T00:00Z
+        support:
+          type: array
+          description: >-
+            The observations that support the existence of a variant at
+            this particular location and type. Supporting observations
+            can come from submissions to dbSNP or from external data sources
+            like ClinVar.
+          items:
+            $ref: "#/components/schemas/support"
+
+    nosnppos_snapshot_data:
+      description: >-
+        Data specific to nosnppos snapshots
+      type: object
+      required: [support]
+      properties:
+        support:
+          type: array
+          description: >-
+            The observations that support the existence of a variant at
+            this particular location and type. Supporting observations
+            can come from submissions to dbSNP or from external data sources
+            like ClinVar.
+          items:
+            $ref: "#/components/schemas/support"
+
+    unsupported_snapshot_data:
+      description: >-
+        Data specific to unsupported snapshots; cannot be present at the same
+        time as the other *_snapshot_data fields
+      type: object
+      required: [alleles_from_previous_support]
+      properties:
+        alleles_from_previous_support:
+          type: array
+          description: >-
+            The set of alleles that this RefSnp had in the build just prior to
+            becoming unsupported.
+          items:
+            $ref: "#/components/schemas/spdi"
+
+    primary_snapshot_data:
+      description: >-
+        Data specific to primary snapshots; cannot be present at the same time
+        as merged_snapshot_data or nosnppos_snapshot_data
+      type: object
+      required:
+        [
+          placements_with_allele,
+          allele_annotations,
+          support,
+          anchor,
+          variant_type,
+        ]
+      properties:
+        placements_with_allele:
+          type: array
+          description: >-
+            List of all placements, each containing a list of the alleles
+            in the context of that reference region. Includes both nucleotide
+            and protein placements.
+
+            For all placements, the list of alleles is the same length and in
+            the same order.  They represent the alleles on the preferred top
+            level placement (PTLP) in sorted order.  So, on a given placement,
+            the first allele is how the first allele on the PTLP appears upon
+            mapping to the given placement.  Similarly for the second allele,
+            and so on.
+          items:
+            $ref: "#/components/schemas/placement_with_allele"
+        allele_annotations:
+          type: array
+          description: >-
+            Each element holds the annotations associated with a particular
+            variant.
+
+            This list of annotation lists has the same order and length as the
+            list of alleles in each placement. This order associates each allele
+            with its corresponding annotation list.  If an allele was not
+            associated with any annotations, the corresponding annotation set
+            will have only empty lists.
+          items:
+            $ref: "#/components/schemas/allele_annotation_list"
+        support:
+          type: array
+          description: >-
+            The observations that support the existence of a variant at
+            this particular location and type. Supporting observations
+            can come from submissions to dbSNP or from external data sources
+            like ClinVar.
+          items:
+            $ref: "#/components/schemas/support"
+        anchor:
+          type: string
+          format: ascii
+          description: >-
+            The location and type of the variant, in format
+            'Acc.Ver:From:DeletionLength:Type',
+            which defines the RefSNP.  The Acc.Ver is the preferred top level
+            placement chosen from all of the placements the RefSNP maps to in a
+            given alignment data set.  There is a 1:1 relationship between live
+            RefSNP objects and the set of anchors.
+        variant_type:
+          type: string
+          format: ascii
+          description: >-
+            The type of change the variant causes, relative to the reference
+            sequence.
+          enum:
+            - snv
+            - mnv
+            - ins
+            - del
+            - delins
+            - identity
+        ga4gh:
+          type: object
+          description: >-
+            A map from SPDIs of this RefSNP object to their corresponding
+            GA4GH VR alleles. The key of the map is the allele in the SPDI
+            syntax, i.e., SEQUENCE-ID:POSITION:DEL-SEQUENCE:INS-SEQUENCE,
+            and the value is the GA4GH VR allele object.
+          additionalProperties:
+            $ref: "#/components/schemas/ga4gh_vr_allele"
+
+    dbsnp1_merge_event:
+      type: object
+      required: [merged_rsid, revision, merge_date]
+      description: >-
+        Record of one RefSNP merging into another.
+
+        Due to curatorial changes or a change in input alignment data sets,
+        a RefSNP may change anchor such that it now coincides with
+        second RefSNP.  Only one 'live' RefSNP is allowed at a given anchor.
+        To resolve this conflict, dbSNP chooses one RefSNP as 'live',
+        and merges the data from the other RefSNP into it. dbSNP gives
+        preference to the clinical RefSNP and if that is not sufficient it
+        chooses the oldest RefSNP, the one with the lowest ID.
+      properties:
+        merged_rsid:
+          type: string
+          format: uint64
+          description: >-
+            The RefSNP ID of the RefSNP object that was merged into the now
+            live RefSNP
+        revision:
+          type: string
+          format: ascii
+          description: >-
+            The revision in which the merge took place
+        merge_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date and time the RefSNP was merged
+          example: >-
+            2001-01-15T00:00Z
+
+    lost_obs_movement:
+      type: object
+      required:
+        [
+          component_ids,
+          observation,
+          allele_in_cur_release,
+          rsids_in_cur_release,
+          allele_in_prev_release,
+        ]
+      description: >-
+        For recording the movement of an observation that was in this RefSNP in
+        the previous release, but no longer in the current
+      properties:
+        component_ids:
+          type: array
+          description: >-
+            DbSnpIds of the supporting data where this particular observation
+            is found (SubSnpId, ClinVarSnpId, etc.)
+          items:
+            $ref: "#/components/schemas/support_id"
+        observation:
+          description: >-
+            The actual read at a particular location on a particular version of
+            a sequence
+          $ref: "#/components/schemas/spdi"
+        allele_in_cur_release:
+          description: >-
+            The cannonical allele SPDI produced by mapping this observation to
+            its PTLP.  When the observation is suppressed this may be
+            interpreted as the allele it would have been mapped to
+            had it not been suppressed.
+          $ref: "#/components/schemas/spdi"
+        rsids_in_cur_release:
+          type: array
+          description: >-
+            The ids of the RefSnps that contain this observation in the current
+            release.  Only identity alleles can belong to more than one RefSnp,
+            so this can only have more than one entry if the observation maps
+            to the identity allele. If empty then this observation no longer is
+            associated with any id (which can only occur if it is suppressed or
+            withdrawn (or if there is a bug)).
+          items:
+            type: string
+            format: uint64
+        allele_in_prev_release:
+          description: >-
+            The spdi that was the canonical allele for this observation in the
+            previous release. It is not guaranteed that it remains canonical in
+            this release, thus the type is ContextualSpdi.
+          $ref: "#/components/schemas/spdi"
+
+    present_obs_movement:
+      type: object
+      required:
+        [
+          component_ids,
+          observation,
+          allele_in_cur_release,
+          other_rsids_in_cur_release,
+          last_added_to_this_rs,
+        ]
+      description: >-
+        For recording the movement of an observation in the current RefSNP for
+        the current release.
+      properties:
+        component_ids:
+          type: array
+          description: >-
+            DbSnpIds of the supporting data where this particular observation
+            is found (SubSnpId, ClinVarSnpId, etc.)
+          items:
+            $ref: "#/components/schemas/support_id"
+        observation:
+          description: >-
+            The actual read at a particular location on a particular version of
+            a sequence
+          $ref: "#/components/schemas/spdi"
+        allele_in_cur_release:
+          description: >-
+            The cannonical allele SPDI produced by mapping this observation to
+            its PTLP.  When the observation is suppressed this may be
+            interpreted as the allele it would have been mapped to
+            had it not been suppressed.
+          $ref: "#/components/schemas/spdi"
+        other_rsids_in_cur_release:
+          type: array
+          description: >-
+            The RSIDs of any other RefSnps that contain this observation in the
+            current release. Can only be non-empty for the identity allele.
+          items:
+            type: string
+            format: uint64
+        previous_release:
+          description: >-
+            If absent, this observation wasn't a part of a RefSNP in the last
+            release (i.e. it is a new submission or was just unsuppressed or
+            there is a bug).
+          $ref: "#/components/schemas/previous_release"
+        last_added_to_this_rs:
+          type: string
+          format: ascii
+          description: >-
+            The most recent release in which this observation started being
+            associated with this RSID. If the historical membership for this
+            observation is release1:rs1 release2:rs2 release3:rs1 release4:rs1,
+            this will hold "release3".
+
+            Note that because of a change to the dbSNP data model between
+            builds 151 and 152, if the most recent release is prior to 152 then
+            the observation may have been added to this RefSNP before the build
+            listed.  For example, if it says 140, it is possible that it was
+            really added in 130. But it cannot have been added after build 140.
+            If it says 152, then it was last added in build 152 and not before
+            or after that.
+
+    previous_release:
+      type: object
+      description: >-
+        The characteristics of an observation that allow one to find it in the
+        previous release. Should only be used when the observation described
+        was present in the previous release.
+      required: [allele, rsids]
+      properties:
+        allele:
+          description: >-
+            The spdi that was the canonical allele for this observation in the
+            previous release. It is not guaranteed that it remains canonical in
+            this release, thus the type is ContextualSpdi.
+
+            Note that because of a change to the dbSNP data model between
+            builds 151 and 152, this field is not valid in build 152. It will
+            be valid for build 153 and later.  In build 152 it contains an
+            arbitrary allele and only preserves the previous association
+            between the observations in SubSNPs and their 1.0 RefSNPs.
+          $ref: "#/components/schemas/spdi"
+        rsids:
+          type: array
+          description: >-
+            The ids of the RefSnps that contained a particular observation in
+            the previous release. Only identity alleles can belong to more than
+            one RefSnp, so this can only have more than one entry if the
+            observation maps to the identity allele.  The PreviousRelease
+            struct should only be used when the observation was present in the
+            previous release, so this field should not be empty.
+          items:
+            type: string
+            format: uint64
+
+    placement_with_allele:
+      type: object
+      required: [seq_id, is_ptlp, placement_annot, alleles]
+      description: >-
+        For nucleotide placements, each allele in this placement is stored as a
+        SPDI.  Each SPDI contains a reference sequence identifier.  For the set
+        of alleles in SPDI syntax, they must all have the same reference
+        sequence identifier, that matches the seq_id attribute.
+
+        For protein placements, the allele is either in SPDI syntax, or gives a
+        general description of a frameshift.
+      properties:
+        seq_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+        is_ptlp:
+          type: boolean
+          description: >-
+            True if this placement is the preferred top level placement (PTLP)
+            under the alignment data set which generated this RefSnp cluster
+        placement_annot:
+          $ref: "#/components/schemas/placement_annot"
+        alleles:
+          type: array
+          description: >-
+            A RefSnp can describe 1 to N alleles.
+
+            While for the PTLP, all alleles (in SPDI syntax) are the same type
+            and length, non-PTLP Placements (i.e. all other Placements), the
+            allele in SPDI syntax may have different types, lengths and start
+            positions, and in some rare cases, may not even overlap. But they
+            are all on this placement's Sequence.
+          items:
+            $ref: "#/components/schemas/placement_annotated_allele"
+
+    placement_annot:
+      type: object
+      required:
+        [
+          seq_type,
+          mol_type,
+          seq_id_traits_by_assembly,
+          is_aln_opposite_orientation,
+          is_mismatch,
+        ]
+      description: >-
+        Annotation about this sequence
+      properties:
+        seq_type:
+          type: string
+          format: ascii
+          description: >-
+            The associated sequence's type
+          enum:
+            - refseq_chromosome
+            - refseq_contig
+            - gpipe_chromosome
+            - contig
+            - refseq_genomic
+            - refseq_mrna
+            - refseq_mrna_pred
+            - mrna
+            - refseq_ncrna
+            - refseq_ncrna_pred
+            - ncrna
+            - refseq_prot
+            - genbank
+            - embl
+            - ddbj
+        mol_type:
+          type: string
+          format: ascii
+          description: >-
+            The associated sequence's molecule type
+          enum:
+            - unknown
+            - genomic
+            - rna
+            - protein
+            - mitochondrion
+            - nucleic_acid
+        seq_id_traits_by_assembly:
+          type: array
+          description: >-
+            The relationships between this sequence and the genomic assemblies
+            in which it participates (if any)
+          items:
+            $ref: "#/components/schemas/seq_id_trait_by_assembly"
+        is_aln_opposite_orientation:
+          type: boolean
+          description: >-
+            True if this sequence is aligned reverse to the PTLP sequence.
+            Thus, the PTLP sequence's is_aln_opposite_orientation attribute
+            is always false.
+        is_mismatch:
+          type: boolean
+          description: >-
+            True if this sequence's residues are different than the PTLP
+            sequence at this locus.  Thus, the PTLP sequence's is_mismatch
+            attribute is always false.
+
+    placement_annotated_allele:
+      type: object
+      required: [allele, hgvs]
+      description: >-
+        Description of a particular allele on a paritcular sequence
+      properties:
+        allele:
+          $ref: "#/components/schemas/allele"
+        hgvs:
+          type: string
+          format: ascii
+          description: >-
+            The HGVS expression for this allele on this placement
+
+    seq_id_trait_by_assembly:
+      type: object
+      required:
+        [
+          assembly_name,
+          assembly_accession,
+          is_top_level,
+          is_alt,
+          is_patch,
+          is_chromosome,
+        ]
+      description: >-
+        Sequences in general and contigs and chromosomes in particular
+        may have different roles in different genomic assemblies. This object
+        describes the role of a sequence in a particular assembly.
+      properties:
+        assembly_name:
+          type: string
+          format: unicode
+          description: >-
+            The name of the assembly these traits reference
+        assembly_accession:
+          type: string
+          format: ascii
+          description: >-
+            The Genomic Collections accession for this assembly.
+            For more information, see, for example,
+            http://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.40/
+        is_top_level:
+          type: boolean
+          description: >-
+            True if the sequence is top-level (the most highly assembled
+            sequences in a genome assembly)
+        is_alt:
+          type: boolean
+          description: >-
+            True if this placement's sequence is an alternative loci (a sequence
+            that provides an alternate representation of a locus found in a
+            largely haploid assembly)
+        is_patch:
+          type: boolean
+          description: >-
+            True if this placement's sequence is a patch sequence (a contig
+            sequence that is released outside of the full assembly release
+            cycle.  These sequences are meant to add information to the
+            assembly without disrupting the stable coordinate system)
+        is_chromosome:
+          type: boolean
+          description: >-
+            True if this placement's sequence is a chromosome sequence (a
+            relatively complete pseudo-molecule assembled from smaller
+            sequences (components) that represent a biological chromosome)
+
+    allele:
+      type: object
+      description: >-
+        An allele object describes the sequence change in either nucleotide or
+        amino acid sequence at a particular position on a particular sequence.
+        Exactly one of the spdi and frameshift fields will be present.
+
+        Most alleles can be modeled as defined breakpoint changes (SPDI data
+        model).  However, indel nucleotide changes can create frameshift
+        changes in proteins, which are difficult to model this way. Therefore
+        this allele object is a choice between either a SPDI representation
+        (when the breakpoints are known) or protein frameshifts (where the
+        final breakpoint is not known).
+      properties:
+        spdi:
+          $ref: "#/components/schemas/spdi"
+        frameshift:
+          $ref: "#/components/schemas/frameshift"
+
+    frameshift:
+      type: object
+      description: >-
+        A length poloymorphism in a nucleotide sequence that coincides with an
+        open reading frame, produces a frameshift in protein sequence
+      required: [seq_id, position]
+      properties:
+        seq_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the protein reference
+            sequence
+          example: >-
+            NP_000198.1
+        position:
+          type: integer
+          description: >-
+            The 0-based boundary position where the frameshift starts. That
+            is, position 0 starts the frameshift immediately before
+            the first amino acid and position 1 starts the frameshift
+            between the first and second amino acid.
+
+    so_term:
+      type: object
+      description: >-
+        Nucleotide and amino acid changes are catagorized into Sequence Ontology
+        terms.  For more information, see
+        https://www.ncbi.nlm.nih.gov/variation/docs/glossary/
+      required: [name, accession]
+      properties:
+        name:
+          type: string
+          format: unicode
+          description: >-
+            The name of the SO-term
+          example: >-
+            insertion
+        accession:
+          type: string
+          format: ascii
+          description: >-
+            The accession of the SO-term
+          example: >-
+            SO:0000667
+
+    support:
+      type: object
+      required: [id, revision_added, create_date, submitter_handle]
+      description: >-
+        Record of a submission that supports this RefSNPs.  RefSNPs are
+        insantiated when a variant submission exists at the RefSNP's
+        location and type (aka anchor).
+      properties:
+        id:
+          $ref: "#/components/schemas/support_id"
+        revision_added:
+          type: string
+          format: ascii
+          description: >-
+            The revision in which this support was added to this RefSNP
+        create_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date this support was added to this RefSNP
+          example: >-
+            2001-01-15T00:00Z
+        submitter_handle:
+          type: string
+          format: unicode
+          description: >-
+            The unique, dbSNP-registered name of the submitter
+
+    support_id:
+      type: object
+      required: [type, value]
+      description: >-
+        The id of the variant that supports this RefSNP
+      properties:
+        type:
+          type: string
+          format: ascii
+          description: >-
+            The kind of supporting data. This list can expand.
+          enum:
+            - subsnp
+            - frequency
+            - clinvar
+        value:
+          type: string
+          format: unicode
+          description: >-
+            The submitted variant ID. The id's structure is determined by its
+            source.
+          example:
+            - SubSNP: ss12345
+            - ClinVar: 12345
+            - Frequency: 1000 Genomes Phase III
+
+    allele_annotation_list:
+      type: object
+      required: [frequency, clinical, submissions, assembly_annotation]
+      description: >-
+        Clinical, frequency, and submission information that apply to a
+        particular allele independent of its placement.
+      properties:
+        frequency:
+          type: array
+          description: >-
+            Selected frequency attributes for each large genotype/frequency
+            study (if any) in which the allele has been reported.
+            One frequency_data object per study.
+          items:
+            $ref: "#/components/schemas/frequency_data"
+        clinical:
+          type: array
+          description: >-
+            Select clinical attributes for each NCBI ClinVar RCV of which this
+            allele is a member
+          items:
+            $ref: "#/components/schemas/clinvar_data"
+        submissions:
+          type: array
+          description: >-
+            The particular SubSNP ids that support this allele are reported here
+          items:
+            type: string
+            format: uint64
+            description: >-
+              SubSNP Ids
+        assembly_annotation:
+          type: array
+          description: >-
+            For this particular allele, the set of Annotation Releases and
+            associated sequences for which Genes, RNAs and Coding Regions
+            are annotated
+          items:
+            $ref: "#/components/schemas/assembly_annot_for_allele"
+
+    assembly_annot_for_allele:
+      type: object
+      description: >-
+        NCBI Annotation Releases calculate Gene, RNA and Coding Regions on
+        top level assembly sequence molecules.  Sometimes, a sequence molecule
+        may have more than one Annotation Release associated with it.  We report
+        the effect of the variant in relation to these regions *per* Annotation
+        Release *and* Sequence-id pair.
+        A tuple is then associated with a tree of annotations, consisting of
+        genes, their directly associated RNAs and Protein products, and any
+        protein products associated with those RNAs.
+      required: [seq_id, annotation_release, genes]
+      properties:
+        seq_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+        annotation_release:
+          type: string
+          format: ascii
+          description: >-
+            The name of the annotation release
+        genes:
+          type: array
+          description: >-
+            The set of genes annotated on the associated assembly
+            and sequence, for which this allele overlaps
+          items:
+            $ref: "#/components/schemas/gene_annot_for_allele"
+
+    gene_annot_for_allele:
+      type: object
+      description: >-
+        Each Gene consists of a tree of RNAs and Coding Regions (Proteins)
+        and associated SO-terms
+      required:
+        [name, id, locus, is_pseudo, orientation, sequence_ontology, rnas]
+      properties:
+        name:
+          type: string
+          format: ascii
+          description: >-
+            The name of the Gene
+        id:
+          type: integer
+          description: >-
+            The NCBI GeneId
+        locus:
+          type: string
+          format: ascii
+          description: >-
+            The NCBI Gene Symbol
+          example: >-
+            BRCA1
+        is_pseudo:
+          type: boolean
+          description: >-
+            True, if the gene is labeled a Pseudo-gene by NCBI Gene Resource at
+            the time this revision is built
+        orientation:
+          type: string
+          description: >-
+            The orientation of the gene relative to the parent assembly sequence
+            upon which it is annotated.  This orientation applies to all
+            children RNAs and Proteins as well.
+          enum:
+            - plus
+            - minus
+        sequence_ontology:
+          type: array
+          description: >-
+            The description of the variant in respect to its
+            location relative to this gene
+          items:
+            $ref: "#/components/schemas/so_term"
+        rnas:
+          type: array
+          description: >-
+            The set of RNAs annotated on this gene.  In the case of
+            mitochondria, the chromosome coordinate is repeated,
+            as it is the stand-in for the RNA.
+          items:
+            $ref: "#/components/schemas/rna_annot_for_allele"
+
+    rna_annot_for_allele:
+      type: object
+      description: >-
+        Represents the manifestation of a particular allele on a particular RNA.
+        If product_id is absent, this is a non-coding RNA.
+      required: [id, sequence_ontology]
+      properties:
+        id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+          example: >-
+            NC_000001.23
+        codon_aligned_transcript_change:
+          $ref: "#/components/schemas/codon_aligned_transcript_change"
+        sequence_ontology:
+          type: array
+          description: >-
+            The description of the variant in respect to its
+            location relative to this RNA
+          items:
+            $ref: "#/components/schemas/so_term"
+        product_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+          example: >-
+            NC_000001.23
+        protein:
+          $ref: "#/components/schemas/protein_annot_for_allele"
+        hgvs:
+          type: string
+          format: ascii
+          description: >-
+            The HGVS description of the allele on this RNA
+          example: >-
+            NM_001253723.1:c.-4-17233=
+
+    protein_annot_for_allele:
+      type: object
+      description: >-
+        Represents the manifestation of a particular allele on a particular
+        protein
+      required: [variant, sequence_ontology]
+      properties:
+        variant:
+          $ref: "#/components/schemas/protein_variant"
+        sequence_ontology:
+          type: array
+          description: >-
+            The description the protein consequence of this variant
+          items:
+            $ref: "#/components/schemas/so_term"
+
+    protein_variant:
+      type: object
+      description: >-
+        A choice of either a protein change with known endpoints (spdi) or
+        a frameshift variant (frameshift)
+      properties:
+        spdi:
+          $ref: "#/components/schemas/spdi"
+        frameshift:
+          $ref: "#/components/schemas/frameshift"
+
+    frequency_data:
+      type: object
+      description: >-
+        Metadata and allele counts for an allele in a particular study/project
+      required:
+        [
+          study_name,
+          study_version,
+          local_row_id,
+          observation,
+          allele_count,
+          total_count,
+        ]
+      properties:
+        study_name:
+          type: string
+          format: unicode
+          description: >-
+            Name part of study_id
+          example: >-
+            ExAC
+        study_version:
+          type: integer
+          description: >-
+            Version part of study_id
+          example: 1
+        local_row_id:
+          type: integer
+          format: int64
+          description: >-
+            Row number id within submission
+          example: 1
+        observation:
+          $ref: "#/components/schemas/spdi"
+        allele_count:
+          type: integer
+          description: >-
+            The number of chromosomes in the study where this allele was
+            observed
+        total_count:
+          type: integer
+          description: >-
+            The number of chromosomes in the study
+
+    clinvar_data:
+      type: object
+      description: >-
+        Metadata and clinical attributes for an allele in the ClinVar database.
+        For more information about ClinVar's data model, and ClinVar SCV/RCV
+        accessions, see http://www.ncbi.nlm.nih.gov/clinvar/docs/help/
+      required:
+        [
+          accession_version,
+          allele_id,
+          measure_set_id,
+          variant_identifiers,
+          refsnp_id,
+          create_date,
+          update_date,
+          review_status,
+          disease_names,
+          clinical_significances,
+          disease_ids,
+          origins,
+          collection_method,
+          citations,
+          gene_ids,
+        ]
+      properties:
+        accession_version:
+          type: string
+          format: ascii
+          description: >-
+            The ClinVar RCV record that links this particular
+            allele to this particular phenotype.  For more information, see
+            http://www.ncbi.nlm.nih.gov/clinvar/intro/
+        allele_id:
+          type: integer
+          description: >-
+            ClinVar's identifier for this allele.  For more information, see
+            http://www.ncbi.nlm.nih.gov/clinvar/docs/help/
+        measure_set_id:
+          type: integer
+          description: >-
+            ClinVar's identifer for a set of variants that may influence the
+            phenotype together, such as in a haplotype.  A measure-set
+            aggregates together several allele_ids.
+        variant_identifiers:
+          type: array
+          description: >-
+            External variant identifers, simliar to RefSNP numbers.  They are
+            independent of RCV's altogether.  They should be the same for every
+            RCV in a RefSnp.  Formerly 'source-link'.
+          items:
+            $ref: "#/components/schemas/external_ref"
+        refsnp_id:
+          type: string
+          format: uint64
+          description: >-
+            The associated RefSnp ID according to ClinVar at time of dbSNP
+            revision creation.
+        create_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date and time the ClinVar RCV was created
+          example: >-
+            2001-01-15T00:00Z
+        update_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date the ClinVar RCV was last updated. If never updated,
+            then same as create-date.
+          example: >-
+            2001-01-15T00:00Z
+        last_evaluated_date:
+          type: string
+          format: ISO 8601
+          description: >-
+            The date the submitter last evaluated the clinical significance for
+            this record.  If absent, then value not submitted by submitter.
+          example: >-
+            2001-01-15T00:00Z
+        review_status:
+          type: string
+          format: ascii
+          description: >-
+            The status of the RCV
+          enum:
+            - no_assertion_provided
+            - no_assertion_criteria_provided
+            - criteria_provided_single_submitter
+            - criteria_provided_multiple_submitters_no_conflicts
+            - criteria_provided_conflicting_interpretations
+            - reviewed_by_expert_panel
+            - practice_guideline
+        disease_names:
+          type: array
+          description: >-
+            Each RCV record is associated with one or more preferred disease
+            names
+          items:
+            type: string
+            format: unicode
+        clinical_significances:
+          type: array
+          description: >-
+            The signifiances of this allele in the context of this disease
+          items:
+            type: string
+            format: ascii
+            enum:
+              - not_provided
+              - pathogenic
+              - likely_pathogenic
+              - benign
+              - likely_benign
+              - drug_response
+              - confers_sensitivity
+              - risk_factor
+              - association
+              - protective
+              - conflicting_interpretations_of_pathogenicity
+              - uncertain_significance
+              - affects
+              - association_not_found
+              - other
+        disease_ids:
+          type: array
+          description: >-
+            There are zero or more disease-ids per RCV
+          items:
+            $ref: "#/components/schemas/external_ref"
+        origins:
+          type: array
+          description: >-
+            The biological origins of the allele. Each SCV can have many values
+            for this field and this reports their aggregate (taken from the
+            RCV), with duplicates removed.
+          items:
+            type: string
+            format: ascii
+            enum:
+              - unknown
+              - germline
+              - somatic
+              - de_novo
+              - inherited
+              - maternal
+              - paternal
+              - uniparental
+              - biparental
+              - not_reported
+              - tested_inconclusive
+              - not_applicable
+              - experimentally_generated
+        collection_method:
+          type: array
+          description: >-
+            How each SCV was collected.  Each SCV can have many values
+            for this field and this reports their aggregate (taken from the
+            RCV), with duplicates removed.
+          items:
+            type: string
+            format: unicode
+        citations:
+          type: array
+          description: >-
+            Set of PubMed IDs (PMIDs) associated with this RCV
+          items:
+            type: integer
+        gene_ids:
+          type: array
+          description: >-
+            Set of ClinVar reported genes associated with this RCV
+          items:
+            type: string
+            format: ascii
+
+    external_ref:
+      type: object
+      required: [organization, accession]
+      description: >-
+        An organization outside of dbSNP will also accession variants and
+        annotation.  This object provides the name of that organization, and
+        associated accession.  The organization together with the accession
+        provide a globally unique identifier.
+      properties:
+        organization:
+          type: string
+          format: unicode
+          description: >-
+            The name of the organization that has provided an accession
+        accession:
+          type: string
+          format: unicode
+          description: >-
+            The accession provided by the organization
+
+    spdi_success:
+      type: object
+      description: >-
+        Successful response to a request for a single SPDI object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/spdi"
+
+    spdis_success:
+      type: object
+      description: >-
+        Successful response to a request for a list of SPDI objects
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/spdis"
+
+    spdis_from_hgvs_success:
+      type: object
+      description: >-
+        Successful response to a request for a list of SPDI objects
+        based on an HGVS expression
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/spdis_from_hgvs"
+
+    spdi_resources_success:
+      type: object
+      description: >-
+        Successful response to a request for describing a single SPDI object
+      required: [data, _links]
+      properties:
+        data:
+          $ref: "#/components/schemas/spdi"
+        _links:
+          $ref: "#/components/schemas/hal_links"
+
+    rsids_success:
+      type: object
+      description: >-
+        Successful response to a request for a list of RefSNP
+        identification numbers
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/rsids"
+
+    hgvs_success:
+      type: object
+      description: >-
+        Successful response to a request for a single HGVS object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/hgvs"
+
+    vcf_fields_success:
+      type: object
+      description: >-
+        Successful response to a request for a single vcf_fields object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/vcf_fields"
+
+    ga4gh-vr_success:
+      type: object
+      description: >-
+        Successful response to a request for a single GA4GH object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ga4gh_vr_allele"
+
+    ga4gh-vr-id_success:
+      type: object
+      description: >-
+        Successful response to a request for a Computed Id for
+        a GA4GH VR Allele object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ga4gh_vr_id"
+
+    codon_aligned_transcript_change:
+      type: object
+      required: [seq_id, position, deleted_sequence, inserted_sequence]
+      description: >-
+        This reports the codon change and its position in SPDI notation
+        when the variant is in a coding region. Then the position
+        reported is the transcript position of the first nucleotide of
+        the affected codons, not the variant allele itself which can
+        occur at anywhere in those codons. For a non-coding transcript,
+        this is just the allele change as mapped to the transcript.
+      properties:
+        seq_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+          example: >-
+            NC_000001.23
+        position:
+          type: integer
+          description: >-
+            The 0-based boundary position where the deletion starts. That
+            is, position 0 starts the deletion immediately before
+            the first nucleotide and position 1 starts the deletion
+            between the first and second nucleotides.
+        deleted_sequence:
+          type: string
+          format: ascii
+          description: >-
+            The IUPAC sequence of nucleotides/amino-acids to delete from the
+            reference. This can be empty, which is how a pure insertion is
+            represented.
+        inserted_sequence:
+          type: string
+          format: ascii
+          description: >-
+            The IUPAC sequence of nucleotides/amino-acids to insert
+            after perforing the deletion. Amino-acids use the
+            single character encoding. All nucleotide codes including the
+            ones for ambiguity are allowed.
+
+    spdi:
+      type: object
+      required: [seq_id, position, deleted_sequence, inserted_sequence]
+      description: >-
+        A single contextual allele in SPDI notation. Contextual allele
+        means that applying the Blossom Precision Correction Algorithm
+        would leave the fields unchanged.
+      properties:
+        seq_id:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference sequence
+          example: >-
+            NC_000001.23
+        position:
+          type: integer
+          description: >-
+            The 0-based boundary position where the deletion starts. That
+            is, position 0 starts the deletion immediately before
+            the first nucleotide and position 1 starts the deletion
+            between the first and second nucleotides.
+        deleted_sequence:
+          type: string
+          format: ascii
+          description: >-
+            The IUPAC sequence of nucleotides/amino-acids to delete from the
+            reference. This can be empty, which is how a pure insertion is
+            represented.
+        inserted_sequence:
+          type: string
+          format: ascii
+          description: >-
+            The IUPAC sequence of nucleotides/amino-acids to insert
+            after perforing the deletion. Amino-acids use the
+            single character encoding. All nucleotide codes including the
+            ones for ambiguity are allowed.
+        warnings:
+          $ref: "#/components/schemas/warnings"
+
+    spdis:
+      type: object
+      required: [spdis]
+      description: >-
+        A set of contextual alleles in SPDI notation. Order is
+        not significant. There may be duplicates.
+      properties:
+        spdis:
+          type: array
+          items:
+            $ref: "#/components/schemas/spdi"
+        errors:
+          $ref: "#/components/schemas/error"
+        warnings:
+          $ref: "#/components/schemas/warnings"
+
+    spdis_from_hgvs:
+      type: object
+      required: [spdis, input_hgvs_validity]
+      description: >-
+        A set of contextual alleles in SPDI notation. Order is
+        not significant. There may be duplicates.
+      properties:
+        spdis:
+          type: array
+          items:
+            $ref: "#/components/schemas/spdi"
+        errors:
+          $ref: "#/components/schemas/hgvs_error"
+        warnings:
+          $ref: "#/components/schemas/warnings"
+        input_hgvs_validity:
+          type: string
+          format: ascii
+          description: >-
+            Our service's determination of the validity of the input as a
+            variant description in HGVS nomenclature. Valid input matches
+            the HGVS standard. Invalid input violates it.
+          enum:
+            - unknown validity
+            - valid
+            - invalid
+          default: unknown validity
+
+    hal_links:
+      type: object
+      title: Hyperlink
+      description: >-
+        Represents a hyperlink from the containing resource to a URI.
+      additionalProperties:
+        type: object
+        required: [href]
+        properties:
+          href:
+            type: string
+            format: "URI"
+            title: URI of the target resource
+            description: >-
+              Either a URI [RFC3986] or URI Template [RFC6570]
+              of the target resource.
+        additionalProperties: false
+      example:
+        self:
+          href: /spdi/NC_000001.10%3A12345%3A0%3AC/
+        contextual:
+          href: /spdi/NC_000001.10%3A12345%3A0%3AC/contextual
+        canonical_representative:
+          href: >-
+            /spdi/NC_000001.10%3A12345%3A0%3AC/canonical_representative
+
+    hgvs_batch_success:
+      type: object
+      description: >-
+        Successful response to a request for a batch of HGVSes
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/hgvs_batch"
+
+    hgvs_batch:
+      type: array
+      description: >-
+        An array of results, one for each input HGVS.  Each result is
+        also an array, since each input HGVS may represent multiple
+        alleles.
+      items:
+        $ref: "#/components/schemas/hgvs_batch_item"
+
+    hgvs_batch_item:
+      type: object
+      required: [hgvs, alleles, input_hgvs_validity]
+      description: >-
+        The input HGVS paired with its of result collection, which has one
+        item per allele.
+      properties:
+        hgvs:
+          description: the input HGVS expression
+          type: string
+          format: hgvs
+        alleles:
+          description: one entry per contextual allele encompased by the HGVS
+          $ref: "#/components/schemas/spdis"
+        input_hgvs_validity:
+          type: string
+          format: ascii
+          description: >-
+            Our service's determination of the validity of the input as a
+            variant description in HGVS nomenclature. Valid input matches
+            the HGVS standard. Invalid input violates it.
+          enum:
+            - unknown validity
+            - valid
+            - invalid
+          default: unknown validity
+
+    rsids:
+      type: object
+      required: [rsids]
+      description: >-
+        A set of RefSNP IDs. Order is not significant.
+        There may be duplicates.
+      properties:
+        rsids:
+          type: array
+          items:
+            type: integer
+            description: RefSNP ID
+
+    hgvs:
+      type: object
+      required: [hgvs]
+      description: >-
+        An allele in HGVS notation
+      properties:
+        hgvs:
+          type: string
+          format: ascii
+        warnings:
+          $ref: "#/components/schemas/warnings"
+
+    vcf_fields:
+      type: object
+      required: [chrom, pos, ref, alt]
+      description: >-
+        The allele-description fields of a VCF entry. They are properly
+        left-shifted and contain a padding nucleotide for del, ins, and
+        indel type changes.
+      properties:
+        chrom:
+          type: string
+          format: ascii
+          description: >-
+            The RefSeq/Genbank Accession.Version for the reference
+            sequence. Despite the name (taken from the VCF standard)
+            this does not need to be a chromosome.
+        pos:
+          type: integer
+          description: >-
+            The 1-based position of the first nucleotide in the
+            reference allele string on its sequence
+        ref:
+          type: string
+          format: ascii
+          description: >-
+            The reference allele, with padding nucleotide when required
+        alt:
+          type: string
+          format: ascii
+          description: >-
+            Alternate allele, with padding nucleotide when required
+        warnings:
+          $ref: "#/components/schemas/warnings"
+
+    frequency_metadata:
+      type: array
+      description: List of bioprojects and their subpopulations
+      items:
+        $ref: "#/components/schemas/bioproject"
+
+    bioproject:
+      type: object
+      description: >-
+        Defines a study (bioproject) from which frequency
+        data is derived. See: https://www.ncbi.nlm.nih.gov/bioproject
+      required:
+        - bioproject_id
+        - id
+        - name
+        - description
+        - short_name
+        - populations
+      properties:
+        bioproject_id:
+          type: string
+          description: >-
+            Registered project/study in BioProject. You can access information
+            about the project by searching for that id at
+            https://www.ncbi.nlm.nih.gov/bioproject
+          example: PRJNA507278
+        id:
+          type: string
+          description: Internal id of the study
+          example: study.1
+        name:
+          type: string
+          description: Human-readable name for the study
+          example: dbGaP Population Frequency Project
+        description:
+          type: string
+          description: Human-readable study description
+          example: >-
+            Population frequencies aggregated from dbGaP data with automated
+            population assignment to individuals
+        short_name:
+          type: string
+          description: Short and readable study name
+          example: dbGaP Frequency
+        populations:
+          type: array
+          description: Defines the biosamples (populations) in the bioproject
+          items:
+            $ref: "#/components/schemas/subpopulation"
+        url:
+          type: string
+          description: The study's own URL. May be blank.
+          example: http://study.org
+        comment:
+          type: string
+          description: Additional comments about the study.
+          example: >-
+            There was a need to say something not part of the description.
+        release_date:
+          type: string
+          description: ISO 8601 date the study data was released
+          example: "2019-05-29T18:12:53.529829+00:00"
+        submit_date:
+          type: string
+          description: ISO 8601 date the study data was submitted
+          example: "2019-05-29T18:12:53.529829+00:00"
+
+    subpopulation:
+      type: object
+      required:
+        - biosample_id
+        - description
+        - name
+        - id
+        - group
+      properties:
+        biosample_id:
+          type: string
+          description: >-
+            Registered population in BioSample.
+            https://www.ncbi.nlm.nih.gov/biosample/
+          example: "SAMN10492703"
+        name:
+          type: string
+          description: >-
+            A short, human-readable name for this biosample
+            to be used in quick displays
+          example: All African Ancestry
+        description:
+          type: string
+          description: Human-readable description of the population
+          example: Subjects with non-Hispanic African ancestry
+        id:
+          type: string
+          description: >-
+            Short code of population (used in submission). Unique
+            within one submission.
+
+            Can only contain capital letters and digits.
+          example: AAA
+        group:
+          type: string
+          description: Text dbSNP displays in the group column
+          enum:
+            - Global
+            - Study-wide
+            - Sub
+          example: Sub
+        subs:
+          type: array
+          items:
+            $ref: "#/components/schemas/subpopulation"
+          example:
+            [
+              {
+                "id": "2",
+                "name": "95% Exclusive African Ancestry",
+                "group": "Sub",
+                "description": "95% Exclusive African Ancestry",
+                "biosample_id": "SAMN10492696",
+              },
+            ]
+
+    overlapping_frequency_records_results:
+      type: object
+      title: Retrieved variants and their frequencies
+      description: |
+        A dictionary where each key describes an interval
+        '\<length>@\<start>', and each value contains information
+        about population frequencies for this interval.  Length
+        and start are integers with the same semantics as the length and start
+        parameters for the interval in the request.
+      additionalProperties:
+        type: object
+        title: Interval
+        description: >
+          Population frequencies for intervals that overlap the
+          input interval
+        example:
+          0@10:
+            ref: ""
+            counts:
+              bioproject_id1:
+                allele_counts:
+                  biosample_id1:
+                    "": 100
+                    AA: 10
+                  biosample_id2:
+                    "": 100
+                    AA: 100
+                genotype_counts:
+                  biosample_id1:
+                    "": 5
+                    AA: 5
+                    "/": 90
+                    "/AA": 5
+                    "AA/AA": 0
+                  biosample_id2:
+                    "": 50
+                    AA: 50
+                    "/": 50
+                    "/AA": 0
+                    "AA/AA": 50
+              bioproject_id2:
+                allele_counts:
+                  biosample_id3:
+                    "": 100
+                    AA: 10
+          1@10:
+            ref: T
+            counts:
+              bioproject_id1:
+                allele_counts:
+                  biosample_id1:
+                    "": 100
+                    T: 0
+                    A: 10
+                  biosample_id2:
+                    "": 100
+                    T: 200
+                    A: 100
+        properties:
+          ref:
+            type: string
+            description: >
+              Nucleotides for reference allele in upper-case
+              IUPAC notation
+          counts:
+            type: object
+            description: |
+              Dictionary from bioproject_id (described in metadata) to count
+              information
+            example:
+              counts:
+                bioproject_id1:
+                  allele_counts:
+                    biosample_id1:
+                      GA: 100
+                      TC: 2
+                bioproject_id2:
+                  allele_counts:
+                    biosample_id3:
+                      GA: 15
+                      TC: 0
+            additionalProperties:
+              type: object
+              title: bioproject_id
+              description: >
+                Counts derived from a specific bioproject_id (study)
+              example:
+                bioproject_id1:
+                  allele_counts:
+                    biosample_id1:
+                      GA: 100
+                      TC: 2
+              required:
+                - allele_counts
+              properties:
+                hwe_prob:
+                  type: object
+                  description: >
+                    A dictionary from biosample_id (population) to its
+                    corresponding HWE p-value
+                  additionalProperties:
+                    type: object
+                    title: Biosample Id
+                    description: >
+                      A dictionary with a single element that has "HWE_P" as
+                      key and the HWE p-value computed for this population as
+                      its value.
+                    example:
+                      HWE_P: 5
+                    additionalProperties:
+                      type: integer
+                      title: HWE p-value for this population
+                      description: reported as int(-log(HWE score test p-value))
+                      minimum: 0
+                allele_counts:
+                  type: object
+                  description: >
+                    A dictionary from biosample_id (population) to the
+                    counts for that population
+                  additionalProperties:
+                    type: object
+                    title: Biosample Id
+                    description: >
+                      A dictionary from allele sequence (upper-case IUPAC)
+                      to observed counts.
+
+                      An empty string is a permissible key.
+                      It appears as the reference allele for pure
+                      insertions or as the alternate for a pure
+                      deletion.
+                    example:
+                      GA: 100
+                      TC: 2
+                    additionalProperties:
+                      type: integer
+                      title: Allele
+                      description: Number of observations of this allele
+                      minimum: 0
+                genotype_counts:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    title: Biosample Id
+                    description: >
+                      A dictionary from genotype to observed
+                      counts.
+                      An empty string is a permissible key.
+                      It appears as the reference allele for pure
+                      insertions or as the alternate for a pure
+                      deletion.
+                      Haploid alleles are just upper-case IUPAC strings.
+                      Higher ploidy genotypes, the alleles are separated by
+                      the "/" character and sorted according to the en_US
+                      locale.
+                    example:
+                      "": 5
+                      A: 0
+                      AA: 5
+                      "/": 90
+                      "/A": 0
+                      "/AA": 5
+                      "A/A": 0
+                      "A/AA": 0
+                      "AA/AA": 0
+                    additionalProperties:
+                      type: integer
+                      title: Number of observations of this genotype
+                      minimum: 0
+      example:
+        0@10:
+          ref: ""
+          counts:
+            bioproject_id1:
+              hwe_prob:
+                biosample_id1:
+                  HWE_P: 5
+                biosample_id2:
+                  HWE_P: 2
+              allele_counts:
+                biosample_id1:
+                  "": 100
+                  A: 0
+                  AA: 10
+                biosample_id2:
+                  "": 100
+                  A: 200
+                  AA: 100
+              genotype_counts:
+                biosample_id1:
+                  # These are haploid genotypes
+                  "": 5
+                  A: 0
+                  AA: 5
+                  # These are diploid genotypes - form triploid (if present)
+                  # using the same pattern
+                  "/": 90
+                  "/A": 0
+                  "/AA": 5
+                  "A/A": 0
+                  "A/AA": 0
+                  "AA/AA": 0
+                biosample_id2:
+                  "": 50
+                  A: 100
+                  AA: 50
+                  "/": 50
+                  "/A": 0
+                  "/AA": 0
+                  "A/A": 100
+                  "A/AA": 0
+                  "AA/AA": 50
+            bioproject_id2:
+              allele_counts:
+                biosample_id3:
+                  "": 100
+                  A: 0
+                  AA: 10
+        1@10:
+          ref: T
+          counts:
+            bioproject_id1:
+              allele_counts:
+                biosample_id1:
+                  "": 100
+                  T: 0
+                  A: 10
+                biosample_id2:
+                  "": 100
+                  T: 200
+                  A: 100
+        0@11:
+          ref: ""
+          counts:
+            bioproject_id1:
+              allele_counts:
+                biosample_id1:
+                  "": 100
+                  T: 0
+                  A: 10
+                biosample_id2:
+                  "": 100
+                  T: 200
+                  A: 100
+
+    ga4gh_vr_id:
+      type: object
+      required: [computed_id]
+      properties:
+        computed_id:
+          $ref: "#/components/schemas/CURIE"
+
+    ga4gh_vr_allele:
+      type: object
+      required: [location, state, type]
+      description: >-
+        An Allele is a specific, single, and contiguous Sequence at a Location.
+        Each alternative Sequence may be empty, shorter, longer, or the same
+        length as the interval (e.g., due to one or more indels).
+      properties:
+        location:
+          $ref: "#/components/schemas/ga4gh_vr_sequence_location"
+        state:
+          $ref: "#/components/schemas/ga4gh_vr_sequence_state"
+        type:
+          type: string
+          description: >-
+            variation type; MUST be set to 'Allele'
+          enum:
+            - Allele
+        _id:
+          type: string
+          description: >-
+            Variation Id; MUST be unique within document.
+            It is a CURIE formatted string. A CURIE string has the
+            structure prefix:reference (W3C Terminology).
+          example: >-
+            ga4gh:a_unique_computed_id
+
+    ga4gh_vr_sequence_location:
+      type: object
+      required: [interval, sequence_id, type]
+      description: >-
+        Describing a defined interval over a named Sequence.
+      properties:
+        type:
+          type: string
+          description: >-
+            Location type; MUST be set to 'SequenceLocation'
+          enum:
+            - SequenceLocation
+        interval:
+          $ref: "#/components/schemas/ga4gh_vr_simple_interval"
+        sequence_id:
+          type: string
+          description: >-
+            An id mapping to the Computed Identifiers of the external
+            database Sequence containing the sequence to be located.
+            It is a CURIE formatted string. A CURIE string has the
+            structure prefix:reference (W3C Terminology).
+          example: >-
+            refseq:NC_000001.11
+        _id:
+          type: string
+          description: >-
+            Location Id; MUST be unique within document.
+            It is a CURIE formatted string. A CURIE string has the
+            structure prefix:reference (W3C Terminology).
+          example: >-
+            ga4gh:a_unique_computed_id
+
+    ga4gh_vr_simple_interval:
+      type: object
+      required: [type, start, end]
+      description: >-
+        An Interval with a single start and end position, using interbase
+        coordinates.
+      properties:
+        type:
+          type: string
+          description: >-
+            interval type; MUST be set to 'SimpleInterval'
+          enum:
+            - SimpleInterval
+        start:
+          type: integer
+          description: >-
+            start position, using interbase coordinates
+          example: 100
+        end:
+          type: integer
+          description: >-
+            end position, using interbase coordinates
+          example: 101
+
+    ga4gh_vr_sequence_state:
+      type: object
+      required: [sequence, type]
+      description: >-
+        The SequenceState class specifically captures a Sequence as a State.
+        This is the State class to use for representing 'ref-alt' style
+        variation, including SNVs, MNVs, del, ins, and delins.
+      properties:
+        type:
+          type: string
+          description: >-
+            state type; MUST be set to 'SequenceState'
+          enum:
+            - SequenceState
+        sequence:
+          type: string
+          description: >-
+            The string of sequence residues that is to be used as the state
+            for other types.
+          example: >-
+            A
+    CURIE:
+      additionalProperties: false
+      description: >-
+        A string that refers to an object uniquely.  The lifetime and
+        scope of an id is defined by the sender.
+
+        The GA4GH VR specification RECOMMENDS that implementations use
+        [W3C Compact URI (CURIE)](https://www.w3.org/TR/curie/) syntax.
+      type: string
+      pattern: '^\w[^:]+:.+$'
+      example: "ga4gh:VA.01234abcde"
+
+    warnings:
+      type: array
+      description: >-
+        Text intended for human consumption listing all
+        warnings associated with generating this object. Absent
+        if no warnings were generated.
+      items:
+        $ref: "#/components/schemas/warning"
+
+    warning:
+      type: object
+      title: Warning
+      description: >-
+        Information about minor issues occured during request processing,
+        an entry in the array of warnings
+      example:
+        reason: Reply is too large
+        message: |
+          Requested interval contains too many variants.
+          Only 250 first returned.
+          Try to split request into parts.
+      required: [reason, message]
+      properties:
+        reason:
+          type: string
+          format: ascii
+          description: >-
+            Unique identifier for this warning
+          enum:
+            - Other
+        message:
+          type: string
+          format: unicode
+          description: >-
+            The human-readable text of the warning
+
+    error:
+      type: object
+      title: Error report
+      description: >-
+        Description of a catastrophic failure
+      required: [error]
+      properties:
+        error:
+          type: object
+          description: Remember that these fields are all optional.
+          properties:
+            code:
+              type: integer
+              description: >-
+                Represents the code for this error. This property value will
+                represent the HTTP response code. If there are multiple errors,
+                code will be the error code for the first error.
+            message:
+              type: string
+              format: unicode
+              description: >-
+                A human readable message providing more details about the error.
+                If there are multiple errors, message will be the message for
+                the first error.
+            errors:
+              type: array
+              description: >-
+                Container for any additional information regarding the error.
+                If the service returns multiple errors, each element in the
+                errors array represents a different error.
+              items:
+                $ref: "#/components/schemas/detailed_error"
+
+    detailed_error:
+      type: object
+      description: >-
+        Description of a catastrophic failure
+      required: [reason, message]
+      properties:
+        reason:
+          type: string
+          format: ascii
+          description: >-
+            Unique identifier for this error. Different from the error.code
+            property in that this is not an http response code.
+          enum:
+            - Other
+        message:
+          type: string
+          format: unicode
+          description: >-
+            A human readable message providing more details about the error.
+            If there is only one error, this field will match error.message.
+
+    hgvs_error:
+      type: object
+      title: Error report for the /hgvs/*/contextuals endpoints
+      description: >-
+        Description of a failure while processing an HGVS expression
+      required: [error]
+      properties:
+        error:
+          type: object
+          description: Remember that these fields are all optional.
+          properties:
+            code:
+              type: integer
+              description: >-
+                Represents the code for this error. This property value will
+                represent the HTTP response code. If there are multiple errors,
+                code will be the error code for the first error.
+            message:
+              type: string
+              format: unicode
+              description: >-
+                A human readable message providing more details about the error.
+                If there are multiple errors, message will be the message for
+                the first error.
+            errors:
+              type: array
+              description: >-
+                Container for any additional information regarding the error.
+                If the service returns multiple errors, each element in the
+                errors array represents a different error.
+              items:
+                $ref: "#/components/schemas/detailed_error"
+            input_hgvs_validity:
+              type: string
+              format: ascii
+              description: >-
+                Our service's determination of the validity of the input as a
+                variant description in HGVS nomenclature. Valid input matches
+                the HGVS standard. Invalid input violates it.
+              enum:
+                - unknown validity
+                - valid
+                - invalid
