@@ -2,7 +2,7 @@
 
 import { throwApiError } from "@/api/errors"
 
-import { keepPreviousData, useQuery, useMutation } from "@tanstack/react-query"
+import { useQuery, useMutation } from "@tanstack/react-query"
 import type {
   RareVariantFilterRequest,
   RareVariantSearchResponse,
@@ -37,7 +37,10 @@ export function useRareVariantFindings(
       return res.json()
     },
     enabled: sampleId != null,
-    placeholderData: keepPreviousData,
+    // Keep the current sample's rows during pagination, never another sample's
+    // findings (or their clinical confirmation notice) during a sample switch.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === sampleId ? previousData : undefined,
     staleTime: Infinity,
   })
 }

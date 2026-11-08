@@ -26,6 +26,7 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import WithheldResults from "@/components/ui/WithheldResults"
+import ClinicalConfirmationGate from "@/components/ui/ClinicalConfirmationGate"
 
 const RARE_VARIANT_TABLE_PAGE_SIZE = 200
 const RARE_VARIANT_TABLE_RENDER_LIMIT = 5000
@@ -34,7 +35,11 @@ export default function RareVariantsView() {
   const [searchParams] = useSearchParams()
   const sampleId = parseSampleId(searchParams.get("sample_id"))
 
-  const [selectedVariant, setSelectedVariant] = useState<RareVariant | null>(null)
+  const [selection, setSelectedVariant] = useState<{
+    sampleId: number
+    variant: RareVariant
+  } | null>(null)
+  const selectedVariant = selection?.sampleId === sampleId ? selection.variant : null
   const [searchState, setSearchState] = useState<{
     sampleId: number | null
     result: RareVariantSearchResponse | null
@@ -90,6 +95,14 @@ export default function RareVariantsView() {
     searchLimit >= RARE_VARIANT_TABLE_RENDER_LIMIT
   const storedFindings = findingsQuery.data?.items ?? []
   const storedFindingsTotal = findingsQuery.data?.total ?? 0
+  // Use the backend's primary-P/LP decisions for the current result source.
+  // Predicted pathogenic and low-penetrance/risk-allele tiers remain separate.
+  const needsClinicalConfirmation = hasSearchResult
+    ? searchItems.length > 0 && searchResult.pathogenic_count > 0
+    : storedFindings.some((finding) =>
+        finding.category === "clinvar_pathogenic" ||
+        finding.category === "clinvar_pathogenic_low_confidence",
+      )
   const canLoadMoreStoredFindings =
     Boolean(hasFindingsOnly) &&
     storedFindings.length < storedFindingsTotal &&
@@ -168,6 +181,8 @@ export default function RareVariantsView() {
         />
       )}
 
+      {needsClinicalConfirmation && <ClinicalConfirmationGate />}
+
       {/* Search results */}
       {hasSearchResult && (
         <>
@@ -189,7 +204,7 @@ export default function RareVariantsView() {
               selectedRsid={selectedVariant?.rsid ?? null}
               onSelect={(v) =>
                 setSelectedVariant(
-                  selectedVariant?.rsid === v.rsid ? null : v,
+                  selectedVariant?.rsid === v.rsid ? null : { sampleId, variant: v },
                 )
               }
             />
