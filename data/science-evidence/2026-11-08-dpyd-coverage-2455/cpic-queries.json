@@ -1,0 +1,229 @@
+[
+  {
+    "endpoint": "allele",
+    "accessed": "2026-11-08",
+    "pages": [
+      {
+        "url": "https://api.cpicpgx.org/v1/allele?genesymbol=eq.DPYD&select=name%2Cclinicalfunctionalstatus%2Cactivityvalue%2Cfunctionalstatus%2Cfindings%2Ccitations%2Cstrength&order=name&limit=100&offset=0",
+        "content_range": "0-83/84",
+        "rows": 84
+      }
+    ],
+    "rows": 84,
+    "saved": "raw/cpic-dpyd-alleles.json"
+  },
+  {
+    "endpoint": "allele_definition",
+    "accessed": "2026-11-08",
+    "pages": [
+      {
+        "url": "https://api.cpicpgx.org/v1/allele_definition?genesymbol=eq.DPYD&select=id%2Cname%2Cgenesymbol%2Callele_location_value%28variantallele%2Clocationid%29&order=id&limit=100&offset=0",
+        "content_range": "0-83/84",
+        "rows": 84
+      }
+    ],
+    "rows": 84,
+    "saved": "raw/cpic-dpyd-definitions.json"
+  },
+  {
+    "endpoint": "sequence_location",
+    "accessed": "2026-11-08",
+    "pages": [
+      {
+        "url": "https://api.cpicpgx.org/v1/sequence_location?id=in.%28778244%2C778245%2C778246%2C778247%2C778249%2C778250%2C778251%2C778252%2C778253%2C778254%2C778255%2C778256%2C778257%2C778258%2C778259%2C778260%2C778261%2C778262%2C778263%2C778264%2C778265%2C778266%2C778267%2C778268%2C778269%2C778270%2C778271%2C778272%2C778273%2C778274%2C778275%2C778276%2C778277%2C778278%2C778279%2C778280%2C778281%2C778282%2C778283%2C778284%2C778285%2C778286%2C778287%2C778288%2C778289%2C778290%2C778291%2C778292%2C778293%2C778294%2C778295%2C778296%2C778298%2C778299%2C778300%2C778301%2C778302%2C778303%2C778304%2C778305%2C778306%2C778307%2C778308%2C778309%2C778310%2C778311%2C778312%2C778313%2C778314%2C778315%2C778316%2C778317%2C778318%2C778319%2C778320%2C778321%2C778322%2C778323%2C778324%2C778325%2C778326%2C948658%2C948707%29&order=id&limit=100&offset=0",
+        "content_range": "0-82/83",
+        "rows": 83
+      }
+    ],
+    "rows": 83,
+    "saved": "raw/cpic-dpyd-locations.json"
+  },
+  {
+    "endpoint": "diplotype",
+    "accessed": "2026-11-08",
+    "pages": [
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=0",
+        "content_range": "0-99/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=100",
+        "content_range": "100-199/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=200",
+        "content_range": "200-299/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=300",
+        "content_range": "300-399/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=400",
+        "content_range": "400-499/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=500",
+        "content_range": "500-599/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=600",
+        "content_range": "600-699/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=700",
+        "content_range": "700-799/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=800",
+        "content_range": "800-899/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=900",
+        "content_range": "900-999/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1000",
+        "content_range": "1000-1099/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1100",
+        "content_range": "1100-1199/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1200",
+        "content_range": "1200-1299/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1300",
+        "content_range": "1300-1399/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1400",
+        "content_range": "1400-1499/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1500",
+        "content_range": "1500-1599/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1600",
+        "content_range": "1600-1699/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1700",
+        "content_range": "1700-1799/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1800",
+        "content_range": "1800-1899/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=1900",
+        "content_range": "1900-1999/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2000",
+        "content_range": "2000-2099/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2100",
+        "content_range": "2100-2199/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2200",
+        "content_range": "2200-2299/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2300",
+        "content_range": "2300-2399/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2400",
+        "content_range": "2400-2499/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2500",
+        "content_range": "2500-2599/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2600",
+        "content_range": "2600-2699/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2700",
+        "content_range": "2700-2799/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2800",
+        "content_range": "2800-2899/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=2900",
+        "content_range": "2900-2999/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3000",
+        "content_range": "3000-3099/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3100",
+        "content_range": "3100-3199/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3200",
+        "content_range": "3200-3299/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3300",
+        "content_range": "3300-3399/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3400",
+        "content_range": "3400-3499/3570",
+        "rows": 100
+      },
+      {
+        "url": "https://api.cpicpgx.org/v1/diplotype?genesymbol=eq.DPYD&select=diplotype%2Cgeneresult%2Ctotalactivityscore&order=diplotype&limit=100&offset=3500",
+        "content_range": "3500-3569/3570",
+        "rows": 70
+      }
+    ],
+    "rows": 3570,
+    "saved": "raw/cpic-dpyd-diplotypes.json"
+  }
+]

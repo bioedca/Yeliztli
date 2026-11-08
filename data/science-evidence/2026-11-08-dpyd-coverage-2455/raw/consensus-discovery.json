@@ -1,0 +1,23 @@
+{
+  "accessed": "2026-11-08",
+  "query": "Offer 2014 Comparative functional analysis of DPYD variants 10.1158/0008-5472.CAN-13-2482",
+  "method": "Consensus search then fetch of acfc5eb1004c5dfcb2c00408f7fff61f",
+  "selected_public_metadata": [
+    {
+      "title": "Comparative functional analysis of DPYD variants of potential clinical relevance to dihydropyrimidine dehydrogenase activity",
+      "doi": "10.1158/0008-5472.can-13-2482",
+      "year": 2014,
+      "journal": "Cancer research",
+      "authors": [
+        "S. Offer",
+        "C. Fossum",
+        "Natalie J. Wegner",
+        "Alexander J Stuflesser",
+        "Gabriel L. Butterfield",
+        "R. Diasio"
+      ],
+      "consensus_url": "https://consensus.app/papers/details/acfc5eb1004c5dfcb2c00408f7fff61f/?utm_source=chatgpt"
+    }
+  ],
+  "scope": "Discovery only. Primary source and CPIC registry must support any scientific statement; institutional access links and unneeded abstracts omitted."
+}

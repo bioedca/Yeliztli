@@ -1,0 +1,36 @@
+{
+  "heading": {
+    "assay_format": "Infinium HTS",
+    "date_manufactured": "8/7/2019",
+    "descriptor_file_name": "GSA-24v3-0_A1.bpm",
+    "loci_count": 654027
+  },
+  "schema_version": 1,
+  "sections": {
+    "assay_header_columns": 22,
+    "assay_rows": 654027,
+    "control_categories": {
+      "Extension": 4,
+      "Hybridization": 3,
+      "Non-Polymorphic": 4,
+      "Non-Specific Binding": 4,
+      "Restoration": 1,
+      "Staining": 4,
+      "Stringency": 2,
+      "Target Removal": 1
+    },
+    "control_marker_lines": 1,
+    "control_records": 23,
+    "heading_and_assay_header_lines": 8,
+    "non_assay_physical_lines": 32,
+    "physical_lines": 654059
+  },
+  "source": {
+    "archive_sha256": "35036a85eb79db22bec068ef69caba68f8ba9cdd1b1eef0e3f901b259e3b49af",
+    "archive_size_bytes": 70101883,
+    "csv_member": "GSA-24v3-0_A1.csv",
+    "csv_sha256": "b8b38edce48b0a1afbd5dd725db19545590efc7fa63d1a5015cd3fed36604c1c",
+    "csv_size_bytes": 284228929,
+    "url": "https://www.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/global-screening-array-24/v3-0/GSA-24v3-0-A1-manifest-file-csv.zip"
+  }
+}

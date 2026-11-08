@@ -1,0 +1,38 @@
+{
+  "most_severe_consequence": "missense_variant",
+  "minor_allele": null,
+  "name": "rs143154602",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "MAF": null,
+  "mappings": [
+    {
+      "start": 98058845,
+      "seq_region_name": "1",
+      "assembly_name": "GRCh37",
+      "allele_string": "G/A/T",
+      "location": "1:98058845-98058845",
+      "strand": 1,
+      "end": 98058845,
+      "ancestral_allele": "G",
+      "coord_system": "chromosome"
+    }
+  ],
+  "synonyms": [
+    "PA166153925",
+    "NM_000110.4:c.1057C>A",
+    "NP_000101.2:p.Arg353Cys",
+    "NM_000110.4:c.1057C>T",
+    "NM_000110.3:c.1057C>A",
+    "NP_000101.2:p.Arg353Ser",
+    "NM_000110.3:c.1057C>T"
+  ],
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ESP",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "ambiguity": "D"
+}

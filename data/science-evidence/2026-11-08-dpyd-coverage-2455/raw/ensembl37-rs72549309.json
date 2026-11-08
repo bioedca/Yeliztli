@@ -1,0 +1,47 @@
+{
+  "minor_allele": null,
+  "name": "rs72549309",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "MAF": null,
+  "mappings": [
+    {
+      "assembly_name": "GRCh37",
+      "start": 98205967,
+      "seq_region_name": "1",
+      "coord_system": "chromosome",
+      "allele_string": "ATGAATGA/ATGA",
+      "location": "1:98205967-98205974",
+      "end": 98205974,
+      "strand": 1,
+      "ancestral_allele": "ATGAATGA"
+    }
+  ],
+  "clinical_significance": [
+    "pathogenic"
+  ],
+  "most_severe_consequence": "frameshift_variant",
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "synonyms": [
+    "VCV000495550",
+    "RCV000589260",
+    "RCV001836843",
+    "PA166153902",
+    "NM_000110.4:c.299_302del",
+    "NP_000101.2:p.Phe100fs",
+    "NM_000110.3:c.299_302del",
+    "NP_001153773.1:p.Phe100fs",
+    "NM_001160301.1:c.299_302del",
+    "612779.0003",
+    "rs539032572"
+  ],
+  "var_class": "indel",
+  "ambiguity": null
+}

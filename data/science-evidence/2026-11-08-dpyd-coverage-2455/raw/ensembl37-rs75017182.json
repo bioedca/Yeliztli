@@ -1,0 +1,40 @@
+{
+  "most_severe_consequence": "intron_variant",
+  "synonyms": [
+    "RCV001788349",
+    "VCV000635263",
+    "RCV001788348",
+    "RCV001788347",
+    "PA166153906"
+  ],
+  "ambiguity": "N",
+  "MAF": 0.009585,
+  "mappings": [
+    {
+      "strand": 1,
+      "coord_system": "chromosome",
+      "allele_string": "G/A/C/T",
+      "seq_region_name": "1",
+      "ancestral_allele": "G",
+      "assembly_name": "GRCh37",
+      "start": 98045449,
+      "end": 98045449,
+      "location": "1:98045449-98045449"
+    }
+  ],
+  "clinical_significance": [
+    "drug response"
+  ],
+  "var_class": "SNP",
+  "name": "rs75017182",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "Phenotype_or_Disease",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": "C"
+}

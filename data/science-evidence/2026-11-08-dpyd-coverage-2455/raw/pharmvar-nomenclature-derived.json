@@ -1,0 +1,17 @@
+{
+  "accessed": "2026-11-08",
+  "document_url": "https://a.storyblok.com/f/70677/x/2ff7a3c61b/gene-info_dpyd_v1-4.pdf",
+  "document_title": "PharmVar Gene Info DPYD",
+  "document_version": "05-20-2024_v1.4",
+  "pages": [
+    1,
+    2,
+    3
+  ],
+  "retention": "Public document metadata and independently written factual summary only; no PDF or image is redistributed. Full text and page 3 were inspected. This dated document is not asserted to be the latest revision.",
+  "facts": {
+    "nomenclature": "PharmVar uses rsID-based names for DPYD and cross-references historical star labels. Coding descriptions use NM_000110.4.",
+    "hapb3_definition": "The two-variant HapB3 definition contains c.1129-5923C>G and c.1236G>A. The standalone c.1129-5923C>G entry and that combined definition are distinct records.",
+    "scope": "Used only to interpret definitions and legacy names. No new clinical effect size, proxy accuracy or population risk claim is encoded."
+  }
+}

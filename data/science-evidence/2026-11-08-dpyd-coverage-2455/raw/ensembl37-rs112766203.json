@@ -1,0 +1,50 @@
+{
+  "ambiguity": "N",
+  "name": "rs112766203",
+  "MAF": 0.001198,
+  "most_severe_consequence": "missense_variant",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "synonyms": [
+    "RCV002554903",
+    "VCV000874135",
+    "RCV001096821",
+    "PA166153917",
+    "NM_000110.3:c.2279C>T",
+    "NM_000110.4:c.2279C>A",
+    "NP_000101.2:p.Thr760Ser",
+    "NM_000110.4:c.2279C>G",
+    "NP_000101.2:p.Thr760Ile",
+    "NM_000110.4:c.2279C>T",
+    "NM_000110.3:c.2279C>A",
+    "NM_000110.3:c.2279C>G",
+    "NP_000101.2:p.Thr760Asn"
+  ],
+  "clinical_significance": [
+    "uncertain significance",
+    "likely benign"
+  ],
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": "A",
+  "mappings": [
+    {
+      "location": "1:97770835-97770835",
+      "start": 97770835,
+      "strand": 1,
+      "allele_string": "G/A/C/T",
+      "end": 97770835,
+      "ancestral_allele": "G",
+      "seq_region_name": "1",
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome"
+    }
+  ]
+}

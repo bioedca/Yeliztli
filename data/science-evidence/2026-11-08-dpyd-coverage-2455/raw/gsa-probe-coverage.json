@@ -1,0 +1,378 @@
+{
+  "accessed": "2026-11-08",
+  "method": "All 654027 assay records inspected; exact rsID or rsID_ prefix and independently mapped GRCh37 coordinate. Public manufacturer assay membership/alleles only; no probe sequences or personal samples.",
+  "scope": "GSA-24v3-0_A1 only. Vendor custom content and calling performance are not established by membership. An absent probe is not a reference call.",
+  "source": {
+    "archive_sha256": "35036a85eb79db22bec068ef69caba68f8ba9cdd1b1eef0e3f901b259e3b49af",
+    "archive_size_bytes": 70101883,
+    "csv_member": "GSA-24v3-0_A1.csv",
+    "csv_sha256": "b8b38edce48b0a1afbd5dd725db19545590efc7fa63d1a5015cd3fed36604c1c",
+    "csv_size_bytes": 284228929,
+    "url": "https://www.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/global-screening-array-24/v3-0/GSA-24v3-0-A1-manifest-file-csv.zip"
+  },
+  "assay_rows": 654027,
+  "candidates": {
+    "rs55886062": [
+      {
+        "Name": "rs55886062.1",
+        "Chr": "1",
+        "MapInfo": "97981343",
+        "GenomeBuild": "37",
+        "SNP": "[T/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "BOT",
+        "matches_rsid": false,
+        "matches_coordinate": true
+      }
+    ],
+    "rs115232898": [
+      {
+        "Name": "rs115232898",
+        "Chr": "1",
+        "MapInfo": "98165030",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72549307": [
+      {
+        "Name": "rs72549307",
+        "Chr": "1",
+        "MapInfo": "98164955",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs1801266": [
+      {
+        "Name": "rs1801266",
+        "Chr": "1",
+        "MapInfo": "98157332",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs138616379": [
+      {
+        "Name": "rs138616379",
+        "Chr": "1",
+        "MapInfo": "97915745",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs78060119": [
+      {
+        "Name": "rs78060119",
+        "Chr": "1",
+        "MapInfo": "98039499",
+        "GenomeBuild": "37",
+        "SNP": "[T/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs141044036": [
+      {
+        "Name": "rs141044036",
+        "Chr": "1",
+        "MapInfo": "97547921",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs55674432": [
+      {
+        "Name": "rs55674432",
+        "Chr": "1",
+        "MapInfo": "97564172",
+        "GenomeBuild": "37",
+        "SNP": "[A/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72549303": [
+      {
+        "Name": "rs72549303",
+        "Chr": "1",
+        "MapInfo": "97915622",
+        "GenomeBuild": "37",
+        "SNP": "[D/I]",
+        "RefStrand": "-",
+        "IlmnStrand": "MINUS",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs146356975": [
+      {
+        "Name": "rs146356975",
+        "Chr": "1",
+        "MapInfo": "98060705",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs59086055": [],
+    "rs72549310": [
+      {
+        "Name": "rs72549310",
+        "Chr": "1",
+        "MapInfo": "98348909",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "-",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs143154602": [
+      {
+        "Name": "rs143154602",
+        "Chr": "1",
+        "MapInfo": "98058845",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs183385770": [],
+    "rs75017182": [
+      {
+        "Name": "rs75017182",
+        "Chr": "1",
+        "MapInfo": "98045449",
+        "GenomeBuild": "37",
+        "SNP": "[G/C]",
+        "RefStrand": "-",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72549308": [
+      {
+        "Name": "rs72549308",
+        "Chr": "1",
+        "MapInfo": "98164986",
+        "GenomeBuild": "37",
+        "SNP": "[T/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs3918290": [
+      {
+        "Name": "rs3918290",
+        "Chr": "1",
+        "MapInfo": "97915614",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      },
+      {
+        "Name": "rs3918290.1",
+        "Chr": "1",
+        "MapInfo": "97915614",
+        "GenomeBuild": "37",
+        "SNP": "[C/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": false,
+        "matches_coordinate": true
+      },
+      {
+        "Name": "rs3918290.2",
+        "Chr": "1",
+        "MapInfo": "97915614",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": false,
+        "matches_coordinate": true
+      }
+    ],
+    "rs56038477": [
+      {
+        "Name": "rs56038477",
+        "Chr": "1",
+        "MapInfo": "98039419",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs67376798": [
+      {
+        "Name": "rs67376798",
+        "Chr": "1",
+        "MapInfo": "97547947",
+        "GenomeBuild": "37",
+        "SNP": "[T/A]",
+        "RefStrand": "-",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs137999090": [
+      {
+        "Name": "rs137999090",
+        "Chr": "1",
+        "MapInfo": "97839154",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72547601": [
+      {
+        "Name": "rs72547601",
+        "Chr": "1",
+        "MapInfo": "97544677",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "-",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs111858276": [
+      {
+        "Name": "rs111858276",
+        "Chr": "1",
+        "MapInfo": "98015156",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs145773863": [
+      {
+        "Name": "rs145773863",
+        "Chr": "1",
+        "MapInfo": "97915743",
+        "GenomeBuild": "37",
+        "SNP": "[T/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "BOT",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72549304": [
+      {
+        "Name": "rs72549304",
+        "Chr": "1",
+        "MapInfo": "98015165",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs112766203": [
+      {
+        "Name": "rs112766203",
+        "Chr": "1",
+        "MapInfo": "97770835",
+        "GenomeBuild": "37",
+        "SNP": "[A/G]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs72549309": [
+      {
+        "Name": "rs72549309",
+        "Chr": "1",
+        "MapInfo": "98205967",
+        "GenomeBuild": "37",
+        "SNP": "[I/D]",
+        "RefStrand": "-",
+        "IlmnStrand": "MINUS",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs186169810": [
+      {
+        "Name": "rs186169810",
+        "Chr": "1",
+        "MapInfo": "98039341",
+        "GenomeBuild": "37",
+        "SNP": "[A/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ],
+    "rs1801268": [
+      {
+        "Name": "rs1801268",
+        "Chr": "1",
+        "MapInfo": "97544627",
+        "GenomeBuild": "37",
+        "SNP": "[A/C]",
+        "RefStrand": "+",
+        "IlmnStrand": "TOP",
+        "matches_rsid": true,
+        "matches_coordinate": true
+      }
+    ]
+  }
+}

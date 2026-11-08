@@ -1,0 +1,31 @@
+{
+  "var_class": "SNP",
+  "ambiguity": "Y",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "MAF": null,
+  "mappings": [
+    {
+      "end": 98015156,
+      "allele_string": "T/C",
+      "ancestral_allele": "T",
+      "strand": 1,
+      "location": "1:98015156-98015156",
+      "seq_region_name": "1",
+      "assembly_name": "GRCh37",
+      "start": 98015156,
+      "coord_system": "chromosome"
+    }
+  ],
+  "name": "rs111858276",
+  "synonyms": [
+    "NP_000101.2:p.Asp495Gly",
+    "NM_000110.3:c.1484A>G",
+    "NM_000110.4:c.1484A>G",
+    "PA166153916"
+  ],
+  "minor_allele": null,
+  "most_severe_consequence": "missense_variant",
+  "evidence": [
+    "Cited"
+  ]
+}

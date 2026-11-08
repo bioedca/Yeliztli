@@ -1,0 +1,42 @@
+{
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": null,
+  "mappings": [
+    {
+      "seq_region_name": "1",
+      "ancestral_allele": "T",
+      "assembly_name": "GRCh37",
+      "strand": 1,
+      "allele_string": "T/C",
+      "end": 98164955,
+      "coord_system": "chromosome",
+      "location": "1:98164955-98164955",
+      "start": 98164955
+    }
+  ],
+  "ambiguity": "Y",
+  "name": "rs72549307",
+  "MAF": null,
+  "most_severe_consequence": "missense_variant",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "clinical_significance": [
+    "uncertain significance"
+  ],
+  "synonyms": [
+    "NP_000101.2:p.Tyr211Cys",
+    "NM_000110.3:c.632A>G",
+    "NM_000110.4:c.632A>G",
+    "PA166153900",
+    "RCV000670232",
+    "VCV000554571",
+    "RCV002532097"
+  ]
+}

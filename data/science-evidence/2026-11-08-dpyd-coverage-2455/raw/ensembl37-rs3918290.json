@@ -1,0 +1,57 @@
+{
+  "MAF": 0.002995,
+  "name": "rs3918290",
+  "mappings": [
+    {
+      "start": 97915614,
+      "seq_region_name": "1",
+      "location": "1:97915614-97915614",
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37",
+      "allele_string": "C/A/G/T",
+      "ancestral_allele": "C",
+      "strand": 1,
+      "end": 97915614
+    }
+  ],
+  "ambiguity": "N",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "clinical_significance": [
+    "uncertain significance",
+    "likely pathogenic",
+    "pathogenic",
+    "drug response"
+  ],
+  "synonyms": [
+    "PA166153760",
+    "rs386589337",
+    "rs199469548",
+    "RCV003123363",
+    "RCV003222484",
+    "RCV001787337",
+    "RCV001787360",
+    "RCV001787361",
+    "RCV000735355",
+    "RCV001787359",
+    "RCV000030868",
+    "RCV000086468",
+    "RCV000201291",
+    "RCV000000460",
+    "VCV002429124",
+    "VCV000000432",
+    "612779.0001"
+  ],
+  "most_severe_consequence": "splice_donor_variant",
+  "minor_allele": "T",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP"
+}

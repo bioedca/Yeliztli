@@ -1,0 +1,40 @@
+{
+  "clinical_significance": [
+    "pathogenic",
+    "drug response"
+  ],
+  "most_severe_consequence": "frameshift_variant",
+  "ambiguity": null,
+  "mappings": [
+    {
+      "ancestral_allele": "GG",
+      "strand": 1,
+      "end": 97915623,
+      "allele_string": "GG/G",
+      "seq_region_name": "1",
+      "coord_system": "chromosome",
+      "start": 97915622,
+      "assembly_name": "GRCh37",
+      "location": "1:97915622-97915623"
+    }
+  ],
+  "synonyms": [
+    "612779.0005",
+    "RCV000786628",
+    "RCV002267740",
+    "VCV000635266",
+    "NP_000101.2:p.Pro633fs",
+    "NM_000110.3:c.1898del",
+    "NM_000110.4:c.1898del",
+    "PA166153897"
+  ],
+  "MAF": null,
+  "var_class": "indel",
+  "evidence": [
+    "Cited",
+    "Phenotype_or_Disease"
+  ],
+  "name": "rs72549303",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": null
+}

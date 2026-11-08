@@ -1,0 +1,24 @@
+{
+  "summary": {
+    "verified": 2,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1158/0008-5472.can-12-3858",
+      "status": "verified",
+      "title": "Phenotypic Profiling of\n                    <i>DPYD</i>\n                    Variations Relevant to 5-Fluorouracil Sensitivity Using Real-time Cellular Analysis and\n                    <i>In Vitro</i>\n                    Measurement of Enzyme Activity",
+      "year": 2013
+    },
+    {
+      "doi": "10.1002/cpt.685",
+      "status": "verified",
+      "title": "Quantitative Contribution of rs75017182 to Dihydropyrimidine Dehydrogenase mRNA Splicing and Enzyme Activity",
+      "year": 2017
+    }
+  ],
+  "accessed": "2026-11-08"
+}

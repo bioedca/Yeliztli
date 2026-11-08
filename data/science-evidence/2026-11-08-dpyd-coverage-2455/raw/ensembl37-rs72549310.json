@@ -1,0 +1,45 @@
+{
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": "A",
+  "var_class": "SNP",
+  "name": "rs72549310",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "MAF": 0.0002,
+  "most_severe_consequence": "stop_gained",
+  "mappings": [
+    {
+      "ancestral_allele": "G",
+      "end": 98348909,
+      "location": "1:98348909-98348909",
+      "start": 98348909,
+      "seq_region_name": "1",
+      "allele_string": "G/A",
+      "strand": 1,
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome"
+    }
+  ],
+  "clinical_significance": [
+    "likely pathogenic",
+    "pathogenic"
+  ],
+  "ambiguity": "R",
+  "synonyms": [
+    "PA166159712",
+    "RCV000169198",
+    "VCV000188848",
+    "NP_000101.2:p.Arg21Ter",
+    "NM_000110.3:c.61C>T",
+    "NM_000110.4:c.61C>T",
+    "NP_001153773.1:p.Arg21Ter",
+    "NM_001160301.1:c.61C>T"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "ambiguity": "B",
+  "mappings": [
+    {
+      "start": 97544677,
+      "ancestral_allele": "T",
+      "end": 97544677,
+      "location": "1:97544677-97544677",
+      "strand": 1,
+      "seq_region_name": "1",
+      "allele_string": "T/C/G",
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37"
+    }
+  ],
+  "synonyms": [
+    "NM_000110.3:c.2933A>C",
+    "NP_000101.2:p.His978Pro",
+    "NM_000110.3:c.2933A>G",
+    "NM_000110.4:c.2933A>G",
+    "NP_000101.2:p.His978Arg",
+    "NM_000110.4:c.2933A>C",
+    "PA166153896"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": null,
+  "var_class": "SNP",
+  "most_severe_consequence": "missense_variant",
+  "MAF": null,
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "name": "rs72547601"
+}

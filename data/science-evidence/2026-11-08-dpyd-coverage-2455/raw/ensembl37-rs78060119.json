@@ -1,0 +1,50 @@
+{
+  "ambiguity": "N",
+  "clinical_significance": [
+    "pathogenic",
+    "drug response"
+  ],
+  "most_severe_consequence": "stop_gained",
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "Phenotype_or_Disease",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "name": "rs78060119",
+  "minor_allele": null,
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "synonyms": [
+    "RCV001335114",
+    "RCV001788461",
+    "VCV001032887",
+    "RCV001788460",
+    "PA166153913",
+    "rs386508634",
+    "NP_000101.2:p.Glu386Ter",
+    "NP_000101.2:p.Glu386Gln",
+    "NM_000110.4:c.1156G>A",
+    "NM_000110.4:c.1156G>T",
+    "NM_000110.3:c.1156G>A",
+    "NM_000110.4:c.1156G>C",
+    "NM_000110.3:c.1156G>T",
+    "NP_000101.2:p.Glu386Lys",
+    "NM_000110.3:c.1156G>C"
+  ],
+  "mappings": [
+    {
+      "assembly_name": "GRCh37",
+      "location": "1:98039499-98039499",
+      "start": 98039499,
+      "coord_system": "chromosome",
+      "allele_string": "C/A/G/T",
+      "seq_region_name": "1",
+      "end": 98039499,
+      "strand": 1,
+      "ancestral_allele": "C"
+    }
+  ],
+  "MAF": null
+}
