@@ -98,6 +98,63 @@ bundle. It contains no MONDO/HPO associations, so its unstamped MONDO/HPO warnin
 does not indicate lost fixture coverage and must not be silenced with invented
 installation provenance.
 
+### Ancestry inference timing
+
+Keep the existing ancestry guards unchanged: `test_projection_under_2_seconds`
+times **full inference** and asserts **less than eight seconds**, despite its
+historical name. `test_tier1_under_one_second` asserts **less than two seconds on
+Linux** (five on other platforms). `projection_time_ms` measures only the PCA
+projection, so it cannot explain the cost of the complete inference call.
+
+```bash
+python -m pytest tests/backend/test_ancestry.py::TestInferAncestry::test_projection_under_2_seconds -v --tb=short
+python -m pytest tests/backend/test_ancestry_e2e.py::TestPerformance::test_tier1_under_one_second -v --tb=short
+python -m pytest tests/backend/test_ancestry.py::TestBootstrapAdmixtureNNLS -v --tb=short
+```
+
+[#2608](https://github.com/bioedca/Yeliztli/issues/2608) reports an eight-second
+failure during concurrent local backend validation. Separate diagnostic profiles
+identified repeated dosage standardization in the 100 bootstrap resamples as a
+substantial implementation cost. Bootstrap now standardizes the float64 dosages
+once, then gathers those values in each resample's original index order alongside
+the corresponding loading rows. The random draws, repeated indices, zero
+imputation, solver, percentile calculation and rounding remain unchanged.
+Production-path regressions bound reference-scale reads for both raw and
+annotated samples; numerical controls check sampled operands and intervals.
+
+A matched synthetic comparison on 2026-11-08 used baseline
+`9568f045818940026f2a38c55cc09e4c5345bb49` and implementation
+`ef172eb69e9ad6ee8492b91f0a4ee1c242bbe54e`. Both clean checkouts used Python
+3.13.17, NumPy 2.5.4, SciPy 1.18.1, SQLAlchemy 2.1.6 and pytest 9.1.1, with
+identical installed package versions. A CPU-only Slurm allocation was exclusive
+for at most 20 minutes with 16 GiB requested; test processes were restricted to
+four physical cores through explicit affinity and single-thread OpenMP/OpenBLAS
+settings.
+Baseline/head order alternated across three repeats per condition. The loaded
+condition added one bounded CPU worker on each of those same four cores.
+
+| Full inference case | Condition | Baseline median (s) | Optimized median (s) |
+| --- | --- | ---: | ---: |
+| Eight-second regression guard | Serial | 0.4363 | 0.0301 |
+| Eight-second regression guard | CPU loaded | 0.8581 | 0.0616 |
+| Tier 1 Linux two-second guard | Serial | 0.6427 | 0.0434 |
+| Tier 1 Linux two-second guard | CPU loaded | 1.2641 | 0.0878 |
+
+All 24 measured runs, four untouched plain tests and four separate profile runs
+passed their unchanged assertions. Diagnostic runs fixed the bootstrap seed at
+42; plain tests retained production randomness. Complete result fingerprints
+matched baseline/head for each fixture after excluding only the volatile
+`projection_time_ms` field. The table excludes profile runs. Terminal controller,
+exit, log and test-report evidence was verified; Slurm accounting was unavailable.
+
+The original greater-than-eight-second failure **did not reproduce** in this
+environment. These measurements demonstrate reduced repeated work under the
+recorded conditions, not an explanation of every original slowdown or a runtime
+guarantee. The original host, storage and concurrent-shard I/O were not recreated.
+Record full-call and projection timings separately, retain failing runs, and use
+the same sources, dependencies and resources when comparing changes. Numerical
+equivalence tests validate software behavior, not scientific accuracy.
+
 ## Complete backend validation with limited temporary storage
 
 A filesystem can have free bytes and inodes while the effective user or project
