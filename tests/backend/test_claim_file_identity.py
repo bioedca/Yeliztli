@@ -6,6 +6,8 @@ import multiprocessing
 import os
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -80,6 +82,29 @@ def test_other_writable_storage_rejected(operation, directory, tmp_path):
             _operate(operation, tmp_path)
     finally:
         unsafe.chmod(0o700)
+
+
+@pytest.mark.parametrize("operation", ["acquire", "probe"])
+@pytest.mark.parametrize("mode", [0o755, 0o750, 0o705, 0o710, 0o701])
+def test_anchor_directory_must_be_private_before_locking(operation, mode, tmp_path, monkeypatch):
+    _, anchors, marker, anchor = _layout(tmp_path)
+    anchors.chmod(mode)
+    real_flock, calls = guard.fcntl.flock, []
+
+    def flock(fd, flags):
+        calls.append((fd, flags))
+        return real_flock(fd, flags)
+
+    monkeypatch.setattr(guard.fcntl, "flock", flock)
+    try:
+        with pytest.raises(OSError):
+            _operate(operation, tmp_path)
+        assert calls == []
+        assert anchors.stat().st_mode & 0o777 == mode
+        assert marker.samefile(anchor) and marker.stat().st_nlink == 2
+        assert marker.read_bytes() == b"synthetic marker contents"
+    finally:
+        anchors.chmod(0o700)
 
 
 @pytest.mark.parametrize("operation", ["acquire", "probe"])
@@ -220,6 +245,77 @@ def test_concurrent_anchor_publication_is_not_a_storage_error(tmp_path, monkeypa
     with guard.cross_process_build_claim("clinvar", tmp_path) as acquired:
         assert acquired
     assert len(observations) == 2 and marker.samefile(anchor)
+
+
+@pytest.mark.parametrize(("operation", "expected"), [("acquire", False), ("probe", True)])
+def test_observer_waits_for_in_progress_anchor_publication(
+    operation, expected, tmp_path, monkeypatch
+):
+    _, anchors, marker, anchor = _layout(tmp_path)
+    started, finish = threading.Event(), threading.Event()
+    publisher = []
+    real_link, real_stat, real_flock = os.link, guard._named_stat, guard.fcntl.flock
+    anchors_identity = anchors.stat()
+
+    def publishing_link(*args, **kwargs):
+        real_link(*args, **kwargs)
+        publisher.append(threading.get_ident())
+        started.set()
+        assert finish.wait(10)
+
+    def named_stat(name, parent_fd):
+        # Model the observed filesystem interval: link count has increased,
+        # but a concurrent lookup still cannot see the unpublished name.
+        if (
+            started.is_set()
+            and not finish.is_set()
+            and name == marker.name
+            and parent_fd is not None
+            and guard._same_inode(os.fstat(parent_fd), anchors_identity)
+        ):
+            return None
+        return real_stat(name, parent_fd)
+
+    def flock(fd, flags):
+        if (
+            started.is_set()
+            and threading.get_ident() != publisher[0]
+            and guard._same_inode(os.fstat(fd), anchors_identity)
+        ):
+            # Let publication finish when the observer reaches the namespace
+            # lock. The real flock still arbitrates the two open descriptors.
+            finish.set()
+        return real_flock(fd, flags)
+
+    with guard.cross_process_build_claim("clinvar", tmp_path) as held:
+        assert held
+        anchor.unlink()
+        with monkeypatch.context() as patch, ThreadPoolExecutor(max_workers=2) as workers:
+            patch.setattr(guard.os, "link", publishing_link)
+            patch.setattr(guard, "_named_stat", named_stat)
+            patch.setattr(guard.fcntl, "flock", flock)
+            initializer = workers.submit(_operate, "acquire", tmp_path)
+            try:
+                assert started.wait(10)
+                observer = workers.submit(_operate, operation, tmp_path)
+                assert observer.result(timeout=10) is expected
+            finally:
+                finish.set()
+            assert initializer.result(timeout=10) is False
+        assert len(publisher) == 1
+        assert marker.samefile(anchor) and marker.stat().st_nlink == 2
+    assert not guard.is_cross_process_build_claimed("clinvar", tmp_path)
+
+
+@pytest.mark.parametrize("operation", ["acquire", "probe"])
+def test_published_claim_rejects_an_extra_hardlink(operation, tmp_path):
+    _, _, marker, _ = _layout(tmp_path)
+    outside = tmp_path / "unexpected-link"
+    outside.hardlink_to(marker)
+    with pytest.raises(OSError):
+        _operate(operation, tmp_path)
+    assert outside.read_bytes() == b"synthetic marker contents"
+    assert marker.stat().st_nlink == 3
 
 
 def test_absent_probe_has_no_side_effects(tmp_path):

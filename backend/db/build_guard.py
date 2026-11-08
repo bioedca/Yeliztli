@@ -273,6 +273,31 @@ class _AnchorDirectoryPublished(Exception):
     """A read-only probe must reopen the newly published shared directory."""
 
 
+@contextmanager
+def _anchor_namespace_lock(anchors_fd: int | None):
+    # A filesystem may increment st_nlink before publishing the new directory
+    # entry. Serialize verification with our link operations instead of racing
+    # that interval with a fixed number of stat retries. This lock covers only
+    # namespace operations, never a build or a wait for the per-key claim.
+    if anchors_fd is None:
+        # A legacy read-only probe still detects first directory publication
+        # and reopens it; it must not create storage just to obtain this lock.
+        yield
+        return
+    namespace = os.fstat(anchors_fd)
+    if (
+        not stat.S_ISDIR(namespace.st_mode)
+        or namespace.st_uid != os.geteuid()
+        or namespace.st_mode & 0o077
+    ):
+        raise _storage_error()
+    fcntl.flock(anchors_fd, fcntl.LOCK_EX)
+    try:
+        yield
+    finally:
+        fcntl.flock(anchors_fd, fcntl.LOCK_UN)
+
+
 @dataclass(frozen=True)
 class _ClaimFile:
     root: Path
@@ -283,6 +308,11 @@ class _ClaimFile:
     fd: int
 
     def verify(self) -> tuple[os.stat_result | None, os.stat_result | None]:
+        with _anchor_namespace_lock(self.anchors_fd):
+            return self._verify()
+
+    def _verify(self) -> tuple[os.stat_result | None, os.stat_result | None]:
+        """Verify inside the namespace lock (or a legacy anchorless probe)."""
         _check_directory(self.root, self.root_fd, None)
         _check_directory(_CLAIMS_DIRECTORY, self.claims_fd, self.root_fd)
         if self.anchors_fd is not None:
@@ -310,38 +340,40 @@ class _ClaimFile:
         raise _storage_error()
 
     def link_missing_anchor(self) -> None:
-        marker, anchor = self.verify()
-        if anchor is None:
-            if marker is None or self.anchors_fd is None:
-                raise _storage_error()
-            try:
-                os.link(
-                    self.name,
-                    self.name,
-                    src_dir_fd=self.claims_fd,
-                    dst_dir_fd=self.anchors_fd,
-                    follow_symlinks=False,
-                )
-            except FileExistsError:
-                pass
-            self.verify()
+        with _anchor_namespace_lock(self.anchors_fd):
+            marker, anchor = self._verify()
+            if anchor is None:
+                if marker is None or self.anchors_fd is None:
+                    raise _storage_error()
+                try:
+                    os.link(
+                        self.name,
+                        self.name,
+                        src_dir_fd=self.claims_fd,
+                        dst_dir_fd=self.anchors_fd,
+                        follow_symlinks=False,
+                    )
+                except FileExistsError:
+                    pass
+                self._verify()
 
     def restore_marker(self) -> None:
-        marker, anchor = self.verify()
-        if marker is None:
-            if anchor is None or self.anchors_fd is None:
-                raise _storage_error()
-            try:
-                os.link(
-                    self.name,
-                    self.name,
-                    src_dir_fd=self.anchors_fd,
-                    dst_dir_fd=self.claims_fd,
-                    follow_symlinks=False,
-                )
-            except FileExistsError:
-                pass
-            self.verify()
+        with _anchor_namespace_lock(self.anchors_fd):
+            marker, anchor = self._verify()
+            if marker is None:
+                if anchor is None or self.anchors_fd is None:
+                    raise _storage_error()
+                try:
+                    os.link(
+                        self.name,
+                        self.name,
+                        src_dir_fd=self.anchors_fd,
+                        dst_dir_fd=self.claims_fd,
+                        follow_symlinks=False,
+                    )
+                except FileExistsError:
+                    pass
+                self._verify()
 
 
 def _create_private_root(root: Path) -> None:

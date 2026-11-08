@@ -94,6 +94,17 @@ acquirer restores a missing legacy marker only after winning that same lock.
 Existing regular markers are adopted without replacing their inode. Normal
 release and process death leave both names in place for subsequent acquirers.
 
+Verification and alias publication take a short exclusive advisory lock on the
+opened `.anchors` directory, which must be owner-private (mode `0700`) before
+locking; existing permissions are checked, never repaired. This prevents a
+concurrent observer from rejecting the interval where a filesystem has increased
+a marker's link count but has not yet published its new name. The namespace lock
+is released before yielding a
+build claim; the per-database build lock remains non-blocking and different
+databases can still build concurrently. Probes may briefly wait for publication,
+but never create or repair storage. Exact inode, ownership, permission and
+internal-link-count checks still apply after publication completes.
+
 The storage contract requires a local POSIX filesystem with descriptor-relative
 no-follow operations, hard links and working advisory `flock`. The selected root
 and claims directories must be user-owned and not writable by group/other users.
