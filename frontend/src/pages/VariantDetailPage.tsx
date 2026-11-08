@@ -90,9 +90,9 @@ function SectionHeader({ icon: Icon, label }: { icon: typeof Dna; label: string 
   return (
     <div className="flex items-center gap-2 mb-3 mt-6 first:mt-0">
       <Icon className="h-4 w-4 text-muted-foreground" />
-      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
-      </h3>
+      </h2>
     </div>
   )
 }
@@ -237,8 +237,14 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       )}
 
       {/* Transcript info */}
-      <SectionHeader icon={Dna} label="Transcript" />
+      <SectionHeader icon={Dna} label="Gene and transcript" />
       <DetailRow label="Gene" value={variant.gene_symbol} />
+      {variant.gene_symbol && variant.gene_source && (
+        <DetailRow
+          label="Gene source"
+          value={variant.gene_source === "clinvar" ? "ClinVar" : "Ensembl VEP"}
+        />
+      )}
       <DetailRow label="Transcript" value={variant.transcript_id} />
       {variant.exon_number != null && <DetailRow label="Exon" value={variant.exon_number} />}
       {variant.intron_number != null && <DetailRow label="Intron" value={variant.intron_number} />}

@@ -1083,16 +1083,18 @@ def bootstrap_reference_schema_tables(engine: sa.Engine) -> None:
 
 
 def _backfill_clinvar_molecular_consequence(conn: sa.Connection) -> bool:
-    """Backfill MC while the caller holds SQLite's schema write reservation."""
+    """Add source fields while the caller holds SQLite's schema write reservation."""
     columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(clinvar_variants)")}
-    if columns and "molecular_consequence" not in columns:
-        conn.exec_driver_sql("ALTER TABLE clinvar_variants ADD COLUMN molecular_consequence TEXT")
-        return True
-    return False
+    changed = False
+    for column in ("molecular_consequence", "gene_info"):
+        if columns and column not in columns:
+            conn.exec_driver_sql(f"ALTER TABLE clinvar_variants ADD COLUMN {column} TEXT")
+            changed = True
+    return changed
 
 
 def ensure_clinvar_molecular_consequence(engine: sa.Engine) -> bool:
-    """Prepare old references before a worker queries ClinVar, without content repairs.
+    """Prepare old references before a worker queries ClinVar, without inventing fields.
 
     Serialize the check and additive DDL with web/worker bootstrap. A failure
     propagates before annotation can replace any existing sample results.

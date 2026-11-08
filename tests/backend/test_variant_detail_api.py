@@ -1197,6 +1197,7 @@ class TestPrimaryAnnotationFromResolvedAllele:
         data = self._get(tmp_data_dir, _WITHHELD_PRIMARY_SAMPLE)
 
         assert data["gene_symbol"] == "CFTR"
+        assert data["gene_source"] == "vep"
         assert data["transcript_id"] == "ENST00000003084"
         assert data["consequence"] == "missense_variant"
         assert data["hgvs_coding"] == "c.1000G>A"
@@ -1230,19 +1231,67 @@ class TestPrimaryAnnotationFromResolvedAllele:
         assert data["clinvar_molecular_consequence"] == "SO:0001587|nonsense"
         assert [gp["disease_name"] for gp in data["gene_phenotypes"]] == ["Cystic fibrosis"]
 
-    def test_unresolved_vep_keeps_clinvar_fallback_without_a_gene(self, tmp_data_dir):
+    @pytest.mark.parametrize("gene", [None, "YELIZTLI_PRIOR"])
+    def test_unresolved_vep_keeps_clinvar_fallback(self, tmp_data_dir, gene):
         sample = {
             **_WITHHELD_PRIMARY_SAMPLE,
             "ref": None,
             "alt": None,
             "consequence": "stop_gained",
             "consequence_source": "clinvar",
+            "gene_symbol": gene,
+            "gene_source": "clinvar" if gene else None,
         }
         data = self._get(tmp_data_dir, sample)
         assert data["transcripts"] == []
-        assert data["gene_symbol"] is None
+        assert data["gene_symbol"] == gene
+        assert data["gene_source"] == ("clinvar" if gene else None)
         assert data["consequence"] == "stop_gained"
         assert data["consequence_source"] == "clinvar"
+
+    @pytest.mark.parametrize("source", ["clinvar", "vep", None])
+    @pytest.mark.parametrize("gene", ["CFTR", "YELIZTLI_PRIOR", None])
+    def test_live_vep_replaces_only_clinvar_owned_gene_and_clears_its_old_join(
+        self, tmp_data_dir, source, gene
+    ):
+        sample = {
+            **_WITHHELD_PRIMARY_SAMPLE,
+            "gene_symbol": "YELIZTLI_PRIOR",
+            "gene_source": source,
+            "disease_name": "Synthetic old condition",
+            "disease_id": "OMIM:9002464",
+            "phenotype_source": "omim",
+            "hpo_terms": '["HP:9002464"]',
+            "inheritance_pattern": "Autosomal recessive",
+            "annotation_coverage": 2 | 16,
+        }
+        rows = [
+            {
+                **_withheld_vep_row(
+                    "A", "ENST_SYNTHETIC_GENE", "missense_variant", "c.syntheticG>A", 1, 11
+                ),
+                "gene": gene,
+            }
+        ]
+        data = self._get(tmp_data_dir, sample, rows)
+        assert len(data["transcripts"]) == 1
+        assert data["transcripts"][0]["gene_symbol"] == gene
+        replaced = source == "clinvar"
+        cleared = replaced and gene != "YELIZTLI_PRIOR"
+        assert data["gene_symbol"] == (gene if replaced else "YELIZTLI_PRIOR")
+        assert data["gene_source"] == (("vep" if gene else None) if replaced else source)
+        assert data["transcript_id"] == ("ENST_SYNTHETIC_GENE" if replaced else None)
+        assert data["hgvs_coding"] == ("c.syntheticG>A" if replaced else None)
+        assert data["consequence"] == ("missense_variant" if replaced else None)
+        assert data["inheritance_pattern"] == (None if cleared else "Autosomal recessive")
+        assert data["disease_name"] == (None if cleared else "Synthetic old condition")
+        assert data["disease_id"] == (None if cleared else "OMIM:9002464")
+        assert data["phenotype_source"] == (None if cleared else "omim")
+        assert data["hpo_terms"] == (None if cleared else '["HP:9002464"]')
+        assert bool(data["annotation_coverage"] & 16) is not cleared
+        assert [gp["disease_name"] for gp in data["gene_phenotypes"]] == (
+            ["Cystic fibrosis"] if replaced and gene == "CFTR" else []
+        )
 
     def test_live_vep_does_not_borrow_mc_from_a_different_source_allele(self, tmp_data_dir):
         sample = {
@@ -1490,3 +1539,25 @@ def test_api_exposes_consequence_source_and_raw_mc(tmp_data_dir):
         assert listing.status_code == 200
         assert len(listing.json()["items"]) == 1
         assert listing.json()["items"][0]["consequence_source"] == "clinvar"
+
+
+@pytest.mark.parametrize("source", ["clinvar", "vep", None])
+def test_api_exposes_gene_source_without_inventing_legacy_provenance(tmp_data_dir, source):
+    from contextlib import contextmanager
+
+    variant = {
+        **SAMPLE_VARIANT_BRCA1,
+        "gene_symbol": "YELIZTLI2464",
+        "gene_source": source,
+        "clinvar_gene_info": "YELIZTLI2464:999002464" if source == "clinvar" else None,
+    }
+    with contextmanager(_setup_client)(tmp_data_dir, [variant]) as (api_client, sample_id):
+        response = api_client.get(f"/api/variants/{variant['rsid']}?sample_id={sample_id}")
+        assert response.status_code == 200
+        assert response.json()["gene_symbol"] == "YELIZTLI2464"
+        assert response.json()["gene_source"] == source
+        assert response.json()["clinvar_gene_info"] == variant["clinvar_gene_info"]
+        listing = api_client.get(f"/api/variants?sample_id={sample_id}")
+        assert listing.status_code == 200
+        assert len(listing.json()["items"]) == 1
+        assert listing.json()["items"][0]["gene_source"] == source

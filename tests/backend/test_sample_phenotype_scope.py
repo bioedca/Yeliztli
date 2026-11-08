@@ -187,6 +187,67 @@ def test_scope_verdict_reads_the_samples_own_snapshot_and_fails_closed(
     assert sample_phenotype_scope_is_current(sample_engine) is expected
 
 
+@pytest.mark.parametrize("snapshot", [None, _LEGACY_MONDO_HPO, _CURRENT_MONDO_HPO])
+@pytest.mark.parametrize(
+    "marker,expected", [(MONDO_HPO_INGESTION_REVISION, True), ("", False), ("old-scope", False)]
+)
+def test_swapped_annotation_scope_takes_precedence_over_analysis_snapshot(
+    sample_engine, snapshot, marker, expected
+):
+    from backend.services.sample_phenotype_scope import ANNOTATED_PHENOTYPE_SCOPE_KEY
+
+    _record_snapshot(sample_engine, snapshot)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotation_state.insert().values(key=ANNOTATED_PHENOTYPE_SCOPE_KEY, value=marker)
+        )
+    assert sample_phenotype_scope_is_current(sample_engine) is expected
+    with sample_engine.connect() as conn:
+        assert sample_phenotype_scope_is_current(conn) is expected
+
+
+def test_scope_marker_and_rows_rollback_together(sample_engine):
+    from backend.annotation.engine import (
+        _bulk_upsert,
+        _reset_staging_table,
+        _swap_staging_into_place,
+        annotated_variants_staging,
+    )
+    from backend.services.sample_phenotype_scope import ANNOTATED_PHENOTYPE_SCOPE_KEY
+
+    with sample_engine.begin() as conn:
+        conn.execute(annotated_variants.insert(), _ROWS)
+        conn.execute(
+            annotation_state.insert().values(key=ANNOTATED_PHENOTYPE_SCOPE_KEY, value="old-scope")
+        )
+        conn.exec_driver_sql(
+            "CREATE TRIGGER fail_scope_write BEFORE UPDATE ON annotation_state "
+            "WHEN NEW.key='annotated_gene_phenotype_scope' "
+            "BEGIN SELECT RAISE(ABORT, 'synthetic scope write failure'); END"
+        )
+    _reset_staging_table(sample_engine)
+    assert (
+        _bulk_upsert(sample_engine, [_row("rs_new", 992464)], target=annotated_variants_staging)
+        == 1
+    )
+    with pytest.raises(sa.exc.IntegrityError, match="synthetic scope write failure"):
+        _swap_staging_into_place(sample_engine, phenotype_scope=MONDO_HPO_INGESTION_REVISION)
+    with sample_engine.connect() as conn:
+        assert set(conn.execute(sa.select(annotated_variants.c.rsid)).scalars()) == {
+            "rs_mondo",
+            "rs_omim",
+            "rs_unsourced",
+        }
+        assert (
+            conn.execute(
+                sa.select(annotation_state.c.value).where(
+                    annotation_state.c.key == ANNOTATED_PHENOTYPE_SCOPE_KEY
+                )
+            ).scalar_one()
+            == "old-scope"
+        )
+
+
 def test_withholding_touches_only_mondo_hpo_rows() -> None:
     mondo, omim, unsourced = dict(_MONDO), dict(_OMIM), dict(_UNSOURCED)
     for data in (mondo, omim, unsourced):

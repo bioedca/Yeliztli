@@ -186,6 +186,7 @@ def test_worker_and_web_clinvar_schema_checks_are_serialized(tmp_path):
     reference_metadata.create_all(engine)
     with engine.begin() as conn:
         conn.exec_driver_sql("ALTER TABLE clinvar_variants DROP COLUMN molecular_consequence")
+        conn.exec_driver_sql("ALTER TABLE clinvar_variants DROP COLUMN gene_info")
         conn.exec_driver_sql(
             "INSERT INTO clinvar_variants(rsid,chrom,pos,ref,alt) "
             "VALUES ('rs900000031','1',99031,'A','T')"
@@ -205,6 +206,7 @@ def test_worker_and_web_clinvar_schema_checks_are_serialized(tmp_path):
             future.result(timeout=10)
     with engine.connect() as conn:
         assert conn.execute(sa.select(clinvar_variants.c.molecular_consequence)).one() == (None,)
+        assert conn.execute(sa.select(clinvar_variants.c.gene_info)).one() == (None,)
     assert not ensure_clinvar_molecular_consequence(engine)
     engine.dispose()
 

@@ -28,12 +28,12 @@ from backend.annotation.clinvar import (
     LoadStats,
     SkipReason,
     _clear_clinvar_variants,
-    _extract_gene_symbol,
     _normalize_chrom,
     _parse_info_field,
     _review_status_to_stars,
     download_and_load_clinvar,
     download_clinvar_vcf,
+    gene_symbol_from_gene_info,
     iter_clinvar_vcf,
     load_clinvar_from_iter,
     parse_clinvar_vcf_line,
@@ -136,16 +136,16 @@ class TestNormalizeChrom:
 
 class TestExtractGeneSymbol:
     def test_single_gene(self):
-        assert _extract_gene_symbol("APOE:348") == "APOE"
+        assert gene_symbol_from_gene_info("APOE:348") == "APOE"
 
     def test_multiple_genes(self):
-        assert _extract_gene_symbol("BRCA1:672|BRCA2:675") == "BRCA1"
+        assert gene_symbol_from_gene_info("BRCA1:672|BRCA2:675") is None
 
     def test_empty(self):
-        assert _extract_gene_symbol("") is None
+        assert gene_symbol_from_gene_info("") is None
 
     def test_none_value(self):
-        assert _extract_gene_symbol(None) is None
+        assert gene_symbol_from_gene_info(None) is None
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -632,7 +632,7 @@ class TestRecordClinvarVersion:
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
         assert row is not None
-        assert row.version == "20260301+mc-v1"
+        assert row.version == "20260301+gene-info-v1"
 
     def test_update_existing_version(self, ref_engine: sa.Engine):
         record_clinvar_version(ref_engine, version="20260201")
@@ -642,7 +642,7 @@ class TestRecordClinvarVersion:
             row = conn.execute(
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
-        assert row.version == "20260301+mc-v1"
+        assert row.version == "20260301+gene-info-v1"
 
     def test_checksum_stored(self, ref_engine: sa.Engine):
         record_clinvar_version(
@@ -817,7 +817,7 @@ class TestDownloadAndLoadClinvar:
                 sa.select(database_versions).where(database_versions.c.db_name == "clinvar")
             ).first()
             assert ver is not None
-            assert ver.version == "20260301+mc-v1"
+            assert ver.version == "20260301+gene-info-v1"
 
 
 def test_parse_source_native_molecular_consequence():

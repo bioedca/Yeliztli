@@ -1,0 +1,30 @@
+{
+  "accessed": "2026-11-08",
+  "queries": [
+    "ClinVar database VCF GENEINFO gene symbol GeneID multiple genes variant record",
+    "ClinVar VCF GENEINFO gene symbol"
+  ],
+  "consensus": {
+    "id": "c2deda6738735b5ab77cf3f8c88d7be7",
+    "title": "ClinVar: improving access to variant interpretations and supporting evidence",
+    "doi": "10.1093/nar/gkx1153",
+    "year": "2017"
+  },
+  "scite": {
+    "summary": {
+      "verified": 1,
+      "couldNotVerify": 0,
+      "withEditorialNotices": 0,
+      "withContrastingEvidence": 0,
+      "inPredatoryJournals": 0
+    },
+    "papers": [
+      {
+        "doi": "10.1093/nar/gkx1153",
+        "status": "verified",
+        "title": "ClinVar: improving access to variant interpretations and supporting evidence",
+        "year": 2017
+      }
+    ]
+  }
+}
