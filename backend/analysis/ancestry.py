@@ -736,6 +736,16 @@ def bootstrap_admixture_nnls(
         if d is not None:
             dosages[i] = d
 
+    # Standardization depends only on the fixed sample and reference values.
+    # Keep the float64 dosage arithmetic, then gather these values in the same
+    # sampled order as the loadings instead of recomputing them every iteration.
+    standardized_dosages = np.zeros(n_snps, dtype=np.float64)
+    for i, d in enumerate(dosages):
+        if not np.isnan(d):
+            std = bundle.stds[i]
+            if std > 0:
+                standardized_dosages[i] = (d - bundle.means[i]) / std
+
     # Centroid matrix for NNLS
     centroid_matrix = np.column_stack([bundle.reference_centroids[p] for p in pops])
 
@@ -746,14 +756,7 @@ def bootstrap_admixture_nnls(
         # Resample AIM indices with replacement
         idx = rng.integers(0, n_snps, size=n_snps)
 
-        # Build standardized dosage vector for resampled AIMs
-        standardized = np.zeros(n_snps, dtype=np.float64)
-        for j, orig_i in enumerate(idx):
-            d = dosages[orig_i]
-            if not np.isnan(d):
-                std = bundle.stds[orig_i]
-                if std > 0:
-                    standardized[j] = (d - bundle.means[orig_i]) / std
+        standardized = standardized_dosages[idx]
 
         # Re-project using resampled loadings
         resampled_loadings = bundle.loadings[idx, :]

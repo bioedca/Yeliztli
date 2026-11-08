@@ -24,6 +24,7 @@ import numpy as np
 import pytest
 import sqlalchemy as sa
 
+from backend.analysis import ancestry as ancestry_module
 from backend.analysis.ancestry import (
     ADMIXED,
     POPULATION_LABELS,
@@ -1842,6 +1843,129 @@ class TestAncestryBundle:
 
 class TestBootstrapAdmixtureNNLS:
     """T-MID-01: Bootstrap CI contains the point estimate."""
+
+    @pytest.mark.parametrize("annotated", [False, True])
+    def test_inference_standardizes_each_aim_once_per_projection(
+        self,
+        small_bundle: AncestryBundle,
+        eur_sample: sa.Engine,
+        annotated: bool,
+    ) -> None:
+        """Bootstrap resampling must not repeat invariant per-AIM arithmetic."""
+
+        class CountedArray(np.ndarray):
+            reads = 0
+
+            def __getitem__(self, index):
+                self.reads += 1
+                return super().__getitem__(index)
+
+        if annotated:
+            with eur_sample.connect() as conn:
+                rows = conn.execute(sa.select(raw_variants)).mappings().all()
+            assert len(rows) == small_bundle.snp_count == 4
+            _insert_annotated_genotypes(
+                eur_sample,
+                [
+                    {
+                        "rsid": row["rsid"],
+                        "chrom": row["chrom"],
+                        "pos": row["pos"],
+                        "genotype": row["genotype"],
+                        "annotation_coverage": 1,
+                    }
+                    for row in rows
+                ],
+            )
+        small_bundle.stds = small_bundle.stds.view(CountedArray)
+
+        result = infer_ancestry(small_bundle, eur_sample)
+
+        assert result.snps_used == result.snps_total == 4
+        assert result.is_sufficient
+        assert set(result.nnls_ci_low) == set(result.nnls_ci_high) == {"AFR", "EUR", "EAS"}
+        assert all(
+            result.nnls_ci_low[pop] <= result.nnls_ci_high[pop] for pop in result.nnls_ci_low
+        )
+        # One point projection and one bootstrap preparation, independent of the
+        # 100 resamples. Counting operand reads avoids a host-speed assertion.
+        assert 0 < small_bundle.stds.reads <= 2 * small_bundle.snp_count
+
+    @pytest.mark.parametrize(
+        ("genotypes", "stds", "standardized"),
+        [
+            (
+                ["ag", "TT", "AA", "TC"],
+                [0.5, 0.5, 0.5, 0.5],
+                [(1 - 0.6) / 0.5, (2 - 1.0) / 0.5, (2 - 1.4) / 0.5, (1 - 0.8) / 0.5],
+            ),
+            ([None, "--", "??", "A"], [0.5] * 4, [0.0] * 4),
+            (["AG", "TT", "AA", "TC"], [0.0, -1.0, np.nan, np.inf], [0.0] * 4),
+            (
+                ["AA", "CT", "GG", None],
+                [0.5] * 4,
+                [(0 - 0.6) / 0.5, (1 - 1.0) / 0.5, (0 - 1.4) / 0.5, 0.0],
+            ),
+        ],
+    )
+    def test_resampling_preserves_projection_operands_and_intervals(
+        self,
+        small_bundle: AncestryBundle,
+        monkeypatch: pytest.MonkeyPatch,
+        genotypes: list[str | None],
+        stds: list[float],
+        standardized: list[float],
+    ) -> None:
+        """Repeated indices keep their paired loadings and zero-imputed values."""
+        small_bundle.stds = np.array(stds, dtype=np.float64)
+        genotype_map = dict(zip((snp.rsid for snp in small_bundle.snps), genotypes, strict=True))
+        draws = [np.array(v) for v in ([3, 1, 1, 0], [2, 0, 3, 2], [1, 2, 0, 3])]
+        before = {
+            name: getattr(small_bundle, name).copy() for name in ("means", "stds", "loadings")
+        }
+        expected_pcs = [
+            np.array(standardized)[indices] @ small_bundle.loadings[indices, :]
+            for indices in draws
+        ]
+        matrix = np.column_stack(list(small_bundle.reference_centroids.values()))
+        original_solver = ancestry_module._solve_admixture_fcls
+        expected_fractions = [original_solver(matrix, pcs, 3) for pcs in expected_pcs]
+        calls = []
+        solved = []
+
+        class FixedRng:
+            def integers(self, low, high, size):
+                assert (low, high, size) == (0, 4, 4)
+                index = len(calls)
+                calls.append(index)
+                return draws[index].copy()
+
+        def make_rng(seed):
+            assert seed == 17
+            return FixedRng()
+
+        def checked_solver(centroids, pcs, n_pops):
+            assert n_pops == 3
+            np.testing.assert_array_equal(centroids, matrix)
+            np.testing.assert_array_equal(pcs, expected_pcs[len(solved)])
+            solved.append(pcs.copy())
+            return original_solver(centroids, pcs, n_pops)
+
+        monkeypatch.setattr(ancestry_module.np.random, "default_rng", make_rng)
+        monkeypatch.setattr(ancestry_module, "_solve_admixture_fcls", checked_solver)
+        low, high = bootstrap_admixture_nnls(
+            np.array([0.0, 0.0]), small_bundle, genotype_map, n_iterations=3, ci=0.8, rng_seed=17
+        )
+
+        assert calls == [0, 1, 2] and len(solved) == 3
+        expected = np.percentile(expected_fractions, [10, 90], axis=0)
+        populations = list(small_bundle.reference_centroids)
+        assert populations == ["AFR", "EUR", "EAS"]
+        assert low == {pop: round(float(expected[0, i]), 4) for i, pop in enumerate(populations)}
+        assert high == {pop: round(float(expected[1, i]), 4) for i, pop in enumerate(populations)}
+        assert len(before) == 3
+        for name, values in before.items():
+            np.testing.assert_array_equal(getattr(small_bundle, name), values)
 
     def test_ci_contains_point_estimate(self, small_bundle: AncestryBundle) -> None:
         """Bootstrap 95% CI should contain the NNLS point estimate.
