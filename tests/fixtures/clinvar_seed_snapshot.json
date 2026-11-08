@@ -8,7 +8,15 @@
     "raw_evidence_dir": "data/science-evidence/2026-07-16-clinvar-seed-1968",
     "record_count": 71,
     "synthetic_rows_without_accession": [],
-    "note": "Committed offline accession-to-rsID/gene reference for clinvar_seed.csv (#1968). Regenerate whenever the seed adds or changes a ClinVar accession; the guard fails on uncovered, orphaned, or incoherent records."
+    "note": "Committed offline accession-to-rsID/gene reference for clinvar_seed.csv (#1968). Regenerate whenever the seed adds or changes a ClinVar accession; the guard fails on uncovered, orphaned, or incoherent records.",
+    "record_overrides": {
+      "VCV000226007": {
+        "accessed": "2026-11-08",
+        "raw_evidence_path": "data/science-evidence/2026-11-08-rs6025-orientation-2541/raw/clinvar-search-rs6025.json",
+        "identity_evidence_path": "data/science-evidence/2026-11-08-rs6025-orientation-2541/raw/clinvar-226007-identity-derived.json",
+        "reason": "#2541 selects GRCh37 T>C; VCV000000642 represents the reference allele T and cannot be transferred to C."
+      }
+    }
   },
   "records": {
     "VCV000000432": {
@@ -23,19 +31,6 @@
       "clinical_significance": "drug response",
       "review_status": "reviewed by expert panel",
       "phenotype_list": "Dihydropyrimidine dehydrogenase deficiency|Fluorouracil response|not provided|Hirschsprung disease, susceptibility to, 1|tegafur response - Toxicity|fluorouracil response - Toxicity|fluorouracil response - Other|capecitabine response - Toxicity|Inborn genetic diseases|DPYD-related disorder|Gastric cancer|Ovarian serous cystadenocarcinoma|Malignant tumor of urinary bladder|Nonpapillary renal cell carcinoma|Cervical cancer|Sarcoma|Lymphoma|Malignant tumor of esophagus|Lung cancer|Thyroid cancer, nonmedullary, 1|Melanoma|Cholangiocarcinoma|Acute myeloid leukemia|Clear cell carcinoma of kidney|Familial pancreatic carcinoma|Colon adenocarcinoma|Colorectal cancer|Familial cancer of breast|Ovarian cancer"
-    },
-    "VCV000000642": {
-      "variation_id": 642,
-      "dbsnp": [
-        "rs6025"
-      ],
-      "gene_symbols": [
-        "F5"
-      ],
-      "name": "NM_000130.4(F5):c.1601G>A (p.Arg534Gln)",
-      "clinical_significance": "drug response",
-      "review_status": "reviewed by expert panel",
-      "phenotype_list": "Ischemic stroke|Budd-Chiari syndrome, susceptibility to|Pregnancy loss, recurrent, susceptibility to, 1|Factor V deficiency|Thrombophilia due to activated protein C resistance|not specified|Factor V deficiency;Thrombophilia due to activated protein C resistance|Susceptibility to severe coronavirus disease (COVID-19) due to an impaired coagulation process|Inborn genetic diseases|not provided|hormonal contraceptives for systemic use response - Toxicity|Congenital factor V deficiency|Pregnancy loss, recurrent, susceptibility to, 1;Thrombophilia due to activated protein C resistance;Congenital factor V deficiency;Budd-Chiari syndrome;Ischemic stroke"
     },
     "VCV000001000": {
       "variation_id": 1000,
@@ -781,6 +776,19 @@
       "clinical_significance": "drug response",
       "review_status": "reviewed by expert panel",
       "phenotype_list": "etanercept response - Efficacy||Susceptibility to severe coronavirus disease (COVID-19) due to high plasma levels of TNF, TNFR, and/or TNFR4|Systemic lupus erythematosus, susceptibility to|Inherited susceptibility to asthma|Malaria, cerebral, susceptibility to||Susceptibility to severe coronavirus disease (COVID-19)|Endometriosis|HUMAN IMMUNODEFICIENCY VIRUS DEMENTIA, SUSCEPTIBILITY TO|Psoriatic arthritis, susceptibility to"
+    },
+    "VCV000226007": {
+      "variation_id": 226007,
+      "dbsnp": [
+        "rs6025"
+      ],
+      "gene_symbols": [
+        "F5"
+      ],
+      "name": "NM_000130.5(F5):c.1601= (p.Arg534=)",
+      "clinical_significance": "Conflicting classifications of pathogenicity",
+      "review_status": "criteria provided, conflicting classifications",
+      "phenotype_list": "not provided|Congenital factor V deficiency|F5-related disorders"
     },
     "VCV000226027": {
       "variation_id": 226027,

@@ -1,0 +1,25 @@
+{
+  "accessed": "2026-11-08",
+  "query": {
+    "dois": [
+      "10.1186/s13059-016-0974-4"
+    ]
+  },
+  "result": {
+    "summary": {
+      "verified": 1,
+      "couldNotVerify": 0,
+      "withEditorialNotices": 0,
+      "withContrastingEvidence": 0,
+      "inPredatoryJournals": 0
+    },
+    "papers": [
+      {
+        "doi": "10.1186/s13059-016-0974-4",
+        "status": "verified",
+        "title": "The Ensembl Variant Effect Predictor",
+        "year": 2016
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+[
+  2,
+  [
+    "226007",
+    "642"
+  ],
+  {
+    "VariationID": [
+      "226007",
+      "642"
+    ],
+    "Name": [
+      "NM_000130.5(F5):c.1601= (p.Arg534=)",
+      "NM_000130.4(F5):c.1601G>A (p.Arg534Gln)"
+    ],
+    "GeneSymbol": [
+      "F5",
+      "F5"
+    ],
+    "ClinicalSignificance": [
+      "Conflicting classifications of pathogenicity",
+      "drug response"
+    ],
+    "ReviewStatus": [
+      "criteria provided, conflicting classifications",
+      "reviewed by expert panel"
+    ],
+    "PhenotypeList": [
+      "not provided|Congenital factor V deficiency|F5-related disorders",
+      "Ischemic stroke|Budd-Chiari syndrome, susceptibility to|Pregnancy loss, recurrent, susceptibility to, 1|Factor V deficiency|Thrombophilia due to activated protein C resistance|not specified|Thrombophilia due to activated protein C resistance;Factor V deficiency|Susceptibility to severe coronavirus disease (COVID-19) due to an impaired coagulation process|Inborn genetic diseases|hormonal contraceptives for systemic use response - Toxicity|Congenital factor V deficiency|not provided|Pregnancy loss, recurrent, susceptibility to, 1;Thrombophilia due to activated protein C resistance;Congenital factor V deficiency;Budd-Chiari syndrome;Ischemic stroke"
+    ],
+    "dbSNP": [
+      "rs6025",
+      "rs6025"
+    ]
+  },
+  [
+    [
+      "226007",
+      "NM_000130.5(F5):c.1601= (p.Arg534=)",
+      "F5",
+      "Conflicting classifications of pathogenicity",
+      "criteria provided, conflicting classifications",
+      "not provided|Congenital factor V deficiency|F5-related disorders",
+      "rs6025"
+    ],
+    [
+      "642",
+      "NM_000130.4(F5):c.1601G>A (p.Arg534Gln)",
+      "F5",
+      "drug response",
+      "reviewed by expert panel",
+      "Ischemic stroke|Budd-Chiari syndrome, susceptibility to|Pregnancy loss, recurrent, susceptibility to, 1|Factor V deficiency|Thrombophilia due to activated protein C resistance|not specified|Thrombophilia due to activated protein C resistance;Factor V deficiency|Susceptibility to severe coronavirus disease (COVID-19) due to an impaired coagulation process|Inborn genetic diseases|hormonal contraceptives for systemic use response - Toxicity|Congenital factor V deficiency|not provided|Pregnancy loss, recurrent, susceptibility to, 1;Thrombophilia due to activated protein C resistance;Congenital factor V deficiency;Budd-Chiari syndrome;Ischemic stroke",
+      "rs6025"
+    ]
+  ]
+]

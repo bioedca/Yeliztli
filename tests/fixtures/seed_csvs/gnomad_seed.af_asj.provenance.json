@@ -228,10 +228,17 @@
       "gnomad_variant_id": "7-117559479-G-A"
     },
     "rs6025": {
-      "af_asj": 0.0191606,
-      "asj_ac": 567,
-      "asj_an": 29592,
-      "gnomad_variant_id": "1-169549811-C-T"
+      "af_asj": 0.981543957134352,
+      "asj_ac": 9892,
+      "asj_an": 10078,
+      "gnomad_variant_id": "1-169519049-T-C",
+      "orientation": "same",
+      "source": "gnomAD r2.1.1 (GRCh37) GraphQL API",
+      "dataset": "gnomad_r2_1",
+      "sequencing_type": "exome",
+      "accessed": "2026-11-08",
+      "method": "Exact T>C allele; unsuffixed asj exome AC/AN. No complement or 1-AF.",
+      "evidence_packet": "data/science-evidence/2026-11-08-rs6025-orientation-2541"
     },
     "rs1799963": {
       "af_asj": 0.0349853,

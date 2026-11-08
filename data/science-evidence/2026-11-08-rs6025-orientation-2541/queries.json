@@ -1,0 +1,121 @@
+{
+  "issue": 2541,
+  "accessed": "2026-11-08",
+  "build": "GRCh37 primary chromosome; 1-based forward genomic REF/ALT; GCF_000001405.25",
+  "requests": [
+    {
+      "source": "Ensembl GRCh37",
+      "method": "GET",
+      "url": "https://grch37.rest.ensembl.org/variation/homo_sapiens/rs6025",
+      "params": {
+        "content-type": "application/json"
+      },
+      "payload": "raw/ensembl37-rs6025.json"
+    },
+    {
+      "source": "Ensembl GRCh37",
+      "method": "GET",
+      "url": "https://grch37.rest.ensembl.org/sequence/region/human/1:169519049..169519049:1",
+      "params": {
+        "content-type": "application/json"
+      },
+      "payload": "raw/ensembl37-base-rs6025.json"
+    },
+    {
+      "source": "NCBI ClinVar Entrez",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+      "params": {
+        "db": "clinvar",
+        "rettype": "vcv",
+        "id": "VCV000000642",
+        "retmode": "xml"
+      },
+      "payload": "raw/clinvar-642-identity-derived.json",
+      "retention": "Whitelist identity reduction only; no observations or submissions."
+    },
+    {
+      "source": "NCBI ClinVar Entrez",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+      "params": {
+        "db": "clinvar",
+        "rettype": "vcv",
+        "id": "VCV000226007",
+        "retmode": "xml"
+      },
+      "payload": "raw/clinvar-226007-identity-derived.json",
+      "retention": "Whitelist identity reduction only; no observations or submissions."
+    },
+    {
+      "source": "NLM Clinical Tables ClinVar v4",
+      "method": "GET",
+      "url": "https://clinicaltables.nlm.nih.gov/api/variants/v4/search",
+      "params": {
+        "terms": "rs6025",
+        "sf": "dbSNP",
+        "q": "dbSNP:rs6025",
+        "df": "VariationID,Name,GeneSymbol,ClinicalSignificance,ReviewStatus,PhenotypeList,dbSNP",
+        "ef": "VariationID,Name,GeneSymbol,ClinicalSignificance,ReviewStatus,PhenotypeList,dbSNP",
+        "maxList": 500
+      },
+      "payload": "raw/clinvar-search-rs6025.json"
+    },
+    {
+      "source": "gnomAD r2.1.1",
+      "method": "POST",
+      "url": "https://gnomad.broadinstitute.org/api",
+      "query_path": "gnomad-query.graphql",
+      "variables": {
+        "variantId": "1-169519049-T-C",
+        "dataset": "gnomad_r2_1"
+      },
+      "payload": "raw/gnomad-r2_1-rs6025.json"
+    },
+    {
+      "source": "PubMed",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+      "params": {
+        "db": "pubmed",
+        "id": "27268795",
+        "retmode": "xml"
+      },
+      "payload": "raw/pubmed-27268795-derived.json"
+    }
+  ],
+  "licenses": [
+    {
+      "source": "gnomAD aggregate exome/genome counts",
+      "license": "CC0 1.0",
+      "url": "https://github.com/broadinstitute/gnomad-browser/blob/main/browser/about/policies/terms.md",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "NCBI molecular-data identity and bibliographic metadata",
+      "license": "NCBI places no restrictions on molecular-data use/distribution; third-party rights may apply. No abstracts or clinical submission text retained.",
+      "url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "Ensembl variation factual metadata",
+      "license": "Ensembl/EMBL-EBI terms; public coordinate/allele facts retained. No assumption that all aggregated data carry a single CC licence.",
+      "url": "https://www.ebi.ac.uk/licencing/",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "Pinned VEP snapshot excerpt",
+      "license": "Existing repository snapshot under repository licence; source identity and upstream attribution preserved.",
+      "path": "tests/fixtures/vep_seed_bundle_snapshot.json"
+    }
+  ],
+  "identifiers": [
+    "ClinVar:VCV000226007.28",
+    "ClinVar:VCV000000642.133",
+    "dbSNP:rs6025",
+    "gnomAD:1-169519049-T-C (gnomad_r2_1)",
+    "PMID:27268795",
+    "DOI:10.1186/s13059-016-0974-4"
+  ],
+  "scope": "Source-output and fixture-identity contracts only; no independent clinical, functional, treatment or population-risk claim."
+}

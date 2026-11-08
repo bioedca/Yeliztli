@@ -107,11 +107,22 @@ row written for an indel rsID is flagged too.
 
 Rows that break this today are listed exactly in
 `../seed_allele_known_exceptions.json`, so the list can only shrink. #2590 gave
-every unannotated `vep_seed` filler row its oracle alleles. The six listed rows
-that remain are annotated or carry frequencies, and each has an owning issue
-(#2541, #2563). When you
+every unannotated `vep_seed` filler row its oracle alleles. The three listed rows
+that remain are annotated or carry frequencies and are tracked by #2563. When you
 correct a row, also re-source the frequencies of any `gnomad_seed` row whose
 orientation changes, rather than flipping them.
+
+#2541 selects `rs6025` as GRCh37 `1:169519049 T>C` in all three seeds. VEP
+mirrors the pinned bundle's `c.1601A>G` / `p.Gln534Arg` annotation. ClinVar uses
+`VCV000226007`, whose GRCh37 mapping is T>C, with its own significance, review
+status and conditions. The former accession `VCV000000642` represents the
+reference allele T on GRCh37 and must not annotate C. All eight gnomAD AFs and
+the homozygote count come directly from the r2.1.1 **exome T>C record**; no
+frequency is calculated as `1 - AF`. Source-native transcript differences,
+dated snapshot overrides, the conflicting ClinVar classification and retained
+public payloads are documented in
+`data/science-evidence/2026-11-08-rs6025-orientation-2541/`. These fixture identities
+do not change the curated thrombophilia analysis or establish a clinical effect.
 
 #2591 corrected CYP2D6 rs1065852 to genomic G>A and ABCB1 rs2032582 to the
 reference-relative A>C allele. The latter also changes its old reverse-direction
