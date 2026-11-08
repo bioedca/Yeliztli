@@ -17,7 +17,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-MARKER = "<!-- yeliztli-claim:v1 -->"
+CLAIM_TOKEN = "yeliztli-claim:v1"
+MARKER = f"<!-- {CLAIM_TOKEN} -->"
 CLAIM = re.compile(re.escape(MARKER) + r"\n```json\n(?P<record>.*?)\n```(?P<tail>.*)", re.S)
 LEASE = timedelta(minutes=90)
 PROVISIONAL_LEASE = timedelta(minutes=2)
@@ -82,7 +83,7 @@ def _identity(identity: dict[str, Any]) -> None:
 
 def _record(body: str) -> tuple[dict[str, Any], re.Match[str]]:
     match = CLAIM.fullmatch(body)
-    if match is None or body.count(MARKER) != 1:
+    if match is None or body.count(CLAIM_TOKEN) != 1:
         raise HeartbeatError("Malformed claim record")
     record = _json(match["record"])
     _require(isinstance(record, dict), "Malformed claim record")
@@ -163,7 +164,7 @@ def _active_owner(
             _require(comment.get("issue_url") == expected_url, "Comment belongs to another issue")
             body = comment.get("body")
             _require(isinstance(body, str), "Missing comment body")
-            if MARKER not in body:
+            if CLAIM_TOKEN not in body:
                 continue
             record, _ = _record(body)
             created = _timestamp(comment.get("created_at"))

@@ -41,6 +41,9 @@ It fetches every comment page twice and requires matching complete snapshots wit
 the expected active identity and no other live ownership or provisional record.
 It checks expiry **after** both reads. Unknown/malformed claim records fail closed;
 inspect them under the existing contract instead of deleting or ignoring them.
+Comments containing `yeliztli-claim:v1` must use the supported canonical envelope;
+different marker whitespace or multiple claim tokens are rejected, not treated as
+unrelated comments that could conceal another owner.
 
 `prepare` writes a new local plan, refusing to overwrite an existing one. It retains
 only the selected public claim and the metadata needed to verify renewal, not the

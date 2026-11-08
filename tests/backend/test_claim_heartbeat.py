@@ -198,6 +198,49 @@ def test_other_live_claim_on_a_later_page_blocks_renewal(monkeypatch, state):
         heartbeat.verify(plan, TIME + timedelta(seconds=2))
 
 
+@pytest.mark.parametrize("operation", ["prepare", "verify"])
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "<!--yeliztli-claim:v1-->",
+        "<!-- yeliztli-claim:v1-->",
+        "<!--\tyeliztli-claim:v1\t-->",
+        "yeliztli-claim:v1",
+    ],
+)
+def test_noncanonical_competing_claim_is_rejected_instead_of_ignored(
+    monkeypatch, operation, marker
+):
+    plan = prepared(monkeypatch)
+    other = comment()
+    other["id"] = 99
+    other["body"] = other["body"].replace(heartbeat.MARKER, marker)
+    pages = [[renewed(plan)], [other]]
+    snapshots(monkeypatch, pages, pages)
+    with pytest.raises(heartbeat.HeartbeatError, match="Malformed claim record"):
+        if operation == "prepare":
+            heartbeat.prepare(dict(IDENTITY), TIME + timedelta(seconds=2))
+        else:
+            heartbeat.verify(plan, TIME + timedelta(seconds=2))
+
+
+def test_multiple_claim_tokens_in_one_comment_fail_closed(monkeypatch):
+    original = comment()
+    original["body"] += "\n<!--yeliztli-claim:v1-->\n"
+    snapshots(monkeypatch, [[original]], [[original]])
+    with pytest.raises(heartbeat.HeartbeatError, match="Malformed claim record"):
+        heartbeat.prepare(dict(IDENTITY), TIME)
+
+
+def test_unrelated_comment_does_not_block_a_sole_owner(monkeypatch):
+    plan = prepared(monkeypatch)
+    unrelated = comment()
+    unrelated.update(id=99, body="Public progress note without a claim token.")
+    pages = [[unrelated], [renewed(plan)]]
+    snapshots(monkeypatch, pages, pages)
+    assert heartbeat.verify(plan, TIME + timedelta(seconds=2))["heartbeat_seq"] == 1
+
+
 def test_done_and_expired_history_does_not_block_a_sole_owner(monkeypatch):
     plan = prepared(monkeypatch)
     done = comment(state="done")
