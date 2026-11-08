@@ -1,0 +1,44 @@
+{
+  "MAF": 0.000599,
+  "ambiguity": "Y",
+  "synonyms": [
+    "PA166153928",
+    "RCV001797511",
+    "RCV002482322",
+    "VCV001328879",
+    "NP_000101.2:p.Lys290Glu",
+    "NM_000110.3:c.868A>G",
+    "NM_000110.4:c.868A>G"
+  ],
+  "most_severe_consequence": "missense_variant",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": "C",
+  "name": "rs146356975",
+  "var_class": "SNP",
+  "clinical_significance": [
+    "uncertain significance"
+  ],
+  "mappings": [
+    {
+      "end": 98060705,
+      "location": "1:98060705-98060705",
+      "start": 98060705,
+      "ancestral_allele": "T",
+      "assembly_name": "GRCh37",
+      "seq_region_name": "1",
+      "coord_system": "chromosome",
+      "allele_string": "T/C",
+      "strand": 1
+    }
+  ]
+}

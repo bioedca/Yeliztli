@@ -1,0 +1,35 @@
+{
+  "MAF": null,
+  "mappings": [
+    {
+      "allele_string": "C/A",
+      "ancestral_allele": "C",
+      "strand": 1,
+      "location": "1:97564172-97564172",
+      "end": 97564172,
+      "coord_system": "chromosome",
+      "start": 97564172,
+      "assembly_name": "GRCh37",
+      "seq_region_name": "1"
+    }
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "ambiguity": "M",
+  "var_class": "SNP",
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "most_severe_consequence": "missense_variant",
+  "minor_allele": null,
+  "synonyms": [
+    "PA166153886",
+    "NM_000110.4:c.2639G>T",
+    "NP_000101.2:p.Gly880Val",
+    "NM_000110.3:c.2639G>T"
+  ],
+  "name": "rs55674432"
+}

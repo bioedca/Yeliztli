@@ -1,0 +1,19 @@
+{
+  "summary": {
+    "verified": 1,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1177/1559325818803042",
+      "status": "verified",
+      "title": "Cost Implications of Reactive Versus Prospective Testing for Dihydropyrimidine Dehydrogenase Deficiency in Patients With Colorectal Cancer: A Single-Institution Experience",
+      "year": 2018
+    }
+  ],
+  "accessed": "2026-11-08",
+  "scope": "Editorial-notice check for the separate contrasting-evidence source; not evidence for a new candidate classification."
+}

@@ -1,0 +1,47 @@
+{
+  "ambiguity": "N",
+  "clinical_significance": [
+    "uncertain significance"
+  ],
+  "MAF": null,
+  "mappings": [
+    {
+      "end": 98015165,
+      "location": "1:98015165-98015165",
+      "ancestral_allele": "G",
+      "strand": 1,
+      "allele_string": "G/A/C/T",
+      "seq_region_name": "1",
+      "start": 98015165,
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome"
+    }
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "var_class": "SNP",
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "synonyms": [
+    "PA166153898",
+    "VCV000298293",
+    "RCV000393255",
+    "NM_000110.4:c.1475C>G",
+    "NP_000101.2:p.Ser492Leu",
+    "NP_000101.2:p.Ser492Ter",
+    "NP_000101.2:p.Ser492Trp",
+    "NM_000110.3:c.1475C>A",
+    "NM_000110.3:c.1475C>G",
+    "NM_000110.4:c.1475C>A",
+    "NM_000110.4:c.1475C>T",
+    "NM_000110.3:c.1475C>T"
+  ],
+  "name": "rs72549304",
+  "most_severe_consequence": "stop_gained",
+  "minor_allele": null
+}

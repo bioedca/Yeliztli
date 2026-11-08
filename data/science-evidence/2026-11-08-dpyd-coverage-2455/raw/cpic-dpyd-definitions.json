@@ -1,0 +1,1258 @@
+[
+  {
+    "id": 778327,
+    "name": "Reference",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778244,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778245,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778246,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778247,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 948658,
+        "variantallele": "ATGA(2)"
+      },
+      {
+        "locationid": 778249,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778250,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778251,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778252,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778253,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778254,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778255,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778256,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778257,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778258,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778259,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778260,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778261,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778262,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778263,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778264,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778265,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778266,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778267,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778268,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778270,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778271,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778272,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778273,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778269,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778274,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778275,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778276,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778277,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778278,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778279,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778280,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778281,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778282,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778283,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778284,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778285,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778286,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778287,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778288,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778289,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778290,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778291,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778292,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778293,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778294,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778295,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778296,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 948707,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778298,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778299,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778300,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778301,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778302,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778303,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778304,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778305,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778306,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778307,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778308,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778309,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778310,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778311,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778312,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778313,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778314,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778315,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778316,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778317,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778318,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778319,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778320,
+        "variantallele": "T"
+      },
+      {
+        "locationid": 778322,
+        "variantallele": "G"
+      },
+      {
+        "locationid": 778321,
+        "variantallele": "A"
+      },
+      {
+        "locationid": 778323,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778324,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778325,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778326,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778329,
+    "name": "c.46C>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778244,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778331,
+    "name": "c.61C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778245,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778333,
+    "name": "c.62G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778246,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778335,
+    "name": "c.85T>C (*9A)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778247,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778337,
+    "name": "c.295_298delTCAT (*7)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 948658,
+        "variantallele": "ATGA(1)"
+      }
+    ]
+  },
+  {
+    "id": 778339,
+    "name": "c.313G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778249,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778341,
+    "name": "c.343A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778250,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778343,
+    "name": "c.451A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778251,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778345,
+    "name": "c.496A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778252,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778347,
+    "name": "c.498G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778253,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778349,
+    "name": "c.525G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778254,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778351,
+    "name": "c.557A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778255,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778353,
+    "name": "c.601A>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778256,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778355,
+    "name": "c.632A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778257,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778357,
+    "name": "c.703C>T (*8)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778258,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778359,
+    "name": "c.775A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778259,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778361,
+    "name": "c.868A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778260,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778363,
+    "name": "c.929T>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778261,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778365,
+    "name": "c.934C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778262,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778367,
+    "name": "c.967G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778263,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778369,
+    "name": "c.1003G>T (*11)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778264,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778371,
+    "name": "c.1024G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778265,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778373,
+    "name": "c.1057C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778266,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778375,
+    "name": "c.1108A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778267,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778377,
+    "name": "c.1129-5923C>G, c.1236G>A (HapB3)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778268,
+        "variantallele": "C"
+      },
+      {
+        "locationid": 778269,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778379,
+    "name": "c.1156G>T (*12)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778270,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778381,
+    "name": "c.1180C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778271,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778383,
+    "name": "c.1181G>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778272,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778385,
+    "name": "c.1218G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778273,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778387,
+    "name": "c.1260T>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778274,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778389,
+    "name": "c.1278G>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778275,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778391,
+    "name": "c.1294G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778276,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778393,
+    "name": "c.1314T>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778277,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778395,
+    "name": "c.1349C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778278,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778397,
+    "name": "c.1358C>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778279,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778399,
+    "name": "c.1371C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778280,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778401,
+    "name": "c.1403C>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778281,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778403,
+    "name": "c.1475C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778282,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778405,
+    "name": "c.1484A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778283,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778407,
+    "name": "c.1519G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778284,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778409,
+    "name": "c.1543G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778285,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778411,
+    "name": "c.1577C>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778286,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778413,
+    "name": "c.1601G>A (*4)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778287,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778415,
+    "name": "c.1615G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778288,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778417,
+    "name": "c.1627A>G (*5)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778289,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778419,
+    "name": "c.1679T>G (*13)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778290,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778421,
+    "name": "c.1682G>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778291,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778423,
+    "name": "c.1774C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778292,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778425,
+    "name": "c.1775G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778293,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778427,
+    "name": "c.1777G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778294,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778429,
+    "name": "c.1796T>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778295,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778431,
+    "name": "c.1896T>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778296,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778433,
+    "name": "c.1898delC (*3)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 948707,
+        "variantallele": "delG"
+      }
+    ]
+  },
+  {
+    "id": 778435,
+    "name": "c.1905C>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778298,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778437,
+    "name": "c.1905+1G>A (*2A)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778299,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778439,
+    "name": "c.1906A>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778300,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778441,
+    "name": "c.1990G>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778301,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778443,
+    "name": "c.2021G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778302,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778445,
+    "name": "c.2161G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778303,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778447,
+    "name": "c.2186C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778304,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778449,
+    "name": "c.2194G>A (*6)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778305,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778451,
+    "name": "c.2195T>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778306,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778453,
+    "name": "c.2279C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778307,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778455,
+    "name": "c.2303C>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778308,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778457,
+    "name": "c.2336C>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778309,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778459,
+    "name": "c.2482G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778310,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778461,
+    "name": "c.2582A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778311,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778463,
+    "name": "c.2623A>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778312,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778465,
+    "name": "c.2639G>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778313,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778467,
+    "name": "c.2656C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778314,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778469,
+    "name": "c.2657G>A (*9B)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778315,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778471,
+    "name": "c.2846A>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778316,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778473,
+    "name": "c.2872A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778317,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778475,
+    "name": "c.2915A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778318,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778477,
+    "name": "c.2921A>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778319,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778479,
+    "name": "c.2933A>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778320,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778481,
+    "name": "c.2978T>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778321,
+        "variantallele": "C"
+      }
+    ]
+  },
+  {
+    "id": 778483,
+    "name": "c.2977C>T",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778322,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778485,
+    "name": "c.2983G>T (*10)",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778323,
+        "variantallele": "A"
+      }
+    ]
+  },
+  {
+    "id": 778487,
+    "name": "c.3049G>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778324,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 778489,
+    "name": "c.3061G>C",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778325,
+        "variantallele": "G"
+      }
+    ]
+  },
+  {
+    "id": 778491,
+    "name": "c.3067C>A",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778326,
+        "variantallele": "T"
+      }
+    ]
+  },
+  {
+    "id": 3942827,
+    "name": "c.1129-5923C>G",
+    "genesymbol": "DPYD",
+    "allele_location_value": [
+      {
+        "locationid": 778268,
+        "variantallele": "C"
+      }
+    ]
+  }
+]

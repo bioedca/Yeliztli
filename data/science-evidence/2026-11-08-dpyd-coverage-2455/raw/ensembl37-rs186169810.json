@@ -1,0 +1,38 @@
+{
+  "var_class": "SNP",
+  "ambiguity": "H",
+  "MAF": 0.0002,
+  "mappings": [
+    {
+      "seq_region_name": "1",
+      "start": 98039341,
+      "assembly_name": "GRCh37",
+      "coord_system": "chromosome",
+      "end": 98039341,
+      "strand": 1,
+      "ancestral_allele": "A",
+      "location": "1:98039341-98039341",
+      "allele_string": "A/C/T"
+    }
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "synonyms": [
+    "NM_000110.4:c.1314T>A",
+    "NM_000110.3:c.1314T>G",
+    "NP_000101.2:p.Phe438Leu",
+    "NM_000110.3:c.1314T>A",
+    "NM_000110.4:c.1314T>G",
+    "PA166153933"
+  ],
+  "name": "rs186169810",
+  "most_severe_consequence": "missense_variant",
+  "minor_allele": "C",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ]
+}

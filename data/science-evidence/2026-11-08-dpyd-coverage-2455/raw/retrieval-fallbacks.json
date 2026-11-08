@@ -1,0 +1,46 @@
+{
+  "accessed": "2026-11-08",
+  "context7": {
+    "CPIC": "No matching library; used CPIC published endpoint, official PostgREST docs /websites/postgrest_en",
+    "gnomAD": "No matching library; used official broadinstitute/gnomad-browser schema and live API error; no quota error from Context7",
+    "Ensembl": "Official /ensembl/ensembl-rest documentation available"
+  },
+  "cpic_initial_request": {
+    "result": "HTTP 403 using Python urllib; public curl request succeeded without authentication or account changes"
+  },
+  "gnomad_initial_attempt": {
+    "endpoint": "https://gnomad.broadinstitute.org/api",
+    "obsolete_argument": "variant_id",
+    "request_results": {
+      "http_400": 10,
+      "http_429": 18
+    },
+    "counted_as_evidence": false
+  },
+  "gnomad_error_inspection": {
+    "status": 400,
+    "error_body": {
+      "errors": [
+        {
+          "message": "Unknown argument \"variant_id\" on field \"Query.variant\". Did you mean \"variantId\"?",
+          "locations": [
+            {
+              "line": 1,
+              "column": 11
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "gnomad_corrected_attempt": {
+    "argument": "variantId",
+    "rate_limit": "Corrected run stopped on HTTP 429; resumed after backoff with 15 seconds between requests",
+    "final_candidate_locus_results": {
+      "aggregate_records": 18,
+      "exact_variant_not_found": 6
+    },
+    "not_found_is_zero_frequency": false
+  },
+  "editorial_notice_scope": "Four CPIC framework/source DOIs plus the separately flagged contrasting-discussion DOI were verified; no editorial notices returned. The separate flag is not counted as independent candidate evidence."
+}

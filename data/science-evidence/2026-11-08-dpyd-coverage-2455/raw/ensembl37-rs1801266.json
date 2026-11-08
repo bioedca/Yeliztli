@@ -1,0 +1,46 @@
+{
+  "most_severe_consequence": "missense_variant",
+  "MAF": null,
+  "ambiguity": "R",
+  "name": "rs1801266",
+  "clinical_significance": [
+    "uncertain significance",
+    "drug response"
+  ],
+  "synonyms": [
+    "PA166153649",
+    "NM_000110.3:c.703C>T",
+    "NP_000101.2:p.Arg235Trp",
+    "NM_000110.4:c.703C>T",
+    "RCV000362597",
+    "VCV000298300",
+    "RCV000786703",
+    "VAR_005174",
+    "rs386545627"
+  ],
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "mappings": [
+    {
+      "assembly_name": "GRCh37",
+      "ancestral_allele": "G",
+      "seq_region_name": "1",
+      "end": 98157332,
+      "allele_string": "G/A",
+      "strand": 1,
+      "coord_system": "chromosome",
+      "location": "1:98157332-98157332",
+      "start": 98157332
+    }
+  ],
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": null
+}

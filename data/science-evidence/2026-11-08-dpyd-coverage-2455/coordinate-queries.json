@@ -1,0 +1,842 @@
+[
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs111858276",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs111858276",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs111858276.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs111858276",
+    "coding_hgvs_input": "NM_000110.4:c.1484A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1484A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs111858276.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs112766203",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs112766203",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs112766203.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs112766203",
+    "coding_hgvs_input": "NM_000110.4:c.2279C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2279C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs112766203.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs115232898",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs115232898",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs115232898.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs115232898",
+    "coding_hgvs_input": "NM_000110.4:c.557A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.557A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs115232898.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs137999090",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs137999090",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs137999090.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs137999090",
+    "coding_hgvs_input": "NM_000110.4:c.2021G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2021G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs137999090.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs138616379",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs138616379",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs138616379.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs138616379",
+    "coding_hgvs_input": "NM_000110.4:c.1775G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1775G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs138616379.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs141044036",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs141044036",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs141044036.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs141044036",
+    "coding_hgvs_input": "NM_000110.4:c.2872A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2872A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs141044036.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs143154602",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs143154602",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs143154602.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs143154602",
+    "coding_hgvs_input": "NM_000110.4:c.1057C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1057C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs143154602.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs145773863",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs145773863",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs145773863.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs145773863",
+    "coding_hgvs_input": "NM_000110.4:c.1777G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1777G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs145773863.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs146356975",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs146356975",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs146356975.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs146356975",
+    "coding_hgvs_input": "NM_000110.4:c.868A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.868A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs146356975.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs1801266",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs1801266",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs1801266.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs1801266",
+    "coding_hgvs_input": "NM_000110.4:c.703C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.703C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs1801266.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs1801268",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs1801268",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs1801268.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs1801268",
+    "coding_hgvs_input": "NM_000110.4:c.2983G>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2983G%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs1801268.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs183385770",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs183385770",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs183385770.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs183385770",
+    "coding_hgvs_input": "NM_000110.4:c.1024G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1024G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs183385770.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs186169810",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs186169810",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs186169810.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs186169810",
+    "coding_hgvs_input": "NM_000110.4:c.1314T>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1314T%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs186169810.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs3918290",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs3918290",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs3918290.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs3918290",
+    "coding_hgvs_input": "NM_000110.4:c.1905+1G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1905%2B1G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs3918290.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs55674432",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs55674432",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs55674432.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs55674432",
+    "coding_hgvs_input": "NM_000110.4:c.2639G>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2639G%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs55674432.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs55886062",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs55886062",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs55886062.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs55886062",
+    "coding_hgvs_input": "NM_000110.4:c.1679T>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1679T%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs55886062.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs56038477",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs56038477",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs56038477.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs56038477",
+    "coding_hgvs_input": "NM_000110.4:c.1236G>A",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1236G%3EA/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs56038477.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs59086055",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs59086055",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs59086055.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs59086055",
+    "coding_hgvs_input": "NM_000110.4:c.1774C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1774C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs59086055.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs67376798",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs67376798",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs67376798.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs67376798",
+    "coding_hgvs_input": "NM_000110.4:c.2846A>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2846A%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs67376798.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72547601",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72547601",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72547601.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72547601",
+    "coding_hgvs_input": "NM_000110.4:c.2933A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.2933A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72547601.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549303",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549303",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549303.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549303",
+    "coding_hgvs_input": "NM_000110.4:c.1898del",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1898del/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549303.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549304",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549304",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549304.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549304",
+    "coding_hgvs_input": "NM_000110.4:c.1475C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1475C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549304.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549307",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549307",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549307.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549307",
+    "coding_hgvs_input": "NM_000110.4:c.632A>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.632A%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549307.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549308",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549308",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549308.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549308",
+    "coding_hgvs_input": "NM_000110.4:c.601A>C",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.601A%3EC/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549308.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549309",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549309",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549309.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549309",
+    "coding_hgvs_input": "NM_000110.4:c.299_302del",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.299_302del/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549309.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs72549310",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs72549310",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs72549310.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs72549310",
+    "coding_hgvs_input": "NM_000110.4:c.61C>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.61C%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs72549310.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs75017182",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs75017182",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs75017182.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs75017182",
+    "coding_hgvs_input": "NM_000110.4:c.1129-5923C>G",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1129-5923C%3EG/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs75017182.json",
+    "error": null
+  },
+  {
+    "source": "Ensembl GRCh37 REST",
+    "rsid": "rs78060119",
+    "query": {
+      "base_url": "https://grch37.rest.ensembl.org",
+      "path": "variation/human/rs78060119",
+      "headers": {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      "max_items": 3,
+      "max_depth": 3,
+      "timeout_sec": 45,
+      "save_raw": true
+    },
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/ensembl37-rs78060119.json",
+    "error": null
+  },
+  {
+    "source": "VariantValidator",
+    "rsid_label_only": "rs78060119",
+    "coding_hgvs_input": "NM_000110.4:c.1156G>T",
+    "url": "https://rest.variantvalidator.org/VariantValidator/variantvalidator/GRCh37/NM_000110.4%3Ac.1156G%3ET/mane_select",
+    "accessed": "2026-11-08",
+    "ok": true,
+    "saved": "raw/variantvalidator37-rs78060119.json",
+    "error": null
+  }
+]

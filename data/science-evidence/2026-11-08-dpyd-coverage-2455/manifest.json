@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "issue": 2455,
+  "followup_issue": 2632,
+  "accessed": "2026-11-08",
+  "repository_baseline": "19dab90f3ca732765954ce0ba486048d8203e208",
+  "scope": "Bounded public-reference investigation; no runtime allele or clinical guidance change",
+  "query_files": [
+    "cpic-queries.json",
+    "coordinate-queries.json",
+    "gnomad-queries.json"
+  ],
+  "dispositions": "dispositions.json",
+  "claim_mapping": "README.md#claim-mapping-and-independence",
+  "versions_and_terms": "README.md#sources-versions-and-permitted-retention",
+  "raw_hashes": "raw-hashes.json",
+  "selected_group": [
+    "c.868A>G",
+    "c.1314T>G",
+    "c.2279C>T"
+  ],
+  "release_ready": false,
+  "release_dependencies": [
+    2453,
+    2454,
+    2304
+  ],
+  "unknowns": [
+    "Exact vendor custom-array coverage and calling performance",
+    "Independent population-specific evidence for each candidate",
+    "Indel vendor I/D polarity and normalized representation validation"
+  ],
+  "privacy": "Public reference definitions, aggregate counts, manufacturer membership facts and bibliographic metadata only; no personal samples or genotypes",
+  "source_paths": {
+    "backend/data/cpic/cpic_alleles.csv": "4a80852bb516a5741c4e96a4ecf7d227c96f9113f84eacd2b728a46f37300938",
+    "backend/data/cpic/cpic_diplotypes.csv": "b39839f569a5c8b96fd608280a8df79d478039d55a84ac2c0b6a1c3e60a2d7d5",
+    "backend/data/cpic/cpic_guidelines.csv": "ca81f1ba18388be0684da955c37af17ac161c006186e9bcc49430a6555130ccc"
+  }
+}

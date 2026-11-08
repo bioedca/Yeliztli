@@ -1,0 +1,32 @@
+{
+  "summary": {
+    "verified": 2,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 1,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1002/cpt.911",
+      "status": "verified",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update",
+      "year": 2017
+    },
+    {
+      "doi": "10.1158/0008-5472.can-13-2482",
+      "status": "verified",
+      "title": "Comparative Functional Analysis of\n                    <i>DPYD</i>\n                    Variants of Potential Clinical Relevance to Dihydropyrimidine Dehydrogenase Activity",
+      "year": 2014,
+      "contrastingEvidence": [
+        {
+          "citingDoi": "10.1177/1559325818803042",
+          "section": "discussion",
+          "scope_note": "Flags the separately classified DPYD *4; no new conclusion about the candidate alleles is drawn from this signal."
+        }
+      ]
+    }
+  ],
+  "accessed": "2026-11-08",
+  "method": "Scite verify_papers; editorial-notice screening, not independent biological confirmation"
+}
