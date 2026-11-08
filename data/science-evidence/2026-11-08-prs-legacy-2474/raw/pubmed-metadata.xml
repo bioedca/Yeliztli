@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <PMID Version="1">37198491</PMID>
+    <ArticleTitle>Polygenic scoring accuracy varies across the genetic ancestry continuum.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1476-4687</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>618</Volume>
+        <Issue>7966</Issue>
+        <PubDate>
+          <Year>2023</Year>
+          <Month>Jun</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Nature</Title>
+      <ISOAbbreviation>Nature</ISOAbbreviation>
+    </Journal>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">37198491</ArticleId>
+      <ArticleId IdType="pmc">PMC10284707</ArticleId>
+      <ArticleId IdType="doi">10.1038/s41586-023-06079-4</ArticleId>
+      <ArticleId IdType="pii">10.1038/s41586-023-06079-4</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+  <PubmedArticle>
+    <PMID Version="1">38374346</PMID>
+    <ArticleTitle>Selection, optimization and validation of ten chronic disease polygenic risk scores for clinical implementation in diverse US populations.</ArticleTitle>
+    <Journal>
+      <ISSN IssnType="Electronic">1546-170X</ISSN>
+      <JournalIssue CitedMedium="Internet">
+        <Volume>30</Volume>
+        <Issue>2</Issue>
+        <PubDate>
+          <Year>2024</Year>
+          <Month>Feb</Month>
+        </PubDate>
+      </JournalIssue>
+      <Title>Nature medicine</Title>
+      <ISOAbbreviation>Nat Med</ISOAbbreviation>
+    </Journal>
+    <CommentsCorrectionsList>
+      <CommentsCorrections RefType="UpdateOf">
+        <RefSource>medRxiv. 2023 Jun 05:2023.05.25.23290535. doi: 10.1101/2023.05.25.23290535.</RefSource>
+        <PMID Version="1">37333246</PMID>
+      </CommentsCorrections>
+    </CommentsCorrectionsList>
+    <PublicationTypeList>
+      <PublicationType UI="D016428">Journal Article</PublicationType>
+      <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+      <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+    </PublicationTypeList>
+    <ArticleIdList>
+      <ArticleId IdType="pubmed">38374346</ArticleId>
+      <ArticleId IdType="pmc">PMC10878968</ArticleId>
+      <ArticleId IdType="doi">10.1038/s41591-024-02796-z</ArticleId>
+      <ArticleId IdType="pii">10.1038/s41591-024-02796-z</ArticleId>
+    </ArticleIdList>
+  </PubmedArticle>
+</PubmedArticleSet>
