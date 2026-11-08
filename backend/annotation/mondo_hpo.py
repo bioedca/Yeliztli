@@ -1992,6 +1992,107 @@ def _mondo_hpo_installation_state(
     return row.version, row.file_path, row.checksum_sha256
 
 
+def _committed_source_bundle_sources(
+    published: _PublishedSourceBundle,
+    installed: tuple[str, str | None, str | None],
+) -> list[dict[str, str | int | None]]:
+    """Bind retained manifest facts to the content-addressed committed path."""
+    manifest = _read_source_bundle_manifest_from_fd(published.name, published.fd)
+    sources = manifest.get("sources")
+    expected = (
+        ("mondo_gene_disease", "gene_disease.9606.tsv.gz"),
+        ("hpo_genes_to_phenotype", "genes_to_phenotype.txt"),
+        ("mondo_sssom_exact_cross_references", "mondo.sssom.tsv"),
+    )
+    if (
+        type(manifest.get("schema_version")) is not int
+        or manifest["schema_version"] != 1
+        or manifest.get("ingestion_revision") != MONDO_HPO_INGESTION_REVISION
+        or not isinstance(sources, list)
+        or len(sources) != len(expected)
+    ):
+        raise ValueError("Committed MONDO/HPO source bundle has an invalid manifest")
+    for source, (role, filename) in zip(sources, expected, strict=True):
+        if not isinstance(source, dict) or source.get("role") != role:
+            raise ValueError("Committed MONDO/HPO source bundle has invalid source roles")
+        if _source_bundle_expected_file_fields(source)[0] != filename:
+            raise ValueError("Committed MONDO/HPO source bundle has invalid source filenames")
+        for key in ("version", "etag", "last_modified"):
+            if source.get(key) is not None and not isinstance(source[key], str):
+                raise ValueError("Committed MONDO/HPO source bundle has invalid source metadata")
+    primary_checksum = sources[0]["sha256"]
+    primary_version = sources[0].get("version") or (
+        f"{_UNVERIFIED_SOURCE_PREFIX}{primary_checksum[:16]}"
+    )
+    secondary_meta = [
+        {
+            key: value
+            for key, value in source.items()
+            if key in {"etag", "last_modified"} and isinstance(value, str)
+        }
+        for source in sources[1:]
+    ]
+    if (
+        _source_bundle_id(sources) != published.name
+        or primary_checksum != installed[2]
+        or _mondo_hpo_install_version(primary_version, *secondary_meta) != installed[0]
+    ):
+        raise ValueError("MONDO/HPO source bundle does not match committed provenance")
+    return sources
+
+
+def _reconcile_committed_source_bundle_pending(
+    managed: _ManagedSourceBundleDir,
+    installed: tuple[str, str | None, str | None] | None,
+) -> None:
+    """Recover a committed marker while the caller holds both publication claims.
+
+    A sentinel witnesses an incomplete lifecycle, not necessarily an uncommitted
+    transaction. Only the current committed path in this managed root is eligible;
+    historical, unknown and corrupt bundles retain their markers and all inputs.
+    Recovery is best-effort so an unreadable old bundle cannot prevent a refresh
+    from installing valid new inputs. Publication still validates any reused bundle.
+    """
+    if installed is None or installed[1] is None or installed[2] is None:
+        return
+    primary_path = Path(installed[1])
+    if (
+        primary_path.name != "gene_disease.9606.tsv.gz"
+        or primary_path.parent.parent != managed.path
+    ):
+        return
+    bundle_name = primary_path.parent.name
+    if len(bundle_name) != 64 or any(c not in "0123456789abcdef" for c in bundle_name):
+        return
+    try:
+        published = _open_published_source_bundle(managed, bundle_name)
+        try:
+            try:
+                pending = os.stat(
+                    SOURCE_BUNDLE_PENDING, dir_fd=published.fd, follow_symlinks=False
+                )
+            except FileNotFoundError:
+                return
+            if not stat.S_ISREG(pending.st_mode):
+                raise ValueError("Committed MONDO/HPO pending marker is not a regular file")
+            sources = _committed_source_bundle_sources(published, installed)
+            with ExitStack() as retained:
+                synced = _sync_source_bundle_contents(published.fd, sources, retained)
+                published = replace(published, synced_files=synced)
+                _assert_published_source_bundle_contents(managed, published, sources)
+                _clear_source_bundle_pending(published)
+                _sync_source_bundle_fd(published.fd)
+            logger.info("mondo_hpo_source_bundle_pending_reconciled", bundle_name=bundle_name)
+        finally:
+            os.close(published.fd)
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "mondo_hpo_source_bundle_pending_reconciliation_failed",
+            bundle_name=bundle_name,
+            error=str(exc),
+        )
+
+
 def _assert_mondo_hpo_source_is_not_older(
     installed: tuple[str, str | None, str | None] | None,
     candidate_version: str,
@@ -2919,6 +3020,7 @@ def download_and_load_mondo_hpo(
                     # pending until the row/version transaction commits, and every
                     # finalization operation uses the held root and child FDs.
                     with _open_managed_source_bundles_dir(staging, create=True) as managed:
+                        _reconcile_committed_source_bundle_pending(managed, current_installation)
                         with _publish_staged_source_bundle(
                             managed,
                             _source_bundle_id(sources),

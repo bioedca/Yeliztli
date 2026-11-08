@@ -999,6 +999,33 @@ class TestDownloadAndLoad:
                 return "bundle"
         return "ancestor"
 
+    @pytest.fixture
+    def committed_pending_bundle(self, monkeypatch, reference_engine, durability_downloads):
+        """Leave a real committed bundle at the failed final cleanup boundary."""
+
+        def fail_cleanup(published):
+            raise OSError("injected post-commit marker cleanup failure")
+
+        with monkeypatch.context() as failure:
+            failure.setattr(mondo_hpo, "_clear_source_bundle_pending", fail_cleanup)
+            stats = download_and_load_mondo_hpo(reference_engine, durability_downloads)
+        assert stats.records_loaded > 0
+        with reference_engine.connect() as conn:
+            installed = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+            ).one()
+        bundle = Path(installed.file_path).parent
+        assert (bundle / SOURCE_BUNDLE_PENDING).is_file()
+        original_download = mondo_hpo.download_file
+
+        def next_release(*args, **kwargs):
+            result = original_download(*args, **kwargs)
+            kwargs["meta"]["version"] = "20260416"
+            return result
+
+        monkeypatch.setattr(mondo_hpo, "download_file", next_release)
+        return durability_downloads, bundle, installed
+
     @pytest.mark.parametrize("reuse", [False, True])
     def test_source_durability_precedes_provenance_commit(
         self, monkeypatch, reference_engine, durability_downloads, reuse
@@ -1499,6 +1526,231 @@ class TestDownloadAndLoad:
         assert {
             path.name for path in (downloads / "mondo_hpo_sources").iterdir() if path.is_dir()
         } == managed
+
+    def test_next_refresh_reconciles_committed_pending_bundle(
+        self, monkeypatch, reference_engine, durability_downloads
+    ):
+        """A later source release recovers only the previously committed marker."""
+        downloads = durability_downloads
+
+        def fail_cleanup(published):
+            raise OSError("injected post-commit marker cleanup failure")
+
+        with monkeypatch.context() as cleanup_failure, capture_logs() as logs:
+            cleanup_failure.setattr(mondo_hpo, "_clear_source_bundle_pending", fail_cleanup)
+            installed = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert installed.records_loaded > 0
+        assert any(
+            entry["event"] == "mondo_hpo_source_bundle_pending_cleanup_failed" for entry in logs
+        )
+        with reference_engine.connect() as conn:
+            committed = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+            ).one()
+        assert committed.version == installed.version
+        assert committed.checksum_sha256 == installed.sha256
+        prior_bundle = Path(committed.file_path).parent
+        pending = prior_bundle / SOURCE_BUNDLE_PENDING
+        assert pending.is_file()
+        retained = {
+            path.name: path.read_bytes()
+            for path in prior_bundle.iterdir()
+            if path.name != SOURCE_BUNDLE_PENDING
+        }
+        assert len(retained) == 4
+        unrelated = prior_bundle.parent / "uncommitted-operator-bundle"
+        unrelated.mkdir()
+        (unrelated / SOURCE_BUNDLE_PENDING).write_bytes(b"keep pending\n")
+        (unrelated / "retained-input").write_bytes(b"keep input\n")
+
+        original_download = mondo_hpo.download_file
+
+        def next_release(*args, **kwargs):
+            result = original_download(*args, **kwargs)
+            kwargs["meta"]["version"] = "20260416"
+            return result
+
+        monkeypatch.setattr(mondo_hpo, "download_file", next_release)
+        refreshed = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert refreshed.records_loaded > 0
+        with reference_engine.connect() as conn:
+            current = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+            ).one()
+        assert current.version == refreshed.version
+        assert current.file_path != committed.file_path
+        assert not pending.exists()
+        assert not (Path(current.file_path).parent / SOURCE_BUNDLE_PENDING).exists()
+
+        # Repeating recovery must preserve both the original immutable inputs
+        # and a different bundle that has no committed provenance.
+        repeated = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert repeated.records_loaded > 0
+        assert not pending.exists()
+        assert {path.name: path.read_bytes() for path in prior_bundle.iterdir()} == retained
+        assert (unrelated / SOURCE_BUNDLE_PENDING).read_bytes() == b"keep pending\n"
+        assert (unrelated / "retained-input").read_bytes() == b"keep input\n"
+
+    @pytest.mark.parametrize(
+        "invalid",
+        [
+            "manifest-json",
+            "manifest-schema",
+            "manifest-identity",
+            "primary-content",
+            "secondary-content",
+            "marker-symlink",
+            "marker-directory",
+            "database-checksum",
+            "database-version",
+            "database-outside-path",
+            "database-parent-traversal",
+        ],
+    )
+    def test_recovery_preserves_unverified_committed_marker(
+        self, reference_engine, committed_pending_bundle, tmp_path, invalid
+    ):
+        """Failure to prove the old bundle never authorizes deleting its marker."""
+        downloads, bundle, installed = committed_pending_bundle
+        manifest_path = bundle / mondo_hpo.SOURCE_BUNDLE_MANIFEST
+        pending = bundle / SOURCE_BUNDLE_PENDING
+        external = tmp_path / "operator-marker"
+        external.write_bytes(b"operator-owned\n")
+        if invalid == "manifest-json":
+            manifest_path.write_bytes(b"not json\n")
+        elif invalid in {"manifest-schema", "manifest-identity"}:
+            manifest = json.loads(manifest_path.read_text())
+            if invalid == "manifest-schema":
+                manifest["schema_version"] = 999
+            else:
+                manifest["sources"][1]["etag"] = '"uncommitted-validator"'
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        elif invalid in {"primary-content", "secondary-content"}:
+            filename = (
+                "gene_disease.9606.tsv.gz"
+                if invalid == "primary-content"
+                else "genes_to_phenotype.txt"
+            )
+            (bundle / filename).write_bytes(b"corrupt retained input\n")
+        elif invalid in {"marker-symlink", "marker-directory"}:
+            pending.unlink()
+            if invalid == "marker-symlink":
+                pending.symlink_to(external)
+            else:
+                pending.mkdir()
+        else:
+            changes = {
+                "database-checksum": {"checksum_sha256": "0" * 64},
+                "database-version": {"version": installed.version.replace("20260415", "20260414")},
+                "database-outside-path": {"file_path": str(tmp_path / "gene_disease.9606.tsv.gz")},
+                "database-parent-traversal": {
+                    "file_path": str(bundle.parent / ".." / "gene_disease.9606.tsv.gz")
+                },
+            }
+            with reference_engine.begin() as conn:
+                conn.execute(
+                    database_versions.update()
+                    .where(database_versions.c.db_name == "mondo_hpo")
+                    .values(**changes[invalid])
+                )
+        marker_identity = mondo_hpo._source_bundle_identity(pending.lstat())
+        retained = {
+            path.name: path.read_bytes()
+            for path in bundle.iterdir()
+            if path.name != SOURCE_BUNDLE_PENDING
+        }
+        assert len(retained) == 4
+
+        refreshed = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert refreshed.records_loaded > 0
+        assert mondo_hpo._source_bundle_identity(pending.lstat()) == marker_identity
+        assert external.read_bytes() == b"operator-owned\n"
+        assert {
+            path.name: path.read_bytes()
+            for path in bundle.iterdir()
+            if path.name != SOURCE_BUNDLE_PENDING
+        } == retained
+        with reference_engine.connect() as conn:
+            current = conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+            ).one()
+        assert current.version == refreshed.version
+        assert Path(current.file_path).parent != bundle
+        assert not (Path(current.file_path).parent / SOURCE_BUNDLE_PENDING).exists()
+
+    def test_recovery_does_not_adopt_an_uncommitted_valid_bundle(
+        self, monkeypatch, reference_engine, durability_downloads
+    ):
+        downloads = durability_downloads
+
+        def fail_commit(*args, **kwargs):
+            raise RuntimeError("injected pre-commit failure")
+
+        with monkeypatch.context() as failure:
+            failure.setattr(mondo_hpo, "load_mondo_hpo_rows", fail_commit)
+            with pytest.raises(RuntimeError, match="injected pre-commit failure"):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+        bundles = list((downloads / mondo_hpo.SOURCE_BUNDLE_DIRECTORY).iterdir())
+        assert len(bundles) == 1
+        uncommitted = bundles[0]
+        assert (uncommitted / SOURCE_BUNDLE_PENDING).is_file()
+        with reference_engine.connect() as conn:
+            assert (
+                conn.execute(
+                    sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+                ).one_or_none()
+                is None
+            )
+        original_download = mondo_hpo.download_file
+
+        def next_release(*args, **kwargs):
+            result = original_download(*args, **kwargs)
+            kwargs["meta"]["version"] = "20260416"
+            return result
+
+        monkeypatch.setattr(mondo_hpo, "download_file", next_release)
+        refreshed = download_and_load_mondo_hpo(reference_engine, downloads)
+        assert refreshed.records_loaded > 0
+        assert (uncommitted / SOURCE_BUNDLE_PENDING).read_bytes() == b"pending\n"
+        assert (uncommitted / mondo_hpo.SOURCE_BUNDLE_MANIFEST).is_file()
+
+    @pytest.mark.parametrize("replacement", ["bundle", "root"])
+    def test_recovery_preserves_markers_when_pinned_directory_is_replaced(
+        self, monkeypatch, reference_engine, committed_pending_bundle, tmp_path, replacement
+    ):
+        downloads, bundle, installed = committed_pending_bundle
+        original = mondo_hpo._committed_source_bundle_sources
+        displaced = tmp_path / "displaced"
+        attacked = []
+
+        def replace_after_provenance(published, provenance):
+            sources = original(published, provenance)
+            target = bundle if replacement == "bundle" else bundle.parent
+            target.rename(displaced)
+            shutil.copytree(displaced, target)
+            (bundle / SOURCE_BUNDLE_PENDING).write_bytes(b"replacement marker\n")
+            attacked.append(published.name)
+            return sources
+
+        monkeypatch.setattr(
+            mondo_hpo, "_committed_source_bundle_sources", replace_after_provenance
+        )
+        if replacement == "root":
+            with pytest.raises(ValueError, match="source bundle directory changed"):
+                download_and_load_mondo_hpo(reference_engine, downloads)
+            with reference_engine.connect() as conn:
+                current = conn.execute(
+                    sa.select(database_versions).where(database_versions.c.db_name == "mondo_hpo")
+                ).one()
+            assert current.file_path == installed.file_path
+            assert current.version == installed.version
+        else:
+            refreshed = download_and_load_mondo_hpo(reference_engine, downloads)
+            assert refreshed.records_loaded > 0
+        assert attacked == [bundle.name]
+        assert (bundle / SOURCE_BUNDLE_PENDING).read_bytes() == b"replacement marker\n"
+        original_bundle = displaced if replacement == "bundle" else displaced / bundle.name
+        assert (original_bundle / SOURCE_BUNDLE_PENDING).read_bytes() == b"pending\n"
 
     def test_failed_row_load_keeps_previously_recorded_source_bundle(
         self,

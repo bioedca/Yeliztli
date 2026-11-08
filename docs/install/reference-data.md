@@ -144,7 +144,23 @@ including its original manifest, rather than relying on the disposable staging c
 Newly created downloads ancestors and their containing directory entries are synchronized
 before their descriptors are released. A synchronization or publication failure aborts the
 refresh; previously installed rows and provenance remain intact. Failed bundles remain for
-inspection. Pending-marker reconciliation after a crash is tracked separately in #2614.
+inspection.
+
+The `.mondo-hpo-pending` marker witnesses an unfinished lifecycle; the database transaction
+may already have committed before marker cleanup failed or the process exited. On the next
+refresh, `download_and_load_mondo_hpo` reconciles the currently committed bundle when it
+reaches the validated publication section, under the database and source-directory claims,
+before installing the new candidate. Recovery checks the committed path, version and primary
+checksum against the manifest's content/validator bundle ID, verifies every retained source
+through pinned descriptors, and removes only that bundle's regular pending marker before
+synchronizing its directory. Repeated recovery is harmless and never deletes retained inputs.
+
+Historical, uncommitted, unrelated or unverifiable bundles keep their markers. A failed
+recovery is logged and does not prevent installing valid new inputs; reusing an existing
+bundle still requires the normal manifest, content and descriptor checks. Recovery happens
+during a validated refresh, not as an automatic directory scan at startup or during a failed
+download. Inspect older retained bundles manually rather than inferring commitment from
+their names or clearing their markers in bulk.
 
 On Linux this protocol requires successful file and directory `fsync` calls. On macOS it
 also requires `F_FULLFSYNC` to flush the device cache; an unsupported operation or I/O error
