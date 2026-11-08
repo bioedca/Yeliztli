@@ -132,7 +132,7 @@ SEED_RAW_VARIANTS = [
         # Documented vendor indel encoding for CFTR F508del.
         "genotype": "DI",
     },
-    {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
+    {"rsid": "rsYELIZTLI2345001", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {
         "rsid": "rs12913832",
         "chrom": "15",

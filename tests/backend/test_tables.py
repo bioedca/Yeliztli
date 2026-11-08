@@ -367,11 +367,13 @@ class TestMetadataMaterialisation:
 
         with engine.connect() as conn:
             conn.execute(
-                raw_variants.insert().values(rsid="rs12345", chrom="1", pos=100000, genotype="AG")
+                raw_variants.insert().values(
+                    rsid="rsYELIZTLI2345001", chrom="1", pos=100000, genotype="AG"
+                )
             )
             conn.commit()
             result = conn.execute(
-                sa.select(raw_variants).where(raw_variants.c.rsid == "rs12345")
+                sa.select(raw_variants).where(raw_variants.c.rsid == "rsYELIZTLI2345001")
             ).fetchone()
             assert result is not None
             assert result.chrom == "1"

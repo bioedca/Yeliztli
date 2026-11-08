@@ -40,7 +40,7 @@ from backend.db.tables import (
 # ── Test data ────────────────────────────────────────────────────────
 
 RAW_VARIANTS_DATA = [
-    {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
+    {"rsid": "rsYELIZTLI2345001", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
     {"rsid": "rs1801133", "chrom": "1", "pos": 11856378, "genotype": "AG"},
@@ -50,7 +50,7 @@ OVERLAY_VCF_BYTES = (
     b"##fileformat=VCFv4.2\n"
     b'##INFO=<ID=AF,Number=A,Type=Float,Description="AF">\n'
     b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-    b"1\t100000\trs12345\tA\tG\t.\tPASS\tAF=0.05\n"
+    b"1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tAF=0.05\n"
 )
 
 
@@ -298,7 +298,7 @@ class TestApplyOverlay:
         content = (
             b"##fileformat=VCFv4.2\n"
             b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            b"1\t100000\trs12345\tA\tG\t.\tPASS\tCUSTOM_SCORE=0.99\n"
+            b"1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tCUSTOM_SCORE=0.99\n"
         )
         resp = overlay_client.post(
             "/api/overlays/upload?name=VCF+Apply",
@@ -315,7 +315,7 @@ class TestApplyOverlay:
         content = (
             b"##fileformat=VCFv4.2\n"
             b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            b"1\t100000\trs12345\tA\tG\t.\tPASS\tSCORE=0.99;LABEL=important\n"
+            b"1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tSCORE=0.99;LABEL=important\n"
         )
         resp = overlay_client.post(
             "/api/overlays/upload?name=Results+Test",
@@ -329,7 +329,7 @@ class TestApplyOverlay:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 1
-        assert data["results"][0]["rsid"] == "rs12345"
+        assert data["results"][0]["rsid"] == "rsYELIZTLI2345001"
         assert data["results"][0]["SCORE"] == 0.99
         assert data["results"][0]["LABEL"] == "important"
 
@@ -395,7 +395,7 @@ class TestOverlayIntegration:
             b'##INFO=<ID=CUSTOM_AF,Number=A,Type=Float,Description="Custom AF">\n'
             b'##INFO=<ID=CUSTOM_LABEL,Number=1,Type=String,Description="Custom label">\n'
             b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            b"1\t100000\trs12345\tA\tG\t.\tPASS\tCUSTOM_AF=0.03;CUSTOM_LABEL=high_impact\n"
+            b"1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tCUSTOM_AF=0.03;CUSTOM_LABEL=high_impact\n"
             b"19\t44908684\trs429358\tT\tC\t.\tPASS\tCUSTOM_AF=0.15;CUSTOM_LABEL=moderate\n"
         )
 
@@ -420,8 +420,8 @@ class TestOverlayIntegration:
         assert data["total"] == 2
 
         rsid_map = {r["rsid"]: r for r in data["results"]}
-        assert rsid_map["rs12345"]["CUSTOM_AF"] == 0.03
-        assert rsid_map["rs12345"]["CUSTOM_LABEL"] == "high_impact"
+        assert rsid_map["rsYELIZTLI2345001"]["CUSTOM_AF"] == 0.03
+        assert rsid_map["rsYELIZTLI2345001"]["CUSTOM_LABEL"] == "high_impact"
         assert rsid_map["rs429358"]["CUSTOM_AF"] == 0.15
         assert rsid_map["rs429358"]["CUSTOM_LABEL"] == "moderate"
 
@@ -448,7 +448,7 @@ def _count_overlay_rows(sample_db_path: Path, overlay_id: int) -> int:
 _OVERLAY_VCF = (
     b"##fileformat=VCFv4.2\n"
     b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-    b"1\t100000\trs12345\tA\tG\t.\tPASS\tSCORE=0.99\n"
+    b"1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tSCORE=0.99\n"
 )
 
 

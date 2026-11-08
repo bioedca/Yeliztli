@@ -35,13 +35,24 @@ from backend.annotation.dbsnp import (
     record_dbsnp_version,
     validate_rsids,
 )
-from backend.db.tables import annotated_variants, database_versions, dbsnp_merges
+from backend.db.tables import annotated_variants, database_versions, dbsnp_merges, raw_variants
 from tests.backend.conftest import SEED_RAW_VARIANTS
 
 # Path to test fixtures
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 MINI_RSMERGE_GZ = FIXTURES_DIR / "mini_rsmerge.bcp.gz"
 MINI_RSMERGE = FIXTURES_DIR / "mini_rsmerge.bcp"
+
+
+@pytest.fixture
+def sample_with_numeric_merge(sample_with_variants: sa.Engine) -> sa.Engine:
+    """Keep numeric-format merge behavior independent of the shared GENE1 locus.
+
+    This mock coordinate is only an input to rsID validation, not a mapping claim.
+    """
+    with sample_with_variants.begin() as conn:
+        conn.execute(raw_variants.insert().values(rsid="rs12345", chrom="1", pos=1, genotype="AG"))
+    return sample_with_variants
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -602,20 +613,20 @@ class TestAnnotateSampleDbsnp:
 
     def test_basic_annotation(
         self,
-        sample_with_variants: sa.Engine,
+        sample_with_numeric_merge: sa.Engine,
         seeded_reference_engine: sa.Engine,
     ):
-        result = annotate_sample_dbsnp(sample_with_variants, seeded_reference_engine)
+        result = annotate_sample_dbsnp(sample_with_numeric_merge, seeded_reference_engine)
 
-        num_variants = len(SEED_RAW_VARIANTS)
+        num_variants = len(SEED_RAW_VARIANTS) + 1
         assert result.total_variants == num_variants
         assert result.rows_written == num_variants
 
         # rs12345 is in SEED_DBSNP_MERGES as a merged rsid
-        assert result.merged_rsids >= 1
+        assert result.merged_rsids == 1
 
         # All variants should have been written
-        with sample_with_variants.connect() as conn:
+        with sample_with_numeric_merge.connect() as conn:
             count = conn.execute(
                 sa.select(sa.func.count()).select_from(annotated_variants)
             ).scalar()
@@ -623,12 +634,12 @@ class TestAnnotateSampleDbsnp:
 
     def test_merged_rsid_annotation(
         self,
-        sample_with_variants: sa.Engine,
+        sample_with_numeric_merge: sa.Engine,
         seeded_reference_engine: sa.Engine,
     ):
-        annotate_sample_dbsnp(sample_with_variants, seeded_reference_engine)
+        annotate_sample_dbsnp(sample_with_numeric_merge, seeded_reference_engine)
 
-        with sample_with_variants.connect() as conn:
+        with sample_with_numeric_merge.connect() as conn:
             row = conn.execute(
                 sa.select(
                     annotated_variants.c.dbsnp_validation,

@@ -59,7 +59,7 @@ def watches_client(tmp_data_dir: Path) -> TestClient:
             annotated_variants.insert(),
             [
                 {
-                    "rsid": "rs12345",
+                    "rsid": "rsYELIZTLI2345001",
                     "chrom": "1",
                     "pos": 100000,
                     "clinvar_significance": "Uncertain_significance",
@@ -105,11 +105,11 @@ class TestWatchVariant:
         """POST snapshots current ClinVar significance."""
         resp = watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345", "notes": "track this VUS"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001", "notes": "track this VUS"},
         )
         assert resp.status_code == 201
         data = resp.json()
-        assert data["rsid"] == "rs12345"
+        assert data["rsid"] == "rsYELIZTLI2345001"
         assert data["clinvar_significance_at_watch"] == "Uncertain_significance"
         assert data["clinvar_significance_current"] == "Uncertain_significance"
         assert data["notes"] == "track this VUS"
@@ -141,11 +141,11 @@ class TestWatchVariant:
         """POST returns 409 if variant is already watched."""
         watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"},
         )
         resp = watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"},
         )
         assert resp.status_code == 409
         assert "already being watched" in resp.json()["detail"]
@@ -154,7 +154,7 @@ class TestWatchVariant:
         """POST returns 404 for nonexistent sample."""
         resp = watches_client.post(
             "/api/watches",
-            json={"sample_id": 999, "rsid": "rs12345"},
+            json={"sample_id": 999, "rsid": "rsYELIZTLI2345001"},
         )
         assert resp.status_code == 404
 
@@ -169,10 +169,10 @@ class TestUnwatchVariant:
         """DELETE removes the watched variant."""
         watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"},
         )
 
-        resp = watches_client.delete("/api/watches/rs12345?sample_id=1")
+        resp = watches_client.delete("/api/watches/rsYELIZTLI2345001?sample_id=1")
         assert resp.status_code == 204
 
         # Confirm gone from list
@@ -182,13 +182,13 @@ class TestUnwatchVariant:
 
     def test_unwatch_nonexistent_returns_404(self, watches_client: TestClient):
         """DELETE returns 404 if variant is not being watched."""
-        resp = watches_client.delete("/api/watches/rs12345?sample_id=1")
+        resp = watches_client.delete("/api/watches/rsYELIZTLI2345001?sample_id=1")
         assert resp.status_code == 404
         assert "not being watched" in resp.json()["detail"]
 
     def test_unwatch_nonexistent_sample_returns_404(self, watches_client: TestClient):
         """DELETE returns 404 for nonexistent sample."""
-        resp = watches_client.delete("/api/watches/rs12345?sample_id=999")
+        resp = watches_client.delete("/api/watches/rsYELIZTLI2345001?sample_id=999")
         assert resp.status_code == 404
 
 
@@ -217,7 +217,7 @@ class TestListWatched:
         ticks = count()
         with patch("backend.api.routes.watches.datetime") as mock_dt:
             mock_dt.now.side_effect = lambda *a, **k: base + timedelta(seconds=next(ticks))
-            watches_client.post("/api/watches", json={"sample_id": 1, "rsid": "rs12345"})
+            watches_client.post("/api/watches", json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"})
             watches_client.post("/api/watches", json={"sample_id": 1, "rsid": "rs80357906"})
 
         resp = watches_client.get("/api/watches?sample_id=1")
@@ -226,13 +226,13 @@ class TestListWatched:
         assert len(data) == 2
         # Most recent first: rs80357906 got the later (larger) injected timestamp.
         assert data[0]["rsid"] == "rs80357906"
-        assert data[1]["rsid"] == "rs12345"
+        assert data[1]["rsid"] == "rsYELIZTLI2345001"
 
     def test_list_includes_current_clinvar_significance(self, watches_client: TestClient):
         """GET returns clinvar_significance_current from annotated_variants (P4-21k)."""
         watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"},
         )
 
         resp = watches_client.get("/api/watches?sample_id=1")
@@ -249,7 +249,7 @@ class TestListWatched:
         # Watch variant — snapshots current ClinVar significance
         watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001"},
         )
 
         # Simulate a ClinVar reclassification by directly updating annotated_variants
@@ -264,7 +264,9 @@ class TestListWatched:
         sample_engine = sa.create_engine(f"sqlite:///{sample_db_path}")
         with sample_engine.begin() as conn:
             conn.execute(
-                av.update().where(av.c.rsid == "rs12345").values(clinvar_significance="Pathogenic")
+                av.update()
+                .where(av.c.rsid == "rsYELIZTLI2345001")
+                .values(clinvar_significance="Pathogenic")
             )
         sample_engine.dispose()
 
@@ -296,22 +298,22 @@ class TestUpdateWatchNotes:
         """PATCH updates notes on a watched variant."""
         watches_client.post(
             "/api/watches",
-            json={"sample_id": 1, "rsid": "rs12345", "notes": "old note"},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001", "notes": "old note"},
         )
 
         resp = watches_client.patch(
-            "/api/watches/rs12345",
+            "/api/watches/rsYELIZTLI2345001",
             json={"sample_id": 1, "notes": "updated note"},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["notes"] == "updated note"
-        assert data["rsid"] == "rs12345"
+        assert data["rsid"] == "rsYELIZTLI2345001"
 
     def test_update_notes_nonexistent_returns_404(self, watches_client: TestClient):
         """PATCH returns 404 if variant is not being watched."""
         resp = watches_client.patch(
-            "/api/watches/rs12345",
+            "/api/watches/rsYELIZTLI2345001",
             json={"sample_id": 1, "notes": "nope"},
         )
         assert resp.status_code == 404
