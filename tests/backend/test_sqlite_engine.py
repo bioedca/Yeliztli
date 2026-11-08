@@ -15,11 +15,13 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import NullPool
 
+from backend.db import sqlite_engine
 from backend.db.sqlite_engine import DEFAULT_BUSY_TIMEOUT_MS, make_sqlite_engine
 
 
@@ -263,6 +265,97 @@ def test_tiny_busy_timeout_still_raises_under_contention(tmp_path: Path) -> None
     finally:
         release.set()
         holder.join(5.0)
+
+
+@pytest.fixture
+def wal_connect_fault(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Inject immediate SQLite errors in the real engine's WAL connect pragma."""
+    engines = []
+    connections = []
+
+    def create(*, error_code: int, failures: int | None, timeout_ms: int = 25):
+        state = SimpleNamespace(attempts=0, elapsed=0.0, sleeps=[])
+
+        def sleep(delay: float) -> None:
+            state.sleeps.append(delay)
+            state.elapsed += delay
+
+        monkeypatch.setattr(
+            sqlite_engine,
+            "time",
+            SimpleNamespace(monotonic=lambda: state.elapsed, sleep=sleep),
+            raising=False,
+        )
+
+        class FaultCursor(sqlite3.Cursor):
+            def execute(self, sql, parameters=()):
+                if sql == "PRAGMA journal_mode=WAL":
+                    state.attempts += 1
+                    if failures is None or state.attempts <= failures:
+                        error = sqlite3.OperationalError("synthetic WAL connect failure")
+                        error.sqlite_errorcode = error_code
+                        raise error
+                return super().execute(sql, parameters)
+
+        class FaultConnection(sqlite3.Connection):
+            def cursor(self, *args, **kwargs):
+                return super().cursor(*args, factory=FaultCursor, **kwargs)
+
+        def connect(dialect, record, args, kwargs):
+            conn = sqlite3.connect(*args, factory=FaultConnection, **kwargs)
+            connections.append(conn)
+            return conn
+
+        engine = make_sqlite_engine(tmp_path / "wal-fault.db", busy_timeout_ms=timeout_ms)
+        sa.event.listen(engine, "do_connect", connect)
+        engines.append(engine)
+        return engine, state
+
+    yield create
+    for engine in engines:
+        engine.dispose()
+    for conn in connections:
+        conn.close()
+
+
+@pytest.mark.parametrize("error_code", [sqlite3.SQLITE_BUSY, sqlite3.SQLITE_BUSY_RECOVERY])
+def test_wal_setup_retries_immediate_busy_and_restores_query_timeout(
+    wal_connect_fault, error_code: int
+) -> None:
+    engine, state = wal_connect_fault(error_code=error_code, failures=1)
+    assert _journal_mode(engine) == "wal"
+    assert _busy_timeout(engine) == 25
+    assert _synchronous(engine) == 2
+    assert state.attempts == 2
+    assert 0 < sum(state.sleeps) < 0.025
+
+
+def test_wal_setup_busy_exhausts_one_bounded_timeout(wal_connect_fault) -> None:
+    engine, state = wal_connect_fault(error_code=sqlite3.SQLITE_BUSY, failures=None)
+    with pytest.raises(sa.exc.OperationalError) as caught:
+        engine.connect()
+    assert caught.value.orig.sqlite_errorcode == sqlite3.SQLITE_BUSY
+    assert state.attempts > 1
+    assert sum(state.sleeps) == pytest.approx(0.025)
+
+
+def test_wal_setup_zero_timeout_does_not_retry(wal_connect_fault) -> None:
+    engine, state = wal_connect_fault(error_code=sqlite3.SQLITE_BUSY, failures=None, timeout_ms=0)
+    with pytest.raises(sa.exc.OperationalError) as caught:
+        engine.connect()
+    assert caught.value.orig.sqlite_errorcode == sqlite3.SQLITE_BUSY
+    assert state.attempts == 1
+    assert state.sleeps == []
+
+
+@pytest.mark.parametrize("error_code", [sqlite3.SQLITE_READONLY, sqlite3.SQLITE_LOCKED])
+def test_wal_setup_does_not_retry_other_errors(wal_connect_fault, error_code: int) -> None:
+    engine, state = wal_connect_fault(error_code=error_code, failures=None)
+    with pytest.raises(sa.exc.OperationalError) as caught:
+        engine.connect()
+    assert caught.value.orig.sqlite_errorcode == error_code
+    assert state.attempts == 1
+    assert state.sleeps == []
 
 
 # ── Repo guard: no raw file-backed sqlite engines outside the factory ─
