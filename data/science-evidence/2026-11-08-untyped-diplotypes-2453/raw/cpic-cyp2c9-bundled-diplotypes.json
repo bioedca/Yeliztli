@@ -1,0 +1,142 @@
+[
+  {
+    "diplotype": "*1/*1",
+    "generesult": "Normal Metabolizer",
+    "totalactivityscore": "2.0"
+  },
+  {
+    "diplotype": "*1/*11",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.5"
+  },
+  {
+    "diplotype": "*1/*2",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.5"
+  },
+  {
+    "diplotype": "*1/*3",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*1/*5",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.5"
+  },
+  {
+    "diplotype": "*1/*6",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*1/*8",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.5"
+  },
+  {
+    "diplotype": "*11/*11",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*2/*11",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*2/*2",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*2/*3",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*2/*5",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*2/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*2/*8",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*3/*11",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*3/*3",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.0"
+  },
+  {
+    "diplotype": "*3/*5",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*3/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.0"
+  },
+  {
+    "diplotype": "*3/*8",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*5/*11",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*5/*5",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*5/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*5/*8",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*6/*11",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*6/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.0"
+  },
+  {
+    "diplotype": "*6/*8",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "0.5"
+  },
+  {
+    "diplotype": "*8/*11",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  },
+  {
+    "diplotype": "*8/*8",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "1.0"
+  }
+]

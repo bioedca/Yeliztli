@@ -1,0 +1,92 @@
+{
+  "accessed": "2026-11-08",
+  "consensus_query": "CPIC guidelines genotype phenotype translation DPYD fluoropyrimidines CYP2B6 efavirenz CYP2C9 phenytoin UGT1A1 atazanavir",
+  "fetched_papers": [
+    {
+      "id": "dcc8a029688b5d2991747474fadf6de7",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update",
+      "doi": "10.1002/cpt.911",
+      "year": "2017"
+    },
+    {
+      "id": "0b0b6df927ad5f908c1bb7a029be23e0",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2B6 and Efavirenz-containing Antiretroviral Therapy",
+      "doi": "10.1002/cpt.1477",
+      "year": "2019"
+    },
+    {
+      "id": "c6fa82864e0c508d8c2e907c909194e5",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2C9 and HLA-B Genotypes and Phenytoin Dosing: 2020 Update",
+      "doi": "10.1002/cpt.2008",
+      "year": "2020"
+    },
+    {
+      "id": "58c64b7bf4d85ed6b53bfb7469797c71",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for UGT1A1 and Atazanavir Prescribing",
+      "doi": "10.1002/cpt.269",
+      "year": "2015"
+    }
+  ],
+  "scite_verification": [
+    {
+      "summary": {
+        "verified": 2,
+        "couldNotVerify": 0,
+        "withEditorialNotices": 0,
+        "withContrastingEvidence": 0,
+        "inPredatoryJournals": 0
+      },
+      "papers": [
+        {
+          "doi": "10.1002/cpt.911",
+          "status": "verified",
+          "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update",
+          "year": 2017
+        },
+        {
+          "doi": "10.1002/cpt.1477",
+          "status": "verified",
+          "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for <i>CYP2B6</i> and Efavirenz‐Containing Antiretroviral Therapy",
+          "year": 2019
+        }
+      ]
+    },
+    {
+      "summary": {
+        "verified": 2,
+        "couldNotVerify": 0,
+        "withEditorialNotices": 0,
+        "withContrastingEvidence": 0,
+        "inPredatoryJournals": 0
+      },
+      "papers": [
+        {
+          "doi": "10.1002/cpt.2008",
+          "status": "verified",
+          "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for\n                    <i>CYP2C9</i>\n                    and\n                    <i>HLA‐B</i>\n                    Genotypes and Phenytoin Dosing: 2020 Update",
+          "year": 2020
+        },
+        {
+          "doi": "10.1002/cpt.269",
+          "status": "verified",
+          "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for <i>UGT1A1</i> and Atazanavir Prescribing",
+          "year": 2015
+        }
+      ]
+    }
+  ],
+  "pubmed_query": "10.1002/cpt.911[aid] OR 10.1002/cpt.1477[aid] OR 10.1002/cpt.2008[aid] OR 10.1002/cpt.269[aid]",
+  "pubmed_ids": [
+    "29152729",
+    "31006110",
+    "32779747",
+    "26417955"
+  ],
+  "fallbacks": [
+    "CPIC guideline pages redirected to JavaScript-only ClinPGx pages; primary PMC papers and CPIC API used.",
+    "PMC browser retrieval challenged DPYD and CYP2C9 pages; Entrez efetch db=pmc supplied their classification tables.",
+    "Python urllib requests to the public CPIC API returned HTTP 403 code 1010; the repository's established curl transport succeeded.",
+    "Initial DPYD exact-name lookup used repository aliases; complete lookup was repeated using CPIC-native names from the already committed same-day packet."
+  ],
+  "scope": "Discovery and editorial-notice metadata only. No abstracts, author contacts, affiliations, institutional links, patient data or effect claims retained."
+}

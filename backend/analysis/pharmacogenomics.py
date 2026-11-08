@@ -1698,11 +1698,12 @@ def _infer_conservative_phenotype(
     """Return a lower-activity plausible phenotype from indeterminate alleles.
 
     The caller fills unobserved chromosomes with the reference allele. For a
-    partial call, replacing one such reference-filled chromosome with an
-    indeterminate allele models the smallest clinically relevant uncertainty:
-    one untyped reduced/no-function allele may be present. If that plausible
-    diplotype has a lower CPIC activity score, use it for prescribing alerts
-    rather than alerting on the milder direct call. A same-label candidate is
+    partial call, an indeterminate allele may occupy either reference-filled
+    chromosome, or both when neither slot is an observed non-reference allele.
+    Consider each of these candidates using the shipped diplotype rows; never
+    infer an absent row's phenotype or score from allele arithmetic. Use the
+    lowest supported candidate for prescribing alerts rather than alerting on
+    the milder direct call. A same-label candidate is
     relevant only when a shipped guideline explicitly keys that lower score
     within the phenotype band (for example CYP2C9/phenytoin).
 
@@ -1737,9 +1738,17 @@ def _infer_conservative_phenotype(
         if allele_rsids & result.involved_rsids:
             continue
 
-        for index in reference_slots:
-            plausible = called_alleles.copy()
-            plausible[index] = indeterminate_allele
+        plausible_sets = [
+            [
+                indeterminate_allele if i == slot else allele
+                for i, allele in enumerate(called_alleles)
+            ]
+            for slot in reference_slots
+        ]
+        if len(reference_slots) == len(called_alleles):
+            plausible_sets.append([indeterminate_allele] * len(called_alleles))
+
+        for plausible in plausible_sets:
             plausible_diplotype = _canonical_diplotype(plausible[0], plausible[1])
             if plausible_diplotype == result.diplotype:
                 continue

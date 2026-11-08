@@ -358,7 +358,7 @@ def test_ugt1a1_star28_is_indeterminate_when_unassayed(reference_engine: sa.Engi
     assert result.call_confidence == CallConfidence.PARTIAL
 
 
-def test_ugt1a1_star28_indeterminate_alerts_use_conservative_intermediate(
+def test_ugt1a1_star28_indeterminate_alerts_use_conservative_poor(
     reference_engine: sa.Engine,
 ) -> None:
     sample = _make_sample({_UGT1A1_6: "GG"})  # *28 omitted
@@ -369,26 +369,25 @@ def test_ugt1a1_star28_indeterminate_alerts_use_conservative_intermediate(
     assert ugt.phenotype == "Normal Metabolizer"
     assert ugt.call_confidence == CallConfidence.PARTIAL
     assert ugt.indeterminate_alleles == ["*28"]
-    assert ugt.conservative_diplotype == "*1/*28"
-    assert ugt.conservative_phenotype == "Intermediate Metabolizer"
+    assert ugt.conservative_diplotype == "*28/*28"
+    assert ugt.conservative_phenotype == "Poor Metabolizer"
+    assert ugt.conservative_activity_score == 1.0
 
     alerts = generate_prescribing_alerts(results, reference_engine)
     ugt_alerts = {a.drug: a for a in alerts if a.gene == "UGT1A1"}
 
     assert {"atazanavir", "irinotecan"} <= set(ugt_alerts)
     for alert in ugt_alerts.values():
-        assert alert.phenotype == "Intermediate Metabolizer"
+        assert alert.phenotype == "Poor Metabolizer"
         assert alert.called_phenotype == "Normal Metabolizer"
         assert alert.conservative_alert is True
-        assert alert.conservative_diplotype == "*1/*28"
+        assert alert.conservative_diplotype == "*28/*28"
         assert alert.conservative_allele == "*28"
         assert "*28" in alert.indeterminate_alleles
-        assert "Conservative prescribing alert uses Intermediate Metabolizer" in (
-            alert.confidence_note
-        )
+        assert "Conservative prescribing alert uses Poor Metabolizer" in (alert.confidence_note)
 
-    assert "low likelihood" in ugt_alerts["atazanavir"].recommendation
-    assert "consider reduction for high-dose" in ugt_alerts["irinotecan"].recommendation
+    assert "Consider an alternative agent" in ugt_alerts["atazanavir"].recommendation
+    assert "Reduce the irinotecan starting dose" in ugt_alerts["irinotecan"].recommendation
 
 
 def test_ugt1a1_conservative_alert_store_preserves_called_summary_fields(
@@ -420,12 +419,12 @@ def test_ugt1a1_conservative_alert_store_preserves_called_summary_fields(
     assert {row.drug for row in rows} >= {"atazanavir", "irinotecan"}
     for row in rows:
         detail = json.loads(row.detail_json)
-        assert row.metabolizer_status == "Intermediate Metabolizer"
+        assert row.metabolizer_status == "Poor Metabolizer"
         assert detail["conservative_alert"] is True
         assert detail["called_phenotype"] == "Normal Metabolizer"
         assert detail["called_activity_score"] == 2.0
         assert detail["called_ehr_notation"] == "UGT1A1 Normal Metabolizer"
-        assert detail["conservative_phenotype"] == "Intermediate Metabolizer"
+        assert detail["conservative_phenotype"] == "Poor Metabolizer"
 
 
 def test_ugt1a1_uncallable_repeat_genotype_is_indeterminate(reference_engine: sa.Engine) -> None:
