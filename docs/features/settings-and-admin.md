@@ -2,6 +2,32 @@
 
 Open settings from the gear icon in the sidebar.
 
+## Sample metadata
+
+Under **General → Sample Management**, edit a sample's name, notes, collection
+date, source, or custom fields. To remove an incorrect collection date, clear
+**Date Collected** and choose **Save Changes**. Editing another field leaves an
+untouched date unchanged.
+
+For API clients, `PATCH /api/samples/{sample_id}` distinguishes omitted fields
+from explicit JSON `null` for `date_collected`, `notes`, and `source`:
+
+| Request value | Effect |
+| --- | --- |
+| Field omitted | Preserve its stored value. |
+| Explicit `null` | Clear its stored value. Previously, this was a no-op. |
+| Non-null value | Update the field; dates must be valid date strings. |
+
+For example, `{"date_collected": null}` removes the date without changing notes
+or source. Send dates in `YYYY-MM-DD` form. Empty-string and malformed dates
+return **422**, before any rename or metadata change is saved. The date editor
+sends `null` when cleared and omits untouched fields.
+
+Empty strings for notes and source remain literal stored values; responses
+continue to present those empty strings as `null`. Name and custom-field
+semantics are unchanged: `null` does not update either, names must be nonblank,
+and an empty `extra` object (`{}`) clears custom fields.
+
 ## Database management
 
 - View installed reference-database versions and sizes.

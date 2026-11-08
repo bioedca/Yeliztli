@@ -16,9 +16,9 @@ export interface Sample {
 
 export interface SampleUpdate {
   name?: string
-  notes?: string
-  date_collected?: string
-  source?: string
+  notes?: string | null
+  date_collected?: string | null
+  source?: string | null
   extra?: Record<string, unknown>
 }
 

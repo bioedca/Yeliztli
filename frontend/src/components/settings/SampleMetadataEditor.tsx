@@ -171,7 +171,7 @@ function SampleEditForm({
     const data: SampleUpdate = {}
     if (name !== null) data.name = name.trim()
     if (notes !== null) data.notes = notes
-    if (dateCollected !== null) data.date_collected = dateCollected
+    if (dateCollected !== null) data.date_collected = dateCollected || null
     if (source !== null) data.source = source
     if (extra !== null) data.extra = extra
 

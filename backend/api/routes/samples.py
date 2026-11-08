@@ -167,7 +167,7 @@ async def get_sample(sample_id: int) -> SampleResponse:
 
 @router.patch("/{sample_id}")
 async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
-    """Update sample metadata (rename, notes, date, source, extra JSON)."""
+    """Update metadata; explicit null clears notes/date/source, omission preserves them."""
     registry = get_registry()
     settings = registry.settings
 
@@ -226,11 +226,13 @@ async def update_sample(sample_id: int, body: SampleUpdate) -> SampleResponse:
         meta_updates: dict = {}
         if name is not None:
             meta_updates["name"] = name
-        if body.notes is not None:
+        # Nullable metadata uses field presence: omitted means unchanged,
+        # while an explicitly supplied null clears the stored value (#2354).
+        if "notes" in body.model_fields_set:
             meta_updates["notes"] = body.notes
-        if body.date_collected is not None:
+        if "date_collected" in body.model_fields_set:
             meta_updates["date_collected"] = parsed_date
-        if body.source is not None:
+        if "source" in body.model_fields_set:
             meta_updates["source"] = body.source
         if body.extra is not None:
             meta_updates["extra"] = json.dumps(body.extra)
