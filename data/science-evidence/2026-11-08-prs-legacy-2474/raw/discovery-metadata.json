@@ -1,0 +1,64 @@
+{
+  "accessed": "2026-11-08",
+  "queries": {
+    "consensus": "PMID 37198491 polygenic score prediction genetic ancestry continuum calibration",
+    "scite": {
+      "pmids": [
+        "37198491",
+        "38374346"
+      ],
+      "limit": 2,
+      "user_intent": "verify_existing_prs_calibration_references"
+    },
+    "entrez": {
+      "endpoint": "efetch",
+      "params": {
+        "db": "pubmed",
+        "id": "37198491,38374346",
+        "retmode": "xml"
+      }
+    }
+  },
+  "consensus_selected_metadata": [
+    {
+      "id": "143ee361696e5cbe8836e5bc45a471cd",
+      "title": "Polygenic scoring accuracy varies across the genetic ancestry continuum",
+      "doi": "10.1038/s41586-023-06079-4",
+      "publish_year": "2023",
+      "journal": "Nature"
+    },
+    {
+      "id": "c02fb8d28add54b08840dff510124726",
+      "title": "Selection, optimization and validation of ten chronic disease polygenic risk scores for clinical implementation in diverse US populations",
+      "doi": "10.1038/s41591-024-02796-z",
+      "publish_year": "2024",
+      "journal": "Nature Medicine"
+    }
+  ],
+  "scite_verification": {
+    "summary": {
+      "verified": 2,
+      "couldNotVerify": 0,
+      "withEditorialNotices": 0,
+      "withContrastingEvidence": 0,
+      "inPredatoryJournals": 0
+    },
+    "papers": [
+      {
+        "doi": "10.1038/s41586-023-06079-4",
+        "status": "verified",
+        "title": "Polygenic scoring accuracy varies across the genetic ancestry continuum",
+        "year": 2023
+      },
+      {
+        "doi": "10.1038/s41591-024-02796-z",
+        "status": "verified",
+        "title": "Selection, optimization and validation of ten chronic disease polygenic risk scores for clinical implementation in diverse US populations",
+        "year": 2024
+      }
+    ]
+  },
+  "retained_fields": "Bibliographic metadata and editorial-notice status only; abstracts, affiliations, author/contact details and provider access links omitted.",
+  "fallbacks": [],
+  "ngs": "Not applicable: no material sequencing inputs or pipeline changes."
+}

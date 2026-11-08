@@ -49,6 +49,12 @@ A **28-gene** hereditary-cancer panel, including *BRCA1*, *BRCA2*, *TP53*, *PALB
     variants; the page still lists that model and shows how many of its variants were typed,
     so a low-coverage score is not mistaken for a missing one.
 
+    Older stored results with identifiable calibration from *Uncertain* ancestry are
+    repaired when the sample is opened after upgrading. Their percentile and z-score
+    are withheld; the stored raw score and coverage are preserved. This also applies
+    to the metabolic, eBMD, FH and traits modules. Customized or unidentifiable legacy
+    results are left unchanged and may need reanalysis.
+
 ## Good to know
 
 - A negative result does **not** rule out hereditary cancer risk — arrays type only specific
