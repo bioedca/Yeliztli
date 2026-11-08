@@ -7584,7 +7584,13 @@ def test_public_template_contains_only_hosted_review_gates() -> None:
     assert HUMAN_GATE not in template
     assert "Developer Certificate of Origin" not in template
     assert "Agent claim ID:" in template
-    assert "zero-comment coverage verdict exactly once and zero attached comments" in template
+    assert "isCopilotCodeReview=true, COMMENTED state, zero attached comments" in template
+    assert (
+        "exactly one supported body format: the legacy zero-comment coverage sentence" in template
+    )
+    assert "Approval recommended assessment with a unique Review details block" in template
+    assert "positive file coverage and zero generated comments" in template
+    assert "Mixed or duplicate verdicts fail closed" in template
     assert "zero actionable/attached comments, no ignored files" in template
     assert "empty zero-comment formal approval" in template
     assert "code block or raw HTML" in template
