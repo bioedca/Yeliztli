@@ -58,6 +58,7 @@ populating ``individuals.biological_sex``) will use it too.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Literal
 
@@ -247,7 +248,7 @@ class SexSignals:
     y_rate: float
 
 
-def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
+def compute_sex_signals(sample_engine: sa.Engine | sa.Connection) -> SexSignals:
     """Tabulate non-PAR chrX het/hom and chrY call counts from ``raw_variants``."""
     x_nonpar_typed = 0
     x_nonpar_het = 0
@@ -256,7 +257,11 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
     y_total = 0
     y_typed = 0
 
-    with sample_engine.connect() as conn:
+    with (
+        sample_engine.connect()
+        if isinstance(sample_engine, sa.Engine)
+        else nullcontext(sample_engine)
+    ) as conn:
         x_rows = conn.execute(
             sa.select(raw_variants.c.pos, raw_variants.c.genotype).where(
                 raw_variants.c.chrom == "X"
@@ -299,7 +304,7 @@ def compute_sex_signals(sample_engine: sa.Engine) -> SexSignals:
     )
 
 
-def infer_biological_sex(sample_engine: sa.Engine) -> Classification:
+def infer_biological_sex(sample_engine: sa.Engine | sa.Connection) -> Classification:
     """Infer biological sex from a sample's ``raw_variants`` table.
 
     Returns one of ``"XX"``, ``"XY"``, ``"manual_review"``, ``"unknown"``.
