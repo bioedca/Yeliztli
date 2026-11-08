@@ -96,8 +96,9 @@ can use the single gene named by that allele's complete ClinVar `GENEINFO` field
 The gene source is shown as **ClinVar** in variant detail. This does not supply a
 transcript, HGVS annotation, or VEP coverage. Existing VEP gene context takes
 precedence, including a selected VEP row with no gene. Failed or unavailable VEP
-lookups, unresolved allele selection, multiple genes, conflicting gene assertions,
-and legacy records without complete `GENEINFO` do not supply this fallback.
+lookups, unresolved allele selection, coordinate matches withheld by VEP, multiple
+genes, conflicting gene assertions, and legacy records without complete `GENEINFO`
+do not supply this fallback.
 
 The selected gene enters the existing disease-scoped phenotype/inheritance lookup;
 ClinVar's gene name itself does not establish an inheritance pattern. The annotation

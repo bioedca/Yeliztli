@@ -489,12 +489,14 @@ class TestLookupByPositions:
 
     def test_single_position_match(self, vep_engine_inmemory: sa.Engine) -> None:
         positions = [("19", 45411941, "i_custom_rsid")]
-        result = lookup_vep_by_positions(positions, vep_engine_inmemory)
+        ambiguous: set[str] = set()
+        result = lookup_vep_by_positions(positions, vep_engine_inmemory, ambiguous_out=ambiguous)
         assert len(result) == 1
         assert "i_custom_rsid" in result
         annot = result["i_custom_rsid"]
         assert annot.gene_symbol == "APOE"
         assert annot.matched_by == "chrom_pos"
+        assert ambiguous == set()
 
     def test_multiple_positions(self, vep_engine_inmemory: sa.Engine) -> None:
         positions = [
@@ -506,8 +508,10 @@ class TestLookupByPositions:
 
     def test_no_match(self, vep_engine_inmemory: sa.Engine) -> None:
         positions = [("99", 999999999, "no_match")]
-        result = lookup_vep_by_positions(positions, vep_engine_inmemory)
+        ambiguous: set[str] = set()
+        result = lookup_vep_by_positions(positions, vep_engine_inmemory, ambiguous_out=ambiguous)
         assert len(result) == 0
+        assert ambiguous == set()
 
     def test_empty_input(self, vep_engine_inmemory: sa.Engine) -> None:
         result = lookup_vep_by_positions([], vep_engine_inmemory)
@@ -566,9 +570,11 @@ class TestLookupByPositions:
                 )
             )
         positions = [("1", 100, "i_sample")]
-        result = lookup_vep_by_positions(positions, engine)
+        ambiguous: set[str] = set()
+        result = lookup_vep_by_positions(positions, engine, ambiguous_out=ambiguous)
         # Ambiguous: multiple rsids at same position, should be skipped
         assert len(result) == 0
+        assert ambiguous == {"i_sample"}
 
     def test_multiallelic_position_uses_carried_alt(
         self,

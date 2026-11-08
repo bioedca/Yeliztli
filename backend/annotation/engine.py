@@ -866,7 +866,7 @@ def _lookup_alphamissense(
 def _clinvar_gene_fallbacks(
     vep_data: dict[str, dict],
     clinvar_data: dict[str, dict],
-    vep_allele_ambiguous: set[str],
+    vep_ambiguous: set[str],
     *,
     vep_lookup_complete: bool,
 ) -> dict[str, dict]:
@@ -877,7 +877,7 @@ def _clinvar_gene_fallbacks(
         return {}
     result = {}
     for rsid, clinvar in clinvar_data.items():
-        if rsid in vep_data or rsid in vep_allele_ambiguous:
+        if rsid in vep_data or rsid in vep_ambiguous:
             continue
         gene = gene_symbol_from_gene_info(clinvar.get("clinvar_gene_info"))
         if gene and clinvar.get("clinvar_allele_identity"):
@@ -1388,6 +1388,7 @@ def _vep_coord_fallback(
     result: AnnotationEngineResult,
     *,
     allele_by_rsid: dict[str, tuple[str, int, str, str]] | None = None,
+    ambiguous_out: set[str] | None = None,
 ) -> int:
     """Resolve unmatched rsids via (chrom, pos) lookup in the VEP bundle.
 
@@ -1436,6 +1437,7 @@ def _vep_coord_fallback(
         vep_engine,
         genotype_by_rsid=genotype_by_rsid,
         allele_by_rsid=sample_alleles,
+        ambiguous_out=ambiguous_out,
     )
     result.timing_vep_s += time.perf_counter() - t0
 
@@ -1881,6 +1883,10 @@ def run_annotation(
             # rsID under several ref/alt pairs and the call could not be tied to
             # one, so it is withheld rather than missing.
             vep_allele_ambiguous: set[str] = set()
+            # Coordinate lookups can also withhold several bundle rsIDs for
+            # one exact allele. Keep that reason separate from rsID multi-ALT
+            # telemetry, but exclude both from the ClinVar gene fallback.
+            vep_position_ambiguous: set[str] = set()
             # Rows exist for this rsID but at other coordinates only. Distinct
             # from allele ambiguity: the alleles may be identical and it is the
             # COORDINATE that failed to agree, so the "several alternate alleles"
@@ -2147,6 +2153,7 @@ def run_annotation(
                         vep_data,
                         result,
                         allele_by_rsid=offset_clinvar_alleles,
+                        ambiguous_out=vep_position_ambiguous,
                     )
                 except Exception as exc:
                     msg = f"vep coord-fallback lookup failed: {exc}"
@@ -2176,6 +2183,10 @@ def run_annotation(
                     # A settled identity absent from VEP is a miss, rather than
                     # a call whose allele remains ambiguous.
                     vep_allele_ambiguous.difference_update(settled_vep_alleles)
+                    # Retry coordinate ambiguity against the settled identity;
+                    # an exact absence is a miss, but duplicate rsIDs can still
+                    # be withheld by the coordinate lookup below.
+                    vep_position_ambiguous.difference_update(settled_vep_alleles)
                 except Exception as exc:
                     msg = f"vep settled-identity lookup failed: {exc}"
                     vep_lookup_complete = False
@@ -2196,6 +2207,7 @@ def run_annotation(
                         vep_data,
                         result,
                         allele_by_rsid=settled_vep_alleles,
+                        ambiguous_out=vep_position_ambiguous,
                     )
                 except Exception as exc:
                     msg = f"vep settled-identity coord-fallback lookup failed: {exc}"
@@ -2272,7 +2284,7 @@ def run_annotation(
             clinvar_gene_data = _clinvar_gene_fallbacks(
                 vep_data,
                 clinvar_data,
-                vep_allele_ambiguous,
+                vep_allele_ambiguous | vep_position_ambiguous,
                 vep_lookup_complete=vep_lookup_complete,
             )
             gene_context = {**vep_data, **clinvar_gene_data}

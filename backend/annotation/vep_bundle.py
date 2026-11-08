@@ -460,6 +460,7 @@ def lookup_vep_by_positions(
     *,
     genotype_by_rsid: Mapping[str, str] | None = None,
     allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
+    ambiguous_out: set[str] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Fallback VEP lookup by (chrom, pos) for unmatched variants.
 
@@ -472,6 +473,9 @@ def lookup_vep_by_positions(
             same-rsid, multi-ALT position hits to the carried VEP ALT.
         allele_by_rsid: Optional map of sample rsid → ``(chrom, pos, ref, alt)``
             for callers that have exact variant identity.
+        ambiguous_out: Optional set receiving sample IDs withheld because the
+            allele is unresolved or multiple bundle rsIDs remain at the position.
+            These are distinct from a genuine absence of the requested allele.
 
     Returns:
         Dict mapping sample rsid to the best :class:`VEPAnnotation` for
@@ -513,17 +517,26 @@ def lookup_vep_by_positions(
                 if key not in pos_rows or sample_rsid in results:
                     continue
 
+                allele_identity = allele_by_rsid.get(sample_rsid) if allele_by_rsid else None
                 candidate_rows, allele_unambiguous = _filter_rows_for_sample_allele(
                     pos_rows[key],
-                    allele_identity=allele_by_rsid.get(sample_rsid) if allele_by_rsid else None,
+                    allele_identity=allele_identity,
                     sample_coordinate=(chrom, pos),
                     genotype=genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None,
                 )
                 if not candidate_rows:
+                    if (
+                        ambiguous_out is not None
+                        and allele_identity is None
+                        and _has_several_allele_pairs(pos_rows[key])
+                    ):
+                        ambiguous_out.add(sample_rsid)
                     continue
 
                 candidate_rsids = {r.rsid for r in candidate_rows}
                 if len(candidate_rsids) > 1:
+                    if ambiguous_out is not None:
+                        ambiguous_out.add(sample_rsid)
                     logger.warning(
                         "ambiguous_vep_position_match",
                         extra={

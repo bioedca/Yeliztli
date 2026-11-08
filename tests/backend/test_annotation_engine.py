@@ -5959,3 +5959,57 @@ def test_standalone_vep_refresh_transfers_gene_ownership_before_clinvar_refresh(
         assert observed.annotation_coverage == VEP_BIT | CLINVAR_BIT | (
             GENE_PHENOTYPE_BIT if retained else 0
         )
+
+
+@pytest.mark.parametrize("genotype", ["AG", "AA"])
+@pytest.mark.parametrize(
+    "case,alts,source",
+    [
+        ("duplicate_exact_allele", ["G", "G"], None),
+        ("settled_hit", ["G", "T"], "vep"),
+        ("settled_miss", ["C", "T"], "clinvar"),
+        ("unique_hit", ["G"], "vep"),
+        ("genuine_miss", [], "clinvar"),
+    ],
+)
+def test_clinvar_gene_distinguishes_coordinate_withholding_from_a_genuine_miss(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+    mock_registry,
+    genotype,
+    case,
+    alts,
+    source,
+):
+    _seed_clinvar_gene_case(sample_engine, reference_engine, genotype)
+    with vep_engine_inmemory.begin() as conn:
+        for index, alt in enumerate(alts):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid,chrom,pos,ref,alt,gene_symbol,transcript_id,consequence) "
+                    "VALUES (:rsid,'1',992464,'A',:alt,'YELIZTLI_VEP',:transcript,"
+                    "'intergenic_variant')"
+                ),
+                {
+                    "rsid": f"rsYELIZTLI_SOURCE{index}",
+                    "alt": alt,
+                    "transcript": f"ENST_SYNTHETIC_{index}",
+                },
+            )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    expected_gene = {"vep": "YELIZTLI_VEP", "clinvar": "YELIZTLI2464", None: None}[source]
+    assert row.gene_symbol == expected_gene, case
+    assert row.gene_source == source
+    assert row.clinvar_gene_info == "YELIZTLI2464:999002464"
+    assert row.inheritance_pattern == ("Autosomal recessive" if source == "clinvar" else None)
+    assert row.disease_id == ("MONDO:9002464" if source == "clinvar" else None)
+    assert row.transcript_id == ("ENST_SYNTHETIC_0" if source == "vep" else None)
+    assert row.annotation_coverage == CLINVAR_BIT | (
+        VEP_BIT if source == "vep" else GENE_PHENOTYPE_BIT if source == "clinvar" else 0
+    )
