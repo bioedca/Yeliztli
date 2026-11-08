@@ -1333,48 +1333,29 @@ def _bulk_upsert(
     if not rows:
         return 0
 
-    written = 0
-
-    # Normalise all rows to the same set of keys so multi-row INSERT works.
+    # Executemany takes its columns from the first row. Normalize missing
+    # annotations to explicit NULL so sparse rows keep the same semantics.
     all_keys = {"rsid", "chrom", "pos", "genotype", "annotation_coverage"}
     all_keys.update(_UPSERT_COLUMNS)
-
-    # Compute batch size using the detected SQLITE_MAX_VARIABLE_NUMBER.
-    # macOS system SQLite defaults to 999; Linux builds typically allow 32766.
-    from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER
-
-    num_cols = len(all_keys)
-    upsert_batch_size = max(1, SQLITE_MAX_VARIABLE_NUMBER // num_cols)
     normalised = [{k: row.get(k) for k in all_keys} for row in rows]
 
+    # Compile one row's SQL and reuse it for every parameter set. Expanding
+    # VALUES for all rows rebuilds hundreds of thousands of binds per batch;
+    # executemany also keeps the SQLite variable budget independent of rows.
+    stmt = sqlite_insert(target)
+    set_clause = {col: getattr(stmt.excluded, col) for col in _UPSERT_COLUMNS}
+    set_clause["annotation_coverage"] = sa.case(
+        (
+            target.c.annotation_coverage.is_(None),
+            stmt.excluded.annotation_coverage,
+        ),
+        else_=(target.c.annotation_coverage.op("|")(stmt.excluded.annotation_coverage)),
+    )
+    stmt = stmt.on_conflict_do_update(index_elements=["rsid"], set_=set_clause)
+
     with sample_engine.begin() as conn:
-        for i in range(0, len(normalised), upsert_batch_size):
-            batch = normalised[i : i + upsert_batch_size]
-
-            stmt = sqlite_insert(target).values(batch)
-
-            # Build the SET clause: update all annotation columns from incoming row
-            set_clause: dict = {}
-            for col in _UPSERT_COLUMNS:
-                set_clause[col] = getattr(stmt.excluded, col)
-
-            # OR the bitmask into existing coverage
-            set_clause["annotation_coverage"] = sa.case(
-                (
-                    target.c.annotation_coverage.is_(None),
-                    stmt.excluded.annotation_coverage,
-                ),
-                else_=(target.c.annotation_coverage.op("|")(stmt.excluded.annotation_coverage)),
-            )
-
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["rsid"],
-                set_=set_clause,
-            )
-            conn.execute(stmt)
-            written += len(batch)
-
-    return written
+        conn.execute(stmt, normalised)
+    return len(normalised)
 
 
 # ── VEP coord-fallback (Plan §5.1) ──────────────────────────────────────
