@@ -68,8 +68,8 @@ class TestLookupByRsids:
         assert annot.clinvar_conditions == "Hereditary breast and ovarian cancer syndrome"
 
     def test_vus_variant(self, seeded_reference_engine: sa.Engine) -> None:
-        result = lookup_clinvar_by_rsids(["rs12345"], seeded_reference_engine)
-        annot = result["rs12345"]
+        result = lookup_clinvar_by_rsids(["rsYELIZTLI2345001"], seeded_reference_engine)
+        annot = result["rsYELIZTLI2345001"]
         assert annot.clinvar_significance == "Uncertain_significance"
         assert annot.clinvar_review_stars == 1
 
@@ -268,7 +268,7 @@ class TestAnnotateSampleClinvar:
 
         assert isinstance(result, AnnotationResult)
         assert result.total_variants == len(SEED_RAW_VARIANTS)
-        # rs429358, rs7412, rs1801133, rs4680, rs12345 match by rsid (5 from SEED_CLINVAR)
+        # Five SEED_CLINVAR rows match by rsid, including reserved rsYELIZTLI2345001.
         # rs12913832, rs7903146 also match by rsid (in mini_clinvar but also seeded)
         assert result.matched_by_rsid >= 5
         assert result.total_matched > 0
@@ -292,7 +292,7 @@ class TestAnnotateSampleClinvar:
         assert "rs7412" in rsids
         assert "rs1801133" in rsids
         assert "rs4680" in rsids
-        assert "rs12345" in rsids
+        assert "rsYELIZTLI2345001" in rsids
 
     def test_clinvar_columns_correct(
         self,
@@ -344,8 +344,8 @@ class TestAnnotateSampleClinvar:
         # rs7412: genotype "CC" vs ClinVar ref C / alt T → homozygous reference
         # (does NOT carry the variant — must not surface as a finding).
         assert rows["rs7412"].zygosity == "hom_ref"
-        # rs12345: genotype "AA" vs ClinVar ref A / alt G → homozygous reference.
-        assert rows["rs12345"].zygosity == "hom_ref"
+        # rsYELIZTLI2345001: genotype "AA" vs ClinVar ref A / alt G → homozygous reference.
+        assert rows["rsYELIZTLI2345001"].zygosity == "hom_ref"
 
     def test_indel_match_has_null_zygosity(
         self,

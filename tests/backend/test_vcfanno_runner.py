@@ -109,7 +109,7 @@ class TestParseVcfOverlay:
             '##INFO=<ID=AF,Number=A,Type=Float,Description="Allele freq">\n'
             '##INFO=<ID=CLNSIG,Number=.,Type=String,Description="ClinVar sig">\n'
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tAF=0.05;CLNSIG=pathogenic\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tAF=0.05;CLNSIG=pathogenic\n"
             "19\t44908684\trs429358\tT\tC\t.\tPASS\tAF=0.15;CLNSIG=risk_factor\n"
         )
         result = parse_vcf_overlay(content)
@@ -266,7 +266,7 @@ class TestApplyOverlay:
 
     def test_bed_range_match(self, sample_with_variants: sa.Engine) -> None:
         """BED overlay matches variants within [start, end) range."""
-        # rs12345 is at chrom=1, pos=100000
+        # rsYELIZTLI2345001 is at chrom=1, pos=100000
         content = "chr1\t99999\t100001\ttest_region\t42\n"
         parsed = parse_bed_overlay(content)
 
@@ -287,7 +287,7 @@ class TestApplyOverlay:
         content = (
             "##fileformat=VCFv4.2\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tCUSTOM=hello\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tCUSTOM=hello\n"
             "19\t44908684\trs429358\tT\tC\t.\tPASS\tCUSTOM=world\n"
         )
         parsed = parse_vcf_overlay(content)
@@ -302,14 +302,14 @@ class TestApplyOverlay:
         content = (
             "##fileformat=VCFv4.2\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tSCORE=0.99;LABEL=test\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tSCORE=0.99;LABEL=test\n"
         )
         parsed = parse_vcf_overlay(content)
         apply_overlay(parsed, 3, "Results Test", sample_with_variants)
 
         results = get_overlay_results(3, sample_with_variants)
         assert len(results) == 1
-        assert results[0]["rsid"] == "rs12345"
+        assert results[0]["rsid"] == "rsYELIZTLI2345001"
         assert results[0]["SCORE"] == 0.99
         assert results[0]["LABEL"] == "test"
 
@@ -320,7 +320,7 @@ class TestApplyOverlay:
         content = (
             "##fileformat=VCFv4.2\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tV=1\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tV=1\n"
         )
         parsed = parse_vcf_overlay(content)
         apply_overlay(parsed, 4, "Test", sample_with_variants)
@@ -330,7 +330,7 @@ class TestApplyOverlay:
         content2 = (
             "##fileformat=VCFv4.2\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tV=2\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tV=2\n"
             "19\t44908684\trs429358\tT\tC\t.\tPASS\tV=3\n"
         )
         parsed2 = parse_vcf_overlay(content2)
@@ -346,7 +346,7 @@ class TestApplyOverlay:
         content = (
             "##fileformat=VCFv4.2\n"
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
-            "1\t100000\trs12345\tA\tG\t.\tPASS\tV=1\n"
+            "1\t100000\trsYELIZTLI2345001\tA\tG\t.\tPASS\tV=1\n"
         )
         parsed = parse_vcf_overlay(content)
         apply_overlay(parsed, 5, "Test", sample_with_variants)

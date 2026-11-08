@@ -59,7 +59,7 @@ _SEED = _ROOT / "tests" / "fixtures" / "seed_csvs" / "vep_seed.csv"
 _SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_gene_strand_snapshot.json"
 _BUNDLE = _ROOT / "tests" / "fixtures" / "mini_vep_bundle.db"
 
-# The seed carries one deliberately synthetic locus (rs12345 / ENST00000999999),
+# The seed carries one deliberately synthetic locus (rsYELIZTLI2345001 / ENST00000999999),
 # used by several suites as a neutral stand-in. It has no Ensembl record, so it is
 # exempt from the snapshot check -- but the exemption is pinned to this exact
 # symbol, and `test_only_the_known_synthetic_gene_is_exempt` fails if another

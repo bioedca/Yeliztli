@@ -112,7 +112,14 @@ def bundle_identity(bundle: Path, manifest: Path) -> dict[str, str]:
 
 
 def annotated_rsids(seed_rows: list[dict[str, str]]) -> list[str]:
-    return sorted({row["rsid"] for row in seed_rows if row.get("gene_symbol")})
+    """Query real annotated identities; reserved behavior fixtures have no source row."""
+    return sorted(
+        {
+            row["rsid"]
+            for row in seed_rows
+            if row.get("gene_symbol") and not row["rsid"].startswith("rsYELIZTLI")
+        }
+    )
 
 
 def apply_bundle(

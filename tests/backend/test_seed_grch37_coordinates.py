@@ -27,11 +27,8 @@ _SEED_DIR = _ROOT / "tests" / "fixtures" / "seed_csvs"
 _ORACLE = _ROOT / "tests" / "fixtures" / "seed_rsid_grch37_coordinates.json"
 _SEEDS = ("vep_seed", "clinvar_seed", "gnomad_seed", "gwas_seed")
 
-# #2345's synthetic GENE1 row borrows the real dbSNP ID rs12345; that issue owns it.
-_OUT_OF_SCOPE = {"rs12345"}
-
-# The 24 synthetic parser rows use reviewed rsYELIZTLI IDs (#2582). Their exact
-# scenarios are guarded by test_parser_synthetic_scenarios.py, not exempted as dbSNP loci.
+# Synthetic parser rows and the shared GENE1 locus use reserved rsYELIZTLI IDs
+# (#2582, #2345). Their finite contracts are guarded separately, not exempted as dbSNP loci.
 
 
 def _oracle() -> dict:
@@ -108,9 +105,7 @@ def test_every_seed_row_sits_at_its_grch37_locus() -> None:
         if reason is not None:
             misplaced.setdefault(row["rsid"], []).append(f"{seed}: {reason}")
 
-    excepted = _OUT_OF_SCOPE
-    unexpected = {rsid: why for rsid, why in misplaced.items() if rsid not in excepted}
-    assert unexpected == {}, f"seed rows not at their rsID's GRCh37 locus: {unexpected}"
+    assert misplaced == {}, f"seed rows not at their rsID's GRCh37 locus: {misplaced}"
 
 
 @pytest.mark.parametrize(

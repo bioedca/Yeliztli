@@ -1,6 +1,6 @@
 ##fileformat=VCFv4.1
 ##fileDate=20260301
-##fixtureUpdated=20260827
+##fixtureUpdated=20261108
 ##source=YeliztliMiniClinVarFixture
 ##ClinVarSource=https://clinicaltables.nlm.nih.gov/api/variants/v4/search
 ##ClinVarAccessed=20260716
@@ -22,7 +22,7 @@
 22	19951271	17591	G	A	.	.	RS=4680;CLNSIG=Benign;CLNREVSTAT=criteria_provided,_multiple_submitters,_no_conflicts;CLNDN=not_specified;GENEINFO=COMT:1312;CLNVCID=17591;CLNACC=VCV000017591
 17	41209079	17677	T	TG	.	.	RS=80357906;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=17677;CLNACC=VCV000017677
 7	117199644	7105	ATCT	A	.	.	RS=113993960;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Cystic_fibrosis;GENEINFO=CFTR:1080;CLNVCID=7105;CLNACC=VCV000007105
-1	100000	99999	A	G	.	.	RS=12345;CLNSIG=Uncertain_significance;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=not_provided;GENEINFO=GENE1:12345;CLNVCID=99999;SYNTHETIC
+1	100000	99999	A	G	.	.	CLNSIG=Uncertain_significance;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=not_provided;GENEINFO=GENE1:12345;CLNVCID=99999;SYNTHETIC
 17	41215920	55407	G	T	.	.	RS=28897696;CLNSIG=Pathogenic;CLNREVSTAT=reviewed_by_expert_panel;CLNDN=Hereditary_breast_and_ovarian_cancer_syndrome;GENEINFO=BRCA1:672;CLNVCID=55407;CLNACC=VCV000055407
 11	5248232	15333	T	A	.	.	RS=334;CLNSIG=Pathogenic;CLNREVSTAT=practice_guideline;CLNDN=Sickle_cell_disease;GENEINFO=HBB:3043;CLNVCID=15333;CLNACC=VCV000015333
 15	28365618	34215	A	G	.	.	RS=12913832;CLNSIG=association;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=Eye_color_determination;GENEINFO=HERC2:8924;CLNVCID=34215

@@ -32,7 +32,7 @@ from backend.db.tables import raw_variants, reference_metadata, samples, tags, v
 # ── Test data ────────────────────────────────────────────────────────
 
 RAW_VARIANTS_DATA = [
-    {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
+    {"rsid": "rsYELIZTLI2345001", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {"rsid": "rs429358", "chrom": "19", "pos": 44908684, "genotype": "TC"},
     {"rsid": "rs7412", "chrom": "19", "pos": 44908822, "genotype": "CC"},
 ]
@@ -302,7 +302,7 @@ class TestDeleteTag:
                         is_predefined=False,
                     )
                 ).inserted_primary_key[0]
-                conn.execute(variant_tags.insert().values(rsid="rs12345", tag_id=tag_id))
+                conn.execute(variant_tags.insert().values(rsid="rsYELIZTLI2345001", tag_id=tag_id))
 
             assert _variant_tag_count(sample_db_path, tag_id) == 1
 
@@ -335,12 +335,12 @@ class TestDeleteTag:
         # Tag a variant
         resp = tags_client.post(
             "/api/tags/variant",
-            json={"sample_id": 1, "rsid": "rs12345", "tag_id": tag_id},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001", "tag_id": tag_id},
         )
         assert resp.status_code == 200
 
         # Verify tag is on the variant
-        resp = tags_client.get("/api/tags/variant/rs12345", params={"sample_id": 1})
+        resp = tags_client.get("/api/tags/variant/rsYELIZTLI2345001", params={"sample_id": 1})
         tag_names = [t["name"] for t in resp.json()]
         assert "Cascade Test" in tag_names
         assert _variant_tag_count(sample_db_path, tag_id) == 1
@@ -353,7 +353,7 @@ class TestDeleteTag:
         assert _variant_tag_count(sample_db_path, tag_id) == 0
 
         # Verify tag is removed from variant
-        resp = tags_client.get("/api/tags/variant/rs12345", params={"sample_id": 1})
+        resp = tags_client.get("/api/tags/variant/rsYELIZTLI2345001", params={"sample_id": 1})
         tag_names = [t["name"] for t in resp.json()]
         assert "Cascade Test" not in tag_names
 
@@ -374,7 +374,7 @@ class TestVariantTagging:
 
         resp = tags_client.post(
             "/api/tags/variant",
-            json={"sample_id": 1, "rsid": "rs12345", "tag_id": tag_id},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001", "tag_id": tag_id},
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
@@ -452,7 +452,7 @@ class TestVariantTagFiltering:
         # Tag one variant only
         tags_client.post(
             "/api/tags/variant",
-            json={"sample_id": 1, "rsid": "rs12345", "tag_id": tag_id},
+            json={"sample_id": 1, "rsid": "rsYELIZTLI2345001", "tag_id": tag_id},
         )
 
         # Filter by tag
@@ -464,7 +464,7 @@ class TestVariantTagFiltering:
         data = resp.json()
         items = data["items"]
         assert len(items) == 1
-        assert items[0]["rsid"] == "rs12345"
+        assert items[0]["rsid"] == "rsYELIZTLI2345001"
 
     def test_variant_rows_include_tags(self, tags_client: TestClient) -> None:
         """GET /api/variants returns tags field in each row."""

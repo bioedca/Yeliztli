@@ -56,7 +56,7 @@ _URL = "https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/{gene}?conten
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _ASSEMBLY = "GRCh37"
 
-# The seed carries one deliberately synthetic locus (rs12345 / ENST00000999999 on
+# The seed carries one deliberately synthetic locus (rsYELIZTLI2345001 / ENST00000999999 on
 # ``GENE1``), used by several suites as a neutral stand-in. It has no Ensembl
 # record, and this generator fails closed on any unresolved symbol, so submitting
 # it made the documented rebuild impossible (#2045 review). The guard in
