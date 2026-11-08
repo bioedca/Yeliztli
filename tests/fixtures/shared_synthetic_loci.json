@@ -1,0 +1,82 @@
+{
+  "contract_version": 1,
+  "scientific_variant_claims": false,
+  "allocation": "Issue #2345: rsYELIZTLI2345001; repository-wide tracked text/SQLite and generated-range collision audit on 2026-11-08. rs12345 is migration history, not a biological alias.",
+  "shared_loci": {
+    "rsYELIZTLI2345001": {
+      "vep": {
+        "rsid": "rsYELIZTLI2345001",
+        "chrom": "1",
+        "pos": "100000",
+        "ref": "A",
+        "alt": "G",
+        "gene_symbol": "GENE1",
+        "transcript_id": "ENST00000999999",
+        "consequence": "synonymous_variant",
+        "hgvs_coding": "c.123A>G",
+        "hgvs_protein": "p.Leu41=",
+        "strand": "+",
+        "exon_number": "2",
+        "intron_number": "",
+        "mane_select": "1"
+      },
+      "gnomad": {
+        "rsid": "rsYELIZTLI2345001",
+        "chrom": "1",
+        "pos": "100000",
+        "ref": "A",
+        "alt": "G",
+        "af_global": "0.0210",
+        "af_afr": "0.0180",
+        "af_amr": "0.0250",
+        "af_asj": "",
+        "af_eas": "0.0310",
+        "af_eur": "0.0190",
+        "af_fin": "0.0220",
+        "af_sas": "0.0150",
+        "homozygous_count": "6"
+      },
+      "clinvar": {
+        "rsid": "rsYELIZTLI2345001",
+        "chrom": "1",
+        "pos": 100000,
+        "ref": "A",
+        "alt": "G",
+        "significance": "Uncertain_significance",
+        "review_stars": 1,
+        "accession": "VCV000099999",
+        "conditions": "not provided",
+        "gene_symbol": "GENE1",
+        "variation_id": 99999
+      },
+      "raw": {
+        "rsid": "rsYELIZTLI2345001",
+        "chrom": "1",
+        "pos": 100000,
+        "genotype": "AA"
+      }
+    }
+  },
+  "synthetic_clinvar_rows": [
+    [
+      "1",
+      "100000",
+      "99999",
+      "A",
+      "G",
+      ".",
+      ".",
+      "CLNSIG=Uncertain_significance;CLNREVSTAT=criteria_provided,_single_submitter;CLNDN=not_provided;GENEINFO=GENE1:12345;CLNVCID=99999;SYNTHETIC"
+    ],
+    [
+      "3",
+      "12345",
+      "100001",
+      "C",
+      "T",
+      ".",
+      ".",
+      "CLNSIG=Pathogenic;CLNREVSTAT=no_assertion_criteria_provided;CLNDN=Some_disease;GENEINFO=FAKEGENE:99;SYNTHETIC"
+    ]
+  ]
+}

@@ -134,7 +134,14 @@ def test_vep_seed_has_exactly_the_reviewed_synthetic_scenarios() -> None:
         for row in rows
         if not (row["rsid"].startswith("rs") and row["rsid"][2:].isdigit())
     }
-    assert set(synthetic) == set(scenarios), "unreviewed synthetic VEP rows or missing scenarios"
+    shared = json.loads((_FIXTURES / "shared_synthetic_loci.json").read_text())["shared_loci"]
+    assert set(shared) == {"rsYELIZTLI2345001"}
+    assert set(scenarios).isdisjoint(shared)
+    assert set(synthetic) == set(scenarios) | set(shared), (
+        "unreviewed synthetic VEP rows or missing scenarios"
+    )
+    for rsid, locus in shared.items():
+        assert synthetic[rsid] == locus["vep"]
     old = {scenario["previous_rsid"] for scenario in scenarios.values()}
     assert not old & {row["rsid"] for row in rows}
     for rsid, scenario in scenarios.items():

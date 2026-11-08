@@ -214,7 +214,7 @@ def sample_engine() -> sa.Engine:
 # The #1949 coordinate/accession repairs below are cross-checked against
 # seed_csvs/clinvar_seed.csv and clinvar_seed_snapshot.json (NLM Clinical Tables,
 # accessed 2026-07-16). Other annotations are behavior-test projections;
-# rs12345 is wholly synthetic.
+# The GENE1 row uses the reserved synthetic ID rsYELIZTLI2345001 (#2345).
 SEED_CLINVAR = [
     {
         "rsid": "rs429358",
@@ -295,7 +295,7 @@ SEED_CLINVAR = [
         "variation_id": 7105,
     },
     {
-        "rsid": "rs12345",
+        "rsid": "rsYELIZTLI2345001",
         "chrom": "1",
         "pos": 100000,
         "ref": "A",
@@ -743,7 +743,7 @@ SEED_RAW_VARIANTS = [
     {"rsid": "rs12913832", "chrom": "15", "pos": 28365618, "genotype": "GG"},
     {"rsid": "rs7903146", "chrom": "10", "pos": 114758349, "genotype": "CT"},
     {"rsid": "rs1805007", "chrom": "16", "pos": 89986117, "genotype": "CC"},
-    {"rsid": "rs12345", "chrom": "1", "pos": 100000, "genotype": "AA"},
+    {"rsid": "rsYELIZTLI2345001", "chrom": "1", "pos": 100000, "genotype": "AA"},
     {"rsid": "rs4244285", "chrom": "10", "pos": 96541616, "genotype": "GA"},
 ]
 

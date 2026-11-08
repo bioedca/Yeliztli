@@ -70,8 +70,8 @@ KRAS G12 locus. `../seed_rsid_grch37_coordinates.json` is the seed-wide oracle:
 every dbSNP-form rsID in the four coordinate seeds, with its single Ensembl
 GRCh37 primary mapping. `tests/backend/test_seed_grch37_coordinates.py` holds
 every located seed row to it, loci only. Rows writing an un-padded `-` allele sit
-at Ensembl's start; VCF-form indels sit one base earlier. Its exceptions are
-explicit set that can only shrink: #2345's `rs12345`. The rsID is a
+at Ensembl's start; VCF-form indels sit one base earlier. There are no real-ID
+coordinate exceptions. The rsID is a
 row's identity, so a corrected row takes its rsID's locus and alleles, and an
 annotated row then mirrors the pinned production bundle (#2562). Evidence:
 `data/science-evidence/2026-10-21-issue-2375-seed-grch37-coordinates/`.
@@ -93,7 +93,27 @@ stay empty. The offline contract rejects unreviewed synthetic VEP rows and
 checks the production parser and mini-VEP rsID lookup paths. `previous_rsid`
 records migration history only; it is not a biological alias. Real dbSNP rows
 continue to obey the coordinate and allele oracles, with no parser-row
-exception set. The separate `rs12345` issue remains tracked by #2345.
+exception set.
+
+#2345 assigns the shared synthetic GENE1 locus (`1:100000`, mock `A>G`) the
+reserved ID `rsYELIZTLI2345001`. A repository-wide check on 2026-11-08 covered
+tracked text, SQLite fixtures, and generated fixture ranges before allocation;
+this ID does not reuse the dbNSFP scenarios or the parser range. The complete
+contract is `../shared_synthetic_loci.json`: VEP and gnomAD seed fields, shared
+sample and ClinVar dictionaries, and every `SYNTHETIC` mini-ClinVar VCF row.
+These values exercise software behavior and make no biological, frequency, or
+clinical claim. The VEP bundle snapshot queries omit reserved synthetic IDs;
+the obsolete empty `rs12345` query entry was removed, without relabelling real
+source evidence as synthetic.
+
+The GENE1 VCF row omits `RS=` to exercise coordinate fallback; the loader still
+accepts only positive numeric values when `RS=` is present. Its other mock
+fields and the separate FAKEGENE VCF scenario are unchanged. Offline guards
+require the complete nonempty synthetic sets, reject borrowed dbSNP IDs and
+namespace collisions, and check the generated databases and production lookup
+paths. Independent real-rsID lookup and numeric `rs12345 → rs67890` merge tests
+remain separate; that numeric pair is a format-behavior fixture, not an alias
+for GENE1 or a biological mapping assertion.
 
 The loci guard does not look at alleles, and the REF pin of #2344 reaches only
 the 38 panel rsIDs. `tests/backend/test_seed_grch37_alleles.py` holds every
