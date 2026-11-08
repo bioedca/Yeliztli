@@ -30,6 +30,10 @@ from sqlalchemy.pool import StaticPool
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.annotation.engine import run_annotation
+from backend.annotation.mondo_hpo import (
+    _mondo_hpo_install_version,
+    record_mondo_hpo_version,
+)
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     clinvar_variants,
@@ -232,7 +236,13 @@ def seed_clinvar(
 
 
 def seed_gene_phenotype(engine: sa.Engine, seed: int = 42) -> None:
-    """Populate gene_phenotype with entries for each gene symbol."""
+    """Model a current MONDO/HPO install with synthetic rows and provenance.
+
+    The lookup gate withholds unstamped/legacy installs. Use the loader's own
+    version builder so both benchmark sizes and the performance tests exercise
+    served associations as its ingestion revision changes. These source labels
+    identify invented fixture data, not an upstream release or download.
+    """
     rng = random.Random(seed)
     rows = []
     for gene in GENE_SYMBOLS:
@@ -248,6 +258,14 @@ def seed_gene_phenotype(engine: sa.Engine, seed: int = 42) -> None:
         )
     with engine.begin() as conn:
         conn.execute(gene_phenotype.insert(), rows)
+    record_mondo_hpo_version(
+        engine,
+        version=_mondo_hpo_install_version(
+            "synthetic-benchmark",
+            {"etag": '"synthetic-benchmark-hpo"'},
+            {"etag": '"synthetic-benchmark-mondo-sssom"'},
+        ),
+    )
 
 
 def seed_gnomad(

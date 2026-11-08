@@ -69,6 +69,38 @@ attribution list lives in the repository
 | **ENCODE cCREs** | Optional | Candidate cis-regulatory elements for Genome Browser tracks | ~30 MB when installed | ENCODE data terms |
 | **UCSC hg19 FASTA + RefSeq (`refGene`)** | Optional local browser reference | Fully local Genome Browser reference and gene track | ~4 GB when installed | UCSC Genome Browser data terms |
 
+ClinVar installations now retain the VCF's source-native molecular consequence (`MC`).
+When a variant lacks a VEP consequence, a resolved ClinVar allele can supply that field;
+VEP keeps precedence. SO identifiers normalize source labels such as `nonsense`
+to the existing `stop_gained` token; the raw source value is retained. This does not
+infer consequences from indel length or establish
+indel carriage, gene identity, inheritance, or a VEP transcript. Ambiguous allele matches
+and malformed MC values remain unavailable. The variant APIs expose `consequence_source`
+(`vep`, `clinvar`, or unknown); the detail API also exposes the raw
+`clinvar_molecular_consequence` for audit.
+
+For a multi-term MC list, the effective fallback uses the highest-priority recognized
+term in the existing VEP consequence ordering. The complete source list stays in
+the audit field. A list containing an unrecognized term supplies no effective
+fallback. This prevents a synonymous or intronic term from masking a coding effect
+in downstream assessment or coverage labels; it does not select a transcript.
+When ClinVar supplies the fallback, the existing FH truncation safeguard checks
+the complete validated term list so a higher-ranked splice term cannot hide a
+truncating term. A VEP consequence still takes precedence for that check.
+
+A standalone ClinVar refresh also clears ClinVar fields and its effective fallback
+when a source record is withdrawn. Existing VEP annotations remain intact.
+
+Upgrading adds nullable reference/sample columns without inventing historical values.
+Use **Check for Updates** and install the offered ClinVar refresh, even when its displayed
+release date matches the current date: older installs did not ingest MC. Successful
+loads record the original release plus `+mc-v1`; this change also produces the existing
+version-staleness re-annotation prompt for samples with a recorded older snapshot.
+Re-annotate existing samples to populate the new fields and regenerate findings.
+Very old samples without a version snapshot need manual re-annotation. If the remote
+release date is unavailable, the update check withholds an offer; retry when NCBI is
+reachable. A newer installed release is never downgraded to add MC.
+
 For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease only through
 an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease
 identifiers remain unannotated rather than being copied to another disease for the same gene.

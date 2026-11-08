@@ -88,6 +88,84 @@ from backend.db.tables import (
 )
 from tests.backend.vep_bundle_test_utils import seed_embedded_vep_bundle_version
 
+
+@pytest.mark.parametrize("worker_bootstrap", [False, True])
+def test_annotation_upgrades_legacy_clinvar_before_source_lookup(
+    sample_engine, reference_engine, mock_registry, worker_bootstrap
+):
+    from backend.db.reference_schema import bootstrap_reference_schema_tables
+
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000030",
+                chrom="1",
+                pos=99030,
+                ref="A",
+                alt="T",
+                significance="Pathogenic",
+                accession="VCV_SYNTHETIC_MC_UPGRADE",
+            )
+        )
+        conn.exec_driver_sql("ALTER TABLE clinvar_variants DROP COLUMN molecular_consequence")
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(rsid="rs900000030", chrom="1", pos=99030, genotype="AT")
+        )
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="rs900000030",
+                chrom="1",
+                pos=99030,
+                clinvar_significance="Pathogenic",
+                clinvar_accession="VCV_SYNTHETIC_MC_UPGRADE",
+            )
+        )
+    if worker_bootstrap:
+        bootstrap_reference_schema_tables(reference_engine)
+        with reference_engine.connect() as conn:
+            columns = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(clinvar_variants)")}
+        assert "molecular_consequence" in columns
+
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    assert result.clinvar_matched == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.clinvar_significance == "Pathogenic"
+    assert row.clinvar_accession == "VCV_SYNTHETIC_MC_UPGRADE"
+    assert row.clinvar_molecular_consequence is None
+    assert row.annotation_coverage & CLINVAR_BIT
+
+
+def test_clinvar_schema_failure_cannot_replace_prior_annotation(
+    sample_engine, mock_registry, monkeypatch
+):
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(rsid="rs900000032", chrom="1", pos=99032, genotype="AT")
+        )
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="rs900000032", chrom="1", pos=99032, clinvar_significance="Pathogenic"
+            )
+        )
+
+    def unavailable(engine):
+        raise RuntimeError("synthetic migration failure")
+
+    monkeypatch.setattr(
+        "backend.db.reference_schema.ensure_clinvar_molecular_consequence", unavailable
+    )
+    with pytest.raises(RuntimeError, match="synthetic migration failure"):
+        run_annotation(sample_engine, mock_registry)
+    with sample_engine.connect() as conn:
+        assert conn.execute(sa.select(annotated_variants.c.clinvar_significance)).one() == (
+            "Pathogenic",
+        )
+    assert "annotated_variants_staging" not in sa.inspect(sample_engine).get_table_names()
+
+
 # ── Fixtures ────────────────────────────────────────────────────────────
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
@@ -5019,3 +5097,619 @@ def test_clinvar_upstream_identity_reselects_gnomad_at_the_native_coordinate(
         assert row.gnomad_source_status == "locus_unresolved"
         assert not row.annotation_coverage & GNOMAD_BIT
         assert result.gnomad_matched == 0
+
+
+@pytest.mark.parametrize("vep_consequence", [None, "missense_variant"])
+@pytest.mark.parametrize("with_vep", [False, True])
+def test_clinvar_mc_consequence_fallback_production(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    vep_consequence,
+    with_vep,
+):
+    """Synthetic source MC survives the loader and production staging swap."""
+    from dataclasses import asdict
+
+    from backend.annotation.clinvar import parse_clinvar_vcf_line
+
+    record, skipped = parse_clinvar_vcf_line(
+        "1\t99001\t900000001\tA\tATG\t.\t.\t"
+        "RS=900000001;CLNSIG=Pathogenic;GENEINFO=PCSK9:255738;"
+        "CLNDN=Hypercholesterolemia,_familial,_1;"
+        "MC=SO:0001589|frameshift_variant"
+    )
+    assert skipped is None and record is not None
+    with reference_engine.begin() as conn:
+        conn.execute(clinvar_variants.insert(), asdict(record))
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000001",
+                chrom="1",
+                pos=99001,
+                genotype="II",
+            )
+        )
+    if with_vep:
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid,chrom,pos,ref,alt,gene_symbol,consequence,mane_select) "
+                    "VALUES ('rs900000001','1',99001,'A','ATG','PCSK9',:consequence,1)"
+                ),
+                {"consequence": vep_consequence},
+            )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    expected = vep_consequence if with_vep and vep_consequence else "frameshift_variant"
+    assert row.consequence == expected
+    assert row.consequence_source == ("vep" if with_vep and vep_consequence else "clinvar")
+    assert row.clinvar_molecular_consequence == "SO:0001589|frameshift_variant"
+    assert json.loads(row.clinvar_allele_identity) == ["1", 99001, "A", "ATG"]
+    assert row.vep_allele_identity == (row.clinvar_allele_identity if with_vep else None)
+    assert bool(row.annotation_coverage & VEP_BIT) == with_vep
+    # Chip I/D calls do not establish sequence-resolved indel carriage.
+    assert row.zygosity is None
+    # Gene recovery is separately tracked in #2464; MC never invents a gene.
+    assert row.gene_symbol == ("PCSK9" if with_vep else None)
+
+
+@pytest.mark.parametrize("genotype", ["CT", "CC"])
+@pytest.mark.parametrize("vep_rsid", ["rs900000003", "rs900000099"])
+@pytest.mark.parametrize(
+    ("mc", "fallback", "protects_fh"),
+    [
+        (None, None, False),
+        ("SO:0001587|nonsense", "stop_gained", True),
+        ("SO:0001574|splice_acceptor_variant", "splice_acceptor_variant", False),
+        (
+            "SO:0001587|nonsense,SO:0001574|splice_acceptor_variant",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001574|splice_acceptor_variant,SO:0001587|nonsense",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001589|frameshift_variant,SO:0001574|splice_acceptor_variant",
+            "splice_acceptor_variant",
+            True,
+        ),
+        (
+            "SO:0001587|nonsense,SO:0001575|splice_donor_variant",
+            "splice_donor_variant",
+            True,
+        ),
+        ("SO:0001587|nonsense,SO:9999999|unknown_variant", None, False),
+    ],
+)
+@pytest.mark.parametrize("vep_consequence", [None, "missense_variant"])
+def test_mc_reannotation_reaches_fh_with_carrier_controls(
+    sample_engine,
+    mock_registry,
+    reference_engine,
+    vep_engine_inmemory,
+    genotype,
+    mc,
+    fallback,
+    protects_fh,
+    vep_consequence,
+    vep_rsid,
+):
+    """Synthetic nonsense fallback reaches existing FH rules; no indel inference."""
+    from backend.analysis.cardiovascular import (
+        CATEGORY_FH,
+        CATEGORY_LIPID,
+        determine_fh_status,
+        extract_cardiovascular_variants,
+        load_cardiovascular_panel,
+    )
+
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000003",
+                chrom="1",
+                pos=99003,
+                ref="C",
+                alt="T",
+                significance="Pathogenic",
+                review_stars=1,
+                conditions="Hypercholesterolemia, familial, 1",
+                molecular_consequence=mc,
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000003",
+                chrom="1",
+                pos=99003,
+                genotype=genotype,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations "
+                "(rsid,chrom,pos,ref,alt,gene_symbol,consequence,mane_select) "
+                "VALUES (:rsid,'1',99003,'C','T','PCSK9',:consequence,1)"
+            ),
+            {"consequence": vep_consequence, "rsid": vep_rsid},
+        )
+
+    for current_mc in (mc, None):
+        # A second production staging swap must remove a withdrawn fallback.
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.update()
+                .where(clinvar_variants.c.rsid == "rs900000003")
+                .values(molecular_consequence=current_mc)
+            )
+        result = run_annotation(sample_engine, mock_registry)
+        assert result.errors == []
+        assert result.rows_written == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(annotated_variants)).one()
+        assert row.zygosity == ("het" if genotype == "CT" else "hom_ref")
+        effective = vep_consequence or (fallback if current_mc else None)
+        fh_suppressed = not vep_consequence and bool(current_mc) and protects_fh
+        assert row.consequence == effective
+        assert row.consequence_source == (
+            "vep" if vep_consequence else "clinvar" if effective else None
+        )
+        findings = extract_cardiovascular_variants(load_cardiovascular_panel(), sample_engine)
+        assert len(findings.variants) == (1 if genotype == "CT" else 0)
+        if genotype == "CT":
+            assert findings.variants[0].cardiovascular_category == (
+                CATEGORY_LIPID if fh_suppressed else CATEGORY_FH
+            )
+        assert determine_fh_status(findings).is_positive == (
+            genotype == "CT" and not fh_suppressed
+        )
+
+
+@pytest.mark.parametrize("reason", ["vep_ambiguous", "different_vep_alt", "missing_mc"])
+def test_mc_fallback_respects_withholding_and_source_identity(reason):
+    raw = SimpleNamespace(rsid="rs900000004", chrom="1", pos=99004, genotype="AG")
+    clinvar = {
+        "ref": "A",
+        "alt": "G",
+        "clinvar_molecular_consequence": None
+        if reason == "missing_mc"
+        else "SO:0001587|stop_gained",
+    }
+    vep = (
+        {"consequence": None, "_vep_ref": "A", "_vep_alt": "C", "_vep_alleles_unambiguous": True}
+        if reason == "different_vep_alt"
+        else None
+    )
+    result = _merge_annotations(
+        [raw],
+        {raw.rsid: vep} if vep else {},
+        {raw.rsid: clinvar},
+        {},
+        {},
+        vep_allele_ambiguous={raw.rsid} if reason == "vep_ambiguous" else set(),
+    )
+    assert len(result) == 1
+    assert result[0].get("consequence") is None
+    assert result[0].get("consequence_source") is None
+
+
+@pytest.mark.parametrize("vep_first", [False, True])
+@pytest.mark.parametrize("vep_consequence", [None, "missense_variant"])
+@pytest.mark.parametrize(
+    "source_mc",
+    [
+        "SO:0001587|nonsense",
+        "SO:0001587|nonsense,SO:0001627|intron_variant",
+    ],
+)
+def test_standalone_writers_keep_consequence_precedence_and_clear_mc(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+    vep_consequence,
+    vep_first,
+    source_mc,
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000005",
+                chrom="1",
+                pos=99005,
+                genotype="CT",
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000005",
+                chrom="1",
+                pos=99005,
+                ref="C",
+                alt="T",
+                molecular_consequence=source_mc,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                "VALUES ('rs900000005','1',99005,'C','T','PCSK9',:consequence)"
+            ),
+            {"consequence": vep_consequence},
+        )
+    if vep_first:
+        assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+        assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+    else:
+        assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+        assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    for mc in (source_mc, None):
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.update()
+                .where(clinvar_variants.c.rsid == "rs900000005")
+                .values(molecular_consequence=mc)
+            )
+        assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+        with sample_engine.connect() as conn:
+            row = conn.execute(sa.select(annotated_variants)).one()
+        assert row.consequence == (vep_consequence or ("stop_gained" if mc else None))
+        assert row.consequence_source == ("vep" if vep_consequence else "clinvar" if mc else None)
+        assert row.clinvar_molecular_consequence == mc
+
+
+def test_standalone_refresh_does_not_restore_mc_after_mismatched_vep(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000007",
+                chrom="1",
+                pos=99007,
+                genotype="AC",
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000007",
+                chrom="1",
+                pos=99007,
+                ref="A",
+                alt="C",
+                molecular_consequence="SO:0001587|stop_gained",
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                "VALUES ('rs900000007','1',99007,'A','G','PCSK9',NULL)"
+            )
+        )
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+    assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    with sample_engine.connect() as conn:
+        before = conn.execute(sa.select(annotated_variants)).one()
+    assert before.consequence is None
+    assert before.consequence_source is None
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+    with sample_engine.connect() as conn:
+        after = conn.execute(sa.select(annotated_variants)).one()
+    assert after.consequence is None
+    assert after.consequence_source is None
+
+
+@pytest.mark.parametrize("retained_count", [0, 1000])
+def test_standalone_clinvar_withdrawal_respects_sqlite_parameter_budget(
+    sample_engine, reference_engine, monkeypatch, retained_count
+):
+    import sqlite3
+
+    from backend.annotation.clinvar import annotate_sample_clinvar
+
+    # Emulate a supported SQLite build with a 999-variable budget, both in
+    # the repository's compile-time probe and the actual sample connection.
+    monkeypatch.setattr("backend.annotation.sqlite_limits.SQLITE_MAX_VARIABLE_NUMBER", 999)
+    withdrawn_count = 1000
+    count = withdrawn_count + retained_count
+    if retained_count:
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.insert(),
+                [
+                    {
+                        "rsid": f"rs990{i:06d}",
+                        "chrom": "1",
+                        "pos": 99000 + i,
+                        "ref": "C",
+                        "alt": "T",
+                        "significance": "Pathogenic",
+                        "molecular_consequence": "SO:0001587|nonsense",
+                    }
+                    for i in range(withdrawn_count, count)
+                ],
+            )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": f"rs990{i:06d}", "chrom": "1", "pos": 99000 + i, "genotype": "CT"}
+                for i in range(count)
+            ],
+        )
+        conn.execute(
+            annotated_variants.insert(),
+            [
+                {
+                    "rsid": f"rs990{i:06d}",
+                    "chrom": "1",
+                    "pos": 99000 + i,
+                    "ref": "C",
+                    "alt": "T",
+                    "genotype": "CT",
+                    "zygosity": "het",
+                    "clinvar_significance": "Pathogenic",
+                    "clinvar_molecular_consequence": "SO:0001587|nonsense",
+                    "consequence": "stop_gained",
+                    "consequence_source": "clinvar",
+                    "annotation_coverage": CLINVAR_BIT,
+                }
+                for i in range(count)
+            ],
+        )
+        connection = conn.connection.driver_connection
+        previous_limit = connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+    try:
+        result = annotate_sample_clinvar(sample_engine, reference_engine)
+    finally:
+        connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, previous_limit)
+    assert result.not_matched == withdrawn_count
+    assert result.total_matched == retained_count
+    with sample_engine.connect() as conn:
+        rows = conn.execute(sa.select(annotated_variants)).all()
+    assert len(rows) == count
+    for row in rows:
+        if row.pos >= 99000 + withdrawn_count:
+            assert row.clinvar_significance == "Pathogenic"
+            assert row.clinvar_molecular_consequence == "SO:0001587|nonsense"
+            assert row.consequence == "stop_gained"
+            assert row.consequence_source == "clinvar"
+            assert row.annotation_coverage == CLINVAR_BIT
+            continue
+        assert row.clinvar_significance is None
+        assert row.clinvar_molecular_consequence is None
+        assert row.consequence is None
+        assert row.consequence_source is None
+        assert row.annotation_coverage == 0
+        assert row.ref == "C" and row.alt == "T" and row.zygosity == "het"
+
+
+@pytest.mark.parametrize("writer", ["vep", "engine"])
+@pytest.mark.parametrize("count", [64, 1000])
+def test_vep_provenance_writes_respect_sqlite_parameter_budget(
+    sample_engine, vep_engine_inmemory, mock_registry, monkeypatch, writer, count
+):
+    import sqlite3
+
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    monkeypatch.setattr("backend.annotation.sqlite_limits.SQLITE_MAX_VARIABLE_NUMBER", 999)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": f"rs991{i:06d}", "chrom": "1", "pos": 199000 + i, "genotype": "CT"}
+                for i in range(count)
+            ],
+        )
+        connection = conn.connection.driver_connection
+        previous_limit = connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+    try:
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid,chrom,pos,ref,alt,gene_symbol,consequence,mane_select) "
+                    "VALUES (:rsid,'1',:pos,'C','T','SYNTHETIC_GENE','missense_variant',1)"
+                ),
+                [{"rsid": f"rs991{i:06d}", "pos": 199000 + i} for i in range(count)],
+            )
+        for consequence in ("missense_variant", "stop_gained"):
+            with vep_engine_inmemory.begin() as conn:
+                conn.execute(
+                    sa.text("UPDATE vep_annotations SET consequence=:consequence"),
+                    {"consequence": consequence},
+                )
+            if writer == "vep":
+                result = annotate_sample_vep(sample_engine, vep_engine_inmemory)
+            else:
+                result = run_annotation(sample_engine, mock_registry)
+                assert result.errors == []
+            assert result.rows_written == count
+            with sample_engine.connect() as conn:
+                rows = conn.execute(sa.select(annotated_variants)).all()
+            assert len(rows) == count
+            for row in rows:
+                assert row.consequence == consequence
+                assert row.consequence_source == "vep"
+                assert json.loads(row.vep_allele_identity) == ["1", row.pos, "C", "T"]
+                assert row.gene_symbol == "SYNTHETIC_GENE"
+                assert row.annotation_coverage & VEP_BIT
+    finally:
+        connection.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, previous_limit)
+
+
+@pytest.mark.parametrize("withdraw_all", [False, True])
+@pytest.mark.parametrize("with_vep", [False, True])
+def test_standalone_clinvar_withdrawal_clears_own_data_only(
+    sample_engine, reference_engine, vep_engine_inmemory, withdraw_all, with_vep, monkeypatch
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    monkeypatch.setattr("backend.annotation.clinvar.BATCH_SIZE", 1)
+    identifiers = ["rs900000040", "rs900000041"]
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {"rsid": rsid, "chrom": "1", "pos": 99040 + i, "genotype": "CT"}
+                for i, rsid in enumerate(identifiers)
+            ],
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert(),
+            [
+                {
+                    "rsid": rsid,
+                    "chrom": "1",
+                    "pos": 99040 + i,
+                    "ref": "C",
+                    "alt": "T",
+                    "significance": "Pathogenic",
+                    "review_stars": 2,
+                    "accession": "VCV_SYNTHETIC_WITHDRAWAL",
+                    "conditions": "Synthetic condition",
+                    "molecular_consequence": "SO:0001587|nonsense",
+                }
+                for i, rsid in enumerate(identifiers)
+            ],
+        )
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 2
+    if with_vep:
+        with vep_engine_inmemory.begin() as conn:
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                    "VALUES ('rs900000040','1',99040,'C','T','SYNTHETIC_GENE','missense_variant')"
+                )
+            )
+        assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    with sample_engine.connect() as conn:
+        before = conn.execute(
+            sa.select(annotated_variants).where(annotated_variants.c.rsid == identifiers[0])
+        ).one()
+    assert before.clinvar_molecular_consequence == "SO:0001587|nonsense"
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.delete().where(
+                clinvar_variants.c.rsid.in_(identifiers if withdraw_all else identifiers[:1])
+            )
+        )
+    result = annotate_sample_clinvar(sample_engine, reference_engine)
+    assert result.total_matched == (0 if withdraw_all else 1)
+    with sample_engine.connect() as conn:
+        rows = {row.rsid: row for row in conn.execute(sa.select(annotated_variants))}
+    assert len(rows) == 2
+    lost = rows[identifiers[0]]
+    for field in (
+        "clinvar_molecular_consequence",
+        "clinvar_allele_identity",
+        "clinvar_significance",
+        "clinvar_review_stars",
+        "clinvar_accession",
+        "clinvar_conditions",
+    ):
+        assert getattr(lost, field) is None, field
+    assert lost.consequence == ("missense_variant" if with_vep else None)
+    assert lost.consequence_source == ("vep" if with_vep else None)
+    assert lost.gene_symbol == ("SYNTHETIC_GENE" if with_vep else None)
+    assert lost.vep_allele_identity == before.vep_allele_identity
+    assert not lost.annotation_coverage & CLINVAR_BIT
+    assert bool(lost.annotation_coverage & VEP_BIT) == with_vep
+    retained = rows[identifiers[1]]
+    assert retained.clinvar_molecular_consequence == (
+        None if withdraw_all else "SO:0001587|nonsense"
+    )
+    assert retained.consequence == (None if withdraw_all else "stop_gained")
+
+
+@pytest.mark.parametrize(
+    "other_mc",
+    [
+        "SO:0001819|synonymous_variant",
+        "SO:0001627|intron_variant",
+        "SO:9999999|unknown_variant",
+    ],
+)
+@pytest.mark.parametrize("reverse_terms", [False, True])
+@pytest.mark.parametrize("genotype", ["CT", "CC"])
+def test_compound_mc_reaches_acmg_and_coverage_without_false_benign_evidence(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+    mock_registry,
+    other_mc,
+    reverse_terms,
+    genotype,
+):
+    from backend.analysis.acmg import UNCERTAIN, assess_sample_acmg
+
+    terms = ["SO:0001587|nonsense", other_mc]
+    mc = ",".join(reversed(terms) if reverse_terms else terms)
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rs900000050", chrom="1", pos=99050, genotype=genotype
+            )
+        )
+    with reference_engine.begin() as conn:
+        conn.execute(
+            clinvar_variants.insert().values(
+                rsid="rs900000050",
+                chrom="1",
+                pos=99050,
+                ref="C",
+                alt="T",
+                significance="Pathogenic",
+                molecular_consequence=mc,
+            )
+        )
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                "VALUES ('rs900000050','1',99050,'C','T','SYNTHETIC_GENE',NULL)"
+            )
+        )
+    result = run_annotation(sample_engine, mock_registry)
+    assert not result.errors
+    assessed = assess_sample_acmg(sample_engine, reference_engine)
+    assert len(assessed["variants"]) == int(genotype == "CT")
+    if genotype == "CT":
+        assessment = assessed["variants"][0]
+        assert assessment["points"] == 0
+        assert assessment["acmg_classification"] == UNCERTAIN
+        assert assessment["criteria"] == []
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.zygosity == ("het" if genotype == "CT" else "hom_ref")
+    assert row.gnomad_source_status is None
+    assert row.clinvar_molecular_consequence == mc
+    unknown = "unknown_variant" in other_mc
+    assert row.consequence == (None if unknown else "stop_gained")
+    assert row.consequence_source == (None if unknown else "clinvar")

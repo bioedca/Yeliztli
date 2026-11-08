@@ -23,9 +23,20 @@ import pytest
 import sqlalchemy as sa
 
 from backend.annotation.engine import run_annotation
+from backend.annotation.mondo_hpo import (
+    lookup_gene_phenotypes,
+    mondo_hpo_install_is_serviceable,
+)
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import annotated_variants, raw_variants, reference_metadata
+from backend.db.tables import (
+    annotated_variants,
+    database_versions,
+    gene_phenotype,
+    raw_variants,
+    reference_metadata,
+)
 from scripts.benchmark import (
+    GENE_SYMBOLS,
     BenchmarkDBRegistry,
     create_shared_memory_engine,
     generate_raw_variants,
@@ -133,6 +144,75 @@ def benchmark_engines_600k(
 
 
 # ── Fixture fidelity (fast, runs on every PR) ────────────────────────────
+
+
+def test_synthetic_gene_phenotypes_are_served() -> None:
+    """The benchmark measures current MONDO/HPO lookups, not a withheld install."""
+    engine = create_shared_memory_engine()
+    try:
+        reference_metadata.create_all(engine)
+        seed_gene_phenotype(engine)
+        with engine.connect() as conn:
+            version = conn.execute(
+                sa.select(database_versions.c.version).where(
+                    database_versions.c.db_name == "mondo_hpo"
+                )
+            ).scalar_one_or_none()
+            rows = conn.execute(sa.select(gene_phenotype)).mappings().all()
+        assert mondo_hpo_install_is_serviceable(version)
+        assert len(rows) == len(GENE_SYMBOLS) == 32
+        found = lookup_gene_phenotypes(GENE_SYMBOLS, engine, source_filter="mondo_hpo")
+        assert set(found) == set(GENE_SYMBOLS)
+        for row in rows:
+            annotations = found[row["gene_symbol"]]
+            assert len(annotations) == 1
+            annotation = annotations[0]
+            assert annotation.disease_name == row["disease_name"]
+            assert annotation.disease_id == row["disease_id"]
+            assert annotation.hpo_terms == ["HP:0000001"]
+            assert annotation.inheritance == row["inheritance"]
+            assert annotation.source == "mondo_hpo"
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("version", [None, "20260415"])
+def test_synthetic_gene_phenotypes_require_current_provenance(version: str | None) -> None:
+    """An absent/legacy stamp still withholds MONDO/HPO, while OMIM is served."""
+    engine = create_shared_memory_engine()
+    try:
+        reference_metadata.create_all(engine)
+        seed_gene_phenotype(engine)
+        with engine.begin() as conn:
+            conn.execute(sa.delete(database_versions))
+            if version is not None:
+                conn.execute(
+                    database_versions.insert().values(db_name="mondo_hpo", version=version)
+                )
+            conn.execute(
+                gene_phenotype.insert().values(
+                    gene_symbol="BRCA1",
+                    disease_name="Synthetic independent-source control",
+                    disease_id="OMIM:000001",
+                    source="omim",
+                )
+            )
+            assert (
+                conn.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(gene_phenotype)
+                    .where(gene_phenotype.c.source == "mondo_hpo")
+                )
+                == 32
+            )
+        assert lookup_gene_phenotypes(GENE_SYMBOLS, engine, source_filter="mondo_hpo") == {}
+        found = lookup_gene_phenotypes(GENE_SYMBOLS, engine)
+        assert set(found) == {"BRCA1"}
+        assert len(found["BRCA1"]) == 1
+        assert found["BRCA1"][0].disease_id == "OMIM:000001"
+        assert found["BRCA1"][0].source == "omim"
+    finally:
+        engine.dispose()
 
 
 def test_synthetic_vep_bundle_searches_positions_by_index() -> None:
@@ -333,6 +413,7 @@ def test_annotation_10k_smoke() -> None:
 
     assert result.total_variants == num
     assert result.rows_written > 0
+    assert result.gene_phenotype_matched > 0, "No gene-phenotype matches"
     assert not result.errors
     # 10k should complete well under 30s
     assert elapsed < 30.0, f"10k annotation took {elapsed:.1f}s"

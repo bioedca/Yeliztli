@@ -17,6 +17,7 @@ function.
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -104,7 +105,9 @@ def _parse_reference_versions(value: str | None) -> dict[str, str] | None:
     return versions
 
 
-def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str] | None:
+def read_recorded_reference_versions(
+    sample_engine: sa.Engine | sa.Connection,
+) -> dict[str, str] | None:
     """Read the sample's recorded reference-version snapshot, if present.
 
     Runs completed before the effective-snapshot fix recorded VEP only in the
@@ -113,7 +116,11 @@ def read_recorded_reference_versions(sample_engine: sa.Engine) -> dict[str, str]
     samples do not receive a synthetic re-annotation prompt.
     """
     try:
-        with sample_engine.connect() as conn:
+        with (
+            sample_engine.connect()
+            if isinstance(sample_engine, sa.Engine)
+            else nullcontext(sample_engine)
+        ) as conn:
             rows = conn.execute(
                 sa.select(annotation_state.c.key, annotation_state.c.value).where(
                     annotation_state.c.key.in_(

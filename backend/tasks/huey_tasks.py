@@ -1186,9 +1186,31 @@ def run_database_update_task(
     each actual download. Direct invocations without check context resolve the
     current pin without a binding.
     """
-    from backend.db.build_guard import build_claim
+    from backend.db.build_guard import build_claim, validate_claim_key
     from backend.db.connection import get_registry
+    from backend.db.database_registry import DATABASES, get_build_fn
     from backend.db.download_manager import huey_download_job_ownership
+    from backend.db.update_manager import _BUNDLE_DBS, _DOWNLOAD_DBS
+
+    # Queue consumers must enforce their own boundary even when HTTP producers
+    # already checked the name. Do this before registry access or claim setup.
+    try:
+        validate_claim_key(db_name)
+        supported = (
+            db_name in _BUNDLE_DBS
+            or db_name in _DOWNLOAD_DBS
+            or (db_name in DATABASES and get_build_fn(db_name) is not None)
+        )
+    except ValueError:
+        supported = False
+    if not supported:
+        _update_job(
+            job_id,
+            status="failed",
+            message="Unsupported database update",
+            error="Invalid or unsupported database update key",
+        )
+        return
 
     settings = get_registry().settings
     with build_claim(db_name, settings.data_dir) as acquired:

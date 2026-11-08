@@ -297,8 +297,8 @@ class TestRunClinvarUpdateVersionStamp:
         # fileDate (20260319) is a day earlier than Last-Modified (20260320).
         result = self._run(registry, tmp_path, last_modified="20260320", file_date="20260319")
 
-        assert result.new_version == "20260320"
-        assert get_current_version(reference_engine, "clinvar") == "20260320"
+        assert result.new_version == "20260320+mc-v1"
+        assert get_current_version(reference_engine, "clinvar") == "20260320+mc-v1"
 
         # The freshly-updated DB is now reported up to date by the very check that
         # flagged it — proving install/update and check use the same source.
@@ -321,8 +321,8 @@ class TestRunClinvarUpdateVersionStamp:
 
         result = self._run(registry, tmp_path, last_modified=None, file_date="20260319")
 
-        assert result.new_version == "20260319"
-        assert get_current_version(reference_engine, "clinvar") == "20260319"
+        assert result.new_version == "20260319+mc-v1"
+        assert get_current_version(reference_engine, "clinvar") == "20260319+mc-v1"
 
 
 class TestCheckAllUpdates:
@@ -2132,3 +2132,72 @@ class TestSuppressAutoUpdateDuringSetup:
             result = run_scheduled_update_check(db_registry)
         check.assert_called_once()
         assert result.up_to_date == ["clinvar"]
+
+
+@pytest.mark.parametrize(
+    ("current", "offered"),
+    [
+        ("20260320", True),
+        ("20260320+mc-v1", False),
+        ("20260319+mc-v1", True),
+        ("20260321", False),
+    ],
+)
+def test_clinvar_mc_same_release_reload_without_downgrade(reference_engine, current, offered):
+    _record_version(reference_engine, "clinvar", current)
+    response = MagicMock()
+    response.headers = {"Last-Modified": "Fri, 20 Mar 2026 00:00:00 GMT"}
+    with patch("backend.db.update_manager.httpx.Client") as client:
+        client.return_value.__enter__.return_value.head.return_value = response
+        result = check_clinvar_update(reference_engine)
+    assert (result is not None) == offered
+    if result is not None:
+        assert result.latest_version == "20260320"
+
+
+def test_clinvar_mc_reload_prompts_existing_samples_without_reclassification(db_registry):
+    from backend.annotation.clinvar import record_clinvar_version
+
+    sample_rel = "samples/sample_mc.db"
+    sample_path = db_registry.settings.data_dir / sample_rel
+    sample_path.parent.mkdir(parents=True, exist_ok=True)
+    sample_engine = db_registry.get_sample_engine(sample_path)
+    create_sample_tables(sample_engine)
+    with db_registry.reference_engine.begin() as conn:
+        conn.execute(
+            samples.insert().values(
+                id=1,
+                name="Synthetic MC test",
+                db_path=sample_rel,
+                file_format="23andme_v5",
+                file_hash="synthetic-mc",
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            annotation_state.insert().values(
+                key=REFERENCE_VERSION_SNAPSHOT_KEY,
+                value=json.dumps({"clinvar": "20260320", "vep_bundle": "v1.0.0"}),
+            )
+        )
+    record_clinvar_version(db_registry.reference_engine, version="20260320")
+    results = run_precheck_all_samples(
+        db_registry,
+        db_name="clinvar",
+        db_version="20260320+mc-v1",
+        old_significances={},
+        new_significances={},
+    )
+    assert len(results) == 1
+    assert results[0].candidate_count == 0
+    assert results[0].stale_databases == [
+        {
+            "db_name": "clinvar",
+            "recorded_version": "20260320",
+            "current_version": "20260320+mc-v1",
+        }
+    ]
+    prompts = get_active_prompts(db_registry.reference_engine, sample_id=1)
+    assert len(prompts) == 1
+    assert prompts[0]["prompt_type"] == "version_staleness"
+    assert prompts[0]["stale_databases"] == results[0].stale_databases

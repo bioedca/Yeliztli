@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from itertools import islice
@@ -133,6 +134,61 @@ class ClinVarRecord:
     conditions: str | None = None
     gene_symbol: str | None = None
     variation_id: int | None = None
+    molecular_consequence: str | None = None
+
+
+CLINVAR_INGESTION_REVISION = "mc-v1"
+
+# Canonical SO names for labels ClinVar spells differently. Definitions and
+# source-native examples: data/science-evidence/2026-11-07-clinvar-mc-2393.
+_MC_CANONICAL_TERMS = {
+    "SO:0001587": "stop_gained",
+    "SO:0001619": "non_coding_transcript_variant",
+}
+
+
+def clinvar_install_version(source_version: str) -> str:
+    """Keep the source release and mark ingestion of the source-native MC field."""
+    return f"{source_version.partition('+')[0]}+{CLINVAR_INGESTION_REVISION}"
+
+
+def molecular_consequence_terms(value: str | None) -> str | None:
+    """Decode ClinVar MC's SO ID|term list without predicting a consequence.
+
+    Retain all source terms, without imposing VEP's transcript ranking. A
+    malformed list is unavailable, never a partially trusted clinical input.
+    """
+    if not value:
+        return None
+    terms = []
+    for item in value.split(","):
+        match = re.fullmatch(r"(SO:[0-9]{7})\|([A-Za-z0-9][A-Za-z0-9_-]*)", item)
+        if match is None:
+            return None
+        term = _MC_CANONICAL_TERMS.get(match.group(1), match.group(2))
+        if term not in terms:
+            terms.append(term)
+    return "&".join(terms)
+
+
+def molecular_consequence_fallback(value: str | None) -> str | None:
+    """Select one effective term using the repository's existing VEP priority.
+
+    MC aggregates record-wide terms, not one selected transcript. Supplying
+    that whole list to single-consequence consumers can turn a truncating
+    annotation into synonymous benign evidence or a noncoding coverage claim.
+    Keep the complete raw/decoded list separately; an unranked term withholds
+    the effective fallback rather than silently losing an unknown effect.
+    """
+    from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
+
+    decoded = molecular_consequence_terms(value)
+    if not decoded:
+        return None
+    terms = decoded.split("&")
+    if any(term not in CONSEQUENCE_SEVERITY for term in terms):
+        return None
+    return max(terms, key=lambda term: (CONSEQUENCE_SEVERITY[term], term))
 
 
 def _parse_info_field(info: str) -> dict[str, str]:
@@ -274,6 +330,9 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
         conditions=conditions,
         gene_symbol=gene_symbol,
         variation_id=variation_id,
+        # MC is record-level, not an ALT-indexed array. A noncanonical
+        # multi-ALT line cannot assign its consequence to our first-ALT row.
+        molecular_consequence=info.get("MC") if "," not in alt else None,
     )
     return record, None
 
@@ -300,6 +359,7 @@ def _record_to_dict(record: ClinVarRecord) -> dict:
         "conditions": record.conditions,
         "gene_symbol": record.gene_symbol,
         "variation_id": record.variation_id,
+        "molecular_consequence": record.molecular_consequence,
     }
 
 
@@ -458,7 +518,7 @@ def record_clinvar_version(
     _record_db_version(
         engine,
         db_name="clinvar",
-        version=version,
+        version=clinvar_install_version(version),
         file_size_bytes=file_size_bytes,
         sha256=checksum,
         file_path=file_path,
@@ -615,6 +675,24 @@ class ClinVarAnnotation:
     # (zygosity) — a chip genotypes every probe regardless of carriage.
     ref: str | None = None
     alt: str | None = None
+    clinvar_molecular_consequence: str | None = None
+
+
+def _unambiguous_mc(rows: list[sa.Row], selected: sa.Row, genotype: str | None) -> str | None:
+    """Expose MC only when the lookup identifies one full source allele.
+
+    Review stars rank assertions, not allele identity. In particular, I/D
+    probes cannot choose between several insertions at the same position.
+    """
+    carried = [
+        row for row in rows if classify_zygosity(genotype, row.ref, row.alt) in CARRIED_ZYGOSITIES
+    ]
+    eligible = carried or rows
+    identities = {(row.chrom, row.pos, row.ref, row.alt) for row in eligible}
+    identity = (selected.chrom, selected.pos, selected.ref, selected.alt)
+    if identities != {identity}:
+        return None
+    return selected.molecular_consequence
 
 
 @dataclass
@@ -744,6 +822,7 @@ def lookup_clinvar_by_rsids(
                     clinvar_variants.c.conditions,
                     clinvar_variants.c.ref,
                     clinvar_variants.c.alt,
+                    clinvar_variants.c.molecular_consequence,
                 )
                 .where(clinvar_variants.c.rsid.in_(batch))
                 .order_by(
@@ -776,6 +855,7 @@ def lookup_clinvar_by_rsids(
                     matched_by="rsid",
                     ref=row.ref,
                     alt=row.alt,
+                    clinvar_molecular_consequence=_unambiguous_mc(cand_rows, row, genotype),
                 )
 
     return results
@@ -834,6 +914,7 @@ def lookup_clinvar_by_positions(
                     clinvar_variants.c.conditions,
                     clinvar_variants.c.ref,
                     clinvar_variants.c.alt,
+                    clinvar_variants.c.molecular_consequence,
                 )
                 .where(sa.or_(*conditions))
                 .order_by(
@@ -878,6 +959,7 @@ def lookup_clinvar_by_positions(
                         matched_by="chrom_pos",
                         ref=row.ref,
                         alt=row.alt,
+                        clinvar_molecular_consequence=_unambiguous_mc(candidates, row, genotype),
                     )
 
     return results
@@ -901,6 +983,8 @@ def annotate_sample_clinvar(
     Returns:
         AnnotationResult with match statistics.
     """
+    from backend.annotation.allele_matching import source_allele_identity
+
     result = AnnotationResult()
 
     # 1. Read all raw variants from the sample
@@ -959,6 +1043,7 @@ def annotate_sample_clinvar(
         # individual is homozygous reference (the carriage bug downstream
         # modules relied on). ``None`` means unscoreable (indel/no-call/strand).
         zygosity = classify_zygosity(raw.genotype, annot.ref, annot.alt)
+        consequence = molecular_consequence_fallback(annot.clinvar_molecular_consequence)
         rows_to_upsert.append(
             {
                 "rsid": rsid,
@@ -972,41 +1057,131 @@ def annotate_sample_clinvar(
                 "clinvar_review_stars": annot.clinvar_review_stars,
                 "clinvar_accession": annot.clinvar_accession,
                 "clinvar_conditions": annot.clinvar_conditions,
+                "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+                "clinvar_allele_identity": source_allele_identity(
+                    annot.chrom, annot.pos, annot.ref, annot.alt
+                ),
+                "consequence": consequence,
+                "consequence_source": "clinvar" if consequence else None,
                 "annotation_coverage": CLINVAR_BITMASK,
             }
         )
 
-    if rows_to_upsert:
-        with sample_engine.begin() as conn:
-            for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
-                batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
+    with sample_engine.begin() as conn:
+        for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
+            batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
-                stmt = sqlite_insert(annotated_variants).values(batch)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["rsid"],
-                    set_={
-                        "ref": stmt.excluded.ref,
-                        "alt": stmt.excluded.alt,
-                        "zygosity": stmt.excluded.zygosity,
-                        "clinvar_significance": stmt.excluded.clinvar_significance,
-                        "clinvar_review_stars": stmt.excluded.clinvar_review_stars,
-                        "clinvar_accession": stmt.excluded.clinvar_accession,
-                        "clinvar_conditions": stmt.excluded.clinvar_conditions,
-                        # OR the ClinVar bit into existing coverage
-                        "annotation_coverage": sa.case(
-                            (
-                                annotated_variants.c.annotation_coverage.is_(None),
-                                stmt.excluded.annotation_coverage,
-                            ),
-                            else_=annotated_variants.c.annotation_coverage.op("|")(
-                                CLINVAR_BITMASK
-                            ),
+            # Execute parameter sets separately instead of putting every row's
+            # columns into one statement's SQLite variable budget.
+            stmt = sqlite_insert(annotated_variants)
+            replace_consequence = sa.or_(
+                annotated_variants.c.consequence_source == "clinvar",
+                annotated_variants.c.consequence.is_(None),
+                annotated_variants.c.consequence == "",
+            )
+            same_gene_allele = sa.or_(
+                sa.and_(
+                    annotated_variants.c.gene_symbol.is_(None),
+                    annotated_variants.c.transcript_id.is_(None),
+                    sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("&")(1) == 0,
+                ),
+                annotated_variants.c.vep_allele_identity == stmt.excluded.clinvar_allele_identity,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["rsid"],
+                set_={
+                    "ref": stmt.excluded.ref,
+                    "alt": stmt.excluded.alt,
+                    "zygosity": stmt.excluded.zygosity,
+                    "clinvar_significance": stmt.excluded.clinvar_significance,
+                    "clinvar_review_stars": stmt.excluded.clinvar_review_stars,
+                    "clinvar_accession": stmt.excluded.clinvar_accession,
+                    "clinvar_conditions": stmt.excluded.clinvar_conditions,
+                    "clinvar_molecular_consequence": (stmt.excluded.clinvar_molecular_consequence),
+                    "clinvar_allele_identity": stmt.excluded.clinvar_allele_identity,
+                    # Retain a VEP (or unattributed legacy) consequence.
+                    # A removed MC clears only our own previous fallback.
+                    "consequence": sa.case(
+                        (
+                            replace_consequence,
+                            sa.case((same_gene_allele, stmt.excluded.consequence)),
                         ),
-                    },
-                )
-                conn.execute(stmt)
+                        else_=annotated_variants.c.consequence,
+                    ),
+                    "consequence_source": sa.case(
+                        (
+                            replace_consequence,
+                            sa.case((same_gene_allele, stmt.excluded.consequence_source)),
+                        ),
+                        else_=annotated_variants.c.consequence_source,
+                    ),
+                    # OR the ClinVar bit into existing coverage
+                    "annotation_coverage": sa.case(
+                        (
+                            annotated_variants.c.annotation_coverage.is_(None),
+                            stmt.excluded.annotation_coverage,
+                        ),
+                        else_=annotated_variants.c.annotation_coverage.op("|")(CLINVAR_BITMASK),
+                    ),
+                },
+            )
+            conn.execute(stmt, batch)
 
-        result.rows_written = len(rows_to_upsert)
+        # A removed source record has no upsert row. Reconcile the current
+        # sample's previously matched ClinVar rows after both lookups succeed,
+        # including a refresh with zero remaining matches. Do not retain an
+        # old classification after removing the truncating fallback beside it.
+        stored_clinvar_rsids = conn.execute(
+            sa.select(annotated_variants.c.rsid).where(
+                sa.or_(
+                    annotated_variants.c.consequence_source == "clinvar",
+                    annotated_variants.c.clinvar_molecular_consequence.is_not(None),
+                    annotated_variants.c.clinvar_allele_identity.is_not(None),
+                    annotated_variants.c.clinvar_significance.is_not(None),
+                    annotated_variants.c.annotation_coverage.op("&")(CLINVAR_BITMASK) != 0,
+                )
+            )
+        ).scalars()
+        lost_matches = [
+            rsid
+            for rsid in stored_clinvar_rsids
+            if rsid in raw_by_rsid and rsid not in all_matches
+        ]
+        owns_consequence = annotated_variants.c.consequence_source == "clinvar"
+        withdrawal = annotated_variants.update().values(
+            clinvar_significance=None,
+            clinvar_review_stars=None,
+            clinvar_accession=None,
+            clinvar_conditions=None,
+            clinvar_molecular_consequence=None,
+            clinvar_allele_identity=None,
+            consequence=sa.case((owns_consequence, None), else_=annotated_variants.c.consequence),
+            consequence_source=sa.case(
+                (owns_consequence, None), else_=annotated_variants.c.consequence_source
+            ),
+            annotation_coverage=sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op(
+                "&"
+            )(~CLINVAR_BITMASK),
+        )
+        from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER
+
+        # SQLite positional placeholders count repeated binds separately.
+        # Reserve every SET placeholder before allocating the IN-clause batch.
+        compiled = withdrawal.compile(dialect=conn.dialect)
+        fixed_parameters = len(compiled.positiontup or compiled.params)
+        withdrawal_batch_size = min(BATCH_SIZE, SQLITE_MAX_VARIABLE_NUMBER - fixed_parameters)
+        if withdrawal_batch_size < 1:
+            raise ValueError("SQLite parameter budget cannot fit ClinVar withdrawal")
+        for batch_start in range(0, len(lost_matches), withdrawal_batch_size):
+            conn.execute(
+                withdrawal.where(
+                    annotated_variants.c.rsid.in_(
+                        lost_matches[batch_start : batch_start + withdrawal_batch_size]
+                    )
+                )
+            )
+
+    result.rows_written = len(rows_to_upsert)
 
     # WAL checkpoint after annotation
     _wal_checkpoint(sample_engine)

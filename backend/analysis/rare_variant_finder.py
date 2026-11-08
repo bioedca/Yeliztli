@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 from bisect import bisect_left
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 
 import sqlalchemy as sa
@@ -60,7 +61,7 @@ from backend.analysis.zygosity import (
     is_implausible_recessive_affected_hom_alt,
 )
 from backend.annotation.vep_bundle import CONSEQUENCE_SEVERITY
-from backend.db.tables import annotated_variants, findings
+from backend.db.tables import annotated_variants, annotation_state, findings
 from backend.services.sample_phenotype_scope import (
     legacy_phenotype_column_masks,
     sample_phenotype_scope_is_current,
@@ -70,6 +71,11 @@ logger = structlog.get_logger(__name__)
 
 # Default AF threshold for "rare" variants (gnomAD global)
 DEFAULT_AF_THRESHOLD = 0.01  # 1%
+
+# Marks the corrected stored derivation, including an empty result. The sample
+# reference snapshot alone cannot say which finder produced persisted rows.
+PHENOTYPE_SCOPE_REVISION_KEY = "rare_variant_phenotype_scope_revision"
+PHENOTYPE_SCOPE_REVISION = "legacy-mondo-withheld-v1"
 
 # Chromosome names as stored in ``annotated_variants`` (ingestion normalizes to these).
 _SAMPLE_CHROMS = frozenset([str(n) for n in range(1, 23)] + ["X", "Y", "MT"])
@@ -310,7 +316,7 @@ def _assign_evidence_level(variant: RareVariantResult) -> int:
 
 def find_rare_variants(
     filters: RareVariantFilter,
-    sample_engine: sa.Engine,
+    sample_engine: sa.Engine | sa.Connection,
 ) -> RareVariantFinderResult:
     """Find rare variants matching the given filter criteria.
 
@@ -457,7 +463,11 @@ def find_rare_variants(
         av.c.pos,
     )
 
-    with sample_engine.connect() as conn:
+    with (
+        sample_engine.connect()
+        if isinstance(sample_engine, sa.Engine)
+        else nullcontext(sample_engine)
+    ) as conn:
         # Get total variant count for stats
         total_stmt = sa.select(sa.func.count()).select_from(av)
         total_variants = conn.execute(total_stmt).scalar() or 0
@@ -561,7 +571,7 @@ def find_rare_variants(
 
 def store_rare_variant_findings(
     result: RareVariantFinderResult,
-    sample_engine: sa.Engine,
+    sample_engine: sa.Engine | sa.Connection,
 ) -> int:
     """Store rare variant findings in the sample database.
 
@@ -702,9 +712,23 @@ def store_rare_variant_findings(
             }
         )
 
-    with sample_engine.begin() as conn:
+    with (
+        sample_engine.begin()
+        if isinstance(sample_engine, sa.Engine)
+        else nullcontext(sample_engine)
+    ) as conn:
         # Clear previous rare_variants findings
         conn.execute(sa.delete(findings).where(findings.c.module == "rare_variants"))
+        conn.execute(
+            sa.delete(annotation_state).where(
+                annotation_state.c.key == PHENOTYPE_SCOPE_REVISION_KEY
+            )
+        )
+        conn.execute(
+            annotation_state.insert().values(
+                key=PHENOTYPE_SCOPE_REVISION_KEY, value=PHENOTYPE_SCOPE_REVISION
+            )
+        )
         if not rows:
             logger.info("no_rare_variant_findings_to_store")
             return 0

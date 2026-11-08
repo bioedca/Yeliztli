@@ -67,6 +67,7 @@ from backend.analysis.inheritance import (
 )
 from backend.analysis.insilico_tiers import insilico_block
 from backend.analysis.zygosity import CARRIED_ZYGOSITIES, is_implausible_dominant_hom_alt
+from backend.annotation.clinvar import molecular_consequence_terms
 from backend.db.tables import annotated_variants, findings
 
 logger = structlog.get_logger(__name__)
@@ -475,6 +476,8 @@ def extract_cardiovascular_variants(
                 annotated_variants.c.clinvar_conditions,
                 annotated_variants.c.revel,
                 annotated_variants.c.consequence,
+                annotated_variants.c.consequence_source,
+                annotated_variants.c.clinvar_molecular_consequence,
                 annotated_variants.c.gnomad_af_popmax,
                 annotated_variants.c.gnomad_af_global,
                 annotated_variants.c.gnomad_homozygous_count,
@@ -511,8 +514,17 @@ def extract_cardiovascular_variants(
             gene_info.evidence_level,
         )
         lower_penetrance = is_low_penetrance_or_risk_allele(row.clinvar_significance)
+        # The existing PTV safeguard accepts compound consequences. A single
+        # ranked MC term can hide a decisive truncating term behind a splice
+        # term, so retain the complete validated list for this safeguard only.
+        # VEP and unknown provenance continue to use their stored consequence.
+        condition_consequence = row.consequence
+        if row.consequence_source == "clinvar" and row.consequence:
+            condition_consequence = (
+                molecular_consequence_terms(row.clinvar_molecular_consequence) or row.consequence
+            )
         conditions, cardiovascular_category = _variant_condition_scope(
-            gene_info, row.clinvar_conditions, row.consequence
+            gene_info, row.clinvar_conditions, condition_consequence
         )
 
         variant = CardiovascularVariantResult(

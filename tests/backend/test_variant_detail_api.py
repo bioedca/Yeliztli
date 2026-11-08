@@ -1200,11 +1200,66 @@ class TestPrimaryAnnotationFromResolvedAllele:
         assert data["transcript_id"] == "ENST00000003084"
         assert data["consequence"] == "missense_variant"
         assert data["hgvs_coding"] == "c.1000G>A"
+        assert data["consequence_source"] == "vep"
         assert data["strand"] == "+"
         assert data["exon_number"] == 11
         assert data["mane_select"] is True
         # The resolved gene reaches the gene-disease lookup too.
         assert [gp["disease_name"] for gp in data["gene_phenotypes"]] == ["Cystic fibrosis"]
+
+    @pytest.mark.parametrize("vep_consequence", ["missense_variant", None])
+    def test_clinvar_fallback_allows_live_vep_enrichment(self, tmp_data_dir, vep_consequence):
+        sample = {
+            **_WITHHELD_PRIMARY_SAMPLE,
+            "consequence": "stop_gained",
+            "consequence_source": "clinvar",
+            "clinvar_molecular_consequence": "SO:0001587|nonsense",
+            "clinvar_allele_identity": '["7",117559590,"G","A"]',
+        }
+        rows = [
+            _withheld_vep_row("A", "ENST_SYNTHETIC_MC", vep_consequence, "c.syntheticG>A", 1, 11)
+        ]
+        data = self._get(tmp_data_dir, sample, rows)
+
+        assert len(data["transcripts"]) == 1
+        assert data["gene_symbol"] == "CFTR"
+        assert data["transcript_id"] == "ENST_SYNTHETIC_MC"
+        assert data["hgvs_coding"] == "c.syntheticG>A"
+        assert data["consequence"] == (vep_consequence or "stop_gained")
+        assert data["consequence_source"] == ("vep" if vep_consequence else "clinvar")
+        assert data["clinvar_molecular_consequence"] == "SO:0001587|nonsense"
+        assert [gp["disease_name"] for gp in data["gene_phenotypes"]] == ["Cystic fibrosis"]
+
+    def test_unresolved_vep_keeps_clinvar_fallback_without_a_gene(self, tmp_data_dir):
+        sample = {
+            **_WITHHELD_PRIMARY_SAMPLE,
+            "ref": None,
+            "alt": None,
+            "consequence": "stop_gained",
+            "consequence_source": "clinvar",
+        }
+        data = self._get(tmp_data_dir, sample)
+        assert data["transcripts"] == []
+        assert data["gene_symbol"] is None
+        assert data["consequence"] == "stop_gained"
+        assert data["consequence_source"] == "clinvar"
+
+    def test_live_vep_does_not_borrow_mc_from_a_different_source_allele(self, tmp_data_dir):
+        sample = {
+            **_WITHHELD_PRIMARY_SAMPLE,
+            "consequence": "stop_gained",
+            "consequence_source": "clinvar",
+            "clinvar_allele_identity": '["7",117559589,"G","A"]',
+        }
+        data = self._get(
+            tmp_data_dir,
+            sample,
+            [_withheld_vep_row("A", "ENST_SYNTHETIC_MC", None, "c.syntheticG>A", 1, 11)],
+        )
+        assert len(data["transcripts"]) == 1
+        assert data["gene_symbol"] == "CFTR"
+        assert data["consequence"] is None
+        assert data["consequence_source"] is None
 
     def test_withholding_stands_without_a_resolvable_allele(self, tmp_data_dir):
         sample = {**_WITHHELD_PRIMARY_SAMPLE, "ref": None, "alt": None}
@@ -1413,3 +1468,25 @@ class TestSpliceaiBadge:
         resp = tc.get(f"/api/variants/rs123456789?sample_id={sid}")
         assert resp.status_code == 200
         assert resp.json()["spliceai_badge"] is None
+
+
+def test_api_exposes_consequence_source_and_raw_mc(tmp_data_dir):
+    from contextlib import contextmanager
+
+    variant = {
+        **SAMPLE_VARIANT_BRCA1,
+        "consequence_source": "clinvar",
+        "clinvar_molecular_consequence": "SO:0001589|frameshift_variant",
+    }
+    with contextmanager(_setup_client)(tmp_data_dir, [variant]) as (api_client, sample_id):
+        response = api_client.get(f"/api/variants/{variant['rsid']}?sample_id={sample_id}")
+        assert response.status_code == 200
+        assert response.json()["consequence_source"] == "clinvar"
+        assert (
+            response.json()["clinvar_molecular_consequence"]
+            == variant["clinvar_molecular_consequence"]
+        )
+        listing = api_client.get(f"/api/variants?sample_id={sample_id}")
+        assert listing.status_code == 200
+        assert len(listing.json()["items"]) == 1
+        assert listing.json()["items"][0]["consequence_source"] == "clinvar"
