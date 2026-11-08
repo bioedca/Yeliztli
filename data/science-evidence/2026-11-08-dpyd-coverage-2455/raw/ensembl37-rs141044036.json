@@ -1,0 +1,42 @@
+{
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ESP",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": null,
+  "mappings": [
+    {
+      "assembly_name": "GRCh37",
+      "ancestral_allele": "T",
+      "start": 97547921,
+      "end": 97547921,
+      "location": "1:97547921-97547921",
+      "strand": 1,
+      "seq_region_name": "1",
+      "coord_system": "chromosome",
+      "allele_string": "T/C"
+    }
+  ],
+  "clinical_significance": [
+    "uncertain significance"
+  ],
+  "var_class": "SNP",
+  "name": "rs141044036",
+  "synonyms": [
+    "NM_000110.3:c.2872A>G",
+    "NM_000110.4:c.2872A>G",
+    "NP_000101.2:p.Lys958Glu",
+    "PA166153923",
+    "VCV000551659",
+    "RCV000666781"
+  ],
+  "ambiguity": "Y",
+  "MAF": null,
+  "most_severe_consequence": "missense_variant"
+}

@@ -1,0 +1,42 @@
+{
+  "ambiguity": "Y",
+  "name": "rs183385770",
+  "mappings": [
+    {
+      "ancestral_allele": "C",
+      "strand": 1,
+      "end": 98058878,
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37",
+      "allele_string": "C/T",
+      "location": "1:98058878-98058878",
+      "start": 98058878,
+      "seq_region_name": "1"
+    }
+  ],
+  "MAF": 0.0002,
+  "minor_allele": "T",
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "most_severe_consequence": "missense_variant",
+  "synonyms": [
+    "RCV000665570",
+    "VCV000550741",
+    "NM_000110.4:c.1024G>A",
+    "NP_000101.2:p.Asp342Asn",
+    "NM_000110.3:c.1024G>A",
+    "PA166153932"
+  ],
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "Phenotype_or_Disease",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "clinical_significance": [
+    "uncertain significance"
+  ]
+}

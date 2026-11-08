@@ -1,0 +1,41 @@
+{
+  "ambiguity": "N",
+  "most_severe_consequence": "missense_variant",
+  "name": "rs72549308",
+  "var_class": "SNP",
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "minor_allele": null,
+  "mappings": [
+    {
+      "strand": 1,
+      "ancestral_allele": "T",
+      "end": 98164986,
+      "seq_region_name": "1",
+      "allele_string": "T/A/C/G",
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37",
+      "location": "1:98164986-98164986",
+      "start": 98164986
+    }
+  ],
+  "synonyms": [
+    "NM_000110.3:c.601A>T",
+    "NP_000101.2:p.Ser201Cys",
+    "NM_000110.4:c.601A>T",
+    "NM_000110.4:c.601A>G",
+    "NP_000101.2:p.Ser201Gly",
+    "NM_000110.3:c.601A>C",
+    "NM_000110.3:c.601A>G",
+    "NP_000101.2:p.Ser201Arg",
+    "NM_000110.4:c.601A>C",
+    "PA166153901"
+  ],
+  "MAF": null
+}

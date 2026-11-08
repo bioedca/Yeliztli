@@ -1,0 +1,36 @@
+{
+  "synonyms": [
+    "PA166153921",
+    "NM_000110.4:c.2021G>A",
+    "NP_000101.2:p.Gly674Asp",
+    "NM_000110.3:c.2021G>A"
+  ],
+  "ambiguity": "Y",
+  "mappings": [
+    {
+      "start": 97839154,
+      "end": 97839154,
+      "ancestral_allele": "C",
+      "location": "1:97839154-97839154",
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37",
+      "strand": 1,
+      "allele_string": "C/T",
+      "seq_region_name": "1"
+    }
+  ],
+  "evidence": [
+    "Frequency",
+    "Cited",
+    "ESP",
+    "ExAC",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "MAF": null,
+  "name": "rs137999090",
+  "most_severe_consequence": "missense_variant",
+  "minor_allele": null,
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP"
+}

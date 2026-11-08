@@ -1,0 +1,60 @@
+{
+  "source": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=29152729,24648345,23328581,28295243&retmode=xml",
+  "selection": "Public bibliographic identifiers and correction links only; abstracts and unneeded personal details omitted",
+  "records": [
+    {
+      "pmid": "29152729",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update.",
+      "ids": {
+        "pubmed": "29152729",
+        "mid": "NIHMS912821",
+        "pmc": "PMC5760397",
+        "doi": "10.1002/cpt.911"
+      },
+      "journal": "Clinical pharmacology and therapeutics",
+      "accessed": "2026-11-08",
+      "comments_corrections": []
+    },
+    {
+      "pmid": "24648345",
+      "title": "Comparative functional analysis of DPYD variants of potential clinical relevance to dihydropyrimidine dehydrogenase activity.",
+      "ids": {
+        "pubmed": "24648345",
+        "mid": "NIHMS577303",
+        "pmc": "PMC4012613",
+        "doi": "10.1158/0008-5472.CAN-13-2482",
+        "pii": "0008-5472.CAN-13-2482"
+      },
+      "journal": "Cancer research",
+      "accessed": "2026-11-08",
+      "comments_corrections": []
+    },
+    {
+      "pmid": "23328581",
+      "title": "Phenotypic profiling of DPYD variations relevant to 5-fluorouracil sensitivity using real-time cellular analysis and in vitro measurement of enzyme activity.",
+      "ids": {
+        "pubmed": "23328581",
+        "mid": "NIHMS437104",
+        "pmc": "PMC3602211",
+        "doi": "10.1158/0008-5472.CAN-12-3858",
+        "pii": "0008-5472.CAN-12-3858"
+      },
+      "journal": "Cancer research",
+      "accessed": "2026-11-08",
+      "comments_corrections": []
+    },
+    {
+      "pmid": "28295243",
+      "title": "Quantitative Contribution of rs75017182 to Dihydropyrimidine Dehydrogenase mRNA Splicing and Enzyme Activity.",
+      "ids": {
+        "pubmed": "28295243",
+        "mid": "NIHMS987444",
+        "pmc": "PMC6138243",
+        "doi": "10.1002/cpt.685"
+      },
+      "journal": "Clinical pharmacology and therapeutics",
+      "accessed": "2026-11-08",
+      "comments_corrections": []
+    }
+  ]
+}

@@ -1,0 +1,335 @@
+[
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs111858276",
+    "variant_id": "1-98015156-T-C",
+    "query": "{ variant(variantId: \"1-98015156-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs111858276.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs112766203",
+    "variant_id": "1-97770835-G-A",
+    "query": "{ variant(variantId: \"1-97770835-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs112766203.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs115232898",
+    "variant_id": "1-98165030-T-C",
+    "query": "{ variant(variantId: \"1-98165030-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs115232898.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs137999090",
+    "variant_id": "1-97839154-C-T",
+    "query": "{ variant(variantId: \"1-97839154-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs137999090.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs138616379",
+    "variant_id": "1-97915745-C-T",
+    "query": "{ variant(variantId: \"1-97915745-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs138616379.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs141044036",
+    "variant_id": "1-97547921-T-C",
+    "query": "{ variant(variantId: \"1-97547921-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs141044036.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs143154602",
+    "variant_id": "1-98058845-G-A",
+    "query": "{ variant(variantId: \"1-98058845-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs143154602.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs145773863",
+    "variant_id": "1-97915743-C-T",
+    "query": "{ variant(variantId: \"1-97915743-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs145773863.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs146356975",
+    "variant_id": "1-98060705-T-C",
+    "query": "{ variant(variantId: \"1-98060705-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs146356975.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs1801266",
+    "variant_id": "1-98157332-G-A",
+    "query": "{ variant(variantId: \"1-98157332-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs1801266.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs1801268",
+    "variant_id": "1-97544627-C-A",
+    "query": "{ variant(variantId: \"1-97544627-C-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs1801268.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs183385770",
+    "variant_id": "1-98058878-C-T",
+    "query": "{ variant(variantId: \"1-98058878-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs183385770.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs186169810",
+    "variant_id": "1-98039341-A-C",
+    "query": "{ variant(variantId: \"1-98039341-A-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs186169810.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs3918290",
+    "variant_id": "1-97915614-C-T",
+    "query": "{ variant(variantId: \"1-97915614-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "network_error",
+      "message": "GraphQL request failed: 429 Client Error: Too Many Requests for url: https://gnomad.broadinstitute.org/api"
+    },
+    "saved": null
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs55674432",
+    "variant_id": "1-97564172-C-A",
+    "query": "{ variant(variantId: \"1-97564172-C-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs55674432.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs56038477",
+    "variant_id": "1-98039419-C-T",
+    "query": "{ variant(variantId: \"1-98039419-C-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs56038477.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs59086055",
+    "variant_id": "1-97915746-G-A",
+    "query": "{ variant(variantId: \"1-97915746-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs59086055.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72547601",
+    "variant_id": "1-97544677-T-C",
+    "query": "{ variant(variantId: \"1-97544677-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs72547601.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549303",
+    "variant_id": "1-97915621-TG-T",
+    "query": "{ variant(variantId: \"1-97915621-TG-T\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": false,
+    "error": {
+      "code": "graphql_error",
+      "message": "[{\"message\": \"Variant not found\"}]"
+    },
+    "saved": "raw/gnomad-r2_1-rs72549303.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549304",
+    "variant_id": "1-98015165-G-A",
+    "query": "{ variant(variantId: \"1-98015165-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs72549304.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549307",
+    "variant_id": "1-98164955-T-C",
+    "query": "{ variant(variantId: \"1-98164955-T-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs72549307.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549308",
+    "variant_id": "1-98164986-T-G",
+    "query": "{ variant(variantId: \"1-98164986-T-G\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs72549308.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549309",
+    "variant_id": "1-98205966-GATGA-G",
+    "query": "{ variant(variantId: \"1-98205966-GATGA-G\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs72549309.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs72549310",
+    "variant_id": "1-98348909-G-A",
+    "query": "{ variant(variantId: \"1-98348909-G-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs72549310.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs75017182",
+    "variant_id": "1-98045449-G-C",
+    "query": "{ variant(variantId: \"1-98045449-G-C\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs75017182.json"
+  },
+  {
+    "source": "gnomAD",
+    "dataset": "gnomad_r2_1",
+    "build": "GRCh37",
+    "accessed": "2026-11-08",
+    "rsid_label": "rs78060119",
+    "variant_id": "1-98039499-C-A",
+    "query": "{ variant(variantId: \"1-98039499-C-A\", dataset: gnomad_r2_1) { variant_id rsids chrom pos ref alt genome { ac an populations { id ac an } } exome { ac an populations { id ac an } } } }",
+    "ok": true,
+    "error": null,
+    "saved": "raw/gnomad-r2_1-rs78060119.json"
+  }
+]
