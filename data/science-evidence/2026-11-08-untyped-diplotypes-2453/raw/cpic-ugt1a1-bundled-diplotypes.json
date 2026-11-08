@@ -1,0 +1,32 @@
+[
+  {
+    "diplotype": "*1/*1",
+    "generesult": "Normal Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*28",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*6",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*28/*28",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*6/*28",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*6/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  }
+]

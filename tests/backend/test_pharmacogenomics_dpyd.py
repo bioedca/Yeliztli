@@ -242,7 +242,7 @@ def test_untyped_c557_does_not_get_label_recommended_dosing(
     handed label-recommended fluoropyrimidine dosing off a reference-filled
     ``*1/*1`` — that is precisely the harm #2120 reports. DPYD is in
     ``CONSERVATIVE_UNTYPED_PHENOTYPE_GENES``, so the alert is raised to the
-    lowest plausible diplotype (``*1/c.557A>G``, activity score 1.5).
+    lowest supported plausible diplotype (``c.557A>G/c.557A>G``, activity score 1.0).
     """
     genotypes = _dpyd_genotypes()
     del genotypes["rs115232898"]

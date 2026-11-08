@@ -1,0 +1,77 @@
+[
+  {
+    "diplotype": "*1/*1",
+    "generesult": "Normal Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*18",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*4",
+    "generesult": "Rapid Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*6",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*1/*9",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*18/*18",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*4/*18",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*4/*4",
+    "generesult": "Ultrarapid Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*4/*6",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*4/*9",
+    "generesult": "Intermediate Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*6/*18",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*6/*6",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*6/*9",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*9/*18",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  },
+  {
+    "diplotype": "*9/*9",
+    "generesult": "Poor Metabolizer",
+    "totalactivityscore": "n/a"
+  }
+]

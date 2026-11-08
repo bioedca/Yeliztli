@@ -412,8 +412,9 @@ def test_untyped_star2_with_reference_star3_does_not_emit_poor_alert(
     assert result.diplotype == "*1/*1"
     assert result.phenotype == "Normal Metabolizer"
     assert result.indeterminate_alleles == ["*2"]
-    assert result.conservative_diplotype == "*1/*2"
+    assert result.conservative_diplotype == "*2/*2"
     assert result.conservative_phenotype == "Intermediate Metabolizer"
+    assert result.conservative_activity_score == 1.0
 
     sample = _make_sample(genotypes)
     results = call_all_star_alleles(reference_engine, sample, genes=frozenset({"CYP2C9"}))
