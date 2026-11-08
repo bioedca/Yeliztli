@@ -91,15 +91,39 @@ truncating term. A VEP consequence still takes precedence for that check.
 A standalone ClinVar refresh also clears ClinVar fields and its effective fallback
 when a source record is withdrawn. Existing VEP annotations remain intact.
 
+When a successful VEP lookup has no annotation for the resolved allele, annotation
+can use the single gene named by that allele's complete ClinVar `GENEINFO` field.
+The gene source is shown as **ClinVar** in variant detail. This does not supply a
+transcript, HGVS annotation, or VEP coverage. Existing VEP gene context takes
+precedence, including a selected VEP row with no gene. Failed or unavailable VEP
+lookups, unresolved allele selection, coordinate matches withheld by VEP, multiple
+genes, conflicting gene assertions, and legacy records without complete `GENEINFO`
+do not supply this fallback.
+
+The selected gene enters the existing disease-scoped phenotype/inheritance lookup;
+ClinVar's gene name itself does not establish an inheritance pattern. The annotation
+swap records phenotype scope atomically so the first analysis can use its fresh
+inheritance while older, unproven MONDO/HPO joins remain withheld. Existing carrier
+and homozygous-call safeguards continue to apply. A ClinVar-only refresh preserves
+an existing ClinVar gene only while its exact allele and single-gene assertion still
+agree; otherwise it clears that gene and its dependent phenotype fields. Run full
+re-annotation to establish a replacement gene context. A later standalone VEP
+refresh takes ownership of the gene and clears the old phenotype join if the gene
+changes or disappears. Variant detail also allows resolved live VEP transcripts to
+replace a stored ClinVar fallback; it withholds the old gene's phenotype fields and
+fetches the new gene's associations. Source-format evidence is in
+`data/science-evidence/2026-11-08-clinvar-gene-2464/README.md`.
+
 Upgrading adds nullable reference/sample columns without inventing historical values.
 Use **Check for Updates** and install the offered ClinVar refresh, even when its displayed
-release date matches the current date: older installs did not ingest MC. Successful
-loads record the original release plus `+mc-v1`; this change also produces the existing
+release date matches the current date: older installs did not retain complete
+`GENEINFO` (and some predate MC ingestion). Successful loads record the original
+release plus `+gene-info-v1`; this change also produces the existing
 version-staleness re-annotation prompt for samples with a recorded older snapshot.
 Re-annotate existing samples to populate the new fields and regenerate findings.
 Very old samples without a version snapshot need manual re-annotation. If the remote
 release date is unavailable, the update check withholds an offer; retry when NCBI is
-reachable. A newer installed release is never downgraded to add MC.
+reachable. A newer installed release is never downgraded to add source fields.
 
 For MONDO/HPO, phenotype terms and inheritance are attached to a MONDO disease only through
 an authoritative `skos:exactMatch` cross-reference. Unmatched or ambiguous source disease

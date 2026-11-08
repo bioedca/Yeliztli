@@ -9,6 +9,7 @@ export interface VariantRow {
   alt: string | null
   zygosity: string | null
   gene_symbol: string | null
+  gene_source?: "vep" | "clinvar" | null
   consequence: string | null
   clinvar_significance: string | null
   clinvar_review_stars: number | null

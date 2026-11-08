@@ -460,6 +460,7 @@ def lookup_vep_by_positions(
     *,
     genotype_by_rsid: Mapping[str, str] | None = None,
     allele_by_rsid: Mapping[str, AlleleIdentity] | None = None,
+    ambiguous_out: set[str] | None = None,
 ) -> dict[str, VEPAnnotation]:
     """Fallback VEP lookup by (chrom, pos) for unmatched variants.
 
@@ -472,6 +473,9 @@ def lookup_vep_by_positions(
             same-rsid, multi-ALT position hits to the carried VEP ALT.
         allele_by_rsid: Optional map of sample rsid → ``(chrom, pos, ref, alt)``
             for callers that have exact variant identity.
+        ambiguous_out: Optional set receiving sample IDs withheld because the
+            allele is unresolved or multiple bundle rsIDs remain at the position.
+            These are distinct from a genuine absence of the requested allele.
 
     Returns:
         Dict mapping sample rsid to the best :class:`VEPAnnotation` for
@@ -513,17 +517,26 @@ def lookup_vep_by_positions(
                 if key not in pos_rows or sample_rsid in results:
                     continue
 
+                allele_identity = allele_by_rsid.get(sample_rsid) if allele_by_rsid else None
                 candidate_rows, allele_unambiguous = _filter_rows_for_sample_allele(
                     pos_rows[key],
-                    allele_identity=allele_by_rsid.get(sample_rsid) if allele_by_rsid else None,
+                    allele_identity=allele_identity,
                     sample_coordinate=(chrom, pos),
                     genotype=genotype_by_rsid.get(sample_rsid) if genotype_by_rsid else None,
                 )
                 if not candidate_rows:
+                    if (
+                        ambiguous_out is not None
+                        and allele_identity is None
+                        and _has_several_allele_pairs(pos_rows[key])
+                    ):
+                        ambiguous_out.add(sample_rsid)
                     continue
 
                 candidate_rsids = {r.rsid for r in candidate_rows}
                 if len(candidate_rsids) > 1:
+                    if ambiguous_out is not None:
+                        ambiguous_out.add(sample_rsid)
                     logger.warning(
                         "ambiguous_vep_position_match",
                         extra={
@@ -676,6 +689,7 @@ def annotate_sample_vep(
                 "pos": raw.pos,
                 "genotype": raw.genotype,
                 "gene_symbol": annot.gene_symbol,
+                "gene_source": "vep" if annot.gene_symbol else None,
                 "transcript_id": annot.transcript_id,
                 "consequence": consequence,
                 "consequence_source": consequence_source,
@@ -696,10 +710,19 @@ def annotate_sample_vep(
                 batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
                 stmt = sqlite_insert(annotated_variants)
+                same_gene = sa.and_(
+                    annotated_variants.c.gene_symbol.is_not(None),
+                    annotated_variants.c.gene_symbol != "",
+                    annotated_variants.c.gene_symbol == stmt.excluded.gene_symbol,
+                )
+                coverage = sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("|")(
+                    VEP_BITMASK
+                )
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["rsid"],
                     set_={
                         "gene_symbol": stmt.excluded.gene_symbol,
+                        "gene_source": stmt.excluded.gene_source,
                         "transcript_id": stmt.excluded.transcript_id,
                         "consequence": stmt.excluded.consequence,
                         "consequence_source": stmt.excluded.consequence_source,
@@ -710,13 +733,21 @@ def annotate_sample_vep(
                         "exon_number": stmt.excluded.exon_number,
                         "intron_number": stmt.excluded.intron_number,
                         "mane_select": stmt.excluded.mane_select,
-                        # OR the VEP bit into existing coverage
+                        # A changed/removed gene invalidates its old phenotype
+                        # join. Full annotation can establish the new join.
+                        **{
+                            field: sa.case((same_gene, annotated_variants.c[field]), else_=None)
+                            for field in (
+                                "disease_name",
+                                "disease_id",
+                                "phenotype_source",
+                                "hpo_terms",
+                                "inheritance_pattern",
+                            )
+                        },
                         "annotation_coverage": sa.case(
-                            (
-                                annotated_variants.c.annotation_coverage.is_(None),
-                                stmt.excluded.annotation_coverage,
-                            ),
-                            else_=(annotated_variants.c.annotation_coverage.op("|")(VEP_BITMASK)),
+                            (same_gene, coverage),
+                            else_=coverage.op("&")(~(1 << 4)),
                         ),
                     },
                 )

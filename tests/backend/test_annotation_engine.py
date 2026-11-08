@@ -1869,19 +1869,19 @@ class TestCoverageStatsSideEffects:
             ).fetchone()
         assert row is None
 
-    def test_annotation_state_untouched_by_engine(
+    def test_engine_records_only_atomic_row_provenance(
         self,
         sample_with_variants: sa.Engine,
         mock_registry: MagicMock,
     ) -> None:
-        """`run_annotation` alone writes no provenance into `annotation_state`.
+        """The engine records row identity/scope, not successful-analysis state.
 
-        The Huey-task wrapper is responsible for upserting provenance after
-        analysis returns. The engine's only key is the annotated-variants
-        generation token, written in the same transaction as the variant swap
-        so a run that fails after the swap still marks scores read from those
-        rows stale (#2118).
+        The worker still owns reference-version and successful-analysis
+        provenance. The generation token and phenotype scope describe the
+        atomically swapped rows even before that later analysis completes.
         """
+        from backend.services.sample_phenotype_scope import ANNOTATED_PHENOTYPE_SCOPE_KEY
+
         _stamp_bundle_version(mock_registry.reference_engine, "v2.0.0")
         _stamp_sample_metadata(sample_with_variants, file_format="23andme_v5")
 
@@ -1895,8 +1895,12 @@ class TestCoverageStatsSideEffects:
         assert result.coverage_stats != {}
 
         with sample_with_variants.connect() as conn:
-            after_keys = conn.execute(sa.select(annotation_state.c.key)).scalars().all()
-        assert after_keys == [ANNOTATED_VARIANTS_GENERATION_KEY]
+            state = dict(
+                conn.execute(sa.select(annotation_state.c.key, annotation_state.c.value)).all()
+            )
+        assert set(state) == {ANNOTATED_VARIANTS_GENERATION_KEY, ANNOTATED_PHENOTYPE_SCOPE_KEY}
+        assert state[ANNOTATED_VARIANTS_GENERATION_KEY]
+        assert state[ANNOTATED_PHENOTYPE_SCOPE_KEY] == MONDO_HPO_INGESTION_REVISION
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -5713,3 +5717,299 @@ def test_compound_mc_reaches_acmg_and_coverage_without_false_benign_evidence(
     unknown = "unknown_variant" in other_mc
     assert row.consequence == (None if unknown else "stop_gained")
     assert row.consequence_source == (None if unknown else "clinvar")
+
+
+def _seed_clinvar_gene_case(sample_engine, reference_engine, genotype):
+    from dataclasses import asdict
+
+    from backend.annotation.clinvar import parse_clinvar_vcf_line
+    from backend.db.tables import gene_phenotype
+
+    record, skipped = parse_clinvar_vcf_line(
+        "1\t992464\t900002464\tA\tG\t.\t.\t"
+        "CLNSIG=Pathogenic;GENEINFO=YELIZTLI2464:999002464;"
+        "CLNDN=Synthetic_recessive_condition"
+    )
+    assert skipped is None and record is not None
+    with reference_engine.begin() as conn:
+        conn.execute(clinvar_variants.insert(), asdict(record))
+        conn.execute(
+            gene_phenotype.insert().values(
+                gene_symbol="YELIZTLI2464",
+                disease_name="Synthetic recessive condition",
+                disease_id="MONDO:9002464",
+                hpo_terms="[]",
+                source="mondo_hpo",
+                inheritance="Autosomal recessive",
+            )
+        )
+    with sample_engine.begin() as conn:
+        conn.execute(
+            raw_variants.insert().values(
+                rsid="rsYELIZTLI2464", chrom="1", pos=992464, genotype=genotype
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "genotype,zygosity", [("AG", "het"), ("AA", "hom_ref"), ("GG", "hom_alt")]
+)
+def test_clinvar_gene_fallback_reaches_stored_inheritance(
+    sample_engine, mock_registry, reference_engine, genotype, zygosity
+):
+    """Synthetic exact-allele gene context survives the production staging swap."""
+    _seed_clinvar_gene_case(sample_engine, reference_engine, genotype)
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()._mapping
+    assert row["gene_symbol"] == "YELIZTLI2464"
+    assert row["gene_source"] == "clinvar"
+    assert row["inheritance_pattern"] == "Autosomal recessive"
+    assert row["phenotype_source"] == "mondo_hpo"
+    assert row["disease_id"] == "MONDO:9002464"
+    assert row["zygosity"] == zygosity
+    assert row["transcript_id"] is None
+    assert row["consequence"] is None
+    assert row["vep_allele_identity"] is None
+    assert row["annotation_coverage"] == CLINVAR_BIT | GENE_PHENOTYPE_BIT
+
+    from backend.analysis.rare_variant_finder import RareVariantFilter, find_rare_variants
+
+    found = find_rare_variants(
+        RareVariantFilter(gene_symbols=["YELIZTLI2464"], carried_only=True), sample_engine
+    )
+    assert found.total_variants_scanned == 1
+    assert len(found.variants) == int(genotype == "AG")
+    assert found.hom_alt_plausibility_suppressed == int(genotype == "GG")
+    if genotype == "AG":
+        assert found.variants[0].rsid == "rsYELIZTLI2464"
+        assert found.variants[0].inheritance_pattern == "Autosomal recessive"
+
+
+@pytest.mark.parametrize("gene", ["YELIZTLI_VEP", None])
+def test_clinvar_gene_does_not_replace_a_selected_vep_row(
+    sample_engine, reference_engine, vep_engine_inmemory, mock_registry, gene
+):
+    _seed_clinvar_gene_case(sample_engine, reference_engine, "AG")
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol,consequence) "
+                "VALUES ('rsYELIZTLI2464','1',992464,'A','G',:gene,'intergenic_variant')"
+            ),
+            {"gene": gene},
+        )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.gene_symbol == gene
+    assert row.gene_source == ("vep" if gene else None)
+    assert row.inheritance_pattern is None
+    assert row.consequence == "intergenic_variant"
+    assert row.annotation_coverage == VEP_BIT | CLINVAR_BIT
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "missing_info",
+        "multi_gene",
+        "conflicting_records",
+        "wrong_alt",
+        "no_call",
+        "vep_unavailable",
+        "vep_failure",
+        "vep_ambiguous",
+    ],
+)
+def test_clinvar_gene_fallback_withholds_unresolved_context(
+    sample_engine, reference_engine, vep_engine_inmemory, mock_registry, monkeypatch, reason
+):
+    genotype = {"wrong_alt": "AC", "no_call": "--", "vep_ambiguous": "AA"}.get(reason, "AG")
+    _seed_clinvar_gene_case(sample_engine, reference_engine, genotype)
+    if reason in {"missing_info", "multi_gene", "conflicting_records"}:
+        with reference_engine.begin() as conn:
+            if reason == "conflicting_records":
+                conn.execute(
+                    clinvar_variants.insert().values(
+                        chrom="1",
+                        pos=992464,
+                        ref="A",
+                        alt="G",
+                        review_stars=4,
+                        gene_info="YELIZTLI_OTHER:999001",
+                        significance="Pathogenic",
+                    )
+                )
+            else:
+                conn.execute(
+                    clinvar_variants.update()
+                    .where(clinvar_variants.c.pos == 992464)
+                    .values(
+                        gene_info=None
+                        if reason == "missing_info"
+                        else "YELIZTLI2464:999002464|YELIZTLI_OTHER:999001"
+                    )
+                )
+    if reason == "vep_unavailable":
+        monkeypatch.setattr(type(mock_registry), "vep_engine", property(lambda self: None))
+    if reason == "vep_failure":
+
+        def fail(*args, **kwargs):
+            raise RuntimeError("Synthetic VEP lookup failure")
+
+        monkeypatch.setattr("backend.annotation.engine._lookup_vep", fail)
+    if reason == "vep_ambiguous":
+        # Neither VEP allele is the single ClinVar allele: the successful
+        # lookup deliberately withholds a multi-ALT hom-ref call.
+        with vep_engine_inmemory.begin() as conn:
+            for alt in ("C", "T"):
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO vep_annotations (rsid,chrom,pos,ref,alt,gene_symbol) "
+                        "VALUES ('rsYELIZTLI2464','1',992464,'A',:alt,'YELIZTLI_VEP')"
+                    ),
+                    {"alt": alt},
+                )
+        with reference_engine.begin() as conn:
+            conn.execute(
+                clinvar_variants.update().where(clinvar_variants.c.pos == 992464).values(alt="")
+            )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.rows_written == 1
+    if reason == "vep_failure":
+        assert any("Synthetic VEP lookup failure" in error for error in result.errors)
+    else:
+        assert result.errors == []
+    if reason == "vep_ambiguous":
+        assert result.vep_allele_ambiguous == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.gene_symbol is None
+    assert row.gene_source is None
+    assert row.inheritance_pattern is None
+    assert row.phenotype_source is None
+    assert row.annotation_coverage == CLINVAR_BIT
+
+
+def test_clinvar_gene_does_not_restore_withheld_legacy_inheritance(
+    sample_engine, reference_engine, mock_registry
+):
+    _seed_clinvar_gene_case(sample_engine, reference_engine, "AG")
+    with reference_engine.begin() as conn:
+        conn.exec_driver_sql(
+            "UPDATE database_versions SET version='20260801' WHERE db_name='mondo_hpo'"
+        )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    assert row.gene_symbol == "YELIZTLI2464"
+    assert row.gene_source == "clinvar"
+    assert row.disease_id is None
+    assert row.inheritance_pattern is None
+    assert row.phenotype_source is None
+    assert row.annotation_coverage == CLINVAR_BIT
+
+
+@pytest.mark.parametrize("gene", ["YELIZTLI2464", "YELIZTLI_VEP", None])
+def test_standalone_vep_refresh_transfers_gene_ownership_before_clinvar_refresh(
+    sample_engine, reference_engine, vep_engine_inmemory, mock_registry, gene
+):
+    from backend.annotation.clinvar import annotate_sample_clinvar
+    from backend.annotation.vep_bundle import annotate_sample_vep
+
+    _seed_clinvar_gene_case(sample_engine, reference_engine, "AG")
+    assert run_annotation(sample_engine, mock_registry).rows_written == 1
+    with sample_engine.connect() as conn:
+        old = conn.execute(sa.select(annotated_variants)).one()
+    assert old.gene_source == "clinvar"
+    assert old.inheritance_pattern == "Autosomal recessive"
+    with vep_engine_inmemory.begin() as conn:
+        conn.execute(
+            sa.text(
+                "INSERT INTO vep_annotations "
+                "(rsid,chrom,pos,ref,alt,gene_symbol,transcript_id,consequence) "
+                "VALUES ('rsYELIZTLI2464','1',992464,'A','G',:gene,"
+                "'ENST_SYNTHETIC_GENE','intergenic_variant')"
+            ),
+            {"gene": gene},
+        )
+    assert annotate_sample_vep(sample_engine, vep_engine_inmemory).rows_written == 1
+    with sample_engine.connect() as conn:
+        refreshed = conn.execute(sa.select(annotated_variants)).one()
+    assert annotate_sample_clinvar(sample_engine, reference_engine).rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    retained = gene == "YELIZTLI2464"
+    for observed in (refreshed, row):
+        assert observed.gene_symbol == gene
+        assert observed.gene_source == ("vep" if gene else None)
+        assert observed.transcript_id == "ENST_SYNTHETIC_GENE"
+        assert observed.inheritance_pattern == ("Autosomal recessive" if retained else None)
+        assert observed.disease_id == ("MONDO:9002464" if retained else None)
+        assert observed.disease_name == (old.disease_name if retained else None)
+        assert observed.hpo_terms == (old.hpo_terms if retained else None)
+        assert observed.phenotype_source == ("mondo_hpo" if retained else None)
+        assert observed.annotation_coverage == VEP_BIT | CLINVAR_BIT | (
+            GENE_PHENOTYPE_BIT if retained else 0
+        )
+
+
+@pytest.mark.parametrize("genotype", ["AG", "AA"])
+@pytest.mark.parametrize(
+    "case,alts,source",
+    [
+        ("duplicate_exact_allele", ["G", "G"], None),
+        ("settled_hit", ["G", "T"], "vep"),
+        ("settled_miss", ["C", "T"], "clinvar"),
+        ("unique_hit", ["G"], "vep"),
+        ("genuine_miss", [], "clinvar"),
+    ],
+)
+def test_clinvar_gene_distinguishes_coordinate_withholding_from_a_genuine_miss(
+    sample_engine,
+    reference_engine,
+    vep_engine_inmemory,
+    mock_registry,
+    genotype,
+    case,
+    alts,
+    source,
+):
+    _seed_clinvar_gene_case(sample_engine, reference_engine, genotype)
+    with vep_engine_inmemory.begin() as conn:
+        for index, alt in enumerate(alts):
+            conn.execute(
+                sa.text(
+                    "INSERT INTO vep_annotations "
+                    "(rsid,chrom,pos,ref,alt,gene_symbol,transcript_id,consequence) "
+                    "VALUES (:rsid,'1',992464,'A',:alt,'YELIZTLI_VEP',:transcript,"
+                    "'intergenic_variant')"
+                ),
+                {
+                    "rsid": f"rsYELIZTLI_SOURCE{index}",
+                    "alt": alt,
+                    "transcript": f"ENST_SYNTHETIC_{index}",
+                },
+            )
+    result = run_annotation(sample_engine, mock_registry)
+    assert result.errors == []
+    assert result.rows_written == 1
+    with sample_engine.connect() as conn:
+        row = conn.execute(sa.select(annotated_variants)).one()
+    expected_gene = {"vep": "YELIZTLI_VEP", "clinvar": "YELIZTLI2464", None: None}[source]
+    assert row.gene_symbol == expected_gene, case
+    assert row.gene_source == source
+    assert row.clinvar_gene_info == "YELIZTLI2464:999002464"
+    assert row.inheritance_pattern == ("Autosomal recessive" if source == "clinvar" else None)
+    assert row.disease_id == ("MONDO:9002464" if source == "clinvar" else None)
+    assert row.transcript_id == ("ENST_SYNTHETIC_0" if source == "vep" else None)
+    assert row.annotation_coverage == CLINVAR_BIT | (
+        VEP_BIT if source == "vep" else GENE_PHENOTYPE_BIT if source == "clinvar" else 0
+    )

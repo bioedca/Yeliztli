@@ -135,9 +135,10 @@ class ClinVarRecord:
     gene_symbol: str | None = None
     variation_id: int | None = None
     molecular_consequence: str | None = None
+    gene_info: str | None = None
 
 
-CLINVAR_INGESTION_REVISION = "mc-v1"
+CLINVAR_INGESTION_REVISION = "gene-info-v1"
 
 # Canonical SO names for labels ClinVar spells differently. Definitions and
 # source-native examples: data/science-evidence/2026-11-07-clinvar-mc-2393.
@@ -148,7 +149,7 @@ _MC_CANONICAL_TERMS = {
 
 
 def clinvar_install_version(source_version: str) -> str:
-    """Keep the source release and mark ingestion of the source-native MC field."""
+    """Keep the source release and mark ingestion of MC and complete GENEINFO."""
     return f"{source_version.partition('+')[0]}+{CLINVAR_INGESTION_REVISION}"
 
 
@@ -230,14 +231,16 @@ def _normalize_chrom(chrom: str) -> str | None:
     return None
 
 
-def _extract_gene_symbol(geneinfo: str | None) -> str | None:
-    """Extract gene symbol from GENEINFO field (format: ``GENE:GENEID``)."""
-    if not geneinfo:
+def gene_symbol_from_gene_info(geneinfo: str | None) -> str | None:
+    """Accept one source-native symbol/GeneID pair, never choose among genes.
+
+    ClinVar's GENEINFO uses ``symbol:id`` pairs separated by ``|``. A missing,
+    malformed or multi-gene value cannot establish a single gene identity.
+    """
+    if not isinstance(geneinfo, str):
         return None
-    # May have multiple genes separated by |
-    first_gene = geneinfo.split("|")[0]
-    symbol = first_gene.split(":")[0]
-    return symbol if symbol else None
+    match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9_.-]*):([1-9][0-9]*)", geneinfo)
+    return match.group(1) if match else None
 
 
 def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]:
@@ -312,7 +315,7 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
         conditions = conditions.replace("_", " ")
 
     # Gene symbol
-    gene_symbol = _extract_gene_symbol(info.get("GENEINFO", ""))
+    gene_symbol = gene_symbol_from_gene_info(info.get("GENEINFO"))
 
     # Handle multi-allelic ALTs: create record for first ALT only
     # (ClinVar VCF typically has one ALT per line)
@@ -333,6 +336,7 @@ def parse_clinvar_vcf_line(line: str) -> tuple[ClinVarRecord | None, str | None]
         # MC is record-level, not an ALT-indexed array. A noncanonical
         # multi-ALT line cannot assign its consequence to our first-ALT row.
         molecular_consequence=info.get("MC") if "," not in alt else None,
+        gene_info=info.get("GENEINFO") if "," not in alt else None,
     )
     return record, None
 
@@ -360,6 +364,7 @@ def _record_to_dict(record: ClinVarRecord) -> dict:
         "gene_symbol": record.gene_symbol,
         "variation_id": record.variation_id,
         "molecular_consequence": record.molecular_consequence,
+        "gene_info": record.gene_info,
     }
 
 
@@ -676,6 +681,34 @@ class ClinVarAnnotation:
     ref: str | None = None
     alt: str | None = None
     clinvar_molecular_consequence: str | None = None
+    clinvar_gene_info: str | None = None
+
+
+def _unambiguous_gene_info(
+    rows: list[sa.Row], selected: sa.Row, genotype: str | None
+) -> str | None:
+    """Require a resolved called allele and agreement among its source records.
+
+    Review-star ranking cannot select a gene or an allele. In particular,
+    hom-ref calls at multi-ALT sites and unresolved chip I/D calls do not
+    establish the exact source allele needed for this fallback.
+    """
+    if classify_zygosity(genotype, selected.ref, selected.alt) not in (
+        *CARRIED_ZYGOSITIES,
+        "hom_ref",
+    ):
+        return None
+    carried = [
+        row for row in rows if classify_zygosity(genotype, row.ref, row.alt) in CARRIED_ZYGOSITIES
+    ]
+    eligible = carried or rows
+    identity = (selected.chrom, selected.pos, selected.ref, selected.alt)
+    if {(row.chrom, row.pos, row.ref, row.alt) for row in eligible} != {identity}:
+        return None
+    gene_infos = {row.gene_info for row in eligible}
+    if len(gene_infos) != 1:
+        return None
+    return selected.gene_info
 
 
 def _unambiguous_mc(rows: list[sa.Row], selected: sa.Row, genotype: str | None) -> str | None:
@@ -823,6 +856,7 @@ def lookup_clinvar_by_rsids(
                     clinvar_variants.c.ref,
                     clinvar_variants.c.alt,
                     clinvar_variants.c.molecular_consequence,
+                    clinvar_variants.c.gene_info,
                 )
                 .where(clinvar_variants.c.rsid.in_(batch))
                 .order_by(
@@ -856,6 +890,7 @@ def lookup_clinvar_by_rsids(
                     ref=row.ref,
                     alt=row.alt,
                     clinvar_molecular_consequence=_unambiguous_mc(cand_rows, row, genotype),
+                    clinvar_gene_info=_unambiguous_gene_info(cand_rows, row, genotype),
                 )
 
     return results
@@ -915,6 +950,7 @@ def lookup_clinvar_by_positions(
                     clinvar_variants.c.ref,
                     clinvar_variants.c.alt,
                     clinvar_variants.c.molecular_consequence,
+                    clinvar_variants.c.gene_info,
                 )
                 .where(sa.or_(*conditions))
                 .order_by(
@@ -960,6 +996,7 @@ def lookup_clinvar_by_positions(
                         ref=row.ref,
                         alt=row.alt,
                         clinvar_molecular_consequence=_unambiguous_mc(candidates, row, genotype),
+                        clinvar_gene_info=_unambiguous_gene_info(candidates, row, genotype),
                     )
 
     return results
@@ -1058,6 +1095,7 @@ def annotate_sample_clinvar(
                 "clinvar_accession": annot.clinvar_accession,
                 "clinvar_conditions": annot.clinvar_conditions,
                 "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+                "clinvar_gene_info": annot.clinvar_gene_info,
                 "clinvar_allele_identity": source_allele_identity(
                     annot.chrom, annot.pos, annot.ref, annot.alt
                 ),
@@ -1068,6 +1106,49 @@ def annotate_sample_clinvar(
         )
 
     with sample_engine.begin() as conn:
+        # This source-only refresh cannot prove VEP absence and therefore does
+        # not create gene fallbacks. Retain an existing fallback only while its
+        # exact allele and complete single-gene assertion still agree. Clear
+        # the dependent phenotype join in the same transaction on withdrawal.
+        current = {row["rsid"]: row for row in rows_to_upsert}
+        owned_genes = conn.execute(
+            sa.select(
+                annotated_variants.c.rsid,
+                annotated_variants.c.gene_symbol,
+                annotated_variants.c.clinvar_gene_info,
+                annotated_variants.c.clinvar_allele_identity,
+            ).where(annotated_variants.c.gene_source == "clinvar")
+        ).all()
+        stale_genes = []
+        for old in owned_genes:
+            if old.rsid not in raw_by_rsid:
+                continue
+            new = current.get(old.rsid)
+            if (
+                new is None
+                or not old.clinvar_allele_identity
+                or old.clinvar_allele_identity != new["clinvar_allele_identity"]
+                or old.clinvar_gene_info != new["clinvar_gene_info"]
+                or old.gene_symbol != gene_symbol_from_gene_info(new["clinvar_gene_info"])
+            ):
+                stale_genes.append(old.rsid)
+        for start in range(0, len(stale_genes), 500):
+            conn.execute(
+                annotated_variants.update()
+                .where(annotated_variants.c.rsid.in_(stale_genes[start : start + 500]))
+                .values(
+                    gene_symbol=None,
+                    gene_source=None,
+                    disease_name=None,
+                    disease_id=None,
+                    phenotype_source=None,
+                    hpo_terms=None,
+                    inheritance_pattern=None,
+                    annotation_coverage=sa.func.coalesce(
+                        annotated_variants.c.annotation_coverage, 0
+                    ).op("&")(~(1 << 4)),
+                )
+            )
         for batch_start in range(0, len(rows_to_upsert), BATCH_SIZE):
             batch = rows_to_upsert[batch_start : batch_start + BATCH_SIZE]
 
@@ -1086,6 +1167,11 @@ def annotate_sample_clinvar(
                     sa.func.coalesce(annotated_variants.c.annotation_coverage, 0).op("&")(1) == 0,
                 ),
                 annotated_variants.c.vep_allele_identity == stmt.excluded.clinvar_allele_identity,
+                sa.and_(
+                    annotated_variants.c.gene_source == "clinvar",
+                    annotated_variants.c.clinvar_allele_identity
+                    == stmt.excluded.clinvar_allele_identity,
+                ),
             )
             stmt = stmt.on_conflict_do_update(
                 index_elements=["rsid"],
@@ -1098,6 +1184,7 @@ def annotate_sample_clinvar(
                     "clinvar_accession": stmt.excluded.clinvar_accession,
                     "clinvar_conditions": stmt.excluded.clinvar_conditions,
                     "clinvar_molecular_consequence": (stmt.excluded.clinvar_molecular_consequence),
+                    "clinvar_gene_info": stmt.excluded.clinvar_gene_info,
                     "clinvar_allele_identity": stmt.excluded.clinvar_allele_identity,
                     # Retain a VEP (or unattributed legacy) consequence.
                     # A removed MC clears only our own previous fallback.
@@ -1154,6 +1241,7 @@ def annotate_sample_clinvar(
             clinvar_accession=None,
             clinvar_conditions=None,
             clinvar_molecular_consequence=None,
+            clinvar_gene_info=None,
             clinvar_allele_identity=None,
             consequence=sa.case((owns_consequence, None), else_=annotated_variants.c.consequence),
             consequence_source=sa.case(

@@ -23,11 +23,13 @@ it would cost a user valid context for a problem it does not have.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 import sqlalchemy as sa
 
 from backend.annotation.mondo_hpo import mondo_hpo_install_is_serviceable
+from backend.db.tables import annotation_state
 from backend.services.staleness import read_recorded_reference_versions
 
 LEGACY_SCOPED_PHENOTYPE_FIELDS: tuple[str, ...] = (
@@ -39,19 +41,36 @@ LEGACY_SCOPED_PHENOTYPE_FIELDS: tuple[str, ...] = (
 )
 
 _MONDO_HPO_SOURCE = "mondo_hpo"
+ANNOTATED_PHENOTYPE_SCOPE_KEY = "annotated_gene_phenotype_scope"
 
 
 def sample_phenotype_scope_is_current(sample_engine: sa.Engine | sa.Connection) -> bool:
     """Whether this sample's stored phenotype columns came from a scoped install.
 
-    Reads the sample's own recorded reference snapshot rather than the current
-    reference install: the columns were copied in at annotation time, so what
-    matters is the MONDO/HPO revision that run used, not what is installed now.
+    Prefer the scope marker committed atomically with the annotated rows. The
+    worker's successful-analysis snapshot is written later, so it cannot prove
+    the scope of newly swapped rows during that first analysis. Older samples
+    retain the existing recorded-reference fallback.
 
     Fails closed. A sample with no recorded snapshot predates the mechanism, so
     its provenance cannot be established and its pooled gene-wide terms are the
     ones this gate exists to withhold.
     """
+    try:
+        with (
+            sample_engine.connect()
+            if isinstance(sample_engine, sa.Engine)
+            else nullcontext(sample_engine)
+        ) as conn:
+            marker = conn.execute(
+                sa.select(annotation_state.c.value).where(
+                    annotation_state.c.key == ANNOTATED_PHENOTYPE_SCOPE_KEY
+                )
+            ).first()
+    except sa.exc.OperationalError:
+        return False
+    if marker is not None:
+        return mondo_hpo_install_is_serviceable(marker.value)
     versions = read_recorded_reference_versions(sample_engine)
     if not versions:
         return False

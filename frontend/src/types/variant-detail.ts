@@ -49,8 +49,9 @@ export interface VariantDetail {
   zygosity: string | null
   zygosity_label: string | null
 
-  // VEP (best transcript)
+  // Gene context and VEP best transcript
   gene_symbol: string | null
+  gene_source?: "vep" | "clinvar" | null
   transcript_id: string | null
   consequence: string | null
   hgvs_coding: string | null
@@ -65,6 +66,7 @@ export interface VariantDetail {
   clinvar_review_stars: number | null
   clinvar_accession: string | null
   clinvar_conditions: string | null
+  clinvar_gene_info?: string | null
 
   // gnomAD
   gnomad_af_global: number | null

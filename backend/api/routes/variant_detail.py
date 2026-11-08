@@ -33,6 +33,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.services.sample_phenotype_scope import (
+    LEGACY_SCOPED_PHENOTYPE_FIELDS,
     sample_phenotype_scope_is_current,
     withhold_legacy_phenotype_fields,
 )
@@ -119,8 +120,9 @@ class VariantDetailResponse(BaseModel):
     zygosity: str | None = None
     zygosity_label: str | None = None
 
-    # VEP (best transcript — stored in annotated_variants)
+    # Gene context and VEP best transcript — stored in annotated_variants
     gene_symbol: str | None = None
+    gene_source: str | None = None
     transcript_id: str | None = None
     consequence: str | None = None
     hgvs_coding: str | None = None
@@ -136,6 +138,7 @@ class VariantDetailResponse(BaseModel):
     clinvar_accession: str | None = None
     clinvar_conditions: str | None = None
     clinvar_molecular_consequence: str | None = None
+    clinvar_gene_info: str | None = None
     consequence_source: str | None = None
 
     # gnomAD
@@ -327,16 +330,20 @@ def _resolve_primary_annotation(
     allele's rows. Left NULL, the Overview, header, gene link and gene-disease
     list all read as "no gene" beside a populated transcript list.
 
-    Picks the primary transcript with the pipeline's own ranking. A stored
-    annotation is kept as is (``mane_select`` has a server default, so it says
-    nothing about whether VEP wrote the row), and with no resolvable allele
-    ``transcripts`` is empty, so the withholding stands.
+    Picks the primary transcript with the pipeline's own ranking. A stored VEP
+    or unproven legacy annotation is kept; a ClinVar fallback permits live VEP
+    enrichment. ``mane_select`` has a server default, so it says nothing about
+    whether VEP wrote the row. With no resolvable allele, ``transcripts`` is
+    empty and the withholding stands.
     """
     clinvar_fallback = data.get("consequence_source") == "clinvar"
+    clinvar_gene = data.get("gene_source") == "clinvar"
     stored_fields = (
         field
         for field in _PRIMARY_VEP_FIELDS
-        if field != "mane_select" and not (field == "consequence" and clinvar_fallback)
+        if field != "mane_select"
+        and not (field == "consequence" and clinvar_fallback)
+        and not (field == "gene_symbol" and clinvar_gene)
     )
     if not transcripts or any(data.get(field) is not None for field in stored_fields):
         return
@@ -345,8 +352,16 @@ def _resolve_primary_annotation(
         key=lambda tx: primary_transcript_rank(tx.mane_select, tx.consequence),
     )
     prior_consequence = data.get("consequence")
+    prior_gene = data.get("gene_symbol")
     for field in _PRIMARY_VEP_FIELDS:
         data[field] = getattr(primary, field)
+    data["gene_source"] = "vep" if primary.gene_symbol else None
+    if not primary.gene_symbol or primary.gene_symbol != prior_gene:
+        # These stored fields were joined through the old gene. The endpoint
+        # separately fetches the resolved gene's live phenotype records below.
+        for field in LEGACY_SCOPED_PHENOTYPE_FIELDS:
+            data[field] = None
+        data["annotation_coverage"] = (data.get("annotation_coverage") or 0) & ~(1 << 4)
     data["consequence_source"] = "vep" if primary.consequence else None
     if clinvar_fallback and not primary.consequence:
         from backend.annotation.allele_matching import source_allele_identity

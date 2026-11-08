@@ -101,6 +101,7 @@ class VariantRow(BaseModel):
     alt: str | None = None
     zygosity: str | None = None
     gene_symbol: str | None = None
+    gene_source: str | None = None
     consequence: str | None = None
     consequence_source: str | None = None
     clinvar_significance: str | None = None
@@ -378,6 +379,7 @@ def _row_to_variant(
             "alt",
             "zygosity",
             "gene_symbol",
+            "gene_source",
             "consequence",
             "consequence_source",
             "clinvar_significance",

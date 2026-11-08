@@ -1,0 +1,30 @@
+{
+  "accessed": "2026-11-08",
+  "entrez": [
+    {
+      "endpoint": "esearch.fcgi",
+      "db": "pubmed",
+      "term": "10.1093/nar/gkx1153[DOI]"
+    },
+    {
+      "endpoint": "efetch.fcgi",
+      "db": "pubmed",
+      "id": "29165669",
+      "retmode": "xml"
+    }
+  ],
+  "context7": {
+    "library": "/ncbi/clinvar",
+    "question": "Official ClinVar VCF GENEINFO format, multiple-gene delimiter and allele-specific interpretation",
+    "result": "Official VCF/XML examples; the complete current field definition was verified directly in the public GRCh37 VCF header."
+  },
+  "fallbacks": [
+    "NCBI download-help page returned a browser challenge; no challenge was bypassed.",
+    "Public FTP bounded 64 KiB HTTP range supplied metadata headers; no variant or sample rows retained."
+  ],
+  "licenses": {
+    "url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+    "accessed": "2026-11-08",
+    "summary": "NCBI identifies government-created information as public domain and places no restrictions itself on molecular-data use or distribution, while reserving submitter intellectual-property caveats. Only public metadata is retained; no article abstract or full text is redistributed."
+  }
+}

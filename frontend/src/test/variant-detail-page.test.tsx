@@ -191,6 +191,26 @@ afterEach(() => {
 })
 
 describe("VariantDetailPage (P2-21a)", () => {
+  it.each([
+    ["clinvar", "ClinVar"],
+    ["vep", "Ensembl VEP"],
+    [null, null],
+  ] as const)("shows the known gene source %s", async (source, label) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({ ...mockVariant, gene_symbol: "YELIZTLI2464", gene_source: source }),
+    }))
+    renderPage("rs100")
+    const overview = await screen.findByTestId("tab-overview")
+    expect(within(overview).getByText("YELIZTLI2464")).toBeInTheDocument()
+    if (label) {
+      const row = within(overview).getByText("Gene source").parentElement!
+      expect(within(row).getByText(label)).toBeInTheDocument()
+    } else {
+      expect(within(overview).queryByText("Gene source")).not.toBeInTheDocument()
+    }
+  })
+
   it("asks for a sample before loading variant detail", () => {
     renderPage("rs100", null)
 
