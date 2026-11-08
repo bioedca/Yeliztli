@@ -6,6 +6,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import { pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import { pathwayLevelSvg } from "@/lib/pathwayLevel"
 import type { PathwaySummary, PathwayLevel } from "@/types/methylation"
 
@@ -51,16 +52,20 @@ function PathwayNode({
   pathwayId,
   layout,
   level,
+  displayLabel,
   selected,
   onClick,
 }: {
   pathwayId: string
   layout: { x: number; y: number; label: string }
   level: PathwayLevel
+  displayLabel: string
   selected: boolean
   onClick: () => void
 }) {
-  const fill = pathwayLevelSvg(level)
+  const fill = displayLabel === "Not Assessed"
+    ? { bg: "fill-muted", border: "stroke-border", text: "fill-muted-foreground" }
+    : pathwayLevelSvg(level)
   const lines = layout.label.split("\n")
 
   return (
@@ -75,7 +80,7 @@ function PathwayNode({
       }}
       tabIndex={0}
       role="button"
-      aria-label={`${lines.join(" ")} — ${level}`}
+      aria-label={`${lines.join(" ")} — ${displayLabel}`}
     >
       <rect
         x={layout.x - NODE_W / 2}
@@ -107,6 +112,7 @@ export default function PathwayFlowDiagram({
   onSelectPathway,
 }: PathwayFlowDiagramProps) {
   const levelMap = new Map(pathways.map((p) => [p.pathway_id, p.level]))
+  const labelMap = new Map(pathways.map((p) => [p.pathway_id, pathwayLevelDisplayLabel(p, p.level)]))
 
   return (
     <svg
@@ -173,6 +179,7 @@ export default function PathwayFlowDiagram({
           pathwayId={id}
           layout={layout}
           level={levelMap.get(id) || "Standard"}
+          displayLabel={labelMap.get(id) || "Standard"}
           selected={selectedPathwayId === id}
           onClick={() => onSelectPathway(id)}
         />

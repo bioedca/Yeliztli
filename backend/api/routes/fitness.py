@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.analysis.pathway_coverage import indeterminate_rsids
 from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
@@ -219,7 +220,7 @@ def list_pathways(
                 total_snps=detail.get("total_snps", 0),
                 missing_snps=detail.get("missing_snps", []),
                 no_call_snps=detail.get("no_call_snps", []),
-                indeterminate_snps=detail.get("indeterminate_snps", []),
+                indeterminate_snps=indeterminate_rsids(detail),
                 pmids=ps["pmids"],
             )
         )
@@ -331,7 +332,7 @@ def pathway_detail(
         total_snps=detail.get("total_snps", 0),
         missing_snps=detail.get("missing_snps", []),
         no_call_snps=detail.get("no_call_snps", []),
-        indeterminate_snps=detail.get("indeterminate_snps", []),
+        indeterminate_snps=indeterminate_rsids(detail),
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )

@@ -559,13 +559,32 @@ _TRAITS_INDETERMINATE_CATEGORY = "Indeterminate"
 def _repaired_traits_indeterminate_summary(
     pathway: object, text: object, detail: object
 ) -> tuple[str, dict[str, object]] | None:
-    """Return the current wording for a legacy traits pathway summary, if applicable.
+    """Preserve the v31 traits repair's distinct 'no variants of note' fingerprint."""
+    return _repaired_pathway_indeterminate_summary(
+        pathway,
+        text,
+        detail,
+        complete_phrase=_TRAITS_LEGACY_STANDARD_COMPLETE,
+        limited_phrase=_TRAITS_LEGACY_STANDARD_LIMITED,
+    )
 
-    Only the exact pre-#2206 producer output is repaired: a summary whose detail
-    predates the ``indeterminate_snps`` key, whose stored per-SNP detail records at
-    least one ``Indeterminate`` call, and whose text and coverage interpretation are
+
+def _repaired_pathway_indeterminate_summary(
+    pathway: object,
+    text: object,
+    detail: object,
+    *,
+    complete_phrase: str = "Standard (no variants of concern)",
+    limited_phrase: str = "No variants of concern among tested SNPs",
+) -> tuple[str, dict[str, object]] | None:
+    """Repair a legacy categorical summary only when its exact producer shape matches.
+
+    Only the exact producer output without indeterminate propagation is repaired:
+    a summary whose detail predates the ``indeterminate_snps`` key and whose stored
+    per-SNP detail records at least one ``Indeterminate`` call. Its text and coverage
+    interpretation must be
     exactly what ``pathway_summary_text`` / ``coverage_detail`` wrote for it without
-    an indeterminate count. The result is what ``store_traits_findings`` now stores
+    an indeterminate count. The result is what the corrected producers store
     for the same scoring state: the qualified text, the ``indeterminate_snps`` key,
     and the indeterminate-aware coverage interpretation. Everything else returns
     ``None`` and is left untouched.
@@ -592,11 +611,11 @@ def _repaired_traits_indeterminate_summary(
     prefix = f"{pathway} — "
     repaired: dict[str, object] = dict(detail)
     if not missing:
-        if text != f"{prefix}{_TRAITS_LEGACY_STANDARD_COMPLETE}":
+        if text != f"{prefix}{complete_phrase}":
             return None
         not_assessed_tail = ""
     else:
-        lead = f"{prefix}{_TRAITS_LEGACY_STANDARD_LIMITED}; "
+        lead = f"{prefix}{limited_phrase}; "
         trail = " not assessed."
         if not (text.startswith(lead) and text.endswith(trail)):
             return None
@@ -711,7 +730,8 @@ def _ensure_search_indexes(engine: sa.Engine) -> bool:
 #      stored result explicitly withholds its percentile (issue #2380).
 # v33: Preserve source-native ClinVar MC and effective consequence provenance
 #      (#2393); existing rows remain unknown until re-annotation.
-SAMPLE_SCHEMA_VERSION = 33
+# v34: Carry indeterminate coverage through legacy categorical pathway summaries.
+SAMPLE_SCHEMA_VERSION = 34
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2312,7 +2332,20 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
             added = True
             logger.info("search_indexes_created", from_version=from_version)
 
-    if from_version < 31:
+    if from_version < 34:
+        repair_modules = {
+            "nutrigenomics",
+            "methylation",
+            "sleep",
+            "skin",
+            "allergy",
+            "gene_health",
+            "fitness",
+        }
+        if from_version < 31:
+            repair_modules.add("traits")
+        # #2405 extends the same exact-fingerprint repair to the other categorical
+        # producers. Keep module in every banner key: pathway names may overlap.
         # Issue #2207: before #2206, a traits pathway summary holding an
         # Indeterminate call (a strand-unresolved palindromic homozygote withheld
         # from interpretation) was persisted as "Standard (no variants of note)".
@@ -2360,25 +2393,29 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             findings.c.pathway,
                             findings.c.finding_text,
                             findings.c.detail_json,
+                            findings.c.module,
                         )
                         .where(
-                            findings.c.module == "traits",
+                            findings.c.module.in_(repair_modules),
                             findings.c.category == "pathway_summary",
                             findings.c.pathway_level == "Standard",
                         )
                         .order_by(findings.c.id)
                     ).fetchall()
-                    # (pathway, legacy text) -> repaired text, for the banner below.
+                    # (module, pathway, legacy text) -> repaired text, for the banner below.
                     # A key two rows disagree on is ambiguous and left alone.
-                    text_repairs: dict[tuple[str, str], str | None] = {}
+                    text_repairs: dict[tuple[str, str, str], str | None] = {}
                     for row in candidates:
                         try:
                             detail = json.loads(row.detail_json)
                         except (json.JSONDecodeError, TypeError):
                             continue
-                        repair = _repaired_traits_indeterminate_summary(
-                            row.pathway, row.finding_text, detail
+                        repair_summary = (
+                            _repaired_traits_indeterminate_summary
+                            if row.module == "traits"
+                            else _repaired_pathway_indeterminate_summary
                         )
+                        repair = repair_summary(row.pathway, row.finding_text, detail)
                         if repair is None:
                             continue
                         updated_text, updated_detail = repair
@@ -2386,7 +2423,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             findings.update()
                             .where(
                                 findings.c.id == row.id,
-                                findings.c.module == "traits",
+                                findings.c.module == row.module,
                                 findings.c.category == "pathway_summary",
                                 findings.c.pathway_level == "Standard",
                                 findings.c.pathway == row.pathway,
@@ -2400,7 +2437,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                         )
                         if (result.rowcount or 0) > 0:
                             repaired_findings += result.rowcount
-                            key = (row.pathway, row.finding_text)
+                            key = (row.module, row.pathway, row.finding_text)
                             if text_repairs.get(key, updated_text) != updated_text:
                                 text_repairs[key] = None
                             else:
@@ -2428,14 +2465,19 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                                     for entry in entries:
                                         if not (
                                             isinstance(entry, dict)
-                                            and entry.get("module") == "traits"
+                                            and isinstance(entry.get("module"), str)
+                                            and entry["module"] in repair_modules
                                             and entry.get("category") == "pathway_summary"
                                             and isinstance(entry.get("pathway"), str)
                                             and isinstance(entry.get("finding_text"), str)
                                         ):
                                             continue
                                         updated_text = text_repairs.get(
-                                            (entry["pathway"], entry["finding_text"])
+                                            (
+                                                entry["module"],
+                                                entry["pathway"],
+                                                entry["finding_text"],
+                                            )
                                         )
                                         if updated_text is not None:
                                             entry["finding_text"] = updated_text
@@ -2458,7 +2500,7 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
         if repaired_findings or repaired_diff_entries:
             added = True
             logger.warning(
-                "legacy_traits_indeterminate_summary_repaired",
+                "legacy_pathway_indeterminate_summary_repaired",
                 findings_count=repaired_findings,
                 finding_diff_count=repaired_diff_entries,
                 from_version=from_version,

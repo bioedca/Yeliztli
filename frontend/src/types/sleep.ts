@@ -1,5 +1,7 @@
 /** Gene Sleep API types (P3-50). */
 
+import type { SnpCategory } from "@/lib/snpCategory"
+
 /** Categorical level for a sleep pathway. */
 type PathwayLevel = "Elevated" | "Moderate" | "Standard"
 
@@ -9,7 +11,7 @@ export interface SNPDetail {
   gene: string
   variant_name: string
   genotype: string | null
-  category: PathwayLevel
+  category: SnpCategory
   effect_summary: string
   evidence_level: number
   recommendation: string | null
@@ -28,6 +30,8 @@ export interface PathwaySummary {
   evidence_level: number
   called_snps: number
   total_snps: number
+  /** Observed SNPs withheld from interpretation. */
+  indeterminate_snps?: string[]
   missing_snps: string[]
   /** Subset of missing_snps that were on-array no-calls. Optional for older cached responses. */
   no_call_snps?: string[]

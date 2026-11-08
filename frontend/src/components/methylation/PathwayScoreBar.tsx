@@ -8,7 +8,7 @@
 import { cn } from "@/lib/utils"
 import type { PathwaySummary, PathwayLevel } from "@/types/methylation"
 import { PATHWAY_LEVEL_CONFIG as LEVEL_CONFIG } from "@/lib/pathwayLevel"
-import { pathwayCoverageCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
+import { pathwayCoverageCaveat, pathwayIndeterminateCaveat, pathwayLevelDisplayLabel } from "@/lib/pathwayCoverage"
 import EvidenceStars from "@/components/ui/EvidenceStars"
 import { ChevronRight, Info, TrendingUp } from "lucide-react"
 
@@ -29,6 +29,7 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
   const barWidth = BAR_WIDTH[pathway.level] || BAR_WIDTH.Standard
   const levelLabel = pathwayLevelDisplayLabel(pathway, config.label)
   const coverageCaveat = pathwayCoverageCaveat(pathway)
+  const indeterminateCaveat = pathwayIndeterminateCaveat(pathway)
 
   return (
     <button
@@ -41,7 +42,7 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
         selected && "ring-2 ring-primary",
       )}
       onClick={onClick}
-      aria-label={`${pathway.pathway_name} — ${levelLabel}`}
+      aria-label={`${pathway.pathway_name} — ${levelLabel}${indeterminateCaveat ? `; ${indeterminateCaveat}` : ""}`}
       data-selected={selected || undefined}
     >
       {/* Header: pathway name + level badge */}
@@ -68,6 +69,15 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
         </div>
       </div>
 
+      {indeterminateCaveat && (
+        <p
+          className="mb-3 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+          data-testid="pathway-indeterminate-caveat"
+        >
+          {indeterminateCaveat}
+        </p>
+      )}
+
       {coverageCaveat && (
         <p
           className={cn(
@@ -85,7 +95,7 @@ export default function PathwayScoreBar({ pathway, onClick, selected }: PathwayS
       <div className="mb-3">
         <div className="h-2.5 w-full rounded-full bg-muted/60">
           <div
-            className={cn("h-2.5 rounded-full transition-all duration-500", config.bar, barWidth)}
+            className={cn("h-2.5 rounded-full transition-all duration-500", config.bar, levelLabel === "Not Assessed" ? "w-0" : barWidth)}
           />
         </div>
       </div>
