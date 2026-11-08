@@ -153,6 +153,22 @@ recorded in the [issue #2391 evidence packet](https://github.com/bioedca/Yeliztl
 
 `make dev` runs all three together — see [development setup](development-setup.md).
 
+The worker can also start on an empty data directory before the API. Once it has
+a complete queue snapshot, its startup hook creates missing reference tables
+before recovering orphaned jobs. It uses the same SQLite-serialized bootstrap as
+the API, so concurrent starts do not race table creation. This initialization
+does not depend on a persisted log write. The API still owns its broader schema
+backfills and content repairs; the worker's logging path retains its separate
+log-policy upgrade. Bootstrap or recovery errors propagate to Huey's startup-hook
+error logging, and a failed bootstrap prevents the recovery writes.
+
+Concurrent first connections can also encounter `SQLITE_BUSY` while enabling
+WAL, before reaching the schema lock. Connection setup retries that pragma within
+the configured busy-timeout budget, then restores SQLite's normal query timeout.
+It does not retry other error codes. SQLite documents why a
+[busy handler can be bypassed](https://www.sqlite.org/c3ref/busy_handler.html)
+during lock promotion.
+
 ## Adding an analysis module (high level)
 
 A module typically consists of: a curated **panel** (`backend/data/panels/<name>_panel.json`),

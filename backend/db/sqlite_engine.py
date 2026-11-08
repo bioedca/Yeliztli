@@ -33,6 +33,8 @@ reference.db, so they are intentionally exempt.)
 
 from __future__ import annotations
 
+import sqlite3
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, get_args
 
@@ -49,6 +51,30 @@ DEFAULT_BUSY_TIMEOUT_MS = 30_000
 
 SQLiteSynchronousMode = Literal["OFF", "NORMAL", "FULL", "EXTRA"]
 _VALID_SYNCHRONOUS_MODES = frozenset(get_args(SQLiteSynchronousMode))
+
+
+def _enable_wal(cursor: sqlite3.Cursor, busy_timeout_ms: int) -> None:
+    """Retry WAL promotion's immediate SQLITE_BUSY within one timeout budget.
+
+    SQLite may bypass its busy handler when simultaneous connection setup would
+    deadlock. Use an application deadline for this pragma alone, then restore
+    the native busy timeout for normal queries. Other errors still propagate.
+    """
+    deadline = time.monotonic() + max(0, busy_timeout_ms) / 1000
+    cursor.execute("PRAGMA busy_timeout=0")
+    try:
+        while True:
+            try:
+                cursor.execute("PRAGMA journal_mode=WAL")
+                return
+            except sqlite3.OperationalError as exc:
+                code = getattr(exc, "sqlite_errorcode", None)
+                remaining = deadline - time.monotonic()
+                if code is None or code & 0xFF != sqlite3.SQLITE_BUSY or remaining <= 0:
+                    raise
+                time.sleep(min(0.01, remaining))
+    finally:
+        cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
 
 
 def make_sqlite_engine(
@@ -110,7 +136,7 @@ def make_sqlite_engine(
             # Always first: make contended writers wait instead of failing.
             cursor.execute(f"PRAGMA busy_timeout={busy_timeout_ms}")
             if wal:
-                cursor.execute("PRAGMA journal_mode=WAL")
+                _enable_wal(cursor, busy_timeout_ms)
             if synchronous is not None:
                 cursor.execute(f"PRAGMA synchronous={synchronous}")
             if read_optimized:
