@@ -47,6 +47,12 @@ Findings sorted by clinical relevance, in these categories:
 Each carries an evidence rating, rsID, gene, consequence, HGVS, population frequencies, ClinVar
 details, CADD/REVEL scores, zygosity, and inheritance. You can export results to TSV or VCF.
 
+When the current results include a primary ClinVar Pathogenic/Likely pathogenic finding,
+the page shows the same non-dismissible **Confirm before acting** notice as the Cancer
+page. This includes the low-confidence P/LP category. The notice follows the results
+currently displayed: a completed filter search replaces the previous findings, and
+switching samples clears the previous sample's notice while the new results load.
+
 ## Good to know
 
 - On first opening an upgraded sample with legacy MONDO/HPO annotations, stored rare-variant
