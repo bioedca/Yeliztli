@@ -1553,7 +1553,7 @@ class TestComputeMissingAIMRate:
     """T-ANC-05/06: Missing AIM rate computation."""
 
     def test_all_present_is_zero(self, small_bundle: AncestryBundle) -> None:
-        genotype_map = {snp.rsid: "AG" for snp in small_bundle.snps}
+        genotype_map = {snp.rsid: snp.ref + snp.alt for snp in small_bundle.snps}
         rate = compute_missing_aim_rate(genotype_map, small_bundle)
         assert rate == 0.0
 
@@ -1563,7 +1563,7 @@ class TestComputeMissingAIMRate:
 
     def test_partial_missing_rate(self, small_bundle: AncestryBundle) -> None:
         # 4 SNPs, remove 1 → 25% missing
-        genotype_map = {snp.rsid: "AG" for snp in small_bundle.snps[:-1]}
+        genotype_map = {snp.rsid: snp.ref + snp.alt for snp in small_bundle.snps[:-1]}
         rate = compute_missing_aim_rate(genotype_map, small_bundle)
         assert rate == 0.25
 
@@ -1974,8 +1974,11 @@ class TestBootstrapAdmixtureNNLS:
         high — use a generous tolerance of 0.15 to account for the small
         feature set producing wide CIs.
         """
-        user_pcs = np.array([-1.0, 1.5])  # near EUR centroid
-        genotype_map = {snp.rsid: "AG" for snp in small_bundle.snps}
+        # Both estimates must describe the same valid synthetic sample. A fixed
+        # EUR centroid and AG at C/T markers described different inputs (#2566).
+        genotype_map = {snp.rsid: snp.ref + snp.alt for snp in small_bundle.snps}
+        user_pcs, used = _project_onto_pca(small_bundle, genotype_map)
+        assert used == small_bundle.snp_count == 4
 
         point_est = estimate_admixture_nnls(user_pcs, small_bundle)
         ci_low, ci_high = bootstrap_admixture_nnls(
@@ -1998,7 +2001,7 @@ class TestBootstrapAdmixtureNNLS:
 
     def test_ci_low_leq_ci_high(self, small_bundle: AncestryBundle) -> None:
         """CI lower bound should always be <= upper bound."""
-        genotype_map = {snp.rsid: "AG" for snp in small_bundle.snps}
+        genotype_map = {snp.rsid: snp.ref + snp.alt for snp in small_bundle.snps}
         ci_low, ci_high = bootstrap_admixture_nnls(
             np.array([0.0, 0.0]),
             small_bundle,
@@ -2010,7 +2013,7 @@ class TestBootstrapAdmixtureNNLS:
             assert ci_low[pop] <= ci_high[pop]
 
     def test_ci_values_non_negative(self, small_bundle: AncestryBundle) -> None:
-        genotype_map = {snp.rsid: "AG" for snp in small_bundle.snps}
+        genotype_map = {snp.rsid: snp.ref + snp.alt for snp in small_bundle.snps}
         ci_low, ci_high = bootstrap_admixture_nnls(
             np.array([0.0, 0.0]),
             small_bundle,

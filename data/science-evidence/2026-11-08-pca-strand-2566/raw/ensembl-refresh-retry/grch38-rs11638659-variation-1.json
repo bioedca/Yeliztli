@@ -1,0 +1,40 @@
+{
+  "synonyms": [],
+  "MAF": 0.368721,
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "most_severe_consequence": "intron_variant",
+  "minor_allele": "A",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "var_class": "SNP",
+  "mappings": [
+    {
+      "end": 22892384,
+      "start": 22892384,
+      "ancestral_allele": "G",
+      "allele_string": "G/A",
+      "coord_system": "chromosome",
+      "strand": 1,
+      "assembly_name": "GRCh38",
+      "location": "15:22892384-22892384",
+      "seq_region_name": "15"
+    },
+    {
+      "location": "HG2365_PATCH:3786466-3786466",
+      "seq_region_name": "HG2365_PATCH",
+      "assembly_name": "GRCh38",
+      "start": 3786466,
+      "end": 3786466,
+      "ancestral_allele": null,
+      "allele_string": "A/G",
+      "coord_system": "scaffold",
+      "strand": 1
+    }
+  ],
+  "name": "rs11638659",
+  "ambiguity": "R"
+}

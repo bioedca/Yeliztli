@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "mapping_version": "grch37-pca-v1",
+  "training_build": "GRCh38",
+  "sample_build": "GRCh37",
+  "sample_strand": "+",
+  "marker_count": 5000,
+  "bundle_sha256": "3593c24dd32f67e87fa4d58653621a5b5c6635bcce569ead909386c3139ddf58",
+  "mapping_sha256": "be061543f9e825f87c4dff861060afcae14719188c82f1681b7a900f9d509ada",
+  "evidence_packet": "data/science-evidence/2026-11-08-pca-strand-2566",
+  "historical_evidence_packet": "data/science-evidence/2026-10-20-issue-2493-fixture-grch37-positions"
+}

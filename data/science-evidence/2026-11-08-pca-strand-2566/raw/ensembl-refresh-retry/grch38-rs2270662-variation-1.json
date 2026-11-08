@@ -1,0 +1,42 @@
+{
+  "synonyms": [
+    "rs59035183",
+    "rs52812438"
+  ],
+  "mappings": [
+    {
+      "assembly_name": "GRCh38",
+      "strand": 1,
+      "ancestral_allele": "C",
+      "allele_string": "C/A/G/T",
+      "location": "17:36861944-36861944",
+      "seq_region_name": "17",
+      "start": 36861944,
+      "coord_system": "chromosome",
+      "end": 36861944
+    },
+    {
+      "start": 1098270,
+      "end": 1098270,
+      "coord_system": "scaffold",
+      "location": "HSCHR17_7_CTG4:1098270-1098270",
+      "seq_region_name": "HSCHR17_7_CTG4",
+      "strand": 1,
+      "ancestral_allele": null,
+      "allele_string": "T/C/A/G",
+      "assembly_name": "GRCh38"
+    }
+  ],
+  "name": "rs2270662",
+  "MAF": 0.390699,
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed"
+  ],
+  "var_class": "SNP",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "most_severe_consequence": "non_coding_transcript_exon_variant",
+  "ambiguity": "N",
+  "minor_allele": "T"
+}

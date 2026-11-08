@@ -1,0 +1,6 @@
+{
+  "id": "chromosome:GRCh37:9:44118800:44118850:1",
+  "seq": "CCGGAAACCGCTCCCTGGCGGCGCGCGCCGGCAGGTGGGGCTGCAGCTCTG",
+  "query": "9:44118800..44118850:1",
+  "molecule": "dna"
+}

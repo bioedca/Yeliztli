@@ -1,0 +1,28 @@
+{
+  "ambiguity": "D",
+  "MAF": 0.344249,
+  "mappings": [
+    {
+      "ancestral_allele": null,
+      "strand": 1,
+      "end": 66333085,
+      "coord_system": "chromosome",
+      "assembly_name": "GRCh37",
+      "allele_string": "T/G/A",
+      "location": "9:66333085-66333085",
+      "start": 66333085,
+      "seq_region_name": "9"
+    }
+  ],
+  "name": "rs75536403",
+  "most_severe_consequence": "intergenic_variant",
+  "var_class": "SNP",
+  "minor_allele": "T",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "synonyms": [],
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "gnomAD"
+  ]
+}

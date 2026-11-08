@@ -1,0 +1,31 @@
+{
+  "minor_allele": null,
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "TOPMed"
+  ],
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "name": "rs2270662",
+  "mappings": [
+    {
+      "strand": 1,
+      "seq_region_name": "17",
+      "allele_string": "T/C/A/G",
+      "coord_system": "chromosome",
+      "start": 35219205,
+      "ancestral_allele": "C",
+      "assembly_name": "GRCh37",
+      "end": 35219205,
+      "location": "17:35219205-35219205"
+    }
+  ],
+  "var_class": "SNP",
+  "MAF": null,
+  "synonyms": [
+    "rs59035183",
+    "rs52812438"
+  ],
+  "ambiguity": "N",
+  "most_severe_consequence": "non_coding_transcript_exon_variant"
+}
