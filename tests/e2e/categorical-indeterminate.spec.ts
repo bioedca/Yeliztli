@@ -11,11 +11,13 @@
  * and the strand caveat (the SNP `effect_summary`) is visible.
  */
 
+import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
-import { bypassSetup, waitForReactHydration } from "./helpers";
+import { bypassSetup, mockFreshSampleState, waitForReactHydration } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await bypassSetup(page);
+  await mockFreshSampleState(page);
 });
 
 function jsonRoute(payload: unknown, status = 200) {
@@ -32,10 +34,7 @@ const CAVEAT =
 
 // Superset of the per-module PathwaysResponse fields (gene_health ignores the
 // skin-specific ones; skin's view dereferences mc1r_aggregate/insufficient_data).
-// Only fitness and traits expose `indeterminate_snps` on their PathwaySummary
-// response model, so only those payloads may carry it. Otherwise the stub
-// fabricates a response the production endpoint cannot return, and a card
-// assertion would pass against something unreachable in reality (#2178).
+// All categorical response models carry summary-level indeterminate coverage (#2405).
 function pathwaysPayload(
   pathwayId: string,
   pathwayName: string,
@@ -61,7 +60,10 @@ function pathwaysPayload(
     module_disclaimer: null,
     mc1r_aggregate: null,
     insufficient_data: [],
-    compound_het: [],
+    compound_het: null,
+    celiac_combined: null,
+    histamine_combined: null,
+    metabolizer: null,
   };
 }
 
@@ -97,6 +99,8 @@ function detailPayload(pathwayId: string, pathwayName: string) {
 }
 
 const MODULES = [
+  { key: "sleep", path: "/sleep", pathwayId: "circadian", pathwayName: "Circadian Rhythm" },
+  { key: "allergy", path: "/allergy", pathwayId: "histamine", pathwayName: "Histamine" },
   {
     key: "gene_health",
     path: "/gene-health",
@@ -111,7 +115,6 @@ const MODULES = [
   },
   {
     key: "fitness",
-    summaryIndeterminate: true,
     path: "/fitness",
     pathwayId: "power",
     pathwayName: "Power",
@@ -130,7 +133,6 @@ const MODULES = [
   },
   {
     key: "traits",
-    summaryIndeterminate: true,
     path: "/traits",
     pathwayId: "cognition",
     pathwayName: "Cognition",
@@ -148,7 +150,7 @@ for (const m of MODULES) {
             pathwaysPayload(
               m.pathwayId,
               m.pathwayName,
-              m.summaryIndeterminate ? ["rs9939609"] : undefined,
+              ["rs9939609"],
             ),
           ),
         );
@@ -179,14 +181,16 @@ for (const m of MODULES) {
         .getByRole("button", { name: new RegExp(m.pathwayName) })
         .first();
 
-      // #2178: for the modules whose API actually reports summary-level
-      // indeterminate state, the card must carry the uncertainty rather than
-      // leaving it visible only inside SNP detail.
-      if (m.summaryIndeterminate) {
-        await expect(
-          card.getByTestId("pathway-indeterminate-caveat"),
-        ).toContainText(/observed but\s+not interpreted/i);
-      }
+      // Summary and detail must agree even at complete typed coverage (#2405).
+      await expect(card.getByText("Not Assessed", { exact: true })).toBeVisible();
+      await expect(card.getByTestId("pathway-indeterminate-caveat")).toContainText(
+        /observed but\s+not interpreted/i,
+      );
+      const accessibility = await new AxeBuilder({ page })
+        .include(`button[aria-label^="${m.pathwayName} —"]`)
+        .withTags(["wcag2a", "wcag2aa"])
+        .analyze();
+      expect(accessibility.violations).toEqual([]);
 
       // Open the detail panel by clicking the pathway card.
       await card.click();

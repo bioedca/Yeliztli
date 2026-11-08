@@ -87,6 +87,24 @@ def missing_rsid_groups(missing_snps: Iterable[Any]) -> tuple[list[str], list[st
     return all_missing, no_call, off_chip
 
 
+def indeterminate_rsids(detail: dict[str, Any]) -> list[str]:
+    """Read summary coverage, including legacy rows with only per-SNP categories."""
+    explicit = detail.get("indeterminate_snps")
+    if isinstance(explicit, list):
+        return [rsid for rsid in explicit if isinstance(rsid, str) and rsid]
+    snps = detail.get("snp_details")
+    if not isinstance(snps, list):
+        return []
+    return [
+        snp["rsid"]
+        for snp in snps
+        if isinstance(snp, dict)
+        and snp.get("category") == "Indeterminate"
+        and isinstance(snp.get("rsid"), str)
+        and snp["rsid"]
+    ]
+
+
 def pathway_level_display_label(level: str | None, detail: dict[str, Any] | None) -> str | None:
     """Coverage-aware display label for a categorical pathway level.
 
@@ -179,6 +197,23 @@ def pathway_summary_text(
     """
     if level != STANDARD_LEVEL:
         return f"{pathway_name} — {level} consideration"
+
+    missing_snps = list(missing_snps)
+    if indeterminate_count > 0:
+        observed = _plural(indeterminate_count, "variant")
+        if called_count <= indeterminate_count:
+            text = (
+                f"{pathway_name} — not assessed: {observed} observed but not "
+                "interpreted (indeterminate), no variant scored — see SNP details"
+            )
+        else:
+            text = (
+                f"{pathway_name} — Standard for scored variants; {observed} "
+                "observed but not interpreted (indeterminate) — see SNP details"
+            )
+        if missing_snps:
+            text += f"; {format_not_assessed(missing_snps)} not assessed"
+        return text
 
     interpretation = coverage_interpretation(
         level=level,

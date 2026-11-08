@@ -201,6 +201,11 @@ class PathwayResult:
         return [s for s in self.snp_results if s.present_in_sample]
 
     @property
+    def indeterminate_snps(self) -> list[SNPResult]:
+        """Observed SNPs withheld from interpretation."""
+        return [s for s in self.called_snps if s.category == INDETERMINATE]
+
+    @property
     def missing_snps(self) -> list[SNPResult]:
         """SNPs that were not present in the sample."""
         return [s for s in self.snp_results if not s.present_in_sample]
@@ -1293,21 +1298,25 @@ def store_allergy_findings(
         # Pathway-level summary finding
         called_count = len(pr.called_snps)
         total_count = len(pr.snp_results)
+        indeterminate = pr.indeterminate_snps
         finding_text = pathway_summary_text(
             pathway_name=pr.pathway_name,
             level=pr.level,
             called_count=called_count,
             missing_snps=pr.missing_snps,
+            indeterminate_count=len(indeterminate),
         )
 
         detail = {
             "pathway_id": pr.pathway_id,
             "called_snps": called_count,
             "total_snps": total_count,
+            "indeterminate_snps": [s.rsid for s in indeterminate],
             **coverage_detail(
                 level=pr.level,
                 called_count=called_count,
                 missing_snps=pr.missing_snps,
+                indeterminate_count=len(indeterminate),
             ),
             "snp_details": [
                 _stored_snp_detail(

@@ -32,6 +32,8 @@ export interface PathwaySummary {
   evidence_level: number
   called_snps: number
   total_snps: number
+  /** Observed SNPs withheld from interpretation. */
+  indeterminate_snps?: string[]
   missing_snps: string[]
   /** Subset of missing_snps present on-array but failed genotype calling. */
   no_call_snps?: string[]
@@ -99,6 +101,8 @@ export interface PathwayDetailResponse {
   evidence_level: number
   called_snps: number
   total_snps: number
+  /** Observed SNPs withheld from interpretation. */
+  indeterminate_snps?: string[]
   missing_snps: string[]
   /** Subset of missing_snps present on-array but failed genotype calling. */
   no_call_snps?: string[]

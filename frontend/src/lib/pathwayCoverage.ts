@@ -23,6 +23,13 @@ function indeterminateCount(pathway: PathwayCoverageSummary): number {
   return pathway.indeterminate_snps?.length ?? 0
 }
 
+export function pathwayIndeterminateCaveat(pathway: PathwayCoverageSummary): string | null {
+  const count = indeterminateCount(pathway)
+  return count > 0
+    ? `${plural(count, "variant")} observed but not interpreted — see details`
+    : null
+}
+
 function notAssessedLabel(pathway: PathwayCoverageSummary): string {
   const missing = missingSnps(pathway)
   const noCalls = noCallSet(pathway)
