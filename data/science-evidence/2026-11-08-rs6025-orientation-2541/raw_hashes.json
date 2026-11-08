@@ -1,0 +1,14 @@
+{
+  "raw/clinvar-226007-identity-derived.json": "819e0558b757e4db5059b4d41748fb83ab4858c31adbadcd50679d3d7347fb2c",
+  "raw/clinvar-642-identity-derived.json": "25b779bd2b27a39c5fe33ee485cab0e14bff23e05fe7284a0861b7099feb8a39",
+  "raw/clinvar-search-rs6025.json": "139c3012890b5425ac17f946a5edcb9cc907ce9c15116dec2491eb0215bd7957",
+  "raw/ensembl37-base-rs6025.json": "4f3a9400b1fd63660107d5e9eed293587cf8b19ad4e8489c819aa72fac0aa066",
+  "raw/ensembl37-rs6025.json": "77a6c29aaf477afeb644aa0675d94ad18f7c06b66fa7615994dab623609ff6b0",
+  "raw/gnomad-r2_1-rs6025.json": "44bd9f3555fb6b318d3d182456cdc56c494c46870c1f63f96b0ab92928c9e346",
+  "raw/pinned-vep-snapshot-derived.json": "afdca9907d56d900f829e4ff0216a8dc16dd66fea494ce5097ff32a6a4dc76f7",
+  "raw/pubmed-27268795-derived.json": "b4069d1effe4b274ddf460b9d869343c342cb783a7d956576e76808b43d387a2",
+  "raw/scite-vep-editorial.json": "54c7e192a4956dc39614eeb62747e3caf4d2e4dcfe6f7bb4df8ba8021650494c",
+  "queries.json": "496de790a66a3cb2f862ee65a1a9143b0b349ef68bc07e1cfe27297169308743",
+  "discovery.json": "a9c19aac283210891b8bbbd5663bf3f7c05d5c44d56ba7b8b9c60f469e963df2",
+  "gnomad-query.graphql": "5d054dec8a8269b7b727bcc40089767183d958f7006d93596c5bd971d1670a0e"
+}

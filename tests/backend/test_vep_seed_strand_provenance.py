@@ -751,7 +751,7 @@ def test_cyp2c19_star4_stays_a_start_loss() -> None:
 _BUNDLE_SNAPSHOT = _ROOT / "tests" / "fixtures" / "vep_seed_bundle_snapshot.json"
 _MANIFEST = _ROOT / "bundles" / "manifest.json"
 
-_REVERSED = "REF and ALT reversed relative to GRCh37 (rs6025 is #2541)"
+_REVERSED = "REF and ALT reversed relative to GRCh37 (rs1800795 is #2563)"
 _ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
 
 # Annotated rows with no bundle row at their position and alleles, so nothing to
@@ -761,7 +761,6 @@ _ABSENT = "the bundle has no row for this rsID (#2464's VEP coverage class)"
 # sat at another assembly's or another locus's coordinate onto their bundle rows.
 _NOT_AT_A_BUNDLE_LOCUS = {
     "rs1800795": _REVERSED,
-    "rs6025": _REVERSED,
     "rs113993960": _ABSENT,
     "rs121909224": _ABSENT,
     "rs5030655": _ABSENT,
