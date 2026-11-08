@@ -1,0 +1,23 @@
+{
+  "summary": {
+    "verified": 2,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1016/j.cyto.2009.09.001",
+      "status": "verified",
+      "title": "Erratum to “Cytokine SNPs: Comparison of allele frequencies by race and implications for future studies” [Cytokine 46 (2009) 236–244]",
+      "year": 2010
+    },
+    {
+      "doi": "10.1186/s13059-016-0974-4",
+      "status": "verified",
+      "title": "The Ensembl Variant Effect Predictor",
+      "year": 2016
+    }
+  ]
+}

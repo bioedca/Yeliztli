@@ -1,0 +1,48 @@
+{
+  "synonyms": [
+    "147620.0001",
+    "PA166157304",
+    "rs58302852",
+    "rs36215460",
+    "rs17777058",
+    "rs56588968",
+    "VCV000014718",
+    "RCV002264639",
+    "RCV000015838",
+    "RCV001281346",
+    "RCV000015837",
+    "RCV000015834",
+    "RCV000015833"
+  ],
+  "ambiguity": "B",
+  "MAF": 0.141174,
+  "most_severe_consequence": "intron_variant",
+  "evidence": [
+    "Frequency",
+    "1000Genomes",
+    "Cited",
+    "Phenotype_or_Disease",
+    "TOPMed",
+    "gnomAD"
+  ],
+  "minor_allele": "C",
+  "source": "Variants (including SNPs and indels) imported from dbSNP",
+  "mappings": [
+    {
+      "ancestral_allele": "G",
+      "start": 22766645,
+      "assembly_name": "GRCh37",
+      "end": 22766645,
+      "location": "7:22766645-22766645",
+      "strand": 1,
+      "seq_region_name": "7",
+      "allele_string": "C/G/T",
+      "coord_system": "chromosome"
+    }
+  ],
+  "clinical_significance": [
+    "risk factor"
+  ],
+  "var_class": "SNP",
+  "name": "rs1800795"
+}

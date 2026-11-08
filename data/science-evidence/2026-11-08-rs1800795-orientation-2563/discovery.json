@@ -1,0 +1,144 @@
+{
+  "accessed": "2026-11-08",
+  "issue": 2563,
+  "queries": [
+    {
+      "tool": "Consensus",
+      "query": "IL6 rs1800795 minus 174 G C reference genome strand allele orientation GRCh37 gnomAD population allele frequency",
+      "results": [
+        {
+          "id": "305952ea583e5398ad396a361501f83b",
+          "title": "Allele frequency distributions of -174G/C polymorphism in regulatory region of interleukin 6 gene (IL6) in Russian and worldwide populations"
+        },
+        {
+          "id": "7b66589fb6a25b498ae5a1ba2cc99669",
+          "title": "Allele frequency distributions of -174G/C polymorphism in regulatory region of interleukin 6 gene (IL6) in Russian and worldwide populations"
+        },
+        {
+          "id": "147e8ae110ab5fa288f5e106ca9a90ac",
+          "title": "Association of IL-6 rs1800795 (− 174G > C) polymorphism with depression risk: a comprehensive meta-analysis"
+        },
+        {
+          "id": "2df9d2360d44598a8cadd8c402be829c",
+          "title": "Inflammatory factor Interleukin-6 and its correlation with rheumatoid arthritis: A meta-analysis"
+        },
+        {
+          "id": "3c855f5363e75b03802565a26c96d922",
+          "title": "Erratum to Cytokine SNPs: Comparison of allele frequencies by race and implications for future studies [Cytokine 46 (2009) 236-244]"
+        },
+        {
+          "id": "af715f33a06a58b5be4fc1ff6c0782eb",
+          "title": "Qizamiqdan keyingi asoratlar rivojlanishida IL6 ning rs1800795 (−174 G>C) polimorfizmining allel va genotiplar taqsimoti tahlili"
+        },
+        {
+          "id": "4f9a24b2fd015e70ab4000f9659500e9",
+          "title": "IL-6 gene rs1800795 polymorphism and diabetes mellitus: a comprehensive analysis involving 42,150 participants from a meta-analysis"
+        },
+        {
+          "id": "24791509af935902a3f25f22223d2275",
+          "title": "Interleukin 6 (rs1800795) gene polymorphism is associated with cardiovascular diseases: a meta-analysis of 74 studies with 86,229 subjects"
+        },
+        {
+          "id": "a99808a2234f54baa70949503731eaf0",
+          "title": "Increased Frequencies of the ‒174G and ‒572C IL6 Alleles in Populations of Indigenous Peoples of Siberia Compared to Russians"
+        },
+        {
+          "id": "2845c01bcf4952099d19c3f026ae9de5",
+          "title": "Association of interleukin 6 -174 G/C polymorphism with coronary artery disease and circulating IL-6 levels: a systematic review and meta-analysis"
+        },
+        {
+          "id": "5357c1acede65d6798d4fc2ea76100e2",
+          "title": "The -174 G/C polymorphism of the IL6 gene is associated with elite power performance."
+        },
+        {
+          "id": "4c9704b4a9ce5e9a91c0133df4d8adf4",
+          "title": "Association of the IL-6R gene polymorphic variant rs2228145(C>A) with IL-6 gene polymorphisms in a healthy cohort of Turkish population"
+        },
+        {
+          "id": "c5ca989cf3495f7b9165d046352736a3",
+          "title": "A comprehensive meta-analysis comprising 149 case-control studies to investigate the association between IL-6 gene rs1800795 polymorphism and multiple disease risk."
+        },
+        {
+          "id": "2195874036205f02be967cd376cac649",
+          "title": "Statistical meta-analysis to investigate the association between the Interleukin-6 (IL-6) gene polymorphisms and cancer risk"
+        },
+        {
+          "id": "e055423206485896a90adc8a6e0fdd62",
+          "title": "Association between Interleukin-6 Gene Polymorphism (rs1800795 and rs1800796) and Type 2 Diabetes Mellitus in a Ghanaian Population: A Case-Control Study in the Ho Municipality"
+        },
+        {
+          "id": "ee3b2e3f1a52572ca2c783844b55919a",
+          "title": "Ethnic Variation in Interleukin-6 –174 (G/C) Polymorphism in the Malaysian Population"
+        },
+        {
+          "id": "481700b08f9e5db29e5ad57a3cd5d65f",
+          "title": "Assessment of the −174G/C (rs1800795) and −572G/C (rs1800796) Interleukin 6 Gene Polymorphisms in Egyptian Patients with Rheumatoid Arthritis"
+        },
+        {
+          "id": "b9aea940e18f5fe69a0e2413625842dd",
+          "title": "Effects of IL-6 Polymorphisms on Individual Susceptibility to Allergic Diseases: A Systematic Review and Meta-Analysis"
+        },
+        {
+          "id": "3c0be6f1b2165fdd8e896533582e21c2",
+          "title": "The IL-6-174C/G polymorphism analysis in Ukrainian residents as prospects for biomedical and pharmacogenetic uses"
+        },
+        {
+          "id": "64ef01ba436052daaab284dd962b15e2",
+          "title": "Association of interleukin-6 promoter polymorphism with rheumatoid arthritis: a meta-analysis with trial sequential analysis"
+        }
+      ],
+      "disposition": "Discovery only; no disease-effect or population-frequency claim adopted."
+    },
+    {
+      "tool": "Scite",
+      "query": "\"rs1800795\" AND (\"reference\" OR \"strand\" OR \"gnomAD\")",
+      "results": [
+        {
+          "doi": "10.3390/ijms242216300",
+          "title": "Frequency Evaluation of the Interleukin-6 −174G&gt;C Polymorphism and Homeostatic Iron Regulator (HFE) Mutations as Disease Modifiers in Patients Affected by Systemic Lupus Erythematosus and Rheumatoid Arthritis"
+        },
+        {
+          "doi": "10.1017/s0317167100017522",
+          "title": "IL6-Gene Variation in Parkinson's Disease"
+        },
+        {
+          "doi": "10.14531/ss2022.2.33-39",
+          "title": "Analysis of associations of genetic markers with the development of congenital scoliosis"
+        },
+        {
+          "doi": "10.3390/jcdd9050127",
+          "title": "The Influence of Treatment with PCSK9 Inhibitors and Variants in the CRP (rs1800947), TNFA (rs1800629), and IL6 (rs1800795) Genes on the Corresponding Inflammatory Markers in Patients with Very High Lipoprotein(a) Levels"
+        },
+        {
+          "doi": "10.1055/s-0046-1825528",
+          "title": "Influence of Ancestry and Molecular Markers on the Severity of Obstructive Sleep Apnea: A Systematic Review and Meta-Analysis"
+        }
+      ],
+      "disposition": "Discovery only; authoritative exact-allele records determine fixture identity and counts."
+    }
+  ],
+  "contextual_erratum": {
+    "id": "3c855f5363e75b03802565a26c96d922",
+    "title": "Erratum to Cytokine SNPs: Comparison of allele frequencies by race and implications for future studies [Cytokine 46 (2009) 236-244]",
+    "doi": "10.1016/j.cyto.2009.09.001",
+    "year": "2010",
+    "disposition": "Fetched bibliographic record; contextual allele-label correction, not an identity or count source."
+  },
+  "editorial_check": {
+    "tool": "Scite",
+    "dois": [
+      "10.1016/j.cyto.2009.09.001",
+      "10.1186/s13059-016-0974-4"
+    ],
+    "payload": "raw/scite-editorial-check.json"
+  },
+  "fallbacks": [
+    {
+      "source": "NCBI Variation beta ClinVar",
+      "accession": "VCV000014718",
+      "result": "HTTP 404",
+      "fallback": "NCBI Entrez VCV XML, whitelisted identity fields via ncbi-entrez-skill."
+    }
+  ],
+  "privacy": "Only public query terms and sanitized bibliographic fields retained; institutional access links and clinical/participant records excluded."
+}

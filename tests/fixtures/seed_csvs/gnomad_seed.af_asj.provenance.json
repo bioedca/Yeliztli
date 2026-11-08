@@ -382,10 +382,23 @@
       "accessed": "2026-10-23",
       "method": "Exact genomic REF/ALT identity; exome ASJ AC/AN without complementation or reversal.",
       "evidence_packet": "data/science-evidence/2026-10-23-issue-2591-seed-strand"
+    },
+    "rs1800795": {
+      "af_asj": 0.7689655172413793,
+      "asj_ac": 223,
+      "asj_an": 290,
+      "gnomad_variant_id": "7-22766645-C-G",
+      "orientation": "same",
+      "source": "gnomAD r2.1.1 (GRCh37) GraphQL API",
+      "dataset": "gnomad_r2_1",
+      "sequencing_type": "genome",
+      "accessed": "2026-11-08",
+      "method": "Exact C>G allele; unsuffixed asj genome AC/AN. No complement or 1-AF.",
+      "evidence_packet": "data/science-evidence/2026-11-08-rs1800795-orientation-2563"
     }
   },
   "withheld_rsids": {
-    "count": 39,
+    "count": 38,
     "reason": "variant identity/coordinates in this fixture row are unreliable (see #1949) or the rsID is multiallelic/absent in gnomAD r4; a correctly-oriented ASJ AF cannot be placed without first fixing the row's identity \u2014 withheld (NULL) rather than fabricated",
     "rsids": [
       "rs1051266",
@@ -401,7 +414,6 @@
       "rs1800012",
       "rs1800460",
       "rs1800544",
-      "rs1800795",
       "rs1805007",
       "rs1805009",
       "rs2060793",

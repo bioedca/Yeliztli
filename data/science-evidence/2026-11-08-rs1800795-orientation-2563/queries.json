@@ -1,0 +1,179 @@
+{
+  "issue": 2563,
+  "accessed": "2026-11-08",
+  "build": "GRCh37 primary chromosome; 1-based forward genomic REF/ALT; GCF_000001405.25",
+  "requests": [
+    {
+      "source": "Ensembl GRCh37",
+      "method": "GET",
+      "url": "https://grch37.rest.ensembl.org/variation/homo_sapiens/rs1800795",
+      "params": {
+        "content-type": "application/json"
+      },
+      "payload": "raw/ensembl37-rs1800795.json"
+    },
+    {
+      "source": "Ensembl GRCh37",
+      "method": "GET",
+      "url": "https://grch37.rest.ensembl.org/sequence/region/human/7:22766645..22766645:1",
+      "params": {
+        "content-type": "application/json"
+      },
+      "payload": "raw/ensembl37-base-rs1800795.json"
+    },
+    {
+      "source": "NCBI ClinVar Entrez",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+      "params": {
+        "db": "clinvar",
+        "rettype": "vcv",
+        "id": "VCV000014718",
+        "retmode": "xml"
+      },
+      "payload": "raw/clinvar-14718-identity-derived.json",
+      "retention": "Whitelist identity reduction only; no observations or submissions."
+    },
+    {
+      "source": "NLM Clinical Tables ClinVar v4",
+      "method": "GET",
+      "url": "https://clinicaltables.nlm.nih.gov/api/variants/v4/search",
+      "params": {
+        "terms": "rs1800795",
+        "sf": "dbSNP",
+        "q": "dbSNP:rs1800795",
+        "df": "VariationID,Name,GeneSymbol,ClinicalSignificance,ReviewStatus,PhenotypeList,dbSNP",
+        "ef": "VariationID,Name,GeneSymbol,ClinicalSignificance,ReviewStatus,PhenotypeList,dbSNP",
+        "maxList": 500
+      },
+      "payload": "raw/clinvar-search-rs1800795.json"
+    },
+    {
+      "source": "gnomAD r2.1.1",
+      "method": "POST",
+      "url": "https://gnomad.broadinstitute.org/api",
+      "query_path": "gnomad-query.graphql",
+      "variables": {
+        "variantId": "7-22766645-C-G",
+        "dataset": "gnomad_r2_1"
+      },
+      "payload": "raw/gnomad-r2_1-rs1800795.json"
+    },
+    {
+      "source": "PubMed",
+      "method": "GET",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+      "params": {
+        "db": "pubmed",
+        "id": "27268795",
+        "retmode": "xml"
+      },
+      "payload": "raw/pubmed-27268795-derived.json"
+    },
+    {
+      "source": "Ensembl GRCh37 gene strand snapshot",
+      "method": "GET",
+      "url_template": "https://grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/{gene}",
+      "params": {
+        "content-type": "application/json"
+      },
+      "genes": [
+        "ABCB1",
+        "AC073072.5",
+        "ADRA2A",
+        "ANKK1",
+        "APOE",
+        "APP",
+        "ATP7B",
+        "BDNF",
+        "BRCA1",
+        "BRCA2",
+        "CETP",
+        "CFTR",
+        "COL1A1",
+        "COMT",
+        "CYP2C19",
+        "CYP2C9",
+        "CYP2D6",
+        "CYP2R1",
+        "CYP3A5",
+        "DPYD",
+        "EGFR",
+        "F2",
+        "F5",
+        "FADS1",
+        "FADS2",
+        "GC",
+        "GJB2",
+        "HBB",
+        "HERC2",
+        "HLA-DRA",
+        "HNF1B",
+        "HTR2A",
+        "IFNL4",
+        "IGF2BP2",
+        "IL10",
+        "IL1B",
+        "KCNJ11",
+        "KRAS",
+        "MC1R",
+        "MCM6",
+        "MTHFR",
+        "MTRR",
+        "NBPF3",
+        "OPRM1",
+        "PON1",
+        "PPARG",
+        "PTEN",
+        "PTPN22",
+        "SLC19A1",
+        "SLC30A8",
+        "SLC6A4",
+        "SLCO1B1",
+        "SOD1",
+        "TCF7L2",
+        "TNF",
+        "TPH2",
+        "TPMT",
+        "VKORC1"
+      ],
+      "payload": "raw/ensembl-gene-strands.json",
+      "generator": "scripts/build_vep_strand_snapshot.py with ensembl-skill fetch adapter",
+      "accessed": "2026-11-08"
+    }
+  ],
+  "licenses": [
+    {
+      "source": "gnomAD aggregate exome/genome counts",
+      "license": "CC0 1.0",
+      "url": "https://github.com/broadinstitute/gnomad-browser/blob/main/browser/about/policies/terms.md",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "NCBI molecular-data identity and bibliographic metadata",
+      "license": "NCBI places no restrictions on molecular-data use/distribution; third-party rights may apply. No abstracts or clinical submission text retained.",
+      "url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "Ensembl variation factual metadata",
+      "license": "Ensembl/EMBL-EBI terms; public coordinate/allele facts retained. No assumption that all aggregated data carry a single CC licence.",
+      "url": "https://www.ebi.ac.uk/licencing/",
+      "accessed": "2026-11-08"
+    },
+    {
+      "source": "Pinned VEP snapshot excerpt",
+      "license": "Existing repository snapshot under repository licence; source identity and upstream attribution preserved.",
+      "path": "tests/fixtures/vep_seed_bundle_snapshot.json"
+    }
+  ],
+  "identifiers": [
+    "ClinVar:VCV000014718.25",
+    "dbSNP:rs1800795",
+    "gnomAD:7-22766645-C-G (gnomad_r2_1)",
+    "PMID:27268795",
+    "DOI:10.1186/s13059-016-0974-4",
+    "Ensembl:ENSG00000179428"
+  ],
+  "scope": "Source-output and fixture-identity contracts only; no independent clinical, functional, treatment or population-risk claim."
+}

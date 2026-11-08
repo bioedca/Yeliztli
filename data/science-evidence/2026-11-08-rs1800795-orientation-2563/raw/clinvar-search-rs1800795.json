@@ -1,0 +1,40 @@
+[
+  1,
+  [
+    "14718"
+  ],
+  {
+    "VariationID": [
+      "14718"
+    ],
+    "Name": [
+      "NC_000007.14:g.22727026C>G"
+    ],
+    "GeneSymbol": [
+      "IL6"
+    ],
+    "ClinicalSignificance": [
+      "other; risk factor"
+    ],
+    "ReviewStatus": [
+      "no assertion criteria provided"
+    ],
+    "PhenotypeList": [
+      "Crohn disease-associated growth failure, susceptibility to||Kaposi sarcoma||Diabetes mellitus type 2, susceptibility to|Diabetes mellitus, type 1, susceptibility to|Cholangiocarcinoma"
+    ],
+    "dbSNP": [
+      "rs1800795"
+    ]
+  },
+  [
+    [
+      "14718",
+      "NC_000007.14:g.22727026C>G",
+      "IL6",
+      "other; risk factor",
+      "no assertion criteria provided",
+      "Crohn disease-associated growth failure, susceptibility to||Kaposi sarcoma||Diabetes mellitus type 2, susceptibility to|Diabetes mellitus, type 1, susceptibility to|Cholangiocarcinoma",
+      "rs1800795"
+    ]
+  ]
+]

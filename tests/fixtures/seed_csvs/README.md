@@ -107,10 +107,22 @@ row written for an indel rsID is flagged too.
 
 Rows that break this today are listed exactly in
 `../seed_allele_known_exceptions.json`, so the list can only shrink. #2590 gave
-every unannotated `vep_seed` filler row its oracle alleles. The three listed rows
-that remain are annotated or carry frequencies and are tracked by #2563. When you
-correct a row, also re-source the frequencies of any `gnomad_seed` row whose
-orientation changes, rather than flipping them.
+every unannotated `vep_seed` filler row its oracle alleles; #2541 and #2563
+corrected the remaining annotated/frequency-bearing rows. The exception list
+is now empty. When correcting an orientation, also re-source every frequency
+from the selected allele's source counts rather than flipping it.
+
+#2563 selects `rs1800795` as GRCh37 `7:22766645 C>G`. ClinVar accession
+`VCV000014718.25` explicitly maps to that allele, so its verified aggregate
+metadata is retained. VEP mirrors the pinned bundle's `AC073072.5` transcript
+`ENST00000325042`, `n.54-321G>C`, and intronic/non-coding consequence; the old
+IL6 promoter annotation is not the bundle's selected transcript. The gnomAD
+r2.1.1 **genome C>G record** supplies all frequencies and the homozygote count
+because no exome record exists. South Asian AN is zero, so `af_sas` is NULL;
+it is not an observed zero frequency. ASJ now has a verified genome AC/AN
+record. Source-native names, cohort selection and public evidence are retained
+in `data/science-evidence/2026-11-08-rs1800795-orientation-2563/`. This repairs
+fixture identity and does not establish an IL6 effect or change analysis policy.
 
 #2541 selects `rs6025` as GRCh37 `1:169519049 T>C` in all three seeds. VEP
 mirrors the pinned bundle's `c.1601A>G` / `p.Gln534Arg` annotation. ClinVar uses

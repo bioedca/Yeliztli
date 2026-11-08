@@ -1,0 +1,32 @@
+{
+  "derivation": "Public bibliographic identity/editorial metadata only; abstracts, author/contact and participant data excluded.",
+  "records": [
+    {
+      "pmid": "27268795",
+      "title": "The Ensembl Variant Effect Predictor.",
+      "identifiers": [
+        {
+          "type": "pubmed",
+          "value": "27268795"
+        },
+        {
+          "type": "pmc",
+          "value": "PMC4893825"
+        },
+        {
+          "type": "doi",
+          "value": "10.1186/s13059-016-0974-4"
+        },
+        {
+          "type": "pii",
+          "value": "10.1186/s13059-016-0974-4"
+        }
+      ],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "corrections": []
+    }
+  ]
+}

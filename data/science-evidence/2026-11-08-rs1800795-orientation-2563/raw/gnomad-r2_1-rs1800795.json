@@ -1,0 +1,205 @@
+{
+  "data": {
+    "variant": {
+      "variant_id": "7-22766645-C-G",
+      "reference_genome": "GRCh37",
+      "chrom": "7",
+      "pos": 22766645,
+      "ref": "C",
+      "alt": "G",
+      "rsids": [
+        "rs1800795"
+      ],
+      "exome": null,
+      "genome": {
+        "ac": 21362,
+        "an": 31278,
+        "af": 0.6829720570368949,
+        "homozygote_count": 7882,
+        "filters": [],
+        "populations": [
+          {
+            "id": "afr",
+            "ac": 8046,
+            "an": 8680,
+            "homozygote_count": 3727
+          },
+          {
+            "id": "afr_XX",
+            "ac": 3407,
+            "an": 3672,
+            "homozygote_count": 1575
+          },
+          {
+            "id": "afr_XY",
+            "ac": 4639,
+            "an": 5008,
+            "homozygote_count": 2152
+          },
+          {
+            "id": "amr",
+            "ac": 684,
+            "an": 846,
+            "homozygote_count": 280
+          },
+          {
+            "id": "amr_XX",
+            "ac": 326,
+            "an": 412,
+            "homozygote_count": 131
+          },
+          {
+            "id": "amr_XY",
+            "ac": 358,
+            "an": 434,
+            "homozygote_count": 149
+          },
+          {
+            "id": "asj",
+            "ac": 223,
+            "an": 290,
+            "homozygote_count": 85
+          },
+          {
+            "id": "asj_XX",
+            "ac": 64,
+            "an": 80,
+            "homozygote_count": 26
+          },
+          {
+            "id": "asj_XY",
+            "ac": 159,
+            "an": 210,
+            "homozygote_count": 59
+          },
+          {
+            "id": "eas",
+            "ac": 1558,
+            "an": 1558,
+            "homozygote_count": 779
+          },
+          {
+            "id": "eas_XX",
+            "ac": 536,
+            "an": 536,
+            "homozygote_count": 268
+          },
+          {
+            "id": "eas_XY",
+            "ac": 1022,
+            "an": 1022,
+            "homozygote_count": 511
+          },
+          {
+            "id": "fin",
+            "ac": 1642,
+            "an": 3464,
+            "homozygote_count": 391
+          },
+          {
+            "id": "fin_XX",
+            "ac": 847,
+            "an": 1838,
+            "homozygote_count": 198
+          },
+          {
+            "id": "fin_XY",
+            "ac": 795,
+            "an": 1626,
+            "homozygote_count": 193
+          },
+          {
+            "id": "nfe",
+            "ac": 8553,
+            "an": 15358,
+            "homozygote_count": 2410
+          },
+          {
+            "id": "nfe_est",
+            "ac": 2253,
+            "an": 4554,
+            "homozygote_count": 566
+          },
+          {
+            "id": "nfe_nwe",
+            "ac": 4919,
+            "an": 8572,
+            "homozygote_count": 1416
+          },
+          {
+            "id": "nfe_onf",
+            "ac": 1300,
+            "an": 2126,
+            "homozygote_count": 399
+          },
+          {
+            "id": "nfe_seu",
+            "ac": 81,
+            "an": 106,
+            "homozygote_count": 29
+          },
+          {
+            "id": "nfe_XX",
+            "ac": 3727,
+            "an": 6768,
+            "homozygote_count": 1041
+          },
+          {
+            "id": "nfe_XY",
+            "ac": 4826,
+            "an": 8590,
+            "homozygote_count": 1369
+          },
+          {
+            "id": "oth",
+            "ac": 656,
+            "an": 1082,
+            "homozygote_count": 210
+          },
+          {
+            "id": "oth_XX",
+            "ac": 330,
+            "an": 556,
+            "homozygote_count": 101
+          },
+          {
+            "id": "oth_XY",
+            "ac": 326,
+            "an": 526,
+            "homozygote_count": 109
+          },
+          {
+            "id": "sas",
+            "ac": 0,
+            "an": 0,
+            "homozygote_count": 0
+          },
+          {
+            "id": "sas_XX",
+            "ac": 0,
+            "an": 0,
+            "homozygote_count": 0
+          },
+          {
+            "id": "sas_XY",
+            "ac": 0,
+            "an": 0,
+            "homozygote_count": 0
+          },
+          {
+            "id": "XX",
+            "ac": 9237,
+            "an": 13862,
+            "homozygote_count": 3340
+          },
+          {
+            "id": "XY",
+            "ac": 12125,
+            "an": 17416,
+            "homozygote_count": 4542
+          }
+        ]
+      }
+    }
+  }
+}
