@@ -6,30 +6,5 @@
   "generator": "data/science-evidence/2026-10-22-issue-2583-seed-allele-orientation/scripts/write_seed_allele_exceptions.py",
   "note": "Rows that break the plus-strand, reference-first GRCh37 allele contract today. The guard requires this list to match exactly, so it can only shrink as rows are corrected."
  },
- "rows": [
-  {
-   "seed": "clinvar_seed",
-   "rsid": "rs1800795",
-   "ref": "G",
-   "alt": "C",
-   "violation": "not_reference_first",
-   "tracked_by": "#2563"
-  },
-  {
-   "seed": "gnomad_seed",
-   "rsid": "rs1800795",
-   "ref": "G",
-   "alt": "C",
-   "violation": "not_reference_first",
-   "tracked_by": "#2563"
-  },
-  {
-   "seed": "vep_seed",
-   "rsid": "rs1800795",
-   "ref": "G",
-   "alt": "C",
-   "violation": "not_reference_first",
-   "tracked_by": "#2563"
-  }
- ]
+ "rows": []
 }

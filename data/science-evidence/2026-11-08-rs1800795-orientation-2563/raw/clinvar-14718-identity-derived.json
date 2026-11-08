@@ -1,0 +1,99 @@
+{
+  "derivation": "Whitelist identity fields from ClinVar Entrez XML; excludes observations, submissions, participant data and clinical assertions.",
+  "records": [
+    {
+      "archive": {
+        "VariationID": "14718",
+        "VariationName": "NC_000007.14:g.22727026C>G",
+        "VariationType": "single nucleotide variant",
+        "Accession": "VCV000014718",
+        "Version": "25",
+        "RecordType": "classified",
+        "NumberOfSubmissions": "7",
+        "NumberOfSubmitters": "2",
+        "DateLastUpdated": "2025-10-12",
+        "DateCreated": "2013-04-04",
+        "MostRecentSubmission": "2025-06-22"
+      },
+      "sequence_locations": [
+        {
+          "Assembly": "GRCh38",
+          "AssemblyAccessionVersion": "GCF_000001405.38",
+          "forDisplay": "true",
+          "AssemblyStatus": "current",
+          "Chr": "7",
+          "Accession": "NC_000007.14",
+          "start": "22727026",
+          "stop": "22727026",
+          "display_start": "22727026",
+          "display_stop": "22727026",
+          "variantLength": "1",
+          "positionVCF": "22727026",
+          "referenceAlleleVCF": "C",
+          "alternateAlleleVCF": "G"
+        },
+        {
+          "Assembly": "GRCh37",
+          "AssemblyAccessionVersion": "GCF_000001405.25",
+          "AssemblyStatus": "previous",
+          "Chr": "7",
+          "Accession": "NC_000007.13",
+          "start": "22766645",
+          "stop": "22766645",
+          "display_start": "22766645",
+          "display_stop": "22766645",
+          "variantLength": "1",
+          "positionVCF": "22766645",
+          "referenceAlleleVCF": "C",
+          "alternateAlleleVCF": "G"
+        }
+      ],
+      "hgvs": [
+        {
+          "attributes": {
+            "Assembly": "GRCh37",
+            "Type": "genomic, top-level"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NC_000007.13",
+              "sequenceAccession": "NC_000007",
+              "sequenceVersion": "13",
+              "change": "g.22766645C>G",
+              "Assembly": "GRCh37"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Assembly": "GRCh38",
+            "Type": "genomic, top-level"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NC_000007.14",
+              "sequenceAccession": "NC_000007",
+              "sequenceVersion": "14",
+              "change": "g.22727026C>G",
+              "Assembly": "GRCh38"
+            }
+          ]
+        },
+        {
+          "attributes": {
+            "Type": "genomic"
+          },
+          "expressions": [
+            {
+              "sequenceAccessionVersion": "NG_011640.1",
+              "sequenceAccession": "NG_011640",
+              "sequenceVersion": "1",
+              "change": "g.4880C>G"
+            }
+          ]
+        }
+      ],
+      "rsids": []
+    }
+  ]
+}

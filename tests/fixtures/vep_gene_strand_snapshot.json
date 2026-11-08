@@ -2,22 +2,26 @@
   "_provenance": {
     "source": "Ensembl GRCh37 REST (grch37.rest.ensembl.org/lookup/symbol/homo_sapiens/<gene>)",
     "assembly": "GRCh37",
-    "accessed": "2026-10-21",
+    "accessed": "2026-11-08",
     "gene_count": 58,
     "fetch_failures": 0,
     "synthetic_excluded": [
       "GENE1"
     ],
     "generator": "scripts/build_vep_strand_snapshot.py",
-    "evidence_path": "tests/fixtures/vep_gene_strand_snapshot.evidence.json",
-    "evidence_sha256": "2803b4a7a18a3b5022b2d482ff8d8ad92af9ddc74a164bea354c8d60621cf1ad",
-    "evidence_bytes": 32120,
+    "evidence_path": "data/science-evidence/2026-11-08-rs1800795-orientation-2563/raw/ensembl-gene-strands.json",
+    "evidence_sha256": "db28aacb901b1b5bb5a0c54ddd9ccc420b9f7c6a98bf0541365a85218cd5d8b6",
+    "evidence_bytes": 32023,
     "note": "Committed offline reference for the vep_seed strand guard (#2045). A gene's genomic strand is invariant, so this needs no version pinning beyond the assembly. Regenerate whenever vep_seed.csv gains a gene -- the guard FAILS on an uncovered gene rather than skipping it. GENE1 is a deliberately synthetic locus with no Ensembl record and is exempt in the guard, pinned by symbol. The strands here are exactly the reduction of the evidence file named above, which the guard re-derives."
   },
   "strands": {
     "ABCB1": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000085563"
+    },
+    "AC073072.5": {
+      "strand": "-",
+      "ensembl_gene_id": "ENSG00000179428"
     },
     "ADRA2A": {
       "strand": "+",
@@ -154,10 +158,6 @@
     "IL1B": {
       "strand": "-",
       "ensembl_gene_id": "ENSG00000125538"
-    },
-    "IL6": {
-      "strand": "+",
-      "ensembl_gene_id": "ENSG00000136244"
     },
     "KCNJ11": {
       "strand": "-",

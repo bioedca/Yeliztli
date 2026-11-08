@@ -15,6 +15,12 @@
         "raw_evidence_path": "data/science-evidence/2026-11-08-rs6025-orientation-2541/raw/clinvar-search-rs6025.json",
         "identity_evidence_path": "data/science-evidence/2026-11-08-rs6025-orientation-2541/raw/clinvar-226007-identity-derived.json",
         "reason": "#2541 selects GRCh37 T>C; VCV000000642 represents the reference allele T and cannot be transferred to C."
+      },
+      "VCV000014718": {
+        "accessed": "2026-11-08",
+        "raw_evidence_path": "data/science-evidence/2026-11-08-rs1800795-orientation-2563/raw/clinvar-search-rs1800795.json",
+        "identity_evidence_path": "data/science-evidence/2026-11-08-rs1800795-orientation-2563/raw/clinvar-14718-identity-derived.json",
+        "reason": "#2563 verifies this existing accession and aggregate metadata against GRCh37 C>G; correct the reversed seed alleles."
       }
     }
   },

@@ -1,0 +1,14 @@
+{
+  "raw/clinvar-14718-identity-derived.json": "23d995619bec788e28ba92ead9ec5cd493b69686a456119d33b88d2cc056eaf2",
+  "raw/clinvar-search-rs1800795.json": "426915d306ad88d32ef8badc0d6bb8c43742539c18ee754afaec168894c21a88",
+  "raw/ensembl-gene-strands.json": "db28aacb901b1b5bb5a0c54ddd9ccc420b9f7c6a98bf0541365a85218cd5d8b6",
+  "raw/ensembl37-base-rs1800795.json": "f2732b456971170e2e16e623c4295c11578d867c21e765cc5357cbf506ea0cb7",
+  "raw/ensembl37-rs1800795.json": "519a65a4d29658d3d62e5743e1aa1aae19e2148eb84ae3e5190cc3a4bec65a10",
+  "raw/gnomad-r2_1-rs1800795.json": "e06edac976a572ed321442649ce39789277ac3cb1f5c3ff1942c1ae15a8cbd4b",
+  "raw/pinned-vep-snapshot-derived.json": "3c6d86c261f08e9490e1ed27fee5dea36cb492425deea218bc76aaf43efb8755",
+  "raw/pubmed-27268795-derived.json": "b4069d1effe4b274ddf460b9d869343c342cb783a7d956576e76808b43d387a2",
+  "raw/scite-editorial-check.json": "3da9b0b2f6b105752307ec5c98487b4390a14589ca1ccd8ce8b0db8500a87136",
+  "queries.json": "2d151a21515f49d3b8f294c44d0d430030e904047fc0a464451826e2cf161db6",
+  "discovery.json": "2673e0bf858d7be16d4047cb14af108fdd948e5afa3e813c9eaa8023285265b9",
+  "gnomad-query.graphql": "5d054dec8a8269b7b727bcc40089767183d958f7006d93596c5bd971d1670a0e"
+}
