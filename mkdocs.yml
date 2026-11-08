@@ -153,6 +153,7 @@ nav:
       - Contributing: develop/contributing.md
       - Labels & triage: develop/labels-and-triage.md
       - Issue claim heartbeats: develop/issue-claims.md
+      - Copilot review evidence: develop/copilot-reviews.md
       - Greptile reviews: develop/greptile-reviews.md
   - Maintainer:
       - maintainer/index.md
