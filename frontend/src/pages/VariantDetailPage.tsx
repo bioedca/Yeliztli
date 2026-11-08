@@ -237,8 +237,14 @@ function OverviewTab({ variant }: { variant: VariantDetail }) {
       )}
 
       {/* Transcript info */}
-      <SectionHeader icon={Dna} label="Transcript" />
+      <SectionHeader icon={Dna} label="Gene and transcript" />
       <DetailRow label="Gene" value={variant.gene_symbol} />
+      {variant.gene_symbol && variant.gene_source && (
+        <DetailRow
+          label="Gene source"
+          value={variant.gene_source === "clinvar" ? "ClinVar" : "Ensembl VEP"}
+        />
+      )}
       <DetailRow label="Transcript" value={variant.transcript_id} />
       {variant.exon_number != null && <DetailRow label="Exon" value={variant.exon_number} />}
       {variant.intron_number != null && <DetailRow label="Intron" value={variant.intron_number} />}

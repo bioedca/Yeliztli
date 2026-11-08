@@ -119,8 +119,9 @@ class VariantDetailResponse(BaseModel):
     zygosity: str | None = None
     zygosity_label: str | None = None
 
-    # VEP (best transcript — stored in annotated_variants)
+    # Gene context and VEP best transcript — stored in annotated_variants
     gene_symbol: str | None = None
+    gene_source: str | None = None
     transcript_id: str | None = None
     consequence: str | None = None
     hgvs_coding: str | None = None
@@ -136,6 +137,7 @@ class VariantDetailResponse(BaseModel):
     clinvar_accession: str | None = None
     clinvar_conditions: str | None = None
     clinvar_molecular_consequence: str | None = None
+    clinvar_gene_info: str | None = None
     consequence_source: str | None = None
 
     # gnomAD
@@ -347,6 +349,7 @@ def _resolve_primary_annotation(
     prior_consequence = data.get("consequence")
     for field in _PRIMARY_VEP_FIELDS:
         data[field] = getattr(primary, field)
+    data["gene_source"] = "vep" if primary.gene_symbol else None
     data["consequence_source"] = "vep" if primary.consequence else None
     if clinvar_fallback and not primary.consequence:
         from backend.annotation.allele_matching import source_allele_identity

@@ -1197,6 +1197,7 @@ class TestPrimaryAnnotationFromResolvedAllele:
         data = self._get(tmp_data_dir, _WITHHELD_PRIMARY_SAMPLE)
 
         assert data["gene_symbol"] == "CFTR"
+        assert data["gene_source"] == "vep"
         assert data["transcript_id"] == "ENST00000003084"
         assert data["consequence"] == "missense_variant"
         assert data["hgvs_coding"] == "c.1000G>A"
@@ -1490,3 +1491,25 @@ def test_api_exposes_consequence_source_and_raw_mc(tmp_data_dir):
         assert listing.status_code == 200
         assert len(listing.json()["items"]) == 1
         assert listing.json()["items"][0]["consequence_source"] == "clinvar"
+
+
+@pytest.mark.parametrize("source", ["clinvar", "vep", None])
+def test_api_exposes_gene_source_without_inventing_legacy_provenance(tmp_data_dir, source):
+    from contextlib import contextmanager
+
+    variant = {
+        **SAMPLE_VARIANT_BRCA1,
+        "gene_symbol": "YELIZTLI2464",
+        "gene_source": source,
+        "clinvar_gene_info": "YELIZTLI2464:999002464" if source == "clinvar" else None,
+    }
+    with contextmanager(_setup_client)(tmp_data_dir, [variant]) as (api_client, sample_id):
+        response = api_client.get(f"/api/variants/{variant['rsid']}?sample_id={sample_id}")
+        assert response.status_code == 200
+        assert response.json()["gene_symbol"] == "YELIZTLI2464"
+        assert response.json()["gene_source"] == source
+        assert response.json()["clinvar_gene_info"] == variant["clinvar_gene_info"]
+        listing = api_client.get(f"/api/variants?sample_id={sample_id}")
+        assert listing.status_code == 200
+        assert len(listing.json()["items"]) == 1
+        assert listing.json()["items"][0]["gene_source"] == source

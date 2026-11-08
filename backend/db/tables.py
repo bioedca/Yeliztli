@@ -235,6 +235,9 @@ clinvar_variants = sa.Table(
     sa.Column("gene_symbol", sa.Text),
     sa.Column("variation_id", sa.Integer),
     sa.Column("molecular_consequence", sa.Text, comment="Source-native ClinVar VCF MC"),
+    sa.Column(
+        "gene_info", sa.Text, comment="Source-native ClinVar VCF GENEINFO; NULL on legacy rows"
+    ),
 )
 
 sa.Index("idx_clinvar_chrom_pos", clinvar_variants.c.chrom, clinvar_variants.c.pos)
@@ -682,6 +685,7 @@ annotated_variants = sa.Table(
     sa.Column("zygosity", sa.Text),  # hom_ref, het, hom_alt
     # VEP annotation (bitmask bit 0)
     sa.Column("gene_symbol", sa.Text),
+    sa.Column("gene_source", sa.Text, comment="vep | clinvar; NULL when provenance is unknown"),
     sa.Column("transcript_id", sa.Text),
     sa.Column("consequence", sa.Text),  # SO term
     sa.Column("consequence_source", sa.Text, comment="vep | clinvar; NULL on legacy rows"),
@@ -700,6 +704,7 @@ annotated_variants = sa.Table(
     sa.Column("clinvar_accession", sa.Text),
     sa.Column("clinvar_conditions", sa.Text),
     sa.Column("clinvar_molecular_consequence", sa.Text, comment="Exact-allele ClinVar VCF MC"),
+    sa.Column("clinvar_gene_info", sa.Text, comment="Exact-allele ClinVar VCF GENEINFO"),
     sa.Column("clinvar_allele_identity", sa.Text, comment="JSON [chrom,pos,ref,alt] from ClinVar"),
     # gnomAD allele frequency (bitmask bit 2)
     sa.Column("gnomad_af_global", sa.Float),

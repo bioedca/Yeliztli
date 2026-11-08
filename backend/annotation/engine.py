@@ -504,6 +504,7 @@ def _lookup_clinvar(
             "clinvar_accession": annot.clinvar_accession,
             "clinvar_conditions": annot.clinvar_conditions,
             "clinvar_molecular_consequence": annot.clinvar_molecular_consequence,
+            "clinvar_gene_info": annot.clinvar_gene_info,
             "clinvar_allele_identity": source_allele_identity(
                 annot.chrom, annot.pos, annot.ref, annot.alt
             ),
@@ -862,18 +863,40 @@ def _lookup_alphamissense(
     return results
 
 
+def _clinvar_gene_fallbacks(
+    vep_data: dict[str, dict],
+    clinvar_data: dict[str, dict],
+    vep_allele_ambiguous: set[str],
+    *,
+    vep_lookup_complete: bool,
+) -> dict[str, dict]:
+    """Select source-proven genes only after a successful, genuine VEP miss."""
+    from backend.annotation.clinvar import gene_symbol_from_gene_info
+
+    if not vep_lookup_complete:
+        return {}
+    result = {}
+    for rsid, clinvar in clinvar_data.items():
+        if rsid in vep_data or rsid in vep_allele_ambiguous:
+            continue
+        gene = gene_symbol_from_gene_info(clinvar.get("clinvar_gene_info"))
+        if gene and clinvar.get("clinvar_allele_identity"):
+            result[rsid] = {"gene_symbol": gene, "gene_source": "clinvar"}
+    return result
+
+
 def _lookup_gene_phenotype(
     vep_data: dict[str, dict],
     reference_engine: sa.Engine,
 ) -> dict[str, dict]:
-    """Look up gene-phenotype annotations for variants that have VEP gene symbols.
+    """Look up phenotypes for selected VEP or exact-allele ClinVar gene symbols.
 
-    This adapter collects unique gene symbols from VEP results, queries the
+    This adapter collects unique gene symbols from resolved gene context, queries the
     gene_phenotype table via :func:`lookup_gene_phenotypes`, and maps results
     back to rsids.  Each rsid gets the first (most relevant) phenotype record
     for its gene — typically the primary disease association.
 
-    Must run *after* VEP lookup since it depends on gene_symbol assignments.
+    Must run after gene resolution since it depends on gene_symbol assignments.
     """
     import json as _json
 
@@ -968,6 +991,7 @@ def _merge_annotations(
     gnomad_locus_unresolved: set[str] | None = None,
     gnomad_alias_unresolved: set[str] | None = None,
     vep_allele_ambiguous: set[str] | None = None,
+    clinvar_gene_data: dict[str, dict] | None = None,
 ) -> list[dict]:
     """Merge all annotation sources into upsert-ready dicts.
 
@@ -1004,6 +1028,10 @@ def _merge_annotations(
         if rsid in vep_data:
             row_data.update(vep_data[rsid])
             bitmask |= VEP_BIT
+            if row_data.get("gene_symbol"):
+                row_data["gene_source"] = "vep"
+        elif rsid not in (vep_allele_ambiguous or ()):
+            row_data.update((clinvar_gene_data or {}).get(rsid, {}))
 
         if rsid in clinvar_data:
             row_data.update(
@@ -1153,6 +1181,7 @@ _UPSERT_COLUMNS = [
     "zygosity",
     # VEP
     "gene_symbol",
+    "gene_source",
     "transcript_id",
     "consequence",
     "consequence_source",
@@ -1169,6 +1198,7 @@ _UPSERT_COLUMNS = [
     "clinvar_accession",
     "clinvar_conditions",
     "clinvar_molecular_consequence",
+    "clinvar_gene_info",
     "clinvar_allele_identity",
     # dbSNP merge reconciliation (F18) — current rsid a deprecated id resolved to
     "dbsnp_rsid_current",
@@ -1251,7 +1281,9 @@ def _reset_staging_table(sample_engine: sa.Engine) -> None:
         annotated_variants_staging.create(conn)
 
 
-def _swap_staging_into_place(sample_engine: sa.Engine) -> None:
+def _swap_staging_into_place(
+    sample_engine: sa.Engine, *, phenotype_scope: str | None = None
+) -> None:
     """Atomically replace ``annotated_variants`` with the staged annotation.
 
     The delete-then-insert-select runs in a single transaction, so a crash
@@ -1259,6 +1291,9 @@ def _swap_staging_into_place(sample_engine: sa.Engine) -> None:
     crash *before* the swap never touches the live table at all (F28).
     """
     cols = ", ".join(c.name for c in annotated_variants.c)
+    from backend.db.tables import annotation_state
+    from backend.services.sample_phenotype_scope import ANNOTATED_PHENOTYPE_SCOPE_KEY
+
     with sample_engine.begin() as conn:
         conn.execute(annotated_variants.delete())
         conn.execute(
@@ -1267,6 +1302,17 @@ def _swap_staging_into_place(sample_engine: sa.Engine) -> None:
         # Same transaction as the swap, so scores read from these rows can
         # tell they changed even if the run fails afterwards (#2118).
         bump_generation(conn, ANNOTATED_VARIANTS_GENERATION_KEY)
+        # This describes the scope of the rows just swapped, independently of
+        # the later successful-analysis/reference-version snapshot. Empty is an
+        # explicit unknown scope and must not reuse an older run's provenance.
+        marker = sqlite_insert(annotation_state).values(
+            key=ANNOTATED_PHENOTYPE_SCOPE_KEY, value=phenotype_scope or ""
+        )
+        conn.execute(
+            marker.on_conflict_do_update(
+                index_elements=["key"], set_={"value": marker.excluded.value}
+            )
+        )
     with sample_engine.begin() as conn:
         annotated_variants_staging.drop(conn, checkfirst=True)
 
@@ -1821,6 +1867,9 @@ def run_annotation(
 
             # 5. Concurrent lookups across annotation sources
             vep_data: dict[str, dict] = {}
+            # An unavailable or failed lookup is not proof that VEP lacks the
+            # allele. Fail closed for new ClinVar gene fallbacks in that batch.
+            vep_lookup_complete = vep_engine is not None
             clinvar_data: dict[str, dict] = {}
             gnomad_data: dict[str, dict] = {}
             # Filled by the gnomAD worker with rsIDs that HAD candidate rows but
@@ -1928,6 +1977,8 @@ def run_annotation(
                         dbnsfp_data = data
                 except Exception as exc:
                     msg = f"{source} lookup failed: {exc}"
+                    if source == "vep":
+                        vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": source, "error": str(exc)},
@@ -2003,6 +2054,7 @@ def run_annotation(
                             )
                         except Exception as exc:
                             # Withhold rather than keep the other call's annotation.
+                            vep_lookup_complete = False
                             vep_data.pop(original, None)
                             result.errors.append(f"vep alias lookup failed: {exc}")
                             continue
@@ -2098,6 +2150,7 @@ def run_annotation(
                     )
                 except Exception as exc:
                     msg = f"vep coord-fallback lookup failed: {exc}"
+                    vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": "vep_coord_fallback", "error": str(exc)},
@@ -2125,6 +2178,7 @@ def run_annotation(
                     vep_allele_ambiguous.difference_update(settled_vep_alleles)
                 except Exception as exc:
                     msg = f"vep settled-identity lookup failed: {exc}"
+                    vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": "vep_settled_identity", "error": str(exc)},
@@ -2145,6 +2199,7 @@ def run_annotation(
                     )
                 except Exception as exc:
                     msg = f"vep settled-identity coord-fallback lookup failed: {exc}"
+                    vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": "vep_settled_coord_fallback", "error": str(exc)},
@@ -2166,6 +2221,7 @@ def run_annotation(
                         vep_data[rsid].update(alleles)
                 except Exception as exc:
                     msg = f"vep allele lookup failed: {exc}"
+                    vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
                         extra={"source": "vep_alleles", "error": str(exc)},
@@ -2211,12 +2267,20 @@ def run_annotation(
                 else:
                     _bump_source(source_value, "vep_misses")
 
-            # 5c. Gene-phenotype lookup (depends on VEP gene_symbol results)
+            # 5c. Resolve gene identity before the gene-phenotype lookup. Keep
+            # fallback context separate so it cannot fabricate VEP coverage.
+            clinvar_gene_data = _clinvar_gene_fallbacks(
+                vep_data,
+                clinvar_data,
+                vep_allele_ambiguous,
+                vep_lookup_complete=vep_lookup_complete,
+            )
+            gene_context = {**vep_data, **clinvar_gene_data}
             gene_phenotype_data: dict[str, dict] = {}
-            if vep_data:
+            if gene_context:
                 try:
                     t_gp = time.perf_counter()
-                    gene_phenotype_data = _lookup_gene_phenotype(vep_data, reference_engine)
+                    gene_phenotype_data = _lookup_gene_phenotype(gene_context, reference_engine)
                     result.timing_gene_phenotype_s += time.perf_counter() - t_gp
                 except Exception as exc:
                     msg = f"gene_phenotype lookup failed: {exc}"
@@ -2241,6 +2305,7 @@ def run_annotation(
                 gnomad_locus_unresolved=gnomad_locus_unresolved,
                 gnomad_alias_unresolved=gnomad_alias_unresolved,
                 vep_allele_ambiguous=vep_allele_ambiguous,
+                clinvar_gene_data=clinvar_gene_data,
             )
 
             # 6b. Ensemble pathogenicity flag (P2-13)
@@ -2276,7 +2341,11 @@ def run_annotation(
     # prior annotation with the staged one in a single transaction. Reached only
     # on full success — a crash in any batch above propagates out before here,
     # leaving ``annotated_variants`` (the prior good run) intact.
-    _swap_staging_into_place(sample_engine)
+    from backend.annotation.mondo_hpo import MONDO_HPO_INGESTION_REVISION
+
+    # The lookup serves MONDO/HPO rows only from this scoped loader revision;
+    # legacy/unavailable sources produce no MONDO/HPO join to expose.
+    _swap_staging_into_place(sample_engine, phenotype_scope=MONDO_HPO_INGESTION_REVISION)
 
     # 9. Coverage telemetry (Plan §5.6). `vep_matched` aggregates both rsid
     # and (chrom, pos) hits; subtract the coord-fallback subset so the

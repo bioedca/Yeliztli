@@ -1,0 +1,12 @@
+{
+  "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/clinvar.vcf.gz",
+  "accessed": "2026-11-08",
+  "status": 206,
+  "headers": {
+    "Last-Modified": "Mon, 02 Nov 2026 12:26:53 GMT",
+    "Content-Length": "65536",
+    "Content-Range": "bytes 0-65535/201317371"
+  },
+  "retained": "VCF metadata header only; no variant or sample rows",
+  "header_sha256": "5b1a21f8e5a8c1412ec39d87bbe782898606ec53d976d5d0f592aa37e5074fd0"
+}
