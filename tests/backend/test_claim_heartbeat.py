@@ -165,6 +165,60 @@ def test_server_identity_or_timestamp_mismatch_fails(monkeypatch, field, value):
         heartbeat.verify(plan, TIME + timedelta(seconds=2))
 
 
+@pytest.mark.parametrize("operation", ["prepare", "verify"])
+@pytest.mark.parametrize(
+    "requested_repo,server_repo",
+    [
+        ("EXAMPLE/PROJECT", "example/project"),
+        ("Example/project", "example/project"),
+        ("example/project", "Example/Project"),
+        ("eXample/pRoject", "EXAMPLE/project"),
+    ],
+)
+def test_repository_case_variants_preserve_issue_identity(
+    monkeypatch, operation, requested_repo, server_repo
+):
+    plan = prepared(monkeypatch)
+    identity = {**IDENTITY, "repo": requested_repo}
+    after = renewed(plan)
+    after["issue_url"] = f"https://api.github.com/repos/{server_repo}/issues/7"
+    calls = snapshots(monkeypatch, [[after]], [[after]])
+    if operation == "prepare":
+        result = heartbeat.prepare(identity, TIME + timedelta(seconds=2))
+        assert result["identity"] == identity
+        assert result["before"]["updated_at"] == after["updated_at"]
+    else:
+        plan["identity"] = identity
+        result = heartbeat.verify(plan, TIME + timedelta(seconds=2))
+        assert result["updated_at"] == after["updated_at"] and result["comment_id"] == 42
+    assert calls == [(requested_repo, 7)] * 2
+
+
+@pytest.mark.parametrize("operation", ["prepare", "verify"])
+@pytest.mark.parametrize(
+    "issue_url",
+    [
+        "https://api.github.com/repos/EXAMPLE/other/issues/7",
+        "https://api.github.com/repos/someone/PROJECT/issues/7",
+        "https://api.github.com/repos/EXAMPLE/PROJECT/issues/8",
+        "https://example.com/repos/EXAMPLE/PROJECT/issues/7",
+        "https://api.github.com/repos/EXAMPLE/PROJECT/issues/7?other=1",
+    ],
+)
+def test_case_normalization_cannot_accept_another_repository_issue_or_host(
+    monkeypatch, operation, issue_url
+):
+    plan = prepared(monkeypatch)
+    after = renewed(plan)
+    after["issue_url"] = issue_url
+    snapshots(monkeypatch, [[after]], [[after]])
+    with pytest.raises(heartbeat.HeartbeatError, match="another issue"):
+        if operation == "prepare":
+            heartbeat.prepare(dict(IDENTITY), TIME + timedelta(seconds=2))
+        else:
+            heartbeat.verify(plan, TIME + timedelta(seconds=2))
+
+
 @pytest.mark.parametrize(
     "change",
     [

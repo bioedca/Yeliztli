@@ -37,6 +37,8 @@ python scripts/claim_heartbeat.py prepare \
 ```
 
 The helper makes only `GET` requests using the existing authenticated `gh` CLI.
+Repository owner/name comparisons ignore capitalization, matching GitHub's
+canonical URL behavior; the API host, URL shape and issue number must still match.
 It fetches every comment page twice and requires matching complete snapshots with
 the expected active identity and no other live ownership or provisional record.
 It checks expiry **after** both reads. Unknown/malformed claim records fail closed;

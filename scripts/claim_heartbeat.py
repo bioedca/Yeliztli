@@ -20,6 +20,10 @@ from uuid import UUID
 CLAIM_TOKEN = "yeliztli-claim:v1"
 MARKER = f"<!-- {CLAIM_TOKEN} -->"
 CLAIM = re.compile(re.escape(MARKER) + r"\n```json\n(?P<record>.*?)\n```(?P<tail>.*)", re.S)
+ISSUE_URL = re.compile(
+    r"https://api\.github\.com/repos/(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)"
+    r"/issues/(?P<issue>[1-9][0-9]*)"
+)
 LEASE = timedelta(minutes=90)
 PROVISIONAL_LEASE = timedelta(minutes=2)
 STATES = {"candidate", "accept", "active", "waiting", "handoff", "done"}
@@ -149,7 +153,6 @@ def _active_owner(
     _require(
         bool(first) and all(isinstance(page, list) for page in first), "Missing comment pages"
     )
-    expected_url = f"https://api.github.com/repos/{identity['repo']}/issues/{identity['issue']}"
     seen: set[int] = set()
     owner = None
     live: list[int] = []
@@ -161,7 +164,14 @@ def _active_owner(
                 _positive(comment_id) and comment_id not in seen, "Missing/duplicate comment ID"
             )
             seen.add(comment_id)
-            _require(comment.get("issue_url") == expected_url, "Comment belongs to another issue")
+            issue_url = comment.get("issue_url")
+            issue = ISSUE_URL.fullmatch(issue_url) if isinstance(issue_url, str) else None
+            _require(
+                issue is not None
+                and issue["repo"].casefold() == identity["repo"].casefold()
+                and issue["issue"] == str(identity["issue"]),
+                "Comment belongs to another issue",
+            )
             body = comment.get("body")
             _require(isinstance(body, str), "Missing comment body")
             if CLAIM_TOKEN not in body:
