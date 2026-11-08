@@ -732,7 +732,8 @@ def _ensure_search_indexes(engine: sa.Engine) -> bool:
 #      (#2393); existing rows remain unknown until re-annotation.
 # v34: Carry indeterminate coverage through legacy categorical pathway summaries.
 # v35: Preserve complete ClinVar gene context and explicit gene-source provenance.
-SAMPLE_SCHEMA_VERSION = 35
+# v36: Withhold persisted PRS calibration derived from uncertain ancestry (#2474).
+SAMPLE_SCHEMA_VERSION = 36
 
 
 # AncestryDNA Plan §10.4(a): merged-sample raw_variants uses (chrom, pos) PK
@@ -2589,6 +2590,19 @@ def _add_missing_columns(engine: sa.Engine, from_version: int) -> bool:
                             sa.text(f"ALTER TABLE annotated_variants ADD COLUMN {column} TEXT")
                         )
                         added = True
+
+    if from_version < 36:
+        from backend.db.prs_legacy_repair import repair_uncertain_ancestry_prs
+
+        repaired_findings, repaired_diff_entries = repair_uncertain_ancestry_prs(engine)
+        if repaired_findings or repaired_diff_entries:
+            added = True
+            logger.warning(
+                "legacy_uncertain_ancestry_prs_calibration_repaired",
+                findings_count=repaired_findings,
+                finding_diff_count=repaired_diff_entries,
+                from_version=from_version,
+            )
 
     return added
 
