@@ -363,6 +363,17 @@ def test_backend_job_keeps_the_bounded_startup_witness() -> None:
     )
 
 
+@pytest.mark.parametrize("job_name", ["test-backend", "test-backend-cross-os"])
+def test_backend_jobs_require_real_java_before_pytest(job_name: str) -> None:
+    """Optional local JVM coverage must not silently disappear from CI (#2611)."""
+    block = _job_block(job_name)
+    step_name = "Verify Java runtime for integration tests"
+    prerequisite = _step_block(block, step_name)
+    assert re.search(r"^        run: java -version$", prerequisite, re.MULTILINE)
+    assert "continue-on-error" not in prerequisite and "        if:" not in prerequisite
+    assert block.index(f"- name: {step_name}") < block.index("- name: Run pytest")
+
+
 def test_ci_required_names_the_job_and_cause_behind_its_verdict() -> None:
     """The single required check explains a red result instead of a bare 'cancelled' (#2289).
 

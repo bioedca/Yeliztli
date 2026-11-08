@@ -20,6 +20,25 @@ npx playwright test              # or: make test-e2e
 make test
 ```
 
+The `.[dev,docs]` bootstrap installs Python dependencies, not Java. The existing
+`requires_java` marker skips genuine JVM integration tests when `java` is absent
+from `PATH`; a run with those skips is limited validation, not complete backend
+coverage. Linux and macOS backend CI jobs require `java -version` to succeed
+before pytest, so the real-Java cases execute there.
+
+LAI calibration planning tests isolate only the external `java -version` probe
+with an explicitly synthetic identity. They still compute the production
+Python/package/lock fingerprint and exercise its drift checks, input hashes and
+frozen-policy validation. Separate `requires_java` cases bind a real JVM identity
+through both calibration and final-confirmation planning/execution. These tests
+use synthetic inputs and stub inference; they do not claim to run Beagle phasing
+or validate scientific accuracy. To run the full calibration module locally:
+
+```bash
+java -version
+python -m pytest tests/backend/test_lai_coverage_calibration.py -v --tb=short
+```
+
 Non-watch frontend test runs (`npm test`, `npm run test:ci`, and `npm run
 test:coverage`) fail on React `not wrapped in act(...)` warnings as well as
 Vitest assertion failures. CI and release jobs use the same strict command
