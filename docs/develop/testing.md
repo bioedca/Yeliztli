@@ -57,6 +57,42 @@ the stamp still withholds MONDO/HPO rows without hiding independent OMIM rows.
 The 10k smoke test and nightly 600k benchmark both require gene-phenotype matches;
 do not bypass the production gate or remove those assertions to repair a fixture.
 
+For the 10k annotation smoke, retain the **30-second** annotation guard, the
+variant/output counts, nonempty gene-phenotype matches and absence of errors.
+Run the unchanged production-path test when investigating a timing failure:
+
+```bash
+python -m pytest tests/backend/test_benchmark.py::test_annotation_10k_smoke -v --tb=short
+python -m pytest tests/backend/test_annotation_upsert_execution.py -v --tb=short
+```
+
+[#2609](https://github.com/bioedca/Yeliztli/issues/2609) identified SQL construction
+as a substantial cost: expanding a wide upsert into multi-row `VALUES` rebuilt
+bind parameters for every row. The upsert now passes uniformly normalized rows
+to one parameterized Core statement through `Connection.execute(statement,
+rows)`. SQLite's variable budget applies to that single-row template, independently
+of the number of parameter sets. The dedicated regression tests check bounded SQL
+at both 999 and 32766 variable limits, complete stored values in live/staging
+tables, sparse and ordered duplicate updates, and rollback after a later error.
+They complement the elapsed-time guard; they do not replace it.
+
+Record immutable source SHAs, Python/dependency versions, CPU allocation and actual
+process affinity, concurrent work, memory, and filesystem capacity for timing
+comparisons. The smoke's databases are shared in-memory SQLite databases; fixture
+setup and total pytest wall time are distinct from the timed annotation call.
+Repeat baseline/head runs serially with alternating order before a separately
+recorded, bounded load experiment. CPU-only contention does not reproduce the
+I/O and process mix of concurrent backend shards. A Slurm CPU request alone does
+not establish affinity when the cluster has no task-binding plugin.
+
+Use profiling in a separate diagnostic run and compare the engine's lookup,
+merge and upsert counters. Deterministic profiling adds overhead; do not report
+its elapsed time as acceptance evidence or add overlapping worker cumulative
+times together. Keep failing runs and their environment records, compare complete
+synthetic outputs, and distinguish implementation cost from resource contention.
+A faster run on another host does not by itself reproduce or explain the original
+failure, and a loaded timing failure is still a failed smoke test.
+
 The AncestryDNA real-bundle fixture copies only ClinVar rows alongside the VEP
 bundle. It contains no MONDO/HPO associations, so its unstamped MONDO/HPO warning
 does not indicate lost fixture coverage and must not be silenced with invented
