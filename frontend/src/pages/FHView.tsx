@@ -86,6 +86,7 @@ function FHPage({ sampleId }: { sampleId: number | null }) {
       {isLoading && <PageLoading message="Assessing FH genetics..." />}
       {hasError && !isLoading && (
         <PageError
+          error={query.error}
           message={query.error instanceof Error ? query.error.message : "Failed to load FH assessment."}
           onRetry={() => query.refetch()}
         />

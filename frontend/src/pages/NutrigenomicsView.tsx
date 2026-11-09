@@ -70,6 +70,7 @@ export default function NutrigenomicsView() {
       {/* Error state */}
       {pathwaysQuery.isError && !pathwaysQuery.isLoading && (
         <PageError
+          error={pathwaysQuery.error}
           message={
             pathwaysQuery.error instanceof Error
               ? pathwaysQuery.error.message

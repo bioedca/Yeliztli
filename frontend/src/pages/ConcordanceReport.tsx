@@ -21,6 +21,7 @@
  *     CTA; the rest of the page does not render.
  *   - Successful null provenance (sample exists but isn't merged) — render an
  *     empty state pointing the user back to the dashboard.
+ *   - 404 — missing resource, with no retry advice.
  *   - All other failures — generic `<PageError>` with retry.
  */
 
@@ -485,6 +486,7 @@ export default function ConcordanceReport() {
       <div className="p-6 max-w-6xl mx-auto space-y-4">
         <BackLink sampleId={sampleId} />
         <PageError
+          error={provenanceQuery.error}
           message={
             provenanceQuery.error
               ? provenanceQuery.error.message
@@ -515,6 +517,7 @@ export default function ConcordanceReport() {
       (!(reportQuery.error instanceof SamplesApiError) ||
         !reportQuery.error.isStaleSample()) ? (
         <PageError
+          error={reportQuery.error}
           message={reportQuery.error.message}
           onRetry={() => reportQuery.refetch()}
         />

@@ -1,8 +1,16 @@
-/** Consistent error state with retry button used across all pages (P4-26b). */
+/** Shared error state; missing resources and withheld results cannot be retried. */
 
 import { AlertCircle, RefreshCw } from "lucide-react"
+import {
+  isPatientResponseWithheldError,
+  isResourceNotFoundError,
+  resourceErrorMessage,
+} from "@/api/errors"
+import WithheldResults from "@/components/ui/WithheldResults"
 
 interface PageErrorProps {
+  /** Preserve the typed API error so status and withheld codes reach the UI. */
+  error?: unknown
   /** Error message to display. */
   message?: string
   /** Callback to retry the failed operation. */
@@ -10,9 +18,12 @@ interface PageErrorProps {
 }
 
 export default function PageError({
+  error,
   message = "An unexpected error occurred.",
   onRetry,
 }: PageErrorProps) {
+  if (isPatientResponseWithheldError(error)) return <WithheldResults label="These" />
+  const notFound = isResourceNotFoundError(error)
   return (
     <div
       className="rounded-lg border border-destructive/50 bg-destructive/5 p-6"
@@ -21,9 +32,13 @@ export default function PageError({
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
         <div className="flex-1">
-          <p className="font-medium text-destructive">Failed to load data</p>
-          <p className="text-sm text-muted-foreground mt-1">{message}</p>
-          {onRetry && (
+          <p className="font-medium text-foreground">
+            {notFound ? "Data not found" : "Failed to load data"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {resourceErrorMessage(error, message)}
+          </p>
+          {onRetry && !notFound && (
             <button
               type="button"
               onClick={onRetry}

@@ -145,6 +145,7 @@ export default function TraitsPersonalityView() {
       {/* Error state — only when the PRIMARY pathways query fails. */}
       {isError && !isLoading && (
         <PageError
+          error={pathwaysQuery.error}
           message={pathwaysQuery.error instanceof Error ? pathwaysQuery.error.message : "An unexpected error occurred."}
           onRetry={() => pathwaysQuery.refetch()}
         />

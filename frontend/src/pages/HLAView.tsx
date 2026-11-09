@@ -480,6 +480,7 @@ export default function HLAView() {
       {query.isLoading && <PageLoading message="Loading imputed-HLA results..." />}
       {query.isError && !query.isLoading && (
         <PageError
+          error={query.error}
           message={query.error instanceof Error ? query.error.message : "Failed to load HLA results."}
           onRetry={() => query.refetch()}
         />

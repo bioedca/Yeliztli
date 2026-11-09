@@ -347,6 +347,7 @@ export default function ReportBuilder() {
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">Report Builder</h1>
         <PageError
+          error={summaryQuery.error}
           message={summaryQuery.error instanceof Error ? summaryQuery.error.message : "Failed to load findings."}
           onRetry={() => summaryQuery.refetch()}
         />

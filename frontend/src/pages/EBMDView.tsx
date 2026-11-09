@@ -87,6 +87,7 @@ function EBMDPage({ sampleId }: { sampleId: number | null }) {
       {isLoading && <PageLoading message="Scoring eBMD polygenic risk..." />}
       {hasError && !isLoading && (
         <PageError
+          error={query.error}
           message={query.error instanceof Error ? query.error.message : "Failed to load eBMD score."}
           onRetry={() => query.refetch()}
         />

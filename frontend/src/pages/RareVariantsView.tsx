@@ -176,6 +176,7 @@ export default function RareVariantsView() {
       {/* Error state (findings load) */}
       {hasError && !isLoading && !hasSearchResult && (
         <PageError
+          error={findingsQuery.error}
           message={findingsQuery.error instanceof Error ? findingsQuery.error.message : "An unexpected error occurred."}
           onRetry={() => { findingsQuery.refetch(); }}
         />

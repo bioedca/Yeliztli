@@ -456,6 +456,7 @@ export default function IndividualDetail() {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <PageError
+          error={error}
           message={
             error instanceof Error
               ? error.message

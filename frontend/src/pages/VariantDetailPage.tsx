@@ -604,6 +604,7 @@ function LiteratureTab({
 
       {isError && (
         <PageError
+          error={error}
           message={error instanceof Error ? error.message : "Literature could not be loaded."}
           onRetry={() => refetch()}
         />
@@ -856,6 +857,7 @@ export default function VariantDetailPage() {
     return (
       <div className="p-6 max-w-2xl mx-auto space-y-4">
         <PageError
+          error={error}
           message={error?.message ?? `Variant ${rsid ?? "unknown"} not found.`}
           onRetry={() => refetch()}
         />
