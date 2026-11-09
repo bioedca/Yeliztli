@@ -1,0 +1,58 @@
+{
+  "source_url": "https://cspec.genome.network/cspec/api/svis?detail=high",
+  "accessed": "2026-11-09",
+  "retrieved_at": "2026-11-09T02:23:08.893784+00:00",
+  "source_response_sha256": "038e27a6860226af680b34efacfe91febc9ae6abf8eb41be2fd2d1d5e8d96f55",
+  "source_record_count": 212,
+  "headers": {
+    "Date": "Mon, 09 Nov 2026 02:23:08 GMT",
+    "Content-Type": "application/json; charset=utf-8"
+  },
+  "sanitization": "Retained only registry identifiers, version/status, public panel attribution and gene identity for APOB/LDLR records; no rule prose, personal/contact metadata or other records.",
+  "data": [
+    {
+      "@id": "https://cspec.genome.network/cspec/api/SequenceVariantInterpretation/id/GN013",
+      "status": "Released",
+      "url": "https://cspec.genome.network/cspec/ui/svi/doc/GN013",
+      "version": "1.2",
+      "affiliation": {
+        "@id": "https://cspec.genome.network/cspec/api/Organization/id/50004",
+        "@type": "Organization",
+        "label": "Familial Hypercholesterolemia Variant Curation Expert Panel"
+      },
+      "ruleSets": [
+        {
+          "genes": [
+            {
+              "@id": "https://www.genenames.org/tools/search/#!/?query=LDLR",
+              "@type": "Gene",
+              "label": "LDLR"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "https://cspec.genome.network/cspec/api/SequenceVariantInterpretation/id/GN237",
+      "status": "Classification Rules In Prep",
+      "url": "https://cspec.genome.network/cspec/ui/svi/doc/GN237",
+      "version": "1.0",
+      "affiliation": {
+        "@id": "https://cspec.genome.network/cspec/api/Organization/id/50004",
+        "@type": "Organization",
+        "label": "Familial Hypercholesterolemia Variant Curation Expert Panel"
+      },
+      "ruleSets": [
+        {
+          "genes": [
+            {
+              "@id": "https://www.genenames.org/tools/search/#!/?query=APOB",
+              "@type": "Gene",
+              "label": "APOB"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

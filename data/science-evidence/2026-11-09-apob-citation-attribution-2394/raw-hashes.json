@@ -1,0 +1,35 @@
+{
+  "algorithm": "SHA-256",
+  "files": [
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/crossref-119569.json",
+      "sha256": "33f6e169a4a0d334cbcd1907ff06def329927781e10d6db955ecad5a9f6b4595",
+      "bytes": 2420
+    },
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/cspec-fh-specifications.json",
+      "sha256": "bb66e928f353f33f9af46a84a9db0b9e5b5e4eab22c6c4017d6a7ccaf0993947",
+      "bytes": 2035
+    },
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/publisher-index-metadata.json",
+      "sha256": "a4a533d995d2f3c0d9ca86173e98c2ed0dd8a4fa51bcf9cc5489ce464da02929",
+      "bytes": 748
+    },
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/pubmed-citations-provenance.json",
+      "sha256": "2362ff552383bef81d40c4608175ecf4c9e02e1ce32f7512f59b51c13dad058f",
+      "bytes": 2688
+    },
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/pubmed-citations.xml",
+      "sha256": "e2ff9c710a78c1a26bc7ac8ed954efafb9ba7639f7abd5c93200286617153f05",
+      "bytes": 5712
+    },
+    {
+      "path": "data/science-evidence/2026-11-09-apob-citation-attribution-2394/raw/scite-editorial-check.json",
+      "sha256": "5582440dc4fedc3f0fd4ddcd445ce70b23796d3f0e93c311dbed5c58ca2216c3",
+      "bytes": 1017
+    }
+  ]
+}
