@@ -14,6 +14,7 @@ import { parseSampleId } from "@/lib/format";
 import { pathwayLevelBadge } from "@/lib/pathwayLevel";
 import { getModuleMeta } from "@/lib/modules";
 import { useFindings, useFindingsSummary } from "@/api/findings";
+import { ApiError } from "@/api/errors";
 import EvidenceStars from "@/components/ui/EvidenceStars";
 import PageLoading from "@/components/ui/PageLoading";
 import PageError from "@/components/ui/PageError";
@@ -205,7 +206,7 @@ function FindingRow({ finding }: { finding: Finding }) {
             </span>
           )}
           {finding.category && (
-            <span className="text-muted-foreground/70">
+            <span className="text-muted-foreground">
               {finding.category.replace(/_/g, " ")}
             </span>
           )}
@@ -248,7 +249,6 @@ export default function FindingsExplorer() {
   // Seeded from the URL so a link can land on the set it names -- the dashboard
   // "High-Confidence Findings" link previously pointed here unfiltered (#2047).
   const [minStars, setMinStars] = useState<number | null>(urlMinStars);
-  const [limit, setLimit] = useState(FINDINGS_PAGE_SIZE);
 
   // The URL stays authoritative after mount too. The sidebar's "All Findings"
   // link and browser history move between `/findings?sample_id=N` and
@@ -265,17 +265,29 @@ export default function FindingsExplorer() {
   const findingsQuery = useFindings(sampleId, {
     module: selectedModule ?? undefined,
     minStars: minStars ?? undefined,
-    limit,
+    limit: FINDINGS_PAGE_SIZE,
   });
   const summaryQuery = useFindingsSummary(sampleId);
+  const summary = summaryQuery.data;
+  // A withholding signal takes precedence over any retained window, including
+  // a response arriving after the summary changed.
+  const findings = summary?.withheld ? undefined : findingsQuery.data;
+  const recoverablePageError =
+    findingsQuery.isFetchNextPageError &&
+    !!findings?.length &&
+    !(
+      findingsQuery.error instanceof ApiError &&
+      findingsQuery.error.status < 500 &&
+      findingsQuery.error.status !== 429
+    );
 
   // Group findings by evidence level for section headers
   const groupedFindings = useMemo(() => {
-    if (!findingsQuery.data) return [];
+    if (!findings) return [];
     const groups: { level: number; label: string; findings: Finding[] }[] = [];
     let currentLevel: number | null = null;
 
-    for (const f of findingsQuery.data) {
+    for (const f of findings) {
       const level = f.evidence_level ?? 0;
       if (level !== currentLevel) {
         currentLevel = level;
@@ -288,7 +300,7 @@ export default function FindingsExplorer() {
       groups[groups.length - 1].findings.push(f);
     }
     return groups;
-  }, [findingsQuery.data]);
+  }, [findings]);
 
   // No sample selected
   if (sampleId == null) {
@@ -308,7 +320,7 @@ export default function FindingsExplorer() {
   // the error gate below is likewise summary-tolerant. Anchoring here too made a
   // slow summary block the whole page, so a summary that merely lagged was
   // handled strictly worse than one that failed outright (#2042).
-  if (findingsQuery.isLoading) {
+  if (findingsQuery.isLoading && !summary?.withheld) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
@@ -318,7 +330,7 @@ export default function FindingsExplorer() {
   }
 
   // Error
-  if (findingsQuery.isError) {
+  if (findingsQuery.isError && !recoverablePageError && !summary?.withheld) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
@@ -330,8 +342,6 @@ export default function FindingsExplorer() {
     );
   }
 
-  const findings = findingsQuery.data ?? [];
-  const summary = summaryQuery.data;
   const evidenceLevelCounts = selectedModule
     ? summary?.modules.find((item) => item.module === selectedModule)
         ?.evidence_level_counts
@@ -351,7 +361,7 @@ export default function FindingsExplorer() {
               : // Without the summary there is no total: the list is capped at
                 // FINDINGS_PAGE_SIZE, so say what is loaded rather than imply a
                 // sample with thousands of findings has exactly 200 (#2042 review).
-                `${findings.length} findings loaded`}
+                `${findings?.length ?? 0} findings loaded`}
           </p>
         </div>
       </div>
@@ -418,7 +428,7 @@ export default function FindingsExplorer() {
       </div>
 
       {/* Empty state */}
-      {findings.length === 0 && (
+      {!findings?.length && (
         <div className="rounded-lg border bg-card p-8 text-center">
           <Star className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">
@@ -472,20 +482,29 @@ export default function FindingsExplorer() {
         );
       })}
 
-      {/* Load more: a full page (length === limit) means more findings remain
-          beyond the current bound (#1303). */}
-      {findingsQuery.data && findingsQuery.data.length >= limit && (
+      {/* The latest successful window stays mounted through next-page fetches
+          and transient failures. A retry requests that same next bound. */}
+      {findings && findingsQuery.hasNextPage && (
         <div className="flex flex-col items-center gap-1 pt-2">
+          {recoverablePageError && !findingsQuery.isFetching && (
+            <p role="alert" className="text-sm text-destructive">
+              Could not load more findings. Your loaded findings are still shown.
+            </p>
+          )}
           <button
             type="button"
-            onClick={() => setLimit((l) => l + FINDINGS_PAGE_SIZE)}
+            onClick={() => findingsQuery.fetchNextPage({ cancelRefetch: false })}
             disabled={findingsQuery.isFetching}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"
           >
-            {findingsQuery.isFetching ? "Loading…" : "Load more findings"}
+            {findingsQuery.isFetching
+              ? "Loading…"
+              : recoverablePageError
+                ? "Retry loading more findings"
+                : "Load more findings"}
           </button>
           <span className="text-xs text-muted-foreground">
-            Showing the top {findingsQuery.data.length} findings
+            Showing the top {findings.length} findings
             {/* total_findings is the unfiltered, all-module count, so only show
                 it when no filter is narrowing the set. */}
             {summary && !selectedModule && minStars == null
