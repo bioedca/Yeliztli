@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Manual">
+      <PMID Version="1">30939045</PMID>
+      <DateCompleted>
+        <Year>2020</Year>
+        <Month>07</Month>
+        <Day>08</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>05</Month>
+        <Day>30</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">2574-8300</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>12</Volume>
+            <Issue>5</Issue>
+            <PubDate>
+              <Year>2019</Year>
+              <Month>May</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Circulation. Genomic and precision medicine</Title>
+          <ISOAbbreviation>Circ Genom Precis Med</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Rare Protein-Truncating Variants in APOB, Lower Low-Density Lipoprotein Cholesterol, and Protection Against Coronary Heart Disease.</ArticleTitle>
+        <Pagination>
+          <StartPage>e002376</StartPage>
+          <MedlinePgn>e002376</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1161/CIRCGEN.118.002376</ELocationID>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2019</Year>
+          <Month>4</Month>
+          <Day>3</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2020</Year>
+          <Month>7</Month>
+          <Day>9</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2019</Year>
+          <Month>4</Month>
+          <Day>3</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2020</Year>
+          <Month>11</Month>
+          <Day>13</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">30939045</ArticleId>
+        <ArticleId IdType="mid">NIHMS1562738</ArticleId>
+        <ArticleId IdType="pmc">PMC7044908</ArticleId>
+        <ArticleId IdType="doi">10.1161/CIRCGEN.118.002376</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Curated">
+      <PMID Version="1">36723951</PMID>
+      <DateCompleted>
+        <Year>2023</Year>
+        <Month>04</Month>
+        <Day>20</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2025</Year>
+        <Month>05</Month>
+        <Day>30</Day>
+      </DateRevised>
+      <Article PubModel="Print">
+        <Journal>
+          <ISSN IssnType="Electronic">2380-6591</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>8</Volume>
+            <Issue>3</Issue>
+            <PubDate>
+              <Year>2023</Year>
+              <Month>Mar</Month>
+              <Day>01</Day>
+            </PubDate>
+          </JournalIssue>
+          <Title>JAMA cardiology</Title>
+          <ISOAbbreviation>JAMA Cardiol</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>Association of Rare Protein-Truncating DNA Variants in APOB or PCSK9 With Low-density Lipoprotein Cholesterol Level and Risk of Coronary Heart Disease.</ArticleTitle>
+        <Pagination>
+          <StartPage>258</StartPage>
+          <EndPage>267</EndPage>
+          <MedlinePgn>258-267</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="Y">10.1001/jamacardio.2022.5271</ELocationID>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="medline">
+          <Year>2023</Year>
+          <Month>4</Month>
+          <Day>19</Day>
+          <Hour>6</Hour>
+          <Minute>41</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pubmed">
+          <Year>2023</Year>
+          <Month>2</Month>
+          <Day>2</Day>
+          <Hour>6</Hour>
+          <Minute>0</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2023</Year>
+          <Month>2</Month>
+          <Day>1</Day>
+          <Hour>11</Hour>
+          <Minute>34</Minute>
+        </PubMedPubDate>
+        <PubMedPubDate PubStatus="pmc-release">
+          <Year>2024</Year>
+          <Month>2</Month>
+          <Day>1</Day>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">36723951</ArticleId>
+        <ArticleId IdType="pmc">PMC9996405</ArticleId>
+        <ArticleId IdType="doi">10.1001/jamacardio.2022.5271</ArticleId>
+        <ArticleId IdType="pii">2801002</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>

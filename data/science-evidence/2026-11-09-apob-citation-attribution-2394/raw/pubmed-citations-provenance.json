@@ -1,0 +1,78 @@
+{
+  "source": "NCBI PubMed EFetch",
+  "source_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=30939045,36723951&retmode=xml",
+  "accessed": "2026-11-09",
+  "retrieved_at": "2026-11-09T02:24:32.650346+00:00",
+  "request": {
+    "endpoint": "efetch",
+    "params": {
+      "db": "pubmed",
+      "id": "30939045,36723951",
+      "retmode": "xml"
+    }
+  },
+  "decoded_source_xml_sha256": "4bb34a3edc93a349fcc6b07c4f5bff1665d87cfdffe84cf01b7161cd170484df",
+  "sanitized_xml_sha256": "e2ff9c710a78c1a26bc7ac8ed954efafb9ba7639f7abd5c93200286617153f05",
+  "source_doctype": "<!DOCTYPE PubmedArticleSet PUBLIC \"-//NLM//DTD PubMedArticle, 1st January 2025//EN\" \"https://dtd.nlm.nih.gov/ncbi/pubmed/out/pubmed_250101.dtd\">",
+  "source_article_count": 2,
+  "retained_article_count": 2,
+  "transformation": "Retained citation identifiers, dates, journal/title, publication types, article IDs/history, and every CommentsCorrectionsList element with attributes. Excluded abstracts, full text, author/investigator/contact/affiliation data, references and other subject metadata. Raw XML remained in memory only; no compact-helper truncation is used as evidence.",
+  "records": [
+    {
+      "pmid": "30939045",
+      "title": "Rare Protein-Truncating Variants in APOB, Lower Low-Density Lipoprotein Cholesterol, and Protection Against Coronary Heart Disease.",
+      "article_ids": [
+        {
+          "type": "pubmed",
+          "value": "30939045"
+        },
+        {
+          "type": "mid",
+          "value": "NIHMS1562738"
+        },
+        {
+          "type": "pmc",
+          "value": "PMC7044908"
+        },
+        {
+          "type": "doi",
+          "value": "10.1161/CIRCGEN.118.002376"
+        }
+      ],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "linked_notices": []
+    },
+    {
+      "pmid": "36723951",
+      "title": "Association of Rare Protein-Truncating DNA Variants in APOB or PCSK9 With Low-density Lipoprotein Cholesterol Level and Risk of Coronary Heart Disease.",
+      "article_ids": [
+        {
+          "type": "pubmed",
+          "value": "36723951"
+        },
+        {
+          "type": "pmc",
+          "value": "PMC9996405"
+        },
+        {
+          "type": "doi",
+          "value": "10.1001/jamacardio.2022.5271"
+        },
+        {
+          "type": "pii",
+          "value": "2801002"
+        }
+      ],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "linked_notices": []
+    }
+  ]
+}
