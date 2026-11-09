@@ -488,7 +488,7 @@ export default function FindingsExplorer() {
       {findings && findingsQuery.hasNextPage && (
         <div className="flex flex-col items-center gap-1 pt-2">
           {recoverablePageError && !findingsQuery.isFetching && (
-            <p role="alert" className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive-text">
               Could not load more findings. Your loaded findings are still shown.
             </p>
           )}

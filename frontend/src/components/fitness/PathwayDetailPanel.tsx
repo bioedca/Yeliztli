@@ -172,7 +172,7 @@ export default function PathwayDetailPanel({
         {detailQuery.isError && !isPatientResponseWithheldError(detailQuery.error) && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
               <p className="text-sm text-foreground">
                 {resourceErrorMessage(
                   detailQuery.error,

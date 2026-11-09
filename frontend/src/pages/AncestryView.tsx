@@ -259,7 +259,7 @@ export default function AncestryView() {
                 </div>
               )}
               {pcaQuery.isError && (
-                <div className="text-sm text-destructive">
+                <div className="text-sm text-destructive-text">
                   Failed to load PCA coordinates.
                 </div>
               )}
@@ -295,7 +295,7 @@ export default function AncestryView() {
                 </div>
               )}
               {laiStatusQuery.isError && (
-                <p className="text-sm text-destructive">
+                <p className="text-sm text-destructive-text">
                   Failed to check LAI availability.
                 </p>
               )}
@@ -355,7 +355,7 @@ export default function AncestryView() {
                     </button>
                   </div>
                   {bundleDownloadError && (
-                    <p className="text-sm text-destructive">{bundleDownloadError}</p>
+                    <p className="text-sm text-destructive-text">{bundleDownloadError}</p>
                   )}
                 </div>
               )}
@@ -411,7 +411,7 @@ export default function AncestryView() {
                           "h-4 w-4 mt-0.5 flex-shrink-0",
                           laiProgressQuery.data.insufficient_data_reason
                             ? "text-amber-500"
-                            : "text-destructive",
+                            : "text-destructive-text",
                         )}
                       />
                       <div className="text-sm">
@@ -420,7 +420,7 @@ export default function AncestryView() {
                             "font-medium",
                             laiProgressQuery.data.insufficient_data_reason
                               ? "text-amber-700 dark:text-amber-400"
-                              : "text-destructive",
+                              : "text-destructive-text",
                           )}
                         >
                           {laiProgressQuery.data.insufficient_data_reason
@@ -455,7 +455,7 @@ export default function AncestryView() {
                         {triggerLAI.isPending ? "Starting..." : "Run Chromosome Painting Analysis (~20 min)"}
                       </button>
                       {triggerLAI.isError && (
-                        <p className="text-sm text-destructive">
+                        <p className="text-sm text-destructive-text">
                           {triggerLAI.error instanceof Error ? triggerLAI.error.message : "Failed to start analysis."}
                         </p>
                       )}
@@ -565,7 +565,7 @@ export default function AncestryView() {
               </div>
             )}
             {haplogroupQuery.isError && (
-              <div className="text-sm text-destructive">
+              <div className="text-sm text-destructive-text">
                 Failed to load haplogroup data.
               </div>
             )}

@@ -170,7 +170,7 @@ export default function SavedQueriesPanel({
             </button>
           </div>
           {saveQuery.isError && (
-            <p className="text-xs text-destructive mt-1">
+            <p className="text-xs text-destructive-text mt-1">
               {saveQuery.error instanceof Error ? saveQuery.error.message : "Failed to save"}
             </p>
           )}
@@ -237,7 +237,7 @@ export default function SavedQueriesPanel({
                       <X className="h-3.5 w-3.5" />
                     </button>
                     {updateQuery.isError && (
-                      <p className="text-xs text-destructive">
+                      <p className="text-xs text-destructive-text">
                         {updateQuery.error instanceof Error ? updateQuery.error.message : "Rename failed"}
                       </p>
                     )}
@@ -298,7 +298,7 @@ export default function SavedQueriesPanel({
                           e.stopPropagation()
                           handleDelete(q.name)
                         }}
-                        className="rounded-md p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        className="rounded-md p-1.5 text-muted-foreground hover:text-destructive-text hover:bg-destructive/10 transition-colors"
                         aria-label={`Delete query "${q.name}"`}
                         data-testid="delete-query-btn"
                       >
@@ -316,7 +316,7 @@ export default function SavedQueriesPanel({
       {/* Overwrite error feedback */}
       {overwriteError && (
         <div className="px-4 py-2 border-t border-border">
-          <p className="text-xs text-destructive" data-testid="overwrite-error">{overwriteError}</p>
+          <p className="text-xs text-destructive-text" data-testid="overwrite-error">{overwriteError}</p>
         </div>
       )}
     </div>

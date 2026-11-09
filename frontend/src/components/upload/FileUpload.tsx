@@ -310,7 +310,7 @@ export default function FileUpload() {
           )}
         </button>
         {triggerUpdate.isError && (
-          <p className="text-xs text-destructive">
+          <p className="text-xs text-destructive-text">
             {triggerUpdate.error instanceof Error
               ? triggerUpdate.error.message
               : "Bundle update failed. Please try again."}

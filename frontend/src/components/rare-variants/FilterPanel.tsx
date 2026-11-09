@@ -317,7 +317,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
                   <button
                     type="button"
                     onClick={() => handleDeletePanel(panel.id)}
-                    className="inline-flex items-center rounded-r-md border border-l-0 px-1.5 py-1 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    className="inline-flex items-center rounded-r-md border border-l-0 px-1.5 py-1 text-xs text-muted-foreground hover:text-destructive-text hover:bg-destructive/10 transition-colors"
                     title={`Delete ${panel.name}`}
                     aria-label={`Delete panel ${panel.name}`}
                     data-testid={`delete-panel-${panel.id}`}
@@ -404,7 +404,7 @@ export default function FilterPanel({ onSearch, isSearching }: FilterPanelProps)
               </p>
             )}
             {uploadMutation.isError && (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-destructive-text">
                 {uploadMutation.error instanceof Error
                   ? uploadMutation.error.message
                   : "Failed to save panel."}

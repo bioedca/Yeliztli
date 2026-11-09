@@ -178,7 +178,7 @@ export function PostMergeRewatchModal({
   } else if (jobId !== null && annotationFailed) {
     body = (
       <p
-        className="text-sm text-destructive"
+        className="text-sm text-destructive-text"
         role="alert"
         data-testid="rewatch-modal-annotation-failed"
       >
@@ -226,7 +226,7 @@ export function PostMergeRewatchModal({
     } else {
       body = (
         <p
-          className="text-sm text-destructive"
+          className="text-sm text-destructive-text"
           role="alert"
           data-testid="rewatch-modal-error"
         >
@@ -387,7 +387,7 @@ function CandidateTable({
                   </span>
                 ) : status.state === "error" ? (
                   <span
-                    className="text-xs text-destructive"
+                    className="text-xs text-destructive-text"
                     role="alert"
                     title={status.message}
                     data-testid={`rewatch-row-${key}-error`}

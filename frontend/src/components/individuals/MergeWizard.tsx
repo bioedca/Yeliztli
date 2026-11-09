@@ -228,7 +228,7 @@ export function MergeWizard({
               />
               {previewMutation.error && (
                 <p
-                  className="text-sm text-destructive"
+                  className="text-sm text-destructive-text"
                   role="alert"
                   data-testid="merge-preview-error"
                 >
@@ -447,7 +447,7 @@ function PreviewStep({
   }
   if (errorMessage) {
     return (
-      <p className="text-sm text-destructive" role="alert">
+      <p className="text-sm text-destructive-text" role="alert">
         {errorMessage}
       </p>
     )
@@ -542,7 +542,7 @@ function ConfirmStep({
       </div>
 
       {commitErrorMessage && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-destructive-text" role="alert">
           {commitErrorMessage}
         </p>
       )}

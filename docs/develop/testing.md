@@ -413,6 +413,33 @@ start. All three browser projects remain required.
     Because the E2E suite is Tier 2 (merge-time), it's worth driving a UI change in a real
     browser before merging so a frontend regression doesn't surface only at merge.
 
+### Error colors and contrast
+
+Use `text-destructive-text` for error text and destructive action icons, including
+hover/focus variants. Its light and dark values are separate from
+`bg-destructive`, destructive borders, and `text-destructive-foreground` (text on
+a solid destructive fill). Changing a foreground color must not silently change
+those surfaces. Check opacity modifiers against the actual background too:
+`StorageStep` uses an 80% opacity explanation on a tinted error panel.
+
+`tests/e2e/error-text-contrast.spec.ts` drives synthetic malformed uploads,
+populated overlay deletion controls, and blocked storage setup in both themes.
+It checks that the semantic foreground is actually applied (rather than inheriting
+neutral text), real error text with Axe, enabled/hover/focus contrast, and the
+disabled pending state and recovery. Run it in all three browser projects:
+
+```bash
+npx playwright test tests/e2e/error-text-contrast.spec.ts
+```
+
+Normal-size text needs at least 4.5:1 contrast, including on hover and keyboard
+focus; inactive controls are exempt from that numeric requirement but must retain
+their disabled behavior. See [WCAG contrast minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+(accessed 2026-11-09). Keep audits populated and assert that contrast checks ran;
+do not add exclusions to hide an error-color regression. The separate primary
+button color decision remains tracked in
+[#2525](https://github.com/bioedca/Yeliztli/issues/2525).
+
 ## Test conventions
 
 The suite follows specific assertion standards (assert real values, not just non-null;

@@ -207,7 +207,7 @@ export default function WatchingSidebar({
                             onSettled: () => setPendingUnwatch(null),
                           })
                         }}
-                        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 rounded hover:bg-destructive/10 focus:bg-destructive/10 text-muted-foreground hover:text-destructive focus:text-destructive transition-all"
+                        className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 rounded hover:bg-destructive/10 focus:bg-destructive/10 text-muted-foreground hover:text-destructive-text focus:text-destructive-text transition-all"
                         aria-label={`Unwatch ${v.rsid}`}
                         disabled={pendingUnwatch === v.rsid}
                       >

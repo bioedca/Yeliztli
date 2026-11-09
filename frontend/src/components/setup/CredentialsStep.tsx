@@ -192,7 +192,7 @@ function CredentialsForm({
             aria-required="true"
           />
           {pubmedEmail && !isValidEmail && (
-            <p className="text-xs text-destructive">
+            <p className="text-xs text-destructive-text">
               Please enter a valid email address.
             </p>
           )}
@@ -280,8 +280,8 @@ function CredentialsForm({
       {/* Error from save */}
       {saveMutation.isError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
-          <AlertTriangle className="mx-auto h-5 w-5 text-destructive" />
-          <p className="mt-2 text-sm text-destructive">
+          <AlertTriangle className="mx-auto h-5 w-5 text-destructive-text" />
+          <p className="mt-2 text-sm text-destructive-text">
             {saveMutation.error instanceof Error
               ? saveMutation.error.message
               : 'Failed to save credentials.'}

@@ -751,7 +751,7 @@ export default function VariantTable({ sampleId }: VariantTableProps) {
           {currentSampleWatchFailures.length > 0 && (
             <div
               role="alert"
-              className="mx-3 mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              className="mx-3 mt-2 rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive-text"
             >
               {currentSampleWatchFailures.map(([rsid, message]) => (
                 <div key={rsid}>{`${rsid}: ${message}`}</div>

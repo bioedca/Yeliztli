@@ -270,7 +270,7 @@ export default function UploadStep({ onBack, onComplete }: UploadStepProps) {
 
       {/* File type error */}
       {fileError && (
-        <p className="text-center text-sm text-destructive">{fileError}</p>
+        <p className="text-center text-sm text-destructive-text">{fileError}</p>
       )}
 
       {/* Upload button */}
@@ -366,7 +366,7 @@ export default function UploadStep({ onBack, onComplete }: UploadStepProps) {
             )}
           </button>
           {triggerUpdate.isError && (
-            <p className="text-xs text-destructive">
+            <p className="text-xs text-destructive-text">
               {triggerUpdate.error instanceof Error
                 ? triggerUpdate.error.message
                 : 'Bundle update failed. Please try again.'}
@@ -379,8 +379,8 @@ export default function UploadStep({ onBack, onComplete }: UploadStepProps) {
           since the 409 surfaces there. */}
       {ingestMutation.isError && !bundleGate && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
-          <AlertCircle className="mx-auto h-5 w-5 text-destructive" />
-          <p className="mt-2 text-sm text-destructive">
+          <AlertCircle className="mx-auto h-5 w-5 text-destructive-text" />
+          <p className="mt-2 text-sm text-destructive-text">
             {ingestMutation.error instanceof Error
               ? ingestMutation.error.message
               : 'Failed to upload file. Please check the file and try again.'}
