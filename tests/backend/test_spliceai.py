@@ -451,6 +451,154 @@ class TestAssemblyVerification:
             assert _GRCH37_HG19_SENTINEL_LENGTHS[f"chr{contig}"] == length
 
 
+class TestContigHeaderFields:
+    """Synthetic metadata must not bypass build checks or change existing scores."""
+
+    @staticmethod
+    def _rows(engine: sa.Engine) -> list:
+        with engine.connect() as conn:
+            return conn.execute(sa.select(spliceai_scores).order_by(spliceai_scores.c.id)).all()
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            "ID=1,length=249250621",
+            'ID="1",length=249250621',
+            'ID=chr1,length="249250621"',
+            'ID="chr1",length="249250621"',
+            ' ID = " chr1 " , length = " 249250621 " ',
+            "length = 249250621 , ID = chr1",
+            'ID=1,length=249250621,Description="note, length=1, assembly=GRCh38"',
+            r'ID=1,length=249250621,Description="quoted \"word\", slash \\, length=1"',
+        ],
+    )
+    @pytest.mark.parametrize("gz", [False, True])
+    def test_supported_fields_verify_build(self, tmp_path: Path, fields: str, gz: bool) -> None:
+        # Registered GRCh37 chr1 length; no new reference values are introduced.
+        path = _write(
+            tmp_path,
+            "valid.vcf.gz" if gz else "valid.vcf",
+            _vcf_with_header(f"##contig=<{fields}>"),
+            gz=gz,
+        )
+        assert read_spliceai_assembly(path) == "GRCh37"
+        engine = _engine(tmp_path)
+        stats = ingest_spliceai_vcf(path, engine)
+        assert stats.genome_build == "GRCh37"
+        assert stats.loaded == 1
+        [row] = self._rows(engine)
+        assert (row.chrom, row.pos, row.ref, row.alt, row.symbol, row.ds_max) == (
+            "7",
+            117559590,
+            "G",
+            "A",
+            "GENE38",
+            0.9,
+        )
+
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            "ID=1,length=249250620",
+            'ID="1",length=249250620',
+            'ID=chr1,length="249250620"',
+            ' ID = " chr1 " , length = " 249250620 " ',
+            'ID="1",length="248956422"',  # Original #2478 reproduction.
+            'ID=1,length=249250621,assembly="GRCh38"',
+            'ID=1,length=249250621,assembly="GRCh37,GRCh38"',
+        ],
+    )
+    @pytest.mark.parametrize("reference", [None, "##reference=GRCh37"])
+    def test_contradiction_rejected_before_replace(
+        self,
+        tmp_path: Path,
+        fields: str,
+        reference: str | None,
+    ) -> None:
+        # 249250620 is deliberately unequal to the registered value; it does not
+        # represent a claim about any other assembly.
+        engine = _engine(tmp_path)
+        ingest_spliceai_vcf(_write(tmp_path, "existing.vcf", _VCF), engine)
+        before = self._rows(engine)
+        assert before
+        header = [f"##contig=<{fields}>"]
+        if reference is not None:
+            header.insert(0, reference)
+        path = _write(tmp_path, "contradiction.vcf.gz", _vcf_with_header(*header), gz=True)
+        with pytest.raises(ValueError, match="does not describe GRCh37"):
+            read_spliceai_assembly(path, genome_build="GRCh37")
+        with pytest.raises(ValueError, match="does not describe GRCh37"):
+            ingest_spliceai_vcf(path, engine, genome_build="GRCh37")
+        assert self._rows(engine) == before
+
+    @pytest.mark.parametrize(
+        "header",
+        [
+            '##contig=<ID=1,length="249250621>',
+            '##contig=<ID="1,length=249250621>',
+            '##contig=<ID=1,length=249250621">',
+            '##contig=<ID=1,length="249250621"junk>',
+            "##contig=<ID=1,length=249250621",
+            "##contig=<ID=1,length=249250621>junk",
+            "##contig=ID=1,length=249250621",
+            "##contig=<ID=1,length=249250621,>",
+            "##contig=<ID=1,,length=249250621>",
+            "##contig=<ID=1,length>",
+            "##contig=<length=249250621>",
+            '##contig=<ID="",length=249250621>',
+            '##contig=<ID="1,2",length=249250621>',
+            "##contig=<ID=1,ID=2,length=249250621>",
+            "##contig=<ID=2,ID=1,length=249250621>",
+            "##contig=<ID=1,length=1,length=249250621>",
+            "##contig=<ID=1,length=249250621,length=1>",
+            "##contig=<ID=1,assembly=GRCh38,assembly=GRCh37>",
+            "##contig=<ID=1,assembly=GRCh37,assembly=GRCh38>",
+            '##contig=<ID=1,length="">',
+            '##contig=<ID=1,length="unknown">',
+            '##contig=<ID=1,length="249250621.0">',
+            '##contig=<ID=1,length="-1">',
+            '##contig=<ID=1,length="0">',
+            '##contig=<ID=1,length="²">',
+            '##contig=<ID=1,length="２４９２５０６２１">',
+            r'##contig=<ID=1,length=249250621,Description="bad\q">',
+        ],
+    )
+    def test_malformed_contig_rejected_before_replace(self, tmp_path: Path, header: str) -> None:
+        engine = _engine(tmp_path)
+        ingest_spliceai_vcf(_write(tmp_path, "existing.vcf", _VCF), engine)
+        before = self._rows(engine)
+        assert before
+        path = _write(tmp_path, "malformed.vcf", _vcf_with_header("##reference=GRCh37", header))
+        with pytest.raises(ValueError, match="malformed.*contig"):
+            read_spliceai_assembly(path, genome_build="GRCh37")
+        with pytest.raises(ValueError, match="malformed.*contig"):
+            ingest_spliceai_vcf(path, engine, genome_build="GRCh37")
+        assert self._rows(engine) == before
+
+    @pytest.mark.parametrize(
+        "header",
+        ['##contig=<ID="1">', '##contig=<ID="custom",length="123">'],
+    )
+    def test_no_build_evidence_still_requires_confirmation(
+        self, tmp_path: Path, header: str
+    ) -> None:
+        path = _write(tmp_path, "silent.vcf", _vcf_with_header(header))
+        engine = _engine(tmp_path)
+        ingest_spliceai_vcf(_write(tmp_path, "existing.vcf", _VCF), engine)
+        before = self._rows(engine)
+        assert before
+        with pytest.raises(ValueError, match="declares no genome build"):
+            read_spliceai_assembly(path)
+        with pytest.raises(ValueError, match="declares no genome build"):
+            ingest_spliceai_vcf(path, engine)
+        assert self._rows(engine) == before
+        assert read_spliceai_assembly(path, genome_build="GRCh37") == "GRCh37"
+        stats = ingest_spliceai_vcf(path, engine, genome_build="GRCh37")
+        assert stats.loaded == 1
+        assert stats.genome_build == "GRCh37"
+        assert len(self._rows(engine)) == 1
+
+
 class TestIngestScript:
     """The CLI checks every file before loading any, so a bad later file cannot half-replace."""
 
@@ -475,16 +623,25 @@ class TestIngestScript:
         with ref.connect() as conn:
             return conn.execute(sa.select(database_versions)).fetchall()
 
+    @pytest.mark.parametrize(
+        "bad_header",
+        ["##reference=GRCh38", '##contig=<ID="1",length="248956422">'],
+    )
     def test_a_later_grch38_file_is_refused_before_anything_loads(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad_header: str
     ) -> None:
         cli, engine, ref = self._run(tmp_path, monkeypatch, [])
         before = _count(engine)
         good = _write(tmp_path, "snv.hg19.vcf", _vcf_with_header("##reference=GRCh37"))
-        bad = _write(tmp_path, "indel.hg38.vcf", _vcf_with_header("##reference=GRCh38"))
+        bad = _write(tmp_path, "indel.hg38.vcf", _vcf_with_header(bad_header))
 
+        with engine.connect() as conn:
+            rows_before = conn.execute(sa.select(spliceai_scores)).all()
+        assert rows_before
         with pytest.raises(SystemExit):
-            cli.main([str(good), str(bad)])
+            cli.main([str(good), str(bad), "--genome-build", "GRCh37"])
+        with engine.connect() as conn:
+            assert conn.execute(sa.select(spliceai_scores)).all() == rows_before
 
         assert _count(engine) == before
         assert self._versions(ref) == []
