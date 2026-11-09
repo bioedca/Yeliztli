@@ -2271,9 +2271,28 @@ def _bot_activity_verdict(
     )
 
 
-def _declined_gate_message(gate: str, reason: tuple[str, str] | None) -> str:
+def _declined_gate_message(
+    gate: str,
+    reason: tuple[str, str] | None,
+    *,
+    schema_version: int | None = None,
+) -> str:
     """The error for a provider gate that declined, naming why (#2356)."""
     kind, detail = reason or (NO_ACTIVITY, "")
+    if schema_version == 3 and gate == CODERABBIT_GATE:
+        # A clean CodeRabbit run can finish without a formal review (#2490).
+        # Do not promise that another paid request will produce that envelope.
+        # This changes recovery guidance only; the acceptance rules stay strict.
+        if kind == EARLIER_HEAD:
+            detail = "all formal review artifacts predate the current head"
+        elif kind == NO_ACTIVITY:
+            detail = "no verified current-head formal review"
+        return (
+            f"CodeRabbit schema-v3 evidence unavailable: {detail}. "
+            "Completion checks/statuses, walkthroughs and automatic approvals are not accepted. "
+            "After the attempt is terminal or confirmed cancelled/idle, select another available "
+            "provider; see docs/develop/coderabbit-reviews.md."
+        )
     if kind == EARLIER_HEAD:
         return f"every {gate} artifact predates the current head; request a review of it"
     if kind == NOT_CLEAN:
@@ -2974,7 +2993,7 @@ def validate_context(
                 schema_version,
             )
         if activity is None:
-            errors.append(_declined_gate_message(gate, declined))
+            errors.append(_declined_gate_message(gate, declined, schema_version=schema_version))
         else:
             observed[gate] = activity
     approval, active_change_request = _current_human_approval(pull_request, head_sha, head_epoch)
