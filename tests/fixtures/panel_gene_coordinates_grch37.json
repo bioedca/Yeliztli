@@ -3,9 +3,16 @@
     "source": "Ensembl GRCh37 REST /lookup/symbol/homo_sapiens",
     "assembly": "GRCh37",
     "accessed": "2026-06-27",
-    "generator": "issue #1098 curated from data/science-evidence/2026-06-27-issue-1098-rsid-gene-guard/ensembl-grch37-panel-gene-lookups.json",
+    "generator": "issue #1098 curated from Ensembl GRCh37 REST; historical raw response unavailable",
     "panel_rsid_coordinate_fixture": "tests/fixtures/panel_rsid_coordinates.json",
-    "note": "Committed offline reference for the categorical panel declared-gene coordinate guard (#1098). Regenerate deliberately; tests never fetch this at runtime."
+    "note": "Committed offline reference for the categorical panel declared-gene coordinate guard (#1098). Regenerate deliberately; tests never fetch this at runtime.",
+    "historical_evidence": {
+      "status": "unavailable",
+      "audited": "2026-11-09",
+      "original_packet": "2026-06-27-issue-1098-rsid-gene-guard",
+      "original_file": "ensembl-grch37-panel-gene-lookups.json",
+      "limitation": "The original raw payload was never committed and was not recoverable in the available checkouts or Git history. The recorded accessed date and fixture values are retained, not independently verified by this audit. A fresh lookup would not recover the historical input."
+    }
   },
   "aliases": {
     "MCT1": "SLC16A1"
