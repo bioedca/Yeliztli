@@ -92,10 +92,10 @@ it("keeps mounted rows and the disabled loading control through successive windo
   expect(screen.queryByRole("button", { name: "Load more findings" })).not.toBeInTheDocument()
 }, 30_000)
 
-it("retains mounted rows on a transient failure and retries the same bound (#2485)", async () => {
+it.each([429, 503])("retains mounted rows on transient HTTP %i and retries the same bound (#2485)", async (status) => {
   mount()
   const first = await loadMore()
-  await act(async () => pending[0].resolve(response({ detail: "private server details" }, 503)))
+  await act(async () => pending[0].resolve(response({ detail: "private server details" }, status)))
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load more findings")
   expect(screen.queryByText("private server details")).not.toBeInTheDocument()
   expect(screen.getByText("Synthetic finding 1")).toBe(first)

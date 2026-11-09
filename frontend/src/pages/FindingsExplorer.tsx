@@ -275,7 +275,11 @@ export default function FindingsExplorer() {
   const recoverablePageError =
     findingsQuery.isFetchNextPageError &&
     !!findings?.length &&
-    !(findingsQuery.error instanceof ApiError && findingsQuery.error.status < 500);
+    !(
+      findingsQuery.error instanceof ApiError &&
+      findingsQuery.error.status < 500 &&
+      findingsQuery.error.status !== 429
+    );
 
   // Group findings by evidence level for section headers
   const groupedFindings = useMemo(() => {

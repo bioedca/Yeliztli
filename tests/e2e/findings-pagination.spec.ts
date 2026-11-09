@@ -74,35 +74,37 @@ for (const theme of ['light', 'dark'] as const) {
 
 }
 
-test('a transient next-window error retains rows and retries the same window (#2485)', async ({ page }) => {
-  await setup(page)
-  let fail = true
-  const limits: number[] = []
-  await page.route('**/api/analysis/findings?*', route => {
-    const limit = Number(new URL(route.request().url()).searchParams.get('limit'))
-    limits.push(limit)
-    return route.fulfill(limit > 200 && fail
-      ? json({ detail: 'Synthetic private diagnostic' }, 503)
-      : json(findings(Math.min(limit, 250))))
+for (const status of [429, 503]) {
+  test(`transient HTTP ${status} retains rows and retries the same window (#2485)`, async ({ page }) => {
+    await setup(page)
+    let fail = true
+    const limits: number[] = []
+    await page.route('**/api/analysis/findings?*', route => {
+      const limit = Number(new URL(route.request().url()).searchParams.get('limit'))
+      limits.push(limit)
+      return route.fulfill(limit > 200 && fail
+        ? json({ detail: 'Synthetic private diagnostic' }, status)
+        : json(findings(Math.min(limit, 250))))
+    })
+    await page.goto('/findings?sample_id=1')
+    const more = page.getByRole('button', { name: 'Load more findings', exact: true })
+    await more.scrollIntoViewIfNeeded()
+    const before = await page.getByRole('main').evaluate(element => element.scrollTop)
+    const first = await page.getByText('Synthetic finding 1', { exact: true }).elementHandle()
+    expect(first).not.toBeNull()
+    await more.click()
+    await expect(page.getByRole('alert')).toContainText('Could not load more findings', { timeout: 15_000 })
+    await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(200)
+    await expect(page.getByText('Synthetic private diagnostic')).toHaveCount(0)
+    expect(await first!.evaluate(element => element.isConnected)).toBe(true)
+    expect(Math.abs(await page.getByRole('main').evaluate(element => element.scrollTop) - before)).toBeLessThanOrEqual(1)
+    fail = false
+    await page.getByRole('button', { name: 'Retry loading more findings', exact: true }).click()
+    await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(250)
+    expect(await first!.evaluate(element => element.isConnected)).toBe(true)
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    expect(limits.length).toBeGreaterThanOrEqual(3)
+    expect(limits[0]).toBe(200)
+    expect(limits.slice(1).every(limit => limit === 400)).toBe(true)
   })
-  await page.goto('/findings?sample_id=1')
-  const more = page.getByRole('button', { name: 'Load more findings', exact: true })
-  await more.scrollIntoViewIfNeeded()
-  const before = await page.getByRole('main').evaluate(element => element.scrollTop)
-  const first = await page.getByText('Synthetic finding 1', { exact: true }).elementHandle()
-  expect(first).not.toBeNull()
-  await more.click()
-  await expect(page.getByRole('alert')).toContainText('Could not load more findings', { timeout: 15_000 })
-  await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(200)
-  await expect(page.getByText('Synthetic private diagnostic')).toHaveCount(0)
-  expect(await first!.evaluate(element => element.isConnected)).toBe(true)
-  expect(Math.abs(await page.getByRole('main').evaluate(element => element.scrollTop) - before)).toBeLessThanOrEqual(1)
-  fail = false
-  await page.getByRole('button', { name: 'Retry loading more findings', exact: true }).click()
-  await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(250)
-  expect(await first!.evaluate(element => element.isConnected)).toBe(true)
-  await expect(page.getByRole('alert')).toHaveCount(0)
-  expect(limits.length).toBeGreaterThanOrEqual(3)
-  expect(limits[0]).toBe(200)
-  expect(limits.slice(1).every(limit => limit === 400)).toBe(true)
-})
+}
