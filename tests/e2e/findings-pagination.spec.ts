@@ -23,52 +23,54 @@ async function setup(page: Page) {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-test(`Load more preserves mounted rows and scroll in ${theme} mode (#2485)`, async ({ page }) => {
-  await page.emulateMedia({ colorScheme: theme })
-  await setup(page)
-  let release!: () => void
-  const held = new Promise<void>(resolve => { release = resolve })
-  const limits: number[] = []
-  await page.route('**/api/analysis/findings?*', async route => {
-    const limit = Number(new URL(route.request().url()).searchParams.get('limit'))
-    limits.push(limit)
-    if (limit > 200) await held
-    await route.fulfill(json(findings(Math.min(limit, 450))))
-  })
+  test(`Load more preserves mounted rows and scroll in ${theme} mode (#2485)`, async ({ page }) => {
+    // A populated 200-row axe scan takes ~24 s in WebKit; retain CI load headroom.
+    test.setTimeout(60_000)
+    await page.emulateMedia({ colorScheme: theme })
+    await setup(page)
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const limits: number[] = []
+    await page.route('**/api/analysis/findings?*', async route => {
+      const limit = Number(new URL(route.request().url()).searchParams.get('limit'))
+      limits.push(limit)
+      if (limit > 200) await held
+      await route.fulfill(json(findings(Math.min(limit, 450))))
+    })
 
-  await page.goto('/findings?sample_id=1')
-  const more = page.getByRole('button', { name: 'Load more findings', exact: true })
-  await more.scrollIntoViewIfNeeded()
-  const main = page.getByRole('main')
-  const before = await main.evaluate(element => element.scrollTop)
-  expect(before).toBeGreaterThan(1000)
-  const first = await page.getByText('Synthetic finding 1', { exact: true }).elementHandle()
-  expect(first).not.toBeNull()
-  await more.focus()
-  await page.keyboard.press('Enter')
-  try {
-    await expect.poll(() => limits).toEqual([200, 400])
-    await expect(page.getByRole('button', { name: 'Loading…', exact: true })).toBeDisabled()
-    await expect(page.getByText('Loading findings...', { exact: true })).toHaveCount(0)
-    await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(200)
+    await page.goto('/findings?sample_id=1')
+    const more = page.getByRole('button', { name: 'Load more findings', exact: true })
+    await more.scrollIntoViewIfNeeded()
+    const main = page.getByRole('main')
+    const before = await main.evaluate(element => element.scrollTop)
+    expect(before).toBeGreaterThan(1000)
+    const first = await page.getByText('Synthetic finding 1', { exact: true }).elementHandle()
+    expect(first).not.toBeNull()
+    await more.focus()
+    await page.keyboard.press('Enter')
+    try {
+      await expect.poll(() => limits).toEqual([200, 400])
+      await expect(page.getByRole('button', { name: 'Loading…', exact: true })).toBeDisabled()
+      await expect(page.getByText('Loading findings...', { exact: true })).toHaveCount(0)
+      await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(200)
+      expect(await first!.evaluate(element => element.isConnected)).toBe(true)
+      expect(Math.abs(await main.evaluate(element => element.scrollTop) - before)).toBeLessThanOrEqual(1)
+      const accessibility = await new AxeBuilder({ page }).include('main')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+      expect(accessibility.violations).toEqual([])
+    } finally {
+      release()
+    }
+    // Count/attachment assertions do not scroll to newly appended rows.
+    await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(400)
     expect(await first!.evaluate(element => element.isConnected)).toBe(true)
     expect(Math.abs(await main.evaluate(element => element.scrollTop) - before)).toBeLessThanOrEqual(1)
-    const accessibility = await new AxeBuilder({ page }).include('main')
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-    expect(accessibility.violations).toEqual([])
-  } finally {
-    release()
-  }
-  // Count/attachment assertions do not scroll to newly appended rows.
-  await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(400)
-  expect(await first!.evaluate(element => element.isConnected)).toBe(true)
-  expect(Math.abs(await main.evaluate(element => element.scrollTop) - before)).toBeLessThanOrEqual(1)
-  await expect(more).toBeEnabled()
-  await more.click()
-  await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(450)
-  await expect(more).toHaveCount(0)
-  expect(limits).toEqual([200, 400, 600])
-})
+    await expect(more).toBeEnabled()
+    await more.click()
+    await expect(page.getByText(/^Synthetic finding \d+$/)).toHaveCount(450)
+    await expect(more).toHaveCount(0)
+    expect(limits).toEqual([200, 400, 600])
+  })
 
 }
 
