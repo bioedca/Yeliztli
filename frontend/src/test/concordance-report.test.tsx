@@ -592,8 +592,10 @@ describe("ConcordanceReport — missing sample handling", () => {
     renderReport()
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to fetch merge provenance")).toBeInTheDocument()
+      expect(screen.getByText("Data not found")).toBeInTheDocument()
     })
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+    expect(screen.queryByText(`Sample ${SAMPLE_ID} not found.`)).not.toBeInTheDocument()
     expect(
       screen.queryByText(/No merge provenance for this sample/i),
     ).not.toBeInTheDocument()

@@ -151,6 +151,7 @@ function MetabolicPage({ sampleId }: { sampleId: number | null }) {
 
       {hasError && !isLoading && (
         <PageError
+          error={prsQuery.error}
           message={
             prsQuery.error instanceof Error
               ? prsQuery.error.message

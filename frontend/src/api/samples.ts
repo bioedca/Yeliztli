@@ -1,6 +1,7 @@
 /** React Query hooks for sample management and file ingestion (P1-13, P1-16). */
 
 import {
+  ApiError,
   readApiResponseBody,
   throwApiError,
 } from "@/api/errors"
@@ -109,9 +110,7 @@ export function useDeleteSample() {
  * branch on 423 (stale sample, per Plan §7.5), the typed retryable 503
  * materialisation window, or 404 (missing resource) without re-parsing the
  * response. */
-export class SamplesApiError extends Error {
-  readonly status: number
-  readonly body: unknown
+export class SamplesApiError extends ApiError {
   readonly retryAfterMs: number | null
 
   constructor(
@@ -120,10 +119,8 @@ export class SamplesApiError extends Error {
     body: unknown,
     retryAfterMs: number | null = null,
   ) {
-    super(message)
+    super(status, message, body)
     this.name = "SamplesApiError"
-    this.status = status
-    this.body = body
     this.retryAfterMs = retryAfterMs
   }
 

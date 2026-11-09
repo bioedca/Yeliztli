@@ -1,6 +1,8 @@
 /** Individual / linked-sample types matching backend Pydantic models
  * (Step 47 / IND-03; Plan §9.2, §9.3). */
 
+import { ApiError } from "@/api/errors"
+
 type BiologicalSex = "XX" | "XY"
 
 export interface LinkedSample {
@@ -170,15 +172,10 @@ export interface StaleSampleDetail {
   message?: string
 }
 
-export class IndividualsApiError extends Error {
-  readonly status: number
-  readonly body: unknown
-
+export class IndividualsApiError extends ApiError {
   constructor(status: number, message: string, body: unknown) {
-    super(message)
+    super(status, message, body)
     this.name = "IndividualsApiError"
-    this.status = status
-    this.body = body
   }
 
   /** Convenience predicate for the 409 link-elsewhere case. */

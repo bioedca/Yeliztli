@@ -123,6 +123,7 @@ export default function CardiovascularView() {
       {/* Error state — only when the PRIMARY variants query fails. */}
       {hasError && !isLoading && (
         <PageError
+          error={variantsQuery.error}
           message={
             variantsQuery.error instanceof Error
               ? variantsQuery.error.message

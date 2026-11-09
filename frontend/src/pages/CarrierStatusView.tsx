@@ -129,6 +129,7 @@ export default function CarrierStatusView() {
       {/* Error state */}
       {variantsQuery.isError && !variantsQuery.isLoading && (
         <PageError
+          error={variantsQuery.error}
           message={variantsQuery.error instanceof Error ? variantsQuery.error.message : "An unexpected error occurred."}
           onRetry={() => { variantsQuery.refetch(); }}
         />

@@ -126,6 +126,7 @@ export default function CancerView() {
       {/* Error state — only when the PRIMARY variants query fails. */}
       {hasError && !isLoading && (
         <PageError
+          error={variantsQuery.error}
           message={
             variantsQuery.error instanceof Error
               ? variantsQuery.error.message

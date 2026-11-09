@@ -74,6 +74,25 @@ export function isPatientResponseWithheldError(error: unknown): boolean {
   )
 }
 
+/** A guard-withheld 404 is a separate state, never evidence of absent data. */
+export function isResourceNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    !isPatientResponseWithheldError(error)
+  )
+}
+
+/** Fixed missing-resource copy shared by page errors and inline detail panels.
+ * Only the status and documented withheld code classify errors; server text is
+ * never display copy. The caller supplies the safe fallback for other failures.
+ */
+export function resourceErrorMessage(error: unknown, fallback: string): string {
+  return isResourceNotFoundError(error)
+    ? "The requested data wasn't found. Check the link or select another sample."
+    : fallback
+}
+
 /** Throw a typed response failure with curated, safe display copy. */
 export async function throwApiError(
   response: Response,

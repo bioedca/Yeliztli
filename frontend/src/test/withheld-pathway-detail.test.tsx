@@ -3,7 +3,8 @@
  * The route answers 404 with ``detail.code === "patient_response_withheld"``
  * when the presentability guard refuses the assembled detail. Every panel used
  * to show the hook's generic "… pathway detail failed. Please try again." copy
- * for it, a retry that can never succeed. An ordinary failure keeps that copy.
+ * for it, a retry that can never succeed. Missing resources have separate fixed
+ * copy (#2433); transient failures keep the retry advice.
  */
 
 import type { ComponentType } from "react"
@@ -105,11 +106,14 @@ describe("withheld pathway detail (#2520)", () => {
     expect(screen.queryByText(/results are withheld/)).not.toBeInTheDocument()
   })
 
-  it.each(PANELS)("%s keeps a plain not-found as a failure, not withheld", (_name, Panel) => {
+  it.each(PANELS)("%s identifies a plain not-found without retry advice or withholding", (_name, Panel) => {
     detail.result = failed(new ApiError(404, RETRY, { detail: "Pathway 'example' not found for sample." }))
     renderPanel(Panel)
 
-    expect(screen.getByText(RETRY)).toBeInTheDocument()
+    expect(screen.getByText("The requested data wasn't found. Check the link or select another sample.")).toBeInTheDocument()
+    expect(screen.queryByText(RETRY)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Pathway 'example' not found for sample.")).not.toBeInTheDocument()
     expect(screen.queryByText(/results are withheld/)).not.toBeInTheDocument()
   })
 })

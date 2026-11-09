@@ -340,6 +340,7 @@ export default function AllergyView() {
       {/* Error state */}
       {pathwaysQuery.isError && !pathwaysQuery.isLoading && (
         <PageError
+          error={pathwaysQuery.error}
           message={pathwaysQuery.error instanceof Error ? pathwaysQuery.error.message : "An unexpected error occurred."}
           onRetry={() => { pathwaysQuery.refetch(); }}
         />
