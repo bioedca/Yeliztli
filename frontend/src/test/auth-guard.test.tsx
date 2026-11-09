@@ -103,8 +103,8 @@ describe('AuthGuard — health-gated dashboard access', () => {
     expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
   })
 
-  it('shows a backend error instead of the dashboard when setup status fails', async () => {
-    routeStatus({ setup: failedStatus(503) })
+  it.each([404, 503])('shows a backend recovery action when setup status fails with %s', async (status) => {
+    routeStatus({ setup: failedStatus(status) })
     renderGuard()
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
@@ -112,10 +112,11 @@ describe('AuthGuard — health-gated dashboard access', () => {
       screen.getByText(/can't reach the Yeliztli backend/i),
     ).toBeInTheDocument()
     expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
-  it('shows a backend error instead of the dashboard when auth status fails', async () => {
-    routeStatus({ setup: setupStatus(), auth: failedStatus(503) })
+  it.each([404, 503])('shows a backend recovery action when auth status fails with %s', async (status) => {
+    routeStatus({ setup: setupStatus(), auth: failedStatus(status) })
     renderGuard()
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
@@ -123,6 +124,7 @@ describe('AuthGuard — health-gated dashboard access', () => {
       screen.getByText(/can't reach the Yeliztli backend/i),
     ).toBeInTheDocument()
     expect(screen.queryByText('DASHBOARD')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   })
 
   it('retries a failed setup status request and renders the dashboard after recovery', async () => {

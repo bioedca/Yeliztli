@@ -76,6 +76,7 @@ export default function PharmacogenomicsView() {
       {/* Error state — only when the PRIMARY genes query fails. */}
       {hasError && !isLoading && (
         <PageError
+          error={genesQuery.error}
           message={
             genesQuery.error instanceof Error
               ? genesQuery.error.message

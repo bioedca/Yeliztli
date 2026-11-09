@@ -42,6 +42,8 @@ export default function AuthGuard() {
   }
 
   if (authError || setupError) {
+    // These are service availability probes, not lookups of a missing resource.
+    // Keep the recovery action even if an unavailable endpoint returns 404.
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="w-full max-w-lg">

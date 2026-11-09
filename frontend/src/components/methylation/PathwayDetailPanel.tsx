@@ -23,7 +23,7 @@ import {
   ChevronUp,
   TrendingUp,
 } from "lucide-react"
-import { isPatientResponseWithheldError } from "@/api/errors"
+import { isPatientResponseWithheldError, resourceErrorMessage } from "@/api/errors"
 import WithheldResults from "@/components/ui/WithheldResults"
 
 /** Whether a genotype is a nucleotide call whose letters can be compared with
@@ -193,10 +193,13 @@ export default function PathwayDetailPanel({
           <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-              <p className="text-sm text-destructive">
-                {detailQuery.error instanceof Error
-                  ? detailQuery.error.message
-                  : "Failed to load pathway details."}
+              <p className="text-sm text-foreground">
+                {resourceErrorMessage(
+                  detailQuery.error,
+                  detailQuery.error instanceof Error
+                    ? detailQuery.error.message
+                    : "Failed to load pathway details.",
+                )}
               </p>
             </div>
           </div>

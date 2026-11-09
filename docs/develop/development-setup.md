@@ -52,3 +52,23 @@ requests to the backend on 8000.
 Run `make lint` and `make format` before pushing — CI runs the same checks. See
 [testing](testing.md) for the test commands, and [contributing](contributing.md) for the
 assertion conventions.
+
+## Frontend resource errors
+
+Pass the query's structured `error` to `PageError` alongside its safe fallback
+`message` and `onRetry`. Ordinary HTTP 404 resource lookups show **Data not
+found**, advise checking the link or selecting another sample, and omit Retry.
+Network failures and other HTTP errors retain the existing retry action.
+`SamplesApiError` and `IndividualsApiError` extend the shared `ApiError` so their
+status survives the same path.
+
+A 404 with the documented `patient_response_withheld` code is a withheld-results
+state, not evidence that data is absent. Preserve that distinction in detail
+panels; use `resourceErrorMessage` for their other errors. Never render server
+response bodies or infer an error category from response text. An existing
+sample with successful null merge provenance still uses the not-merged empty
+state, and stale samples retain their re-annotation notice.
+
+`AuthGuard` handles service availability probes separately: its backend recovery
+action remains available even when a status endpoint returns 404. Static invalid
+URL errors have no resource lookup and need no retry action.

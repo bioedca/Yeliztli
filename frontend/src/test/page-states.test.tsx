@@ -8,6 +8,9 @@ import PageLoading from "@/components/ui/PageLoading"
 import PageError from "@/components/ui/PageError"
 import PageEmpty from "@/components/ui/PageEmpty"
 import ErrorBoundary from "@/components/ui/ErrorBoundary"
+import { ApiError } from "@/api/errors"
+import { SamplesApiError } from "@/api/samples"
+import { IndividualsApiError } from "@/types/individuals"
 
 // ── PageLoading ──────────────────────────────────────────────────────
 
@@ -31,6 +34,37 @@ describe("PageLoading", () => {
 // ── PageError ────────────────────────────────────────────────────────
 
 describe("PageError", () => {
+  it.each([ApiError, SamplesApiError, IndividualsApiError])("hides retry and server text for %s missing resources", (ErrorType) => {
+    const onRetry = vi.fn()
+    render(<PageError error={new ErrorType(404, "Please try again.", { detail: "private diagnostic" })} message="Please try again." onRetry={onRetry} />)
+    expect(screen.getByRole("alert")).toHaveTextContent("Data not found")
+    expect(screen.getByText("The requested data wasn't found. Check the link or select another sample.")).toBeInTheDocument()
+    expect(screen.queryByText(/Please try again|private diagnostic/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+    expect(onRetry).not.toHaveBeenCalled()
+  })
+
+  it("keeps withheld results distinct from missing data and hides their payload", () => {
+    const error = new ApiError(404, "Please try again.", {
+      detail: { code: "patient_response_withheld", message: "private diagnostic" },
+    })
+    render(<PageError error={error} message={error.message} onRetry={vi.fn()} />)
+    expect(screen.getByText("These results are withheld for this sample.")).toBeInTheDocument()
+    expect(screen.queryByText(/Data not found|Please try again|private diagnostic/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+  })
+
+  it("does not infer a status or withheld state from arbitrary error text", () => {
+    const error = new Error("404 patient_response_withheld")
+    const onRetry = vi.fn()
+    render(<PageError error={error} message="Unable to load data." onRetry={onRetry} />)
+    expect(screen.getByText("Failed to load data")).toBeInTheDocument()
+    expect(screen.getByText("Unable to load data.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    expect(onRetry).toHaveBeenCalledOnce()
+    expect(screen.queryByText(/results are withheld|Data not found/)).not.toBeInTheDocument()
+  })
+
   it("renders default error message", () => {
     render(<PageError />)
     expect(screen.getByText("Failed to load data")).toBeInTheDocument()

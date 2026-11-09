@@ -101,6 +101,7 @@ export default function APOEView() {
       {/* Error state */}
       {hasError && !isLoading && (
         <PageError
+          error={genotypeQuery.error ?? gateStatusQuery.error}
           message={
             genotypeQuery.error instanceof Error
               ? genotypeQuery.error.message

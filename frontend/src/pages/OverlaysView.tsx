@@ -464,6 +464,7 @@ function OverlayResults({
   if (resultsQuery.isError) {
     return (
       <PageError
+        error={resultsQuery.error}
         message={resultsQuery.error instanceof Error ? resultsQuery.error.message : "An unexpected error occurred."}
         onRetry={() => resultsQuery.refetch()}
       />

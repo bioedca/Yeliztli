@@ -184,6 +184,7 @@ export default function AncestryView() {
       {/* Error state */}
       {hasError && !isLoading && (
         <PageError
+          error={findingsQuery.error}
           message={findingsQuery.error instanceof Error ? findingsQuery.error.message : "An unexpected error occurred."}
           onRetry={() => { findingsQuery.refetch(); }}
         />

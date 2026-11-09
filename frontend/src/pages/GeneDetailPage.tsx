@@ -99,6 +99,7 @@ export default function GeneDetailPage() {
           Back to Variant Explorer
         </Link>
         <PageError
+          error={error}
           message={error instanceof Error ? error.message : "An unexpected error occurred."}
           onRetry={() => refetch()}
         />

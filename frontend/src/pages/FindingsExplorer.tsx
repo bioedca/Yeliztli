@@ -335,6 +335,7 @@ export default function FindingsExplorer() {
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">All Findings</h1>
         <PageError
+          error={findingsQuery.error}
           message={findingsQuery.error?.message ?? "Failed to load findings."}
           onRetry={() => findingsQuery.refetch()}
         />

@@ -313,6 +313,7 @@ export default function QueryBuilderView() {
 
               {fieldsQuery.isError && (
                 <PageError
+                  error={fieldsQuery.error}
                   message={fieldsQuery.error instanceof Error ? fieldsQuery.error.message : "Failed to load field metadata."}
                   onRetry={() => fieldsQuery.refetch()}
                 />

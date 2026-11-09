@@ -224,7 +224,7 @@ describe("VariantDetailPage (P2-21a)", () => {
     expect(screen.getByText("Loading variant detail...")).toBeInTheDocument()
   })
 
-  it("shows error state when API fails", async () => {
+  it("shows not-found state when the variant is missing", async () => {
     mockFetch.mockImplementation(async () => ({
       ok: false,
       status: 404,
@@ -234,8 +234,9 @@ describe("VariantDetailPage (P2-21a)", () => {
     renderPage("rs100")
 
     await waitFor(() => {
-      expect(screen.getByText("Failed to load data")).toBeInTheDocument()
+      expect(screen.getByText("Data not found")).toBeInTheDocument()
     })
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
     expect(screen.getByText(/Back to Variant Explorer/)).toBeInTheDocument()
   })
 
