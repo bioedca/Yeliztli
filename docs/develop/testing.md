@@ -155,6 +155,39 @@ Record full-call and projection timings separately, retain failing runs, and use
 the same sources, dependencies and resources when comparing changes. Numerical
 equivalence tests validate software behavior, not scientific accuracy.
 
+## Tracked science-evidence references
+
+After staging the intended files, run `python scripts/check_science_evidence_paths.py`.
+The always-on CI lint job runs the same offline guard. It scans literal dated
+`data/science-evidence/<date-slug>` references outside `data/` in Git's index and
+requires the exact file, or at least one file beneath a referenced directory, to
+be tracked. A local untracked packet cannot hide a missing committed input. The
+guard reads indexed contents, so stage both reference edits and intended public
+evidence files before running it; do not bulk-add unrelated research.
+
+Only exact source/path pairs for the scientific-validity issue-form example and
+the synthetic `.gitignore` probes are exempt. New filenames or the same example
+used by a real fixture are checked. Undated placeholders are not concrete packet
+references. Path availability does not establish scientific accuracy, licensing,
+or the authenticity of an access date.
+
+The #2481 audit on 2026-11-09 found no recoverable historical source bytes in the
+available registered checkouts or locally available Git history for these fixtures:
+
+| Fixture | Originally reported access | Missing original packet |
+| --- | --- | --- |
+| `clinvar_seed_snapshot.json` | 2026-07-16 | `2026-07-16-clinvar-seed-1968` |
+| `panel_gene_coordinates_grch37.json` | 2026-06-27 | `2026-06-27-issue-1098-rsid-gene-guard` |
+
+Both fixtures now explicitly record `historical_evidence.status = unavailable`.
+Their values and originally reported access dates are retained; this audit does
+not independently verify them. The separately committed, later ClinVar record
+overrides keep their own evidence pointers. No missing payload was reconstructed,
+backdated, or certified for licensing. If the original bytes become available,
+audit their public origin and licensing before committing them. A deliberate
+refresh must record its actual access date and preserve the distinction between
+new evidence and the unavailable historical inputs.
+
 ## Complete backend validation with limited temporary storage
 
 A filesystem can have free bytes and inodes while the effective user or project

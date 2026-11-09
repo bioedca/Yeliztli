@@ -154,6 +154,10 @@ jobs:
       - name: Install Python linter
         run: pip install -e ".[dev]"
 
+      # References can change in docs/frontend without selecting the backend job.
+      - name: Tracked science-evidence references
+        run: python scripts/check_science_evidence_paths.py
+
       - name: Ruff check
         run: ruff check backend/ tests/
 

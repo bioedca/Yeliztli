@@ -4,8 +4,8 @@
     "source_url": "https://clinicaltables.nlm.nih.gov/api/variants/v4/search",
     "accessed": "2026-07-16",
     "generator": "scripts/build_clinvar_seed_snapshot.py",
-    "evidence_mode": "saved_exact_rsid_searches",
-    "raw_evidence_dir": "data/science-evidence/2026-07-16-clinvar-seed-1968",
+    "evidence_mode": "historical_raw_unavailable",
+    "raw_evidence_dir": null,
     "record_count": 71,
     "synthetic_rows_without_accession": [],
     "note": "Committed offline accession-to-rsID/gene reference for clinvar_seed.csv (#1968). Regenerate whenever the seed adds or changes a ClinVar accession; the guard fails on uncovered, orphaned, or incoherent records.",
@@ -22,6 +22,13 @@
         "identity_evidence_path": "data/science-evidence/2026-11-08-rs1800795-orientation-2563/raw/clinvar-14718-identity-derived.json",
         "reason": "#2563 verifies this existing accession and aggregate metadata against GRCh37 C>G; correct the reversed seed alleles."
       }
+    },
+    "historical_evidence": {
+      "status": "unavailable",
+      "audited": "2026-11-09",
+      "original_packet": "2026-07-16-clinvar-seed-1968",
+      "original_file": null,
+      "limitation": "The original raw payload was never committed and was not recoverable in the available checkouts or Git history. The recorded accessed date and fixture values are retained, not independently verified by this audit. A fresh lookup would not recover the historical input."
     }
   },
   "records": {
