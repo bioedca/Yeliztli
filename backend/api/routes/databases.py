@@ -155,7 +155,7 @@ class DatabaseHealthResponse(BaseModel):
     display_name: str
     build_mode: str
     required: bool
-    state: str  # not_installed|downloading|building|partial|corrupt|ready|failed
+    state: str  # not_installed|downloading|building|partial|corrupt|unverified|ready|failed
     present: bool
     version: str | None
     downloaded_at: str | None

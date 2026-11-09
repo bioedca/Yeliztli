@@ -894,6 +894,12 @@ def get_database_status(db_info: DatabaseInfo, settings: Settings) -> dict:
         # reference.db-resident: check database_versions table
         downloaded = _check_db_version_is_serviceable(db_info.name, settings)
         file_size = None
+    elif db_info.name == "spliceai":
+        from backend.db.db_health import validate_database
+
+        dest = db_info.dest_path(settings)
+        file_size = dest.stat().st_size if dest.exists() else None
+        downloaded = validate_database("spliceai", settings).ok
     elif db_info.build_mode == "pipeline" and db_info.target_db == "standalone":
         # Standalone pipeline DB (gnomad, dbnsfp, alphamissense): require both the file
         # AND a database_versions entry. A file alone may be a partial

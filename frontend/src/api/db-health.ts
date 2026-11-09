@@ -18,6 +18,7 @@ export type DatabaseHealthState =
   | 'building'
   | 'partial'
   | 'corrupt'
+  | 'unverified'
   | 'ready'
   | 'failed'
 

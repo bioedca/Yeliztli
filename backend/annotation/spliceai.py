@@ -13,7 +13,7 @@ The hg19 precomputed files are GRCh37-coordinate — the same build as the app's
 sample data — so rows are stored position-keyed (chrom/pos/ref/alt) and joined
 directly, with NO liftover and NO rsID round-trip. (Use the hg19 files, not hg38.)
 Because nothing converts coordinates, ingestion verifies the build from the VCF
-header and refuses any other build before touching existing data (#2175).
+header and refuses any other build without changing committed data (#2175).
 
 SpliceAI VCF INFO format (Illumina/SpliceAI README; Jaganathan 2019)::
 
@@ -42,9 +42,12 @@ Guardrails:
 from __future__ import annotations
 
 import gzip
+import hashlib
+import json
 import math
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, TYPE_CHECKING
 
@@ -109,6 +112,101 @@ sa.Index(
     spliceai_scores.c.ref,
     spliceai_scores.c.alt,
 )
+
+
+# Written in the same transaction as the scores. Old database_versions stamps
+# cannot reconstruct this evidence and are deliberately never migrated into it.
+SPLICEAI_INGESTION_REVISION = 1
+SPLICEAI_REINGEST = (
+    "SpliceAI build provenance is unverified. Please re-ingest all original hg19 files "
+    "with scripts/ingest_spliceai_scores.py; a version stamp cannot verify them."
+)
+spliceai_sources = sa.Table(
+    "spliceai_sources",
+    _metadata,
+    sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
+    sa.Column("source_name", sa.Text, nullable=False),
+    sa.Column("source_sha256", sa.Text, nullable=False),
+    sa.Column("source_size_bytes", sa.Integer, nullable=False),
+    sa.Column("genome_build", sa.Text, nullable=False),
+    sa.Column("validation_method", sa.Text, nullable=False),
+    sa.Column("caller_confirmation", sa.Text),
+    sa.Column("build_header_json", sa.Text, nullable=False),
+    sa.Column("min_ds", sa.Float, nullable=False),
+    sa.Column("row_count", sa.Integer, nullable=False),
+    sa.Column("ingestion_revision", sa.Integer, nullable=False),
+    sa.Column("ingested_at", sa.Text, nullable=False),
+)
+
+
+@dataclass(frozen=True)
+class SpliceAIHealth:
+    """Shared structural/provenance decision for health and score consumers."""
+
+    state: str
+    detail: str
+
+
+def check_spliceai_connection(conn: sa.Connection, *, deep: bool = False) -> SpliceAIHealth:
+    """Read the consumer schema and recheck persisted build evidence, without writes.
+
+    Fast checks read one score and the small source manifest. Explicit deep
+    verification additionally reconciles row counts; polling never scans scores.
+    """
+    try:
+        if conn.execute(sa.select(spliceai_scores).limit(1)).first() is None:
+            return SpliceAIHealth("corrupt", "table 'spliceai_scores' is empty")
+    except sa.exc.SQLAlchemyError:
+        return SpliceAIHealth(
+            "corrupt", "SpliceAI scores are unreadable or missing required columns."
+        )
+    try:
+        sources = conn.execute(sa.select(spliceai_sources)).mappings().all()
+        if not sources:
+            return SpliceAIHealth("unverified", SPLICEAI_REINGEST)
+        for source in sources:
+            header = json.loads(source["build_header_json"])
+            if not isinstance(header, list) or any(
+                not isinstance(line, str)
+                or not line.startswith(("##reference=", "##assembly=", "##contig="))
+                for line in header
+            ):
+                return SpliceAIHealth("unverified", SPLICEAI_REINGEST)
+            declared = _assess_header(Path("SpliceAI source"), header)
+            confirmation = source["caller_confirmation"]
+            _require_grch37(Path("SpliceAI source"), declared, confirmation)
+            expected_method = "header" if declared else "caller_confirmation"
+            stamp = datetime.fromisoformat(source["ingested_at"])
+            if (
+                source["ingestion_revision"] != SPLICEAI_INGESTION_REVISION
+                or source["genome_build"] != "GRCh37"
+                or source["validation_method"] != expected_method
+                or not re.fullmatch(r"[0-9a-f]{64}", source["source_sha256"])
+                or not source["source_name"]
+                or not isinstance(source["source_size_bytes"], int)
+                or source["source_size_bytes"] <= 0
+                or not isinstance(source["row_count"], int)
+                or source["row_count"] <= 0
+                or not 0 <= source["min_ds"] <= 1
+                or stamp.tzinfo is None
+            ):
+                return SpliceAIHealth("unverified", SPLICEAI_REINGEST)
+        if deep:
+            actual = conn.execute(
+                sa.select(sa.func.count()).select_from(spliceai_scores)
+            ).scalar_one()
+            if actual != sum(source["row_count"] for source in sources):
+                return SpliceAIHealth("unverified", SPLICEAI_REINGEST)
+    except (sa.exc.SQLAlchemyError, ValueError, TypeError, OverflowError):
+        return SpliceAIHealth("unverified", SPLICEAI_REINGEST)
+    return SpliceAIHealth("ready", "ok (GRCh37 import provenance verified)")
+
+
+def _source_fingerprint(path: Path) -> tuple[str, int]:
+    with path.open("rb") as handle:
+        digest = hashlib.file_digest(handle, "sha256").hexdigest()
+        size = handle.tell()
+    return digest, size
 
 
 @dataclass
@@ -277,7 +375,7 @@ def read_spliceai_assembly(vcf_path: Path, *, genome_build: str | None = None) -
 
 
 def create_spliceai_tables(engine: sa.Engine) -> None:
-    """Create the SpliceAI scores table if absent (idempotent)."""
+    """Create score and source tables if absent; never certify existing rows."""
     _metadata.create_all(engine)
 
 
@@ -392,9 +490,71 @@ def ingest_spliceai_vcf(
     Raises:
         ValueError: zero rows met the threshold (no silent clear/replace with
             empty data — mirrors the GTEx empty-parse guard), or the file is not
-            verifiably GRCh37 (raised before any existing row is touched).
+            verifiably GRCh37 (the existing committed rows remain unchanged).
     """
+    return ingest_spliceai_vcfs(
+        [vcf_path],
+        engine,
+        min_ds=min_ds,
+        clear_existing=clear_existing,
+        parse_progress=parse_progress,
+        genome_build=genome_build,
+    )[0]
+
+
+def ingest_spliceai_vcfs(
+    vcf_paths: list[Path],
+    engine: sa.Engine,
+    *,
+    min_ds: float = DEFAULT_MIN_DS,
+    clear_existing: bool = True,
+    parse_progress: Callable[[int], None] | None = None,
+    genome_build: str | None = None,
+) -> list[SpliceAILoadStats]:
+    """Atomically load every source, or retain the entire previous installation.
+
+    Each source records only assembly-related header lines, never sample names
+    or unrelated VCF metadata. Appending to unverified legacy rows is refused.
+    """
+    if not vcf_paths:
+        raise ValueError("at least one SpliceAI VCF is required")
+    if not math.isfinite(min_ds) or not 0 <= min_ds <= 1:
+        raise ValueError("min_ds must be finite and between 0 and 1")
     create_spliceai_tables(engine)
+    with engine.begin() as conn:
+        # Acquire SQLite's writer lock before checking append provenance. Even
+        # a zero-row DELETE begins the write transaction, so another ingestion
+        # cannot replace the source manifest between this check and insertion.
+        conn.execute(spliceai_scores.delete().where(sa.false()))
+        if clear_existing:
+            conn.execute(spliceai_scores.delete())
+            # Replacement also repairs malformed provenance schemas. SQLite DDL
+            # participates in this already-started write transaction, so a later
+            # failure restores the old manifest together with the old scores.
+            spliceai_sources.drop(conn)
+            spliceai_sources.create(conn)
+        elif (
+            conn.execute(sa.select(spliceai_scores.c.id).limit(1)).first() is not None
+            or conn.execute(sa.select(spliceai_sources.c.id).limit(1)).first() is not None
+        ) and check_spliceai_connection(conn).state != "ready":
+            raise ValueError(SPLICEAI_REINGEST)
+        return [
+            _load_spliceai_vcf(
+                path, conn, min_ds=min_ds, parse_progress=parse_progress, genome_build=genome_build
+            )
+            for path in vcf_paths
+        ]
+
+
+def _load_spliceai_vcf(
+    vcf_path: Path,
+    conn: sa.Connection,
+    *,
+    min_ds: float,
+    parse_progress: Callable[[int], None] | None,
+    genome_build: str | None,
+) -> SpliceAILoadStats:
+    fingerprint = _source_fingerprint(vcf_path)
 
     rows: list[dict] = []
     skipped_below = 0
@@ -475,11 +635,30 @@ def ingest_spliceai_vcf(
             f"clear/replace with empty data (is this a SpliceAI-annotated VCF?)."
         )
 
-    with engine.begin() as conn:
-        if clear_existing:
-            conn.execute(spliceai_scores.delete())
-        for i in range(0, len(rows), 1000):
-            conn.execute(spliceai_scores.insert(), rows[i : i + 1000])
+    if fingerprint != _source_fingerprint(vcf_path):
+        raise ValueError("SpliceAI source changed during ingestion; retry with an unchanged file.")
+    build_header = [
+        line for line in header if line.startswith(("##reference=", "##assembly=", "##contig="))
+    ]
+    declared = _assess_header(vcf_path, build_header)
+    for i in range(0, len(rows), 1000):
+        conn.execute(spliceai_scores.insert(), rows[i : i + 1000])
+    conn.execute(
+        spliceai_sources.insert(),
+        {
+            "source_name": vcf_path.name,
+            "source_sha256": fingerprint[0],
+            "source_size_bytes": fingerprint[1],
+            "genome_build": build,
+            "validation_method": "header" if declared else "caller_confirmation",
+            "caller_confirmation": genome_build,
+            "build_header_json": json.dumps(build_header),
+            "min_ds": min_ds,
+            "row_count": len(rows),
+            "ingestion_revision": SPLICEAI_INGESTION_REVISION,
+            "ingested_at": datetime.now(UTC).isoformat(),
+        },
+    )
 
     if parse_progress is not None:
         parse_progress(len(rows))
@@ -510,6 +689,8 @@ def lookup_spliceai_by_variant(
     nref = ref.strip().upper()
     nalt = alt.strip().upper()
     with engine.connect() as conn:
+        if check_spliceai_connection(conn).state != "ready":
+            return None
         stmt = (
             sa.select(spliceai_scores)
             .where(
