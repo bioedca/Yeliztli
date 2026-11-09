@@ -174,6 +174,48 @@ def test_source_checksum_describes_the_opened_file(install, tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("compressed", [False, True])
+def test_transient_in_place_change_cannot_mislabel_scores(
+    install, tmp_path, monkeypatch, compressed
+):
+    import backend.annotation.spliceai as module
+
+    path = _vcf(tmp_path, name="source.vcf.gz" if compressed else "source.vcf")
+    original = path.read_bytes()
+    changed_bytes = original.replace(b"1\t100\t", b"1\t200\t")
+    if compressed:
+        original = gzip.compress(original, mtime=0)
+        changed_bytes = gzip.compress(changed_bytes, mtime=0)
+    path.write_bytes(original)
+    fingerprint = module._source_fingerprint
+    parse = module.parse_spliceai_info
+    changed = False
+    restored = False
+
+    def fingerprint_and_change(source):
+        nonlocal changed
+        result = fingerprint(source)
+        if not changed:
+            path.write_bytes(changed_bytes)
+            changed = True
+        return result
+
+    def parse_and_restore(info):
+        nonlocal restored
+        path.write_bytes(original)
+        restored = True
+        return parse(info)
+
+    monkeypatch.setattr(module, "_source_fingerprint", fingerprint_and_change)
+    monkeypatch.setattr(module, "parse_spliceai_info", parse_and_restore)
+    with pytest.raises(ValueError, match="source changed during ingestion"):
+        ingest_spliceai_vcf(path, install.scores)
+    assert changed and restored
+    assert path.read_bytes() == original
+    assert _rows(install.scores, "spliceai_scores") == []
+    assert _rows(install.scores, "spliceai_sources") == []
+
+
+@pytest.mark.parametrize("compressed", [False, True])
 def test_in_place_source_change_rolls_back_import(install, tmp_path, monkeypatch, compressed):
     import backend.annotation.spliceai as module
 

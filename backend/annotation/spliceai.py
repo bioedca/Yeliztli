@@ -214,21 +214,46 @@ def _source_fingerprint(handle: IO[bytes]) -> tuple[str, int]:
     return digest, size
 
 
+class _FingerprintReader(io.RawIOBase):
+    """Fingerprint the raw bytes delivered to the decoder without owning the source."""
+
+    def __init__(self, source: IO[bytes]) -> None:
+        super().__init__()
+        self._source = source
+        self._digest = hashlib.sha256()
+        self._size = 0
+        self.readable = source.readable
+
+    def readinto(self, buffer: bytearray | memoryview) -> int:
+        size = self._source.readinto(buffer)
+        if size:
+            self._digest.update(memoryview(buffer)[:size])
+            self._size += size
+        return size
+
+    @property
+    def fingerprint(self) -> tuple[str, int]:
+        return self._digest.hexdigest(), self._size
+
+
 @contextmanager
 def _open_fingerprinted_source(path: Path) -> Iterator[tuple[IO[str], tuple[str, int]]]:
-    """Hash and parse one open file, even if its pathname is replaced."""
+    """Bind provenance to one descriptor and to the bytes actually parsed."""
     with path.open("rb") as source:
         fingerprint = _source_fingerprint(source)
-        decoded = gzip.GzipFile(fileobj=source, mode="rb") if path.suffix == ".gz" else source
-        text = io.TextIOWrapper(decoded, encoding="utf-8")
-        try:
-            yield text, fingerprint
-        finally:
-            # Keep the original descriptor open for its final mutation check.
-            text.detach()
-            if decoded is not source:
-                decoded.close()
-        if fingerprint != _source_fingerprint(source):
+        reader = _FingerprintReader(source)
+        with io.BufferedReader(reader) as buffered:
+            decoded = (
+                gzip.GzipFile(fileobj=buffered, mode="rb") if path.suffix == ".gz" else buffered
+            )
+            text = io.TextIOWrapper(decoded, encoding="utf-8")
+            try:
+                yield text, fingerprint
+            finally:
+                text.detach()
+                if decoded is not buffered:
+                    decoded.close()
+        if reader.fingerprint != fingerprint or fingerprint != _source_fingerprint(source):
             raise ValueError(
                 "SpliceAI source changed during ingestion; retry with an unchanged file."
             )
