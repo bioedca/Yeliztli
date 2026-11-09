@@ -117,13 +117,11 @@ function EBMDPage({ sampleId }: { sampleId: number | null }) {
                   prs={toGaugePrs({
                     trait: "heel_ebmd",
                     ...data.prs,
-                    source_ancestry: "",
-                    sample_size: 0,
-                    genome_build: null,
-                    variants_number: null,
-                    source_url: data.prs.pgs_id
-                      ? `https://www.pgscatalog.org/score/${data.prs.pgs_id}/`
-                      : null,
+                    source_url:
+                      data.prs.source_url ??
+                      (data.prs.pgs_id
+                        ? `https://www.pgscatalog.org/score/${data.prs.pgs_id}/`
+                        : null),
                   })}
                 />
               </div>

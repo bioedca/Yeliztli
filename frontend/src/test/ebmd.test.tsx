@@ -41,11 +41,16 @@ const EBMD_RESPONSE: EbmdResponse = {
     coverage_fraction: 0.9,
     coverage_tier: "imputed",
     is_sufficient: true,
+    source_ancestry: "",
     source_study: "Morris 2019",
     source_pmid: "30598549",
+    sample_size: 0,
     pgs_id: "PGS000657",
     pgs_license: "Non-commercial",
     development_method: "C+T",
+    genome_build: null,
+    variants_number: null,
+    source_url: null,
     ancestry_mismatch: false,
     ancestry_warning_text: null,
     evidence_level: 2,
@@ -80,6 +85,109 @@ beforeEach(() => {
 })
 
 describe("EBMDView", () => {
+  it("preserves stored development provenance and its source link (#2423)", () => {
+    mockUseEbmd.mockReturnValue(
+      q({
+        data: {
+          ...EBMD_RESPONSE,
+          prs: {
+            ...EBMD_RESPONSE.prs!,
+            source_study: "Synthetic provenance study",
+            source_pmid: "",
+            source_ancestry: "EAS",
+            sample_size: 12345,
+            genome_build: "GRCh37",
+            variants_number: 1234,
+            source_url: "https://example.org/synthetic-ebmd-score",
+          },
+        },
+      }),
+    )
+    render(<EBMDView />)
+
+    const card = within(screen.getByTestId("ebmd-prs"))
+    expect(card.getByText("Source: Synthetic provenance study (EAS, n=12,345)")).toBeInTheDocument()
+    expect(card.getByText("1,234 variants")).toBeInTheDocument()
+    expect(card.queryByText("90 variants")).not.toBeInTheDocument()
+    expect(card.queryByText("100 variants")).not.toBeInTheDocument()
+    expect(card.getByRole("link", { name: "PGS000657" })).toHaveAttribute(
+      "href",
+      "https://example.org/synthetic-ebmd-score",
+    )
+    expect(card.getByTestId("research-use-badge")).toHaveTextContent("Research Use Only")
+    expect(card.getByText("Non-commercial")).toBeInTheDocument()
+    expect(screen.getByTestId("ebmd-context")).toHaveTextContent("Not a DXA or FRAX substitute.")
+  })
+
+  it("keeps legacy missing provenance empty and falls back to the catalog link", () => {
+    mockUseEbmd.mockReturnValue(
+      q({
+        data: {
+          ...EBMD_RESPONSE,
+          prs: {
+            ...EBMD_RESPONSE.prs!,
+            source_study: "Synthetic legacy study",
+            source_ancestry: undefined,
+            sample_size: undefined,
+            genome_build: undefined,
+            variants_number: undefined,
+            source_url: undefined,
+          },
+        },
+      }),
+    )
+    render(<EBMDView />)
+
+    const card = within(screen.getByTestId("ebmd-prs"))
+    expect(card.getByText("Source: Synthetic legacy study")).toBeInTheDocument()
+    expect(card.queryByText(/n=0|\(,|\d+ variants/)).not.toBeInTheDocument()
+    expect(card.getByRole("link", { name: "PGS000657" })).toHaveAttribute(
+      "href",
+      "https://www.pgscatalog.org/score/PGS000657/",
+    )
+  })
+
+  it("preserves an explicit unknown ancestry without inventing sample or variant counts", () => {
+    mockUseEbmd.mockReturnValue(
+      q({
+        data: {
+          ...EBMD_RESPONSE,
+          prs: {
+            ...EBMD_RESPONSE.prs!,
+            source_study: "Synthetic unknown study",
+            source_ancestry: "unknown",
+            sample_size: 0,
+            genome_build: null,
+            variants_number: null,
+            source_url: null,
+          },
+        },
+      }),
+    )
+    render(<EBMDView />)
+
+    const card = within(screen.getByTestId("ebmd-prs"))
+    expect(card.getByText("Source: Synthetic unknown study (unknown)")).toBeInTheDocument()
+    expect(card.queryByText(/n=0|\(,|\d+ variants/)).not.toBeInTheDocument()
+    expect(card.getByRole("link", { name: "PGS000657" })).toHaveAttribute(
+      "href",
+      "https://www.pgscatalog.org/score/PGS000657/",
+    )
+  })
+
+  it("does not invent a catalog link when the score has no accession", () => {
+    mockUseEbmd.mockReturnValue(
+      q({
+        data: {
+          ...EBMD_RESPONSE,
+          prs: { ...EBMD_RESPONSE.prs!, pgs_id: null, source_url: null },
+        },
+      }),
+    )
+    render(<EBMDView />)
+    expect(within(screen.getByTestId("ebmd-prs")).queryByRole("link")).not.toBeInTheDocument()
+  })
+
   it("shows the imputed coverage split on the eBMD PRS card", () => {
     render(<EBMDView />)
 
