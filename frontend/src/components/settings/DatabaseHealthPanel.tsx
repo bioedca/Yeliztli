@@ -110,19 +110,25 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
   const resume = useResumeDownload()
   const verify = useVerifyDatabase()
   const clean = useCleanDatabase()
-  const [verification, setVerification] = useState<{ key: string; text: string } | null>(null)
-  const verificationKey = `${db.state}:${db.version ?? ''}`
-  const verifyResult = verification?.key === verificationKey ? verification.text : null
-  const setVerifyResult = (text: string) => setVerification({ key: verificationKey, text })
+  const [verification, setVerification] = useState<{
+    key: string; text: string; ok: boolean | null
+  } | null>(null)
+  const verificationKey = `${db.state}:${db.version ?? ''}:${db.downloaded_at ?? ''}`
+  const currentVerification = verification?.key === verificationKey ? verification : null
+  const verifyResult = currentVerification?.text ?? null
+  const integrityOk = currentVerification?.ok === false ? false : db.integrity_ok
+  const setVerifyResult = (text: string, ok: boolean | null = null) =>
+    setVerification({ key: verificationKey, text, ok })
 
   const busy = resume.isPending || verify.isPending || clean.isPending
   const showTransferProgress =
     db.total_bytes != null &&
     (db.state === 'downloading' || (db.state === 'partial' && db.resumable))
 
-  const needsSpliceaiIngest = db.name === 'spliceai' && db.integrity_ok === false
+  const needsSpliceaiIngest = db.name === 'spliceai' &&
+    (db.integrity_ok === false || currentVerification?.ok === false)
   const spliceaiRecovery =
-    'SpliceAI scores are unavailable. Re-ingest all original hg19 files using the current importer to verify their build.'
+    'SpliceAI import needs verification. Re-ingest all original hg19 files using the current importer to verify their build.'
   const integrityNote = needsSpliceaiIngest
     ? spliceaiRecovery
     : db.integrity_ok === false ||
@@ -160,9 +166,9 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
 
         {/* Integrity */}
         <td className="py-2.5 pr-4 text-xs">
-          {db.integrity_ok == null ? (
+          {integrityOk == null ? (
             <span className="text-muted-foreground">—</span>
-          ) : db.integrity_ok ? (
+          ) : integrityOk ? (
             <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
               <ShieldCheck className="h-3 w-3" /> OK
             </span>
@@ -198,9 +204,10 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
                       setVerifyResult(
                         r.ok
                           ? 'Integrity OK'
-                          : needsSpliceaiIngest
+                          : db.name === 'spliceai'
                             ? spliceaiRecovery
                             : 'Integrity check failed. Re-check or clean and re-download the database.',
+                        r.ok,
                       ),
                     onError: () =>
                       setVerifyResult('Integrity check failed. Please try again.'),

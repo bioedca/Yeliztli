@@ -353,6 +353,10 @@ def test_deep_verification_detects_row_count_mismatch(install, tmp_path):
 def _child_import_until_released(path, database, started, release):
     engine = sa.create_engine(f"sqlite:///{database}")
 
+    @sa.event.listens_for(engine, "connect")
+    def small_cache(connection, _record):
+        connection.execute("PRAGMA cache_size=1")
+
     def progress(_count):
         started.set()
         assert release.wait(30), "parent did not release the import"
@@ -546,3 +550,62 @@ def test_clean_route_preserves_unverified_legacy_import(install, monkeypatch, dr
     assert _rows(install.scores, "spliceai_scores") == before
     assert _rows(install.reference, "database_versions", "db_name") == versions
     assert _health(install).state == "unverified"
+
+
+@pytest.mark.parametrize("wal", [False, True])
+def test_lookup_skips_active_import_without_waiting_for_sqlite(install, tmp_path, wal):
+    import multiprocessing
+    import threading
+
+    pytest.importorskip("fcntl")
+    if wal:
+        with install.scores.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+    original = _vcf(tmp_path, name="large-synthetic.vcf", row=_ROW * 3000)
+    assert ingest_spliceai_vcf(original, install.scores).loaded == 3000
+    reader = sa.create_engine(
+        f"sqlite:///{install.settings.spliceai_db_path}", connect_args={"timeout": 30}
+    )
+    assert lookup_spliceai_by_variant("1", 100, "A", "G", reader)["ds_max"] == 0.7
+    replacement = _vcf(tmp_path, name="replacement-synthetic.vcf")
+    context = multiprocessing.get_context("spawn")
+    started, release = context.Event(), context.Event()
+    process = context.Process(
+        target=_child_import_until_released,
+        args=(str(replacement), str(install.settings.spliceai_db_path), started, release),
+    )
+    returned = threading.Event()
+    results, errors = [], []
+
+    def lookup():
+        try:
+            results.append(lookup_spliceai_by_variant("1", 100, "A", "G", reader))
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            returned.set()
+
+    reader_thread = threading.Thread(target=lookup)
+    process.start()
+    try:
+        assert started.wait(20), "child import did not reach its uncommitted rows"
+        reader_thread.start()
+        assert returned.wait(5), "lookup waited on SQLite while the import was paused"
+        assert not errors and results == [None]
+    finally:
+        release.set()
+        process.join(20)
+        if process.is_alive():
+            process.terminate()
+            process.join(5)
+        if reader_thread.ident is not None:
+            reader_thread.join(20)
+            assert not reader_thread.is_alive()
+        reader.dispose()
+    assert process.exitcode == 0
+    try:
+        assert lookup_spliceai_by_variant("1", 100, "A", "G", reader)["ds_max"] == 0.7
+        assert lookup_spliceai_by_variant("1", 100, "A", "T", reader) is None
+    finally:
+        reader.dispose()
+    assert len(_rows(install.scores, "spliceai_scores")) == 1

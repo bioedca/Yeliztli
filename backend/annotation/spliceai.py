@@ -55,7 +55,7 @@ from typing import IO, TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
-from backend.db.build_guard import build_claim
+from backend.db.build_guard import build_claim, is_build_locked, is_cross_process_build_claimed
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -704,6 +704,16 @@ def lookup_spliceai_by_variant(
     """
     if not chrom or pos is None or not ref or not alt:
         return None
+    database = engine.url.database
+    if engine.dialect.name == "sqlite" and database and database != ":memory:":
+        # An active import may hold SQLite's exclusive write lock for a long
+        # source parse in rollback-journal mode. Do not start optional score
+        # queries during that interval: even the provenance SELECT could wait
+        # the connection's busy timeout. The import claim spans the full batch.
+        if is_build_locked("spliceai") or is_cross_process_build_claimed(
+            "spliceai", Path(database).resolve().parent
+        ):
+            return None
     nchrom = normalize_chrom(chrom)
     nref = ref.strip().upper()
     nalt = alt.strip().upper()

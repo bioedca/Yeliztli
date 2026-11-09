@@ -323,11 +323,15 @@ confirmation, filter threshold, loaded-row count, ingestion revision, and time. 
 header records and sample-column names are not stored in this manifest. Appending to legacy
 unverified rows is refused; re-ingest the complete set instead. While an import is running,
 health reports **Building** and cleanup is blocked, including when the importer runs in a
-separate command-line process. The import releases this protection after commit or failure.
+separate command-line process. Optional variant lookups withhold SpliceAI context while an
+import is active so they do not wait through source parsing. The import releases this
+protection after commit or failure.
 
 Health polling checks that the score table is readable and nonempty and that every source
 record has valid build evidence. **Verify** additionally checks SQLite integrity and the
-recorded total row count. Missing, empty, or malformed score storage is **Corrupt**. These
+recorded total row count. If this deeper check fails while structural health is Ready,
+the verification result links to the same manual re-ingestion instructions. Missing, empty,
+or malformed score storage is **Corrupt**. These
 checks establish import provenance and software readability, not biological accuracy.
 After cleaning corrupt storage and re-ingesting, variant context becomes available without
 restarting the app.
