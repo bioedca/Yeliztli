@@ -27,6 +27,7 @@ from backend.db.tables import (
     annotation_state,
     findings,
     gene_phenotype,
+    individuals,
     reference_metadata,
     samples,
 )
@@ -1431,6 +1432,49 @@ class TestResponseShape:
         data = tc.get(f"/api/variants/rs999?sample_id={sid}").json()
         assert data["genotype"] == "CC"
         assert data["zygosity"] == "hom_ref"
+
+
+@pytest.mark.parametrize(
+    ("chrom", "pos", "genotype", "sex"),
+    [
+        ("1", 100_000, "AA", "XX"),
+        ("X", 10_000_000, "A", "XY"),
+        ("Y", 10_000_000, "A", "XY"),
+        ("MT", 1_000, "A", None),
+    ],
+)
+def test_detail_distinguishes_reference_from_undetermined_call(
+    tmp_data_dir, chrom, pos, genotype, sex
+):
+    """Stored state, rather than genotype text or browser ploidy, owns the label."""
+    base = {"chrom": chrom, "pos": pos, "ref": "A", "alt": "G", "genotype": genotype}
+    variants = [
+        {**base, "rsid": "rsYELIZTLI2389001", "zygosity": "hom_ref"},
+        {**base, "pos": pos + 1, "rsid": "rsYELIZTLI2389002", "zygosity": None},
+    ]
+    with contextmanager(_setup_client)(tmp_data_dir, variants) as (tc, sid):
+        engine = sa.create_engine(f"sqlite:///{Settings(data_dir=tmp_data_dir).reference_db_path}")
+        try:
+            with engine.begin() as conn:
+                individual_id = conn.execute(
+                    individuals.insert().values(
+                        display_name="Synthetic reference-label control", biological_sex=sex
+                    )
+                ).lastrowid
+                conn.execute(
+                    samples.update().where(samples.c.id == sid).values(individual_id=individual_id)
+                )
+        finally:
+            engine.dispose()
+        reference_response = tc.get(f"/api/variants/rsYELIZTLI2389001?sample_id={sid}")
+        unknown_response = tc.get(f"/api/variants/rsYELIZTLI2389002?sample_id={sid}")
+        assert reference_response.status_code == unknown_response.status_code == 200
+        reference, unknown = reference_response.json(), unknown_response.json()
+        assert reference["genotype"] == unknown["genotype"] == genotype
+        assert reference["zygosity"] == "hom_ref"
+        assert reference["zygosity_label"] == "Reference call"
+        assert unknown["zygosity"] is None
+        assert unknown["zygosity_label"] is None
 
 
 class TestGtexEqtlBadge:

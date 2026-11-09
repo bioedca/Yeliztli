@@ -1,0 +1,61 @@
+{
+  "accessed": "2026-11-09",
+  "consensus": {
+    "search": "\"The variant call format and VCFtools\" genotype reference allele missing genotype haploid diploid",
+    "fetched_paper_id": "e72bba143bd25e35a97bf81aa711f746",
+    "limitation": "Index/fetch year 2010 disagrees with authoritative 2011 PubMed/DOI metadata; authoritative metadata used. Same paper counted once."
+  },
+  "scite": {
+    "search_titles": [
+      "The variant call format and VCFtools"
+    ],
+    "term": "reference genotype haploid diploid",
+    "dois_verified": [
+      "10.1093/bioinformatics/btr330"
+    ],
+    "limitations": [
+      "First search rejected because user_intent exceeded length limit; retried with a short intent.",
+      "Search returned contentDenied=true; full-text verification used primary PMC/specification sources. Signed institutional access links omitted."
+    ]
+  },
+  "entrez": [
+    {
+      "endpoint": "esearch",
+      "params": {
+        "db": "pubmed",
+        "term": "10.1093/bioinformatics/btr330[DOI]",
+        "retmode": "json",
+        "retmax": 10
+      }
+    },
+    {
+      "endpoint": "esummary",
+      "params": {
+        "db": "pubmed",
+        "id": "21653522",
+        "retmode": "json"
+      }
+    },
+    {
+      "endpoint": "efetch",
+      "params": {
+        "db": "pubmed",
+        "id": "21653522",
+        "retmode": "xml"
+      }
+    }
+  ],
+  "primary_urls": [
+    "https://pmc.ncbi.nlm.nih.gov/articles/PMC3137218/",
+    "https://samtools.github.io/hts-specs/VCFv4.5.pdf",
+    "https://raw.githubusercontent.com/samtools/hts-specs/e821e4f02ae25c2175f9a366edca1322d6a2de72/VCFv4.5.tex",
+    "https://loinc.org/53034-5",
+    "https://loinc.org/LL381-5",
+    "https://loinc.org/kb/license"
+  ],
+  "fallbacks": [
+    "Direct urllib retrieval of the public LOINC page returned HTTP 403; retained the authoritative page excerpt returned by web access.",
+    "No LICENSE file exists at the attempted hts-specs root URL (HTTP 404); no explicit license found in the pinned specification or README. Only short factual excerpts retained."
+  ],
+  "build": "Existing GRCh37/b37 conventions retained; no coordinate transformation, reference-data update, or genotype reclassification."
+}

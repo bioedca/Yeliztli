@@ -1,0 +1,30 @@
+# LL381-5
+
+# MG_5_Genetic variant allelic state
+
+# Active
+
+## Basic Properties
+
+OID
+    1.3.6.1.4.1.12009.10.1.2460
+Name
+    MG_5_Genetic variant allelic state
+Description
+    Genetic variant allelic state
+LOINCs using this list
+    2
+
+## Answer List
+
+Answer  | Code  | Score  | Answer ID
+--- | --- | --- | ---
+Heteroplasmic  |  |  | LA6703-8
+Homoplasmic  |  |  | LA6704-6
+Homozygous  |  |  | LA6705-3
+Heterozygous  |  |  | LA6706-1
+Hemizygous  |  |  | LA6707-9
+## LOINC terms using this Answer List
+
+53034-5  | Allelic state
+48007-9  | Genetic variant allelic state [Type] in Blood or Tissue by Molecular genetics method

@@ -1,0 +1,15 @@
+{
+  "doi": "10.1093/bioinformatics/btr330",
+  "pmid": "21653522",
+  "pmcid": "PMC3137218",
+  "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3137218/",
+  "accessed": "2026-11-09",
+  "section": "2.1.2 Conventions and reserved keywords",
+  "facts": {
+    "GT_0": "reference allele",
+    "GT_positive_integer": "one-based ALT allele index",
+    "missing_value": ".",
+    "allele_count": "indicates ploidy"
+  },
+  "license": "CC BY-NC 2.5; no article prose or figure reproduced."
+}
