@@ -285,7 +285,11 @@ reference data:
 - **SpliceAI** is a manual, user-supplied database and is never downloaded or updated by Yeliztli.
   Supply the hg19 (GRCh37) precomputed files: `scripts/ingest_spliceai_scores.py` reads each VCF
   header first and refuses a file that declares another build, leaving the existing database
-  unchanged. A file whose header declares no build needs `--genome-build GRCh37`.
+  unchanged. Contig IDs, lengths and assembly labels may be double-quoted and have surrounding
+  whitespace; their build checks still apply. Malformed contig records, duplicate attributes and
+  invalid stated lengths are refused before replacement. A file whose header declares no build
+  needs `--genome-build GRCh37`; that confirmation cannot override contradictory or malformed
+  header evidence.
 
 These sources do not appear in the per-database auto-update table and do not have automatic
 upstream release checks. To refresh them, use the relevant manual rebuild, local ingest, or setup

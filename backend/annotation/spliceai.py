@@ -145,7 +145,12 @@ _OTHER_BUILD_NAME_RE = re.compile(
     r"(?:grch38|hg38|b38|hs38|assembly38|ncbi36|hg18|b36|chm13|t2t|hs1)(?!\d)"
 )
 _LABEL_TOKEN_RE = re.compile(r"[a-z0-9]+")
-_CONTIG_FIELD_RE = re.compile(r"(\w+)=([^,>]*)")
+# Possessive repeats prevent malformed quoted values from redistributing a long
+# whitespace run among adjacent matches. Delimiters are excluded from values.
+_CONTIG_FIELD_RE = re.compile(
+    r"\s*+(?P<key>[A-Za-z_][A-Za-z0-9_.-]*+)\s*+=\s*+"
+    r'(?P<value>"(?:[^"\\]|\\["\\])*+"|[^",<>]*+)\s*+(?:,|$)'
+)
 
 
 def _classify_build_label(label: str) -> str | None:
@@ -160,6 +165,42 @@ def _classify_build_label(label: str) -> str | None:
     return None
 
 
+def _parse_contig_fields(path: Path, line: str) -> dict[str, str]:
+    """Read one structured contig record without skipping malformed evidence.
+
+    Quoted values may contain commas and escaped double quotes/backslashes.
+    Match every character rather than searching for fields inside other values;
+    reject duplicate keys instead of letting the last one hide a contradiction.
+    """
+    error = f"{path}: malformed ##contig header"
+    body = line.removeprefix("##contig=").strip()
+    if not (body.startswith("<") and body.endswith(">")):
+        raise ValueError(f"{error}: expected <key=value,...>.")
+    body = body[1:-1].strip()
+    if not body or body.endswith(","):
+        raise ValueError(f"{error}: empty record or trailing comma.")
+    fields: dict[str, str] = {}
+    position = 0
+    while position < len(body):
+        match = _CONTIG_FIELD_RE.match(body, position)
+        if match is None:
+            raise ValueError(f"{error}: invalid field or quoting.")
+        key, value = match.group("key", "value")
+        if key in fields:
+            raise ValueError(f"{error}: duplicate field {key}.")
+        if value.startswith('"'):
+            value = re.sub(r'\\(["\\])', r"\1", value[1:-1])
+        fields[key] = value.strip()
+        position = match.end()
+    identifier = fields.get("ID", "")
+    if not re.fullmatch(r'[^\s,<>"\\]+', identifier):
+        raise ValueError(f"{error}: missing or invalid ID.")
+    length = fields.get("length")
+    if length is not None and (not re.fullmatch(r"[0-9]+", length) or not length.lstrip("0")):
+        raise ValueError(f"{error}: length must be a positive decimal integer.")
+    return fields
+
+
 def _assess_header(path: Path, header: list[str]) -> str | None:
     """Return ``"GRCh37"`` when the header verifies it, ``None`` when it is silent.
 
@@ -168,8 +209,8 @@ def _assess_header(path: Path, header: list[str]) -> str | None:
     and the declared length of any contig in :data:`_GRCH37_CONTIG_LENGTHS`.
 
     Raises:
-        ValueError: the header names another build, or contradicts itself
-            (e.g. a GRCh37 label with a GRCh38 contig length).
+        ValueError: the header has malformed contig metadata, names another
+            build, or contradicts itself (e.g. a GRCh37 label with another length).
     """
     grch37: list[str] = []
     other: list[str] = []
@@ -181,9 +222,8 @@ def _assess_header(path: Path, header: list[str]) -> str | None:
                 grch37.append(f"##{key}={label.strip()}")
             elif verdict == "other":
                 other.append(f"##{key}={label.strip()}")
-        elif line.startswith("##contig=<"):
-            body = line[len("##contig=<") :].rstrip().removesuffix(">")
-            fields = dict(_CONTIG_FIELD_RE.findall(body))
+        elif line.startswith("##contig="):
+            fields = _parse_contig_fields(path, line)
             assembly = fields.get("assembly", "").strip()
             verdict = _classify_build_label(assembly) if assembly else None
             if verdict == "GRCh37":
@@ -192,9 +232,9 @@ def _assess_header(path: Path, header: list[str]) -> str | None:
                 other.append(f"contig assembly={assembly}")
             contig = normalize_chrom(fields.get("ID", ""))
             expected = _GRCH37_CONTIG_LENGTHS.get(contig)
-            length = fields.get("length", "").strip()
-            if expected is not None and length.isdigit():
-                if int(length) == expected:
+            length = fields.get("length")
+            if expected is not None and length is not None:
+                if length.lstrip("0") == str(expected):
                     grch37.append(f"contig {contig} length={length}")
                 else:
                     other.append(f"contig {contig} length={length} (GRCh37: {expected})")
