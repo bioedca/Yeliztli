@@ -91,9 +91,9 @@ export default function PRSGaugeCard({ prs }: PRSGaugeCardProps) {
   const snpsUsedTyped = Math.max(0, prs.snps_used - snpsUsedImputed)
   const hasImputedCoverage = snpsUsedImputed > 0
 
-  // Build the "(ancestry, n=…)" source detail conditionally. Shared adapters that
-  // lack these fields (FH/eBMD via toGaugePrs) pass source_ancestry="" and
-  // sample_size=0, which previously rendered a broken "(, n=0)" footer — a stray
+  // Build the "(ancestry, n=…)" source detail conditionally. Legacy findings
+  // without development provenance use source_ancestry="" and sample_size=0,
+  // which previously rendered a broken "(, n=0)" footer — a stray
   // comma plus a false "0 samples" claim. Include each part only when present;
   // drop the parenthetical entirely when neither is. (#589)
   const sourceDetailParts = [
