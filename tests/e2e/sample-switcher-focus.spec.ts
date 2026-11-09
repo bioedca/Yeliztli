@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const direction of ['Tab', 'Shift+Tab'] as const) {
   test(`${direction} leaves the complete selector and closes it without restoring focus`, async ({ page }) => {
-    await page.goto('/settings?sample_id=1')
+    await page.goto('/settings/general?sample_id=1')
     const { trigger, tree } = await openTree(page)
     if (direction === 'Shift+Tab') {
       await page.keyboard.press(direction)
@@ -57,7 +57,7 @@ for (const direction of ['Tab', 'Shift+Tab'] as const) {
 }
 
 test('internal navigation, Escape, and selection keep their focus behavior', async ({ page }) => {
-  await page.goto('/settings?sample_id=1')
+  await page.goto('/settings/general?sample_id=1')
   const { trigger, tree } = await openTree(page)
   await page.keyboard.press('Home')
   const parent = tree.getByTestId('individual-row-10')
@@ -72,13 +72,6 @@ test('internal navigation, Escape, and selection keep their focus behavior', asy
   await expect(tree.getByTestId('sample-row-2')).toBeFocused()
   await expect(tree).toBeVisible()
   await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1)
-  const accessibility = await new AxeBuilder({ page })
-    .include('[role="tree"]')
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze()
-  expect(accessibility.passes.length).toBeGreaterThan(0)
-  expect(accessibility.violations).toEqual([])
-
   await page.keyboard.press('Escape')
   await expect(tree).toHaveCount(0)
   await expect(trigger).toBeFocused()
@@ -91,8 +84,20 @@ test('internal navigation, Escape, and selection keep their focus behavior', asy
   await expect(trigger).toBeFocused()
 })
 
+test('the expanded tree passes its scoped accessibility audit', async ({ page }) => {
+  await page.goto('/settings/general?sample_id=1')
+  const { tree } = await openTree(page)
+  await expect(tree.getByTestId('sample-row-1')).toBeVisible()
+  const accessibility = await new AxeBuilder({ page })
+    .include('[role="tree"]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze()
+  expect(accessibility.passes.length).toBeGreaterThan(0)
+  expect(accessibility.violations).toEqual([])
+})
+
 test('unknown focus destinations and window blur do not dismiss the tree', async ({ page }) => {
-  await page.goto('/settings?sample_id=1')
+  await page.goto('/settings/general?sample_id=1')
   const { trigger, tree } = await openTree(page)
   // Dispatching these events covers their envelopes without pretending that
   // a headless browser can reproduce an operating-system window switch.
@@ -119,7 +124,7 @@ test('late individual details regroup a focused sample without closing the tree'
     await route.fulfill({ json: detail })
   })
   try {
-    await page.goto('/settings?sample_id=1')
+    await page.goto('/settings/general?sample_id=1')
     const trigger = page.getByRole('button', { name: /switch sample/i })
     await trigger.focus()
     await page.keyboard.press('Enter')
