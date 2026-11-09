@@ -418,6 +418,51 @@ describe("IndividualSelector keyboard (#2066)", () => {
     expect(focused()).toBe(trigger)
   })
 
+  it.each([false, true])("closes when Tab leaves the selector (shift: %s) without taking focus back", async (shift) => {
+    installFetchScenario(SAMPLES, INDIVIDUALS)
+    const user = userEvent.setup()
+    render(
+      <>
+        <button>Before selector</button>
+        <IndividualSelector />
+        <button>After selector</button>
+      </>,
+    )
+    const trigger = await screen.findByRole("button", { name: /switch sample/i })
+    await user.click(trigger)
+    const tree = await screen.findByRole("tree", { name: /individuals and samples/i })
+    await waitFor(() => expect(within(tree).getByText("2")).toBeInTheDocument())
+    expect(tree.contains(focused())).toBe(true)
+
+    if (shift) {
+      await user.tab({ shift: true })
+      expect(focused()).toBe(trigger)
+      expect(tree).toBeInTheDocument()
+      expect(trigger).toHaveAttribute("aria-expanded", "true")
+    }
+    await user.tab({ shift })
+
+    expect(focused()).toBe(screen.getByRole("button", { name: shift ? "Before selector" : "After selector" }))
+    expect(screen.queryByRole("tree", { name: /individuals and samples/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute("aria-expanded", "false")
+  })
+
+  it.each(["null", "window"])("keeps the tree open when blur has no DOM focus destination (%s)", async (destination) => {
+    const { user, trigger, tree } = await openTree()
+    const row = within(tree).getByTestId("individual-row-10")
+    await waitFor(() => expect(focused()).toBe(row))
+
+    // Window focus changes and removing a focused row can omit a DOM target.
+    // Neither proves that the user moved to a control outside the selector.
+    fireEvent.blur(row, { relatedTarget: destination === "window" ? window : null })
+
+    expect(tree).toBeInTheDocument()
+    expect(trigger).toHaveAttribute("aria-expanded", "true")
+    expect(focused()).toBe(row)
+    await user.keyboard("{End}")
+    expect(focused()).toBe(within(tree).getByTestId("sample-row-5"))
+  })
+
   it("navigates the tree with the arrow, Home and End keys", async () => {
     const { user, tree } = await openTree()
     const ind = within(tree).getByTestId("individual-row-10")

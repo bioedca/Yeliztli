@@ -329,7 +329,18 @@ export default function IndividualSelector() {
   }
 
   return (
-    <div ref={containerRef} className="relative hidden sm:block">
+    <div
+      ref={containerRef}
+      className="relative hidden sm:block"
+      onBlur={(event) => {
+        // A null/window destination can accompany window blur or regrouping
+        // a focused row. Close only for a known move outside the whole selector.
+        const destination = event.relatedTarget
+        if (destination instanceof Node && !event.currentTarget.contains(destination)) {
+          setOpen(false)
+        }
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
