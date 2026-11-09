@@ -11,6 +11,8 @@ auto-download build function, and ACMG never references it.
 from __future__ import annotations
 
 import gzip
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -458,6 +460,35 @@ class TestContigHeaderFields:
     def _rows(engine: sa.Engine) -> list:
         with engine.connect() as conn:
             return conn.execute(sa.select(spliceai_scores).order_by(spliceai_scores.c.id)).all()
+
+    def test_malformed_whitespace_header_is_rejected_promptly(self, tmp_path: Path) -> None:
+        path = _write(
+            tmp_path,
+            "long-malformed.vcf",
+            _vcf_with_header("##contig=<ID=1,length=" + " " * 4096 + '"unterminated>'),
+        )
+        # A separate process bounds a regression that otherwise stalls the suite.
+        # This small header takes far below the generous ten-second limit when
+        # parsing is linear; the old ambiguous regex exceeds that bound.
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from pathlib import Path; import sys; "
+                "from backend.annotation.spliceai import read_spliceai_assembly\n"
+                "try: read_spliceai_assembly(Path(sys.argv[1]), genome_build='GRCh37')\n"
+                "except ValueError as exc:\n"
+                "    assert 'malformed ##contig' in str(exc)\n"
+                "    print('malformed header rejected')\n"
+                "else: raise AssertionError('malformed header accepted')\n",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        assert result.stdout == "malformed header rejected\n"
 
     @pytest.mark.parametrize(
         "fields",

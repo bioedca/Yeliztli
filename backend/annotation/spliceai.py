@@ -145,9 +145,11 @@ _OTHER_BUILD_NAME_RE = re.compile(
     r"(?:grch38|hg38|b38|hs38|assembly38|ncbi36|hg18|b36|chm13|t2t|hs1)(?!\d)"
 )
 _LABEL_TOKEN_RE = re.compile(r"[a-z0-9]+")
+# Possessive repeats prevent malformed quoted values from redistributing a long
+# whitespace run among adjacent matches. Delimiters are excluded from values.
 _CONTIG_FIELD_RE = re.compile(
-    r"\s*(?P<key>[A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*"
-    r'(?P<value>"(?:[^"\\]|\\["\\])*"|[^",<>]*)\s*(?:,|$)'
+    r"\s*+(?P<key>[A-Za-z_][A-Za-z0-9_.-]*+)\s*+=\s*+"
+    r'(?P<value>"(?:[^"\\]|\\["\\])*+"|[^",<>]*+)\s*+(?:,|$)'
 )
 
 
