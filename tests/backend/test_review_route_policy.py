@@ -174,6 +174,7 @@ def _copilot_v3_body(changed_files: int, *, generated_comments: int = 0) -> str:
 
 
 def _coderabbit_v3_body(changed_files: int, *, ignored_files: int | None = None) -> str:
+    """Model the required contract, not evidence that CodeRabbit emits it (#2490)."""
     ignored = (
         ""
         if ignored_files is None
@@ -1411,13 +1412,13 @@ def test_v3_coderabbit_trusts_only_its_clean_structured_counts(body: str) -> Non
         if item["author"]["databaseId"] == BOT_ACTOR_IDS[CODERABBIT_GATE]
     )
     review["body"] = body
-    assert _declined(
-        CODERABBIT_GATE, NOT_CLEAN, "a commented review that is not a clean verdict"
-    ) in validate_context(
-        context,
-        files,
-        now=NOW,
-    )
+    assert validate_context(context, files, now=NOW) == [
+        "CodeRabbit schema-v3 evidence unavailable: "
+        "a commented review that is not a clean verdict. "
+        "Completion checks/statuses, walkthroughs and automatic approvals are not accepted. "
+        "After the attempt is terminal or confirmed cancelled/idle, select another available "
+        "provider; see docs/develop/coderabbit-reviews.md."
+    ]
 
 
 def test_v3_codex_accepts_the_existing_canonical_immutable_clean_comment() -> None:
@@ -1607,6 +1608,90 @@ def test_an_ignored_current_head_review_is_not_blamed_on_an_earlier_head() -> No
     errors = validate_context(context, files, now=NOW)
     assert _declined(CODERABBIT_GATE, NO_ACTIVITY) in errors
     assert _declined(CODERABBIT_GATE, EARLIER_HEAD) not in errors
+
+
+@pytest.mark.parametrize(
+    ("artifact", "detail"),
+    [
+        ("missing", "no verified current-head formal review"),
+        ("walkthrough", "no verified current-head formal review"),
+        ("edited-walkthrough", "no verified current-head formal review"),
+        ("completion-comment", "no verified current-head formal review"),
+        ("earlier-head", "all formal review artifacts predate the current head"),
+        ("findings", "a commented review that is not a clean verdict"),
+        ("automatic-approval", "an approved review that is not a clean verdict"),
+        ("edited-review", "an edited review"),
+        ("refusal", "a commented review that is not a clean verdict"),
+    ],
+)
+def test_v3_coderabbit_unavailable_evidence_names_the_safe_recovery(
+    artifact: str, detail: str
+) -> None:
+    """A completed clean run must not send its owner into another paid retry.
+
+    The comment excerpts reproduce PR #2489's public artifacts, not a new
+    accepted envelope. The surrounding identities and times are synthetic.
+    See docs/develop/coderabbit-reviews.md for the native objects and controls.
+    """
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE}, schema_version=3)
+    pull_request = context["data"]["repository"]["pullRequest"]
+    accepted_reviews = pull_request["reviews"]
+    pull_request["reviews"] = {"totalCount": 0, "nodes": []}
+    when = GATE_TIMES[CODERABBIT_GATE]
+    if artifact in {"walkthrough", "edited-walkthrough", "completion-comment"}:
+        body = (
+            "Full review finished."
+            if artifact == "completion-comment"
+            else "No actionable comments were generated in the recent review. 🎉"
+        )
+        edited = artifact == "edited-walkthrough"
+        later = when.replace(":00Z", ":30Z")
+        comment = _comment(
+            BOT_ACTOR_IDS[CODERABBIT_GATE],
+            body,
+            when,
+            association="NONE",
+            typename="Bot",
+            updated_at=later if edited else when,
+            last_edited_at=later if edited else None,
+        )
+        pull_request["comments"] = {"totalCount": 1, "nodes": [comment]}
+    elif artifact != "missing":
+        review = _review(
+            BOT_ACTOR_IDS[CODERABBIT_GATE],
+            when,
+            head_sha="b" * 40 if artifact == "earlier-head" else HEAD_SHA,
+            state="APPROVED" if artifact == "automatic-approval" else "COMMENTED",
+            body=(
+                "Review skipped: rate limit exceeded"
+                if artifact == "refusal"
+                else _coderabbit_v3_body(1)
+            ),
+            review_comment_count=1 if artifact == "findings" else 0,
+            last_edited_at=when if artifact == "edited-review" else None,
+        )
+        pull_request["reviews"] = {"totalCount": 1, "nodes": [review]}
+
+    assert validate_context(context, files, now=NOW) == [
+        f"CodeRabbit schema-v3 evidence unavailable: {detail}. "
+        "Completion checks/statuses, walkthroughs and automatic approvals are not accepted. "
+        "After the attempt is terminal or confirmed cancelled/idle, select another available "
+        "provider; see docs/develop/coderabbit-reviews.md."
+    ]
+    # Guidance does not disable the existing strict formal-review contract.
+    pull_request["reviews"] = accepted_reviews
+    assert validate_context(context, files, now=NOW) == []
+
+
+def test_coderabbit_availability_guidance_preserves_the_v2_diagnostic() -> None:
+    files = [ChangedFile("README.md")]
+    context = _context("Load-bearing", files, automated_gates={CODERABBIT_GATE})
+    context["data"]["repository"]["pullRequest"]["reviews"] = {
+        "totalCount": 0,
+        "nodes": [],
+    }
+    assert validate_context(context, files, now=NOW) == [_declined(CODERABBIT_GATE, NO_ACTIVITY)]
 
 
 def test_bot_activity_is_the_verdicts_time_and_only_that() -> None:

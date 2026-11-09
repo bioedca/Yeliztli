@@ -59,6 +59,14 @@ starved the pull requests that had actually selected it. A review now runs when 
 `review:coderabbit` label is applied or someone comments `@coderabbitai review`. Treat these
 standards as the bar to meet whether or not a reviewer shows up to say so.
 
+For schema v3, the configured fully clean CodeRabbit output currently lacks an
+accepted immutable artifact. Treat that path as unavailable and choose another
+available provider, after any current attempt is terminal or confirmed
+cancelled/idle. See the [CodeRabbit evidence audit](coderabbit-reviews.md).
+Do not spend a review to probe this known mismatch or substitute a green
+completion check for the required clean-review evidence. The v2 protocol and
+strict formal-envelope acceptance rules remain unchanged.
+
 ## Scientific accuracy
 
 Yeliztli's analyses rest on biological and statistical facts. When adding or changing logic

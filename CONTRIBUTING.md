@@ -93,7 +93,11 @@ V3 trusts only a small provider-authenticated terminal envelope:
   [supported formats and API audit](docs/develop/copilot-reviews.md).
 - **CodeRabbit:** its unedited structured clean review, with zero actionable or
   attached comments, no ignored files, and its selected-file count equal to
-  GitHub's changed-file count.
+  GitHub's changed-file count. Its configured fully clean run currently supplies
+  no accepted v3 artifact; treat that path as unavailable and select another
+  available provider. See the dated [availability audit](docs/develop/coderabbit-reviews.md)
+  before considering this lane. Mutable walkthroughs, completion checks/statuses
+  and automatic approvals do not replace the formal envelope (#2490).
 
 The provider identity, exact head, unedited evidence, resolved threads, absence
 of an active change request, and unique open-PR ownership are all fail-closed.
