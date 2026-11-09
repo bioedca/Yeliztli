@@ -316,6 +316,33 @@ An absent shard, truncated summary or allowed prerequisite skip requires an
 explicit incomplete/limited validation report; it is not a complete selected
 suite pass. The `slow` tier remains separate and is not claimed by this recipe.
 
+## Restricted-sandbox wakeup diagnostic
+
+Before collecting backend tests, the harness sends one byte through a
+nonblocking `socket.socketpair()`, once per session. This probes the same
+self-pipe operation used by Python 3.12/3.13's selector event loop. Both sockets
+close immediately; the check starts no threads and changes no event-loop behavior.
+
+If the operating system refuses that operation with `EPERM` or `EACCES`, pytest
+exits nonzero with **`ASYNCIO_WAKEUP_BLOCKED`**. Cross-thread event-loop wakeups
+are blocked in that environment, so `TestClient`/AnyIO portal tests can hang.
+Run the backend suite outside the restricted sandbox. This is the environment
+limitation investigated in [#1892](https://github.com/bioedca/Yeliztli/issues/1892)
+and [#2233](https://github.com/bioedca/Yeliztli/issues/2233), rather than evidence
+of a Yeliztli or Python 3.13 regression. Tests fail; none are skipped by this check.
+
+Other errors retain their original exception. A timeout alone does not establish
+sandbox policy, and a successful send does not prove that every possible startup
+hang is absent. CI retains its separately bounded `TestClient startup witness`
+(`scripts/ci_startup_witness.py`) for the actual application startup path.
+
+References: Python's
+[3.12 selector-loop implementation](https://github.com/python/cpython/blob/3.12/Lib/asyncio/selector_events.py)
+and [3.13 implementation](https://github.com/python/cpython/blob/3.13/Lib/asyncio/selector_events.py),
+and pytest's [configuration hook](https://docs.pytest.org/en/stable/reference/reference.html#pytest.hookspec.pytest_configure)
+and [session exit API](https://docs.pytest.org/en/stable/reference/reference.html#pytest.exit)
+(accessed 2026-11-09).
+
 ## CI tiers
 
 CI (`.github/workflows/ci.yml`) is organised so a single **`ci-required`** check aggregates
