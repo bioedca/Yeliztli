@@ -18,11 +18,22 @@ import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.analysis.ebmd_prs import EBMD_CONTEXT
+from backend.analysis.ebmd_prs import (
+    EBMD_CONTEXT,
+    EBMD_PGS_ID,
+    score_ebmd_prs,
+    store_ebmd_findings,
+)
+from backend.analysis.pgs_bridge import PgsScoreSpec
+from backend.annotation.pgs_catalog import (
+    create_pgs_tables,
+    pgs_score_metadata,
+    pgs_score_weights,
+)
 from backend.config import Settings
 from backend.db.connection import DBRegistry, reset_registry
 from backend.db.sample_schema import create_sample_tables
-from backend.db.tables import findings, reference_metadata, samples
+from backend.db.tables import annotated_variants, findings, reference_metadata, samples
 
 # The context keys EBMDView.tsx renders.
 _RENDERED_CONTEXT_KEYS = ("not_a_substitute", "direction", "utility", "byo")
@@ -162,3 +173,132 @@ def test_a_presentable_stored_score_is_available_and_not_withheld(
     assert body["available"] is True
     assert body["prs"]["name"] == "Heel eBMD"
     assert body["prs"]["snps_used"] == 10
+
+
+def test_score_store_and_http_response_preserve_development_provenance(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Synthetic weights and registry metadata traverse the real production path.
+
+    The declared variant count intentionally differs from loaded/scored weights:
+    provenance must not be replaced with either coverage count (#2423).
+    """
+    spec = PgsScoreSpec(
+        pgs_id=EBMD_PGS_ID,
+        module="ebmd",
+        name="Synthetic heel score",
+        trait_label="heel_ebmd",
+        method="Synthetic method",
+        multi_ancestry=False,
+        ancestries=["EAS"],
+        source_study="Synthetic provenance study",
+        source_pmid="",
+        sample_size=12345,
+        license="Synthetic fixture license",
+        source_url="https://example.org/synthetic-ebmd-score",
+        higher_is="protective",
+        bundle_ok=False,
+    )
+    monkeypatch.setattr(
+        "backend.analysis.ebmd_prs.load_pgs_registry", lambda: {"heel_ebmd": [spec]}
+    )
+    pgs_engine = sa.create_engine("sqlite://")
+    sample_engine = sa.create_engine(f"sqlite:///{tmp_path / 'data' / 'samples' / 'sample_1.db'}")
+    try:
+        create_pgs_tables(pgs_engine)
+        with pgs_engine.begin() as conn:
+            conn.execute(
+                pgs_score_metadata.insert().values(
+                    pgs_id=EBMD_PGS_ID,
+                    pgs_name=spec.name,
+                    trait_reported="Synthetic heel trait",
+                    genome_build="GRCh37",
+                    variants_number=1234,
+                    weight_type="beta",
+                    license=spec.license,
+                    license_bundle_ok=0,
+                )
+            )
+            conn.execute(
+                pgs_score_weights.insert(),
+                [
+                    {
+                        "pgs_id": EBMD_PGS_ID,
+                        "rsid": f"rsSyntheticEbmd{i}",
+                        "chrom": "1",
+                        "pos": 700 + i,
+                        "effect_allele": "A",
+                        "other_allele": "G",
+                        "effect_weight": 0.1,
+                    }
+                    for i in range(3)
+                ],
+            )
+        with sample_engine.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="rsSyntheticEbmd0",
+                    chrom="1",
+                    pos=700,
+                    genotype="AA",
+                    annotation_coverage=0,
+                )
+            )
+        score = score_ebmd_prs(sample_engine, pgs_engine, "EAS")
+        assert score is not None
+        assert store_ebmd_findings(score, sample_engine) == 1
+        expected = {
+            "source_ancestry": "EAS",
+            "sample_size": 12345,
+            "genome_build": "GRCh37",
+            "variants_number": 1234,
+            "source_url": spec.source_url,
+        }
+        with sample_engine.connect() as conn:
+            rows = conn.execute(sa.select(findings).where(findings.c.module == "ebmd")).all()
+        assert len(rows) == 1
+        stored = json.loads(rows[0].detail_json)
+        assert {key: stored[key] for key in expected} == expected
+
+        response = client.get("/api/analysis/ebmd/prs?sample_id=1")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["available"] is True and body["withheld"] is False
+        prs = body["prs"]
+        assert prs is not None
+        assert {key: prs[key] for key in expected} == expected
+        assert prs["snps_used"] == 1 and prs["snps_total"] == 3
+        assert prs["pgs_license"] == spec.license
+        assert body["research_use_only"] is True
+        assert body["context"] == EBMD_CONTEXT
+    finally:
+        sample_engine.dispose()
+        pgs_engine.dispose()
+
+
+@pytest.mark.parametrize("source_ancestry", [None, "unknown"])
+def test_legacy_and_unknown_provenance_have_explicit_response_defaults(
+    client: TestClient, tmp_path: Path, source_ancestry: str | None
+) -> None:
+    detail: dict[str, object] = {"name": "Synthetic legacy score", "source_study": "Synthetic"}
+    if source_ancestry is not None:
+        detail.update(
+            source_ancestry=source_ancestry,
+            sample_size=0,
+            genome_build=None,
+            variants_number=None,
+            source_url=None,
+        )
+    _store_ebmd_prs_finding(tmp_path, detail)
+
+    response = client.get("/api/analysis/ebmd/prs?sample_id=1")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["available"] is True and body["withheld"] is False
+    prs = body["prs"]
+    assert prs is not None
+    assert prs["source_ancestry"] == (source_ancestry or "")
+    assert prs["sample_size"] == 0
+    assert prs["genome_build"] is None
+    assert prs["variants_number"] is None
+    assert prs["source_url"] is None

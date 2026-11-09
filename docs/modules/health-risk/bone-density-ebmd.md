@@ -15,6 +15,13 @@ many small-effect variants associated with heel bone density.
 When available, a polygenic result with a raw score, z-score, population percentile, and the
 SNP coverage your array provided — plus an ancestry-mismatch warning when relevant.
 
+The card also shows the stored score's development ancestry and sample size when known,
+along with its declared variant count, development method, license, and source link.
+The declared variant count describes the score, separately from the SNPs scored for your
+sample. Older findings without this metadata leave those details empty; missing sample
+sizes are not presented as zero. When no source URL is stored, the score's PGS Catalog
+accession supplies the link.
+
 Direction matters for this score: a **lower** heel eBMD percentile means lower genetically
 predicted bone density and higher fracture-risk context. A high percentile means higher
 genetically predicted bone density and is protective.
