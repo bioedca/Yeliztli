@@ -107,7 +107,8 @@ LOW_LDL_CONDITION_TERMS = (
 # Keep these as exact Sequence Ontology tokens; a compound VEP consequence is
 # split before comparison.
 # APOB: PTVs cause familial hypobetalipoproteinemia (Peloso et al. 2019,
-# PMID 30939045; ClinGen FH VCEP, DOI 10.1016/j.atherosclerosis.2025.119569).
+# PMID 30939045; Dron et al. 2023, PMID 36723951).
+# APOB evidence: data/science-evidence/2026-11-09-apob-citation-attribution-2394/.
 # PCSK9: FH-causing variants are gain-of-function (Abifadel et al. 2003,
 # PMID 12730697; Cunningham et al. 2007, PMID 17435765; Di Taranto et al. 2017,
 # PMID 29127338), while nonsense and frameshift variants lower LDL cholesterol

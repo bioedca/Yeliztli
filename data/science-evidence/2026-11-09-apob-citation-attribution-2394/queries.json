@@ -1,0 +1,63 @@
+{
+  "access_note": "(accessed 2026-11-09)",
+  "order": "Consensus and Scite were invoked first; then official registry/publication sources and the NCBI Entrez skill.",
+  "consensus": {
+    "query": "Is DOI 10.1016/j.atherosclerosis.2025.119569 (Development of gene-specific ACMG/AMP guidelines for the interpretation of APOB and PCSK9 variants, Chora et al., 2025) a congress abstract or a released ClinGen Familial Hypercholesterolemia Variant Curation Expert Panel specification? Identify publication metadata; do not infer specification approval from the title.",
+    "returned_results": 20,
+    "exact_target_doi_matches": 0,
+    "use": "Discovery only; no returned paper is cited from this search. Unrelated results, abstracts and institutional-access URLs are not retained."
+  },
+  "scite": {
+    "tool": "verify_papers",
+    "dois": [
+      "10.1016/j.atherosclerosis.2025.119569",
+      "10.1161/CIRCGEN.118.002376",
+      "10.1001/jamacardio.2022.5271"
+    ],
+    "result": "All three verified; no indexed editorial notices, contrasting-evidence flags, or predatory-journal flags returned."
+  },
+  "cspec": {
+    "url": "https://cspec.genome.network/cspec/api/svis?detail=high",
+    "selection": "APOB and LDLR gene records; retain identifiers/status/version and public panel attribution only."
+  },
+  "crossref": {
+    "url": "https://api.crossref.org/works/10.1016/j.atherosclerosis.2025.119569",
+    "selection": "Bibliographic identifiers/type/title/dates/version/license links only; no abstract or author metadata."
+  },
+  "entrez": [
+    {
+      "endpoint": "efetch",
+      "params": {
+        "db": "pubmed",
+        "id": "30939045,36723951",
+        "retmode": "xml"
+      },
+      "use": "Current citation identity and linked-notice audit; sanitized XML retains all CommentsCorrectionsList elements if present."
+    },
+    {
+      "endpoint": "efetch",
+      "params": {
+        "db": "pubmed",
+        "id": "30939045",
+        "retmode": "xml"
+      },
+      "use": "Read public primary abstract for study attribution and cohort independence; abstract text not persisted."
+    }
+  ],
+  "web_queries": [
+    "\"10.1016/j.atherosclerosis.2025.119569\"",
+    "Atherosclerosis volume 407 August 2025 congress abstracts APOB PCSK9 Chora",
+    "Crossref metadata CC0 factual metadata license REST API"
+  ],
+  "primary_paper_readback": {
+    "Peloso": "PubMed abstract through the Entrez skill; PMC7044908 web view returned a CAPTCHA page.",
+    "Dron": "PMC9996405 Methods/Study Populations and results; UK Biobank component used for independence mapping."
+  },
+  "fallbacks": [
+    "The web reader could not open the CSpec/Crossref API URLs; direct public HTTPS JSON retrieval succeeded.",
+    "The publisher full-text page returned HTTP 403; only its indexed publication/session metadata is used. Abstract-body approval wording was not verified.",
+    "The initially attempted Crossref metadata-license-information URL returned 404; the official Metadata Retrieval documentation supplied the licensing statement.",
+    "Consensus found related papers but no exact target DOI; official metadata supplies the attribution.",
+    "No quota failure occurred in this audit."
+  ]
+}

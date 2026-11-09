@@ -1,0 +1,29 @@
+{
+  "summary": {
+    "verified": 3,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1016/j.atherosclerosis.2025.119569",
+      "status": "verified",
+      "title": "Development of gene-specific ACMG/AMP guidelines for the interpretation of APOB and PCSK9 variants in familial hypercholesterolemia",
+      "year": 2025
+    },
+    {
+      "doi": "10.1161/circgen.118.002376",
+      "status": "verified",
+      "title": "Rare Protein-Truncating Variants in\n            <i>APOB</i>\n            , Lower Low-Density Lipoprotein Cholesterol, and Protection Against Coronary Heart Disease",
+      "year": 2019
+    },
+    {
+      "doi": "10.1001/jamacardio.2022.5271",
+      "status": "verified",
+      "title": "Association of Rare Protein-Truncating DNA Variants in <i>APOB</i> or <i>PCSK9</i> With Low-density Lipoprotein Cholesterol Level and Risk of Coronary Heart Disease",
+      "year": 2023
+    }
+  ]
+}

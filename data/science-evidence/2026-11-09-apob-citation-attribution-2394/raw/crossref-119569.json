@@ -1,0 +1,109 @@
+{
+  "accessed": "2026-11-09",
+  "source_url": "https://api.crossref.org/works/10.1016/j.atherosclerosis.2025.119569",
+  "raw_sha256": "8ce3b3ec5b13182610310bf4e56d20c81d00c9325147f36df2706f368b1822c8",
+  "headers": {
+    "Date": "Mon, 09 Nov 2026 02:20:36 GMT",
+    "Content-Type": "application/json"
+  },
+  "metadata": {
+    "DOI": "10.1016/j.atherosclerosis.2025.119569",
+    "type": "journal-article",
+    "title": [
+      "Development of gene-specific ACMG/AMP guidelines for the interpretation of APOB and PCSK9 variants in familial hypercholesterolemia"
+    ],
+    "container-title": [
+      "Atherosclerosis"
+    ],
+    "volume": "407",
+    "page": "119569",
+    "article-number": "119569",
+    "published": {
+      "date-parts": [
+        [
+          2025,
+          8
+        ]
+      ]
+    },
+    "published-print": {
+      "date-parts": [
+        [
+          2025,
+          8
+        ]
+      ]
+    },
+    "created": {
+      "date-parts": [
+        [
+          2025,
+          7,
+          18
+        ]
+      ],
+      "date-time": "2025-07-18T17:31:47Z",
+      "timestamp": 1752859907000
+    },
+    "deposited": {
+      "date-parts": [
+        [
+          2025,
+          7,
+          28
+        ]
+      ],
+      "date-time": "2025-07-28T17:46:42Z",
+      "timestamp": 1753724802000
+    },
+    "indexed": {
+      "date-parts": [
+        [
+          2026,
+          7,
+          4
+        ]
+      ],
+      "date-time": "2026-07-04T21:19:39Z",
+      "timestamp": 1783199979144,
+      "version": "3.54.6"
+    },
+    "license": [
+      {
+        "start": {
+          "date-parts": [
+            [
+              2025,
+              8,
+              1
+            ]
+          ],
+          "date-time": "2025-08-01T00:00:00Z",
+          "timestamp": 1754006400000
+        },
+        "content-version": "tdm",
+        "delay-in-days": 0,
+        "URL": "https://www.elsevier.com/tdm/userlicense/1.0/"
+      },
+      {
+        "start": {
+          "date-parts": [
+            [
+              2025,
+              8,
+              1
+            ]
+          ],
+          "date-time": "2025-08-01T00:00:00Z",
+          "timestamp": 1754006400000
+        },
+        "content-version": "tdm",
+        "delay-in-days": 0,
+        "URL": "https://www.elsevier.com/legal/tdmrep-license"
+      }
+    ],
+    "URL": "https://doi.org/10.1016/j.atherosclerosis.2025.119569",
+    "relation": {},
+    "is-referenced-by-count": 1
+  }
+}
