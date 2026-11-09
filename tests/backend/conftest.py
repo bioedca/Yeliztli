@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from _asyncio_wakeup import check_asyncio_wakeup
 from _downloads import threads_running_downloads
 from _isolated_data_home import (
     finish_session,
@@ -80,6 +81,20 @@ def _detach_backend_log_handler():
 # Huey to get_settings().data_dir at import time (backend/tasks/huey_tasks.py).
 start_session()
 install_no_network()
+
+
+def pytest_configure() -> None:
+    """Check wakeups once when this conftest registers, before test collection.
+
+    Unlike ``pytest_sessionstart``, this also runs when pytest discovers the
+    backend conftest later while collecting from the repository root.
+    """
+    try:
+        check_asyncio_wakeup()
+    except (OSError, pytest.exit.Exception):
+        # A configuration exit precedes the session fixture's cleanup.
+        finish_session()
+        raise
 
 
 @pytest.fixture(autouse=True)
