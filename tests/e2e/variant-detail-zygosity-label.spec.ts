@@ -128,3 +128,46 @@ test('uses the ploidy-aware label in the side panel and full detail page', async
   await expect(overview).toContainText('Hemizygous')
   await expect(overview).not.toContainText('hom_alt')
 })
+
+for (const [name, chrom, genotype, zygosity, label, expected] of [
+  ['diploid reference', '1', 'AA', 'hom_ref', 'Reference call', 'Reference call'],
+  ['haploid X reference', 'X', 'A', 'hom_ref', 'Reference call', 'Reference call'],
+  ['haploid Y reference', 'Y', 'A', 'hom_ref', 'Reference call', 'Reference call'],
+  ['mitochondrial reference', 'MT', 'A', 'hom_ref', 'Reference call', 'Reference call'],
+  ['undetermined', '1', 'AA', null, null, '—'],
+  ['missing server label', '1', 'AA', 'hom_ref', null, '—'],
+] as const) {
+  test(`distinguishes ${name} in both detail surfaces (#2389)`, async ({ page }) => {
+    const detail = {
+      ...variantDetail,
+      rsid: 'rsYELIZTLI2389001',
+      chrom,
+      pos: chrom === 'MT' ? 1_000 : 100_000,
+      genotype,
+      zygosity,
+      zygosity_label: label,
+      gene_symbol: null,
+      consequence: null,
+    }
+    await page.route(/\/api\/variants\/rsYELIZTLI2389001(\?|$)/, (route) =>
+      route.fulfill(jsonRoute(detail)),
+    )
+    await page.route(/\/api\/variants(\?[^/]*)?$/, (route) =>
+      route.fulfill(jsonRoute({ ...variantSummary, items: [{ ...variantSummary.items[0], ...detail }] })),
+    )
+    await page.route(/\/api\/variants\/chromosomes(\?|$)/, (route) =>
+      route.fulfill(jsonRoute([{ chrom, count: 1 }])),
+    )
+
+    await page.goto('/variants?sample_id=1')
+    await waitForReactHydration(page)
+    await page.getByText(detail.rsid, { exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('Zygosity', { exact: true }).locator('..').locator('span').last()).toHaveText(expected)
+    await expect(dialog).not.toContainText('hom_ref')
+    await dialog.getByRole('link', { name: /open full detail/i }).click()
+    const overview = page.getByTestId('tab-overview')
+    await expect(overview.getByText('Zygosity', { exact: true }).locator('..').locator('span').last()).toHaveText(expected)
+    await expect(overview).not.toContainText('hom_ref')
+  })
+}

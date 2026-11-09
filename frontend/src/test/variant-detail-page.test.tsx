@@ -150,7 +150,7 @@ const POLYPHEN_DISPLAY_CASES = [
 
 function detailValue(
   container: HTMLElement,
-  label: "SIFT" | "PolyPhen-2",
+  label: "SIFT" | "PolyPhen-2" | "Zygosity",
 ): HTMLElement {
   const labelNode = within(container).getByText(label, { exact: true, selector: "span" })
   const row = labelNode.parentElement
@@ -378,6 +378,33 @@ describe("VariantDetailPage (P2-21a)", () => {
     const overview = await screen.findByTestId("tab-overview")
     expect(within(overview).getByText("Hemizygous")).toBeInTheDocument()
     expect(within(overview).queryByText("hom_alt", { exact: true })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["diploid reference", "1", "AA", "hom_ref", "Reference call", "Reference call"],
+    ["haploid X reference", "X", "A", "hom_ref", "Reference call", "Reference call"],
+    ["haploid Y reference", "Y", "A", "hom_ref", "Reference call", "Reference call"],
+    ["mitochondrial reference", "MT", "A", "hom_ref", "Reference call", "Reference call"],
+    ["undetermined", "1", "AA", null, null, "—"],
+    ["missing server label", "1", "AA", "hom_ref", null, "—"],
+  ])("renders the server label for %s (#2389)", async (_case, chrom, genotype, zygosity, label, expected) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariant,
+        rsid: "rsYELIZTLI2389001",
+        chrom,
+        pos: chrom === "MT" ? 1_000 : 100_000,
+        genotype,
+        zygosity,
+        zygosity_label: label,
+      }),
+    }))
+
+    renderPage("rsYELIZTLI2389001")
+    const overview = await screen.findByTestId("tab-overview")
+    expect(detailValue(overview, "Zygosity").textContent?.trim()).toBe(expected)
+    expect(within(overview).queryByText("hom_ref", { exact: true })).not.toBeInTheDocument()
   })
 
   it("annotates HGVS coding and protein rows with notation tooltips (#1669)", async () => {

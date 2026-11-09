@@ -1,0 +1,18 @@
+{
+  "accessed": "2026-11-09",
+  "summary": {
+    "verified": 1,
+    "couldNotVerify": 0,
+    "withEditorialNotices": 0,
+    "withContrastingEvidence": 0,
+    "inPredatoryJournals": 0
+  },
+  "papers": [
+    {
+      "doi": "10.1093/bioinformatics/btr330",
+      "status": "verified",
+      "title": "The variant call format and VCFtools",
+      "year": 2011
+    }
+  ]
+}

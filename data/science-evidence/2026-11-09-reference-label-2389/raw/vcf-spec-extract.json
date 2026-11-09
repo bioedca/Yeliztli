@@ -1,0 +1,15 @@
+{
+  "url": "https://raw.githubusercontent.com/samtools/hts-specs/e821e4f02ae25c2175f9a366edca1322d6a2de72/VCFv4.5.tex",
+  "revision": "e821e4f02ae25c2175f9a366edca1322d6a2de72",
+  "document_version": "VCFv4.5 and BCFv2.2",
+  "document_date": "2026-02-25",
+  "accessed": "2026-11-09",
+  "sha256_full_response": "37f13e0d2e8e741ea8505b0342b6e6034637a1f476eeb3af1b8acc25d70246c5",
+  "section": "1.6.2 Genotype fields / GT",
+  "verbatim_fragments": [
+    "0 for the reference allele",
+    "one allele value",
+    "each missing allele"
+  ],
+  "license": "No explicit license found in the retrieved specification or repository README; only narrow factual excerpts retained."
+}

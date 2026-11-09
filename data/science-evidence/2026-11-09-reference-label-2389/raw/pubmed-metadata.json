@@ -1,0 +1,110 @@
+{
+  "accessed": "2026-11-09",
+  "endpoint": "efetch",
+  "params": {
+    "db": "pubmed",
+    "id": "21653522",
+    "retmode": "xml"
+  },
+  "sanitization": "Entrez XML-to-JSON conversion; attributes are not preserved. Abstracts, author/affiliation/contact fields, indexing terms, grants and cited references omitted. Publication types and correction/retraction link elements retained if present.",
+  "payload": {
+    "MedlineCitation": {
+      "PMID": "21653522",
+      "DateCompleted": {
+        "Year": "2011",
+        "Month": "10",
+        "Day": "07"
+      },
+      "DateRevised": {
+        "Year": "2026",
+        "Month": "11",
+        "Day": "08"
+      },
+      "Article": {
+        "Journal": {
+          "ISSN": "1367-4811",
+          "JournalIssue": {
+            "Volume": "27",
+            "Issue": "15",
+            "PubDate": {
+              "Year": "2011",
+              "Month": "Aug",
+              "Day": "01"
+            }
+          },
+          "Title": "Bioinformatics (Oxford, England)",
+          "ISOAbbreviation": "Bioinformatics"
+        },
+        "ArticleTitle": "The variant call format and VCFtools.",
+        "Pagination": {
+          "StartPage": "2156",
+          "EndPage": "2158",
+          "MedlinePgn": "2156-8"
+        },
+        "ELocationID": "10.1093/bioinformatics/btr330",
+        "Language": "eng",
+        "PublicationTypeList": {
+          "PublicationType": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural",
+            "Research Support, N.I.H., Intramural",
+            "Research Support, Non-U.S. Gov't"
+          ]
+        },
+        "ArticleDate": {
+          "Year": "2011",
+          "Month": "06",
+          "Day": "07"
+        }
+      },
+      "MedlineJournalInfo": {
+        "Country": "England",
+        "MedlineTA": "Bioinformatics",
+        "NlmUniqueID": "9808944",
+        "ISSNLinking": "1367-4803"
+      },
+      "CitationSubset": "IM"
+    },
+    "PubmedData": {
+      "History": {
+        "PubMedPubDate": [
+          {
+            "Year": "2011",
+            "Month": "6",
+            "Day": "10",
+            "Hour": "6",
+            "Minute": "0"
+          },
+          {
+            "Year": "2011",
+            "Month": "6",
+            "Day": "10",
+            "Hour": "6",
+            "Minute": "0"
+          },
+          {
+            "Year": "2011",
+            "Month": "10",
+            "Day": "8",
+            "Hour": "6",
+            "Minute": "0"
+          },
+          {
+            "Year": "2011",
+            "Month": "6",
+            "Day": "7"
+          }
+        ]
+      },
+      "PublicationStatus": "ppublish",
+      "ArticleIdList": {
+        "ArticleId": [
+          "21653522",
+          "PMC3137218",
+          "10.1093/bioinformatics/btr330",
+          "btr330"
+        ]
+      }
+    }
+  }
+}

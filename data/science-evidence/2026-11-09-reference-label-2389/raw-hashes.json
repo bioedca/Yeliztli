@@ -1,0 +1,7 @@
+{
+  "raw/loinc-answer-list.txt": "dd8516901f49cf2834fe79d8f79062496776ef08bedcb37b0ea3999d5d3a27af",
+  "raw/primary-paper-facts.json": "7035f97c2dc1535dd46f096e09547a24acae8ba15e6cb8a84429cf9b6876ef91",
+  "raw/pubmed-metadata.json": "6d97e4d5b1bed384b4d1e7ad298e4b2599de8c6778f890723053f2f4d3611ac6",
+  "raw/scite-editorial-check.json": "895f741c8ec2eb9b6151a8e420af3ed3f78f6890d9dba69748dd572fc55a238a",
+  "raw/vcf-spec-extract.json": "400dc432f46dcca369f560af0fc4e1e29bdfb5f63340e49594d945d7bf44f8c0"
+}

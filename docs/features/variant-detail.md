@@ -40,6 +40,23 @@ Single-variant evidence-card exports are not currently surfaced from the variant
 the backend variant-card endpoints are keyed to reportable findings rather than arbitrary
 Variant Explorer variants.
 
+## Understanding the zygosity label
+
+The side panel and full detail page show **Reference call** when the stored call
+has been classified as reference for the listed Ref / Alt comparison. This is
+distinct from **—**, which means no display label is available. The reference
+label does not assume two chromosome copies; it also applies to stored reference
+calls on X, Y, and MT.[^reference-call]
+
+This describes the call at that site, not its clinical significance. Existing
+labels for carried calls remain unchanged. **Reference call** is Yeliztli display
+wording, with no LOINC answer code assigned; the LOINC allelic-state answer list
+does not include a separate reference-call answer.[^allelic-state]
+
+[^reference-call]: Danecek P, et al. [The variant call format and VCFtools](https://doi.org/10.1093/bioinformatics/btr330), *Bioinformatics* (2011), [PMID:21653522](https://pubmed.ncbi.nlm.nih.gov/21653522/) (accessed 2026-11-09); [VCF v4.5 specification](https://samtools.github.io/hts-specs/VCFv4.5.pdf), section 1.6.2, revision `e821e4f`, dated 2026-02-25 (accessed 2026-11-09). These define reference versus missing calls and genotype ploidy; the application wording describes its stored classification.
+
+[^allelic-state]: [LOINC 53034-5 — Allelic state](https://loinc.org/53034-5) and its [LL381-5 answer list](https://loinc.org/LL381-5) (accessed 2026-11-09). The terminology review, source snapshots, and limitations are recorded in `data/science-evidence/2026-11-09-reference-label-2389/`.
+
 ## Understanding HGVS notation
 
 The Overview and Protein tabs name the variant in **HGVS notation** — the international standard

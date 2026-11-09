@@ -1,8 +1,8 @@
-"""Shared LOINC allelic-state labeling helpers.
+"""Shared allelic-state display labels and LOINC coding helpers.
 
 The stored ``zygosity`` values are compact analysis states
-(``het``/``hom_alt``). Display and exchange surfaces need a biological
-allelic-state label that accounts for single-copy loci.
+(``hom_ref``/``het``/``hom_alt``). Carried calls have LOINC labels that
+account for single-copy loci. Reference calls have a display-only label.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from backend.analysis.zygosity import ZYG_HOM_REF
 from backend.services.sex_inference import is_grch37_x_par_position
 
 LOINC_SYSTEM = "http://loinc.org"
@@ -119,12 +120,23 @@ def allelic_state_label_for_call(
     zygosity: str | None,
     sex: str | None,
 ) -> str | None:
-    """Return the display label for a carried variant call."""
+    """Label a known call without assigning reference calls a LOINC answer.
+
+    ``Reference call`` is ploidy-neutral and distinct from an undetermined
+    state. It describes stored carriage, not clinical significance. See the
+    terminology evidence in data/science-evidence/2026-11-09-reference-label-2389/.
+    """
+    if zygosity == ZYG_HOM_REF:
+        return "Reference call"
     coding = allelic_state_coding_for_call(chrom=chrom, pos=pos, zygosity=zygosity, sex=sex)
     return None if coding is None else coding["display"]
 
 
 def allelic_state_label(row: Mapping[str, Any], sex: str | None) -> str | None:
     """Return the display label for a row-like variant object."""
-    coding = allelic_state_coding(row, sex)
-    return None if coding is None else coding["display"]
+    return allelic_state_label_for_call(
+        chrom=row.get("chrom"),
+        pos=row.get("pos"),
+        zygosity=row.get("zygosity"),
+        sex=sex,
+    )

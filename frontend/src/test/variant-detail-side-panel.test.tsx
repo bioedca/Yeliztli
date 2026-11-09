@@ -281,6 +281,36 @@ describe("VariantDetailSidePanel (P2-21)", () => {
     expect(within(dialog).queryByText("hom_alt", { exact: true })).not.toBeInTheDocument()
   })
 
+  it.each([
+    ["diploid reference", "1", "AA", "hom_ref", "Reference call", "Reference call"],
+    ["haploid X reference", "X", "A", "hom_ref", "Reference call", "Reference call"],
+    ["haploid Y reference", "Y", "A", "hom_ref", "Reference call", "Reference call"],
+    ["mitochondrial reference", "MT", "A", "hom_ref", "Reference call", "Reference call"],
+    ["undetermined", "1", "AA", null, null, "—"],
+    ["missing server label", "1", "AA", "hom_ref", null, "—"],
+  ])("renders the server label for %s (#2389)", async (_case, chrom, genotype, zygosity, label, expected) => {
+    mockFetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        ...mockVariantDetail,
+        rsid: "rsYELIZTLI2389001",
+        chrom,
+        pos: chrom === "MT" ? 1_000 : 100_000,
+        genotype,
+        zygosity,
+        zygosity_label: label,
+      }),
+    }))
+
+    render(<VariantDetailSidePanel rsid="rsYELIZTLI2389001" sampleId={1} onClose={() => {}} />)
+    const dialog = await screen.findByRole("dialog")
+    const labelNode = await within(dialog).findByText("Zygosity", { exact: true })
+    const row = labelNode.parentElement
+    expect(row).not.toBeNull()
+    expect(row?.lastElementChild?.textContent?.trim()).toBe(expected)
+    expect(within(dialog).queryByText("hom_ref", { exact: true })).not.toBeInTheDocument()
+  })
+
   it("labels source-uncovered gnomAD frequency as not assessed", async () => {
     mockFetch.mockImplementation(async () => ({
       ok: true,

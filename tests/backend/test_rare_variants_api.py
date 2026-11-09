@@ -404,7 +404,10 @@ class TestSearchEndpoint:
 
         resp = rare_client.post("/api/analysis/rare-variants/search?sample_id=1", json={})
         assert resp.status_code == 200
-        rsids = [item["rsid"] for item in resp.json()["items"]]
+        items = resp.json()["items"]
+        assert items
+        rsids = [item["rsid"] for item in items]
+        assert "rs28897696" in rsids  # The carried positive control remains visible.
         assert "rs_hom_ref_pathogenic" not in rsids
 
     def test_search_region_filter(self, rare_client: TestClient) -> None:
