@@ -725,6 +725,8 @@ def get_database_health(
     db_info: DatabaseInfo,
     settings: Settings,
     engine: sa.Engine,
+    *,
+    build_claim_held: bool = False,
 ) -> DatabaseHealth:
     """Derive the fused :class:`DatabaseHealth` record for one database.
 
@@ -734,8 +736,11 @@ def get_database_health(
     integrity + a *serviceable* version stamp (see
     :func:`installed_version_is_serviceable`); finally absence resolves to
     failed (if the last job failed) or not_installed.
+
+    ``build_claim_held`` is reserved for cleanup's health re-check while it owns
+    the exclusive cross-process claim: its own claim is not an active import.
     """
-    from backend.db.build_guard import is_build_locked
+    from backend.db.build_guard import is_build_locked, is_cross_process_build_claimed
 
     name = db_info.name
     is_reference_resident = db_info.target_db == "reference"
@@ -768,6 +773,12 @@ def get_database_health(
     # A held build lock means a pipeline build is running right now (setup wizard
     # OR the update manager — both acquire it), even when no session job links it.
     build_active = db_info.build_mode == "pipeline" and is_build_locked(name)
+    if name == "spliceai":
+        # The manual importer can run in a separate CLI process, without a
+        # session job. Its claim covers initial schema creation through commit.
+        build_active = is_build_locked(name) or (
+            not build_claim_held and is_cross_process_build_claimed(name, settings.data_dir)
+        )
 
     if active is not None:
         active_job_id = active.job_id

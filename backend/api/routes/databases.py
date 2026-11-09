@@ -22,6 +22,7 @@ import shutil
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1549,9 +1550,21 @@ def _clean_under_lock(
     with try_acquire_build_lock(db_info.name) as acquired:
         if not acquired:
             return "locked"
-        health = get_database_health(db_info, settings, engine)
-        if health.state in ("downloading", "building"):
-            return "active"
-        if health.state == "ready":
-            return "ready"
-        return clean_database_artifacts(db_info, settings, engine)
+        # A manual SpliceAI import may run in another process. Hold its shared
+        # claim across BOTH the health re-check and unlink so a completed import
+        # cannot be deleted using an earlier corrupt/empty health snapshot.
+        spliceai = db_info.name == "spliceai"
+        claim = (
+            cross_process_build_claim(db_info.name, settings.data_dir)
+            if spliceai
+            else nullcontext(True)
+        )
+        with claim as claimed:
+            if not claimed:
+                return "locked"
+            health = get_database_health(db_info, settings, engine, build_claim_held=spliceai)
+            if health.state in ("downloading", "building"):
+                return "active"
+            if health.state == "ready":
+                return "ready"
+            return clean_database_artifacts(db_info, settings, engine)

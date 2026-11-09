@@ -46,6 +46,7 @@ import hashlib
 import json
 import math
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +54,8 @@ from typing import IO, TYPE_CHECKING
 
 import sqlalchemy as sa
 import structlog
+
+from backend.db.build_guard import build_claim
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -520,30 +523,46 @@ def ingest_spliceai_vcfs(
         raise ValueError("at least one SpliceAI VCF is required")
     if not math.isfinite(min_ds) or not 0 <= min_ds <= 1:
         raise ValueError("min_ds must be finite and between 0 and 1")
-    create_spliceai_tables(engine)
-    with engine.begin() as conn:
-        # Acquire SQLite's writer lock before checking append provenance. Even
-        # a zero-row DELETE begins the write transaction, so another ingestion
-        # cannot replace the source manifest between this check and insertion.
-        conn.execute(spliceai_scores.delete().where(sa.false()))
-        if clear_existing:
-            conn.execute(spliceai_scores.delete())
-            # Replacement also repairs malformed provenance schemas. SQLite DDL
-            # participates in this already-started write transaction, so a later
-            # failure restores the old manifest together with the old scores.
-            spliceai_sources.drop(conn)
-            spliceai_sources.create(conn)
-        elif (
-            conn.execute(sa.select(spliceai_scores.c.id).limit(1)).first() is not None
-            or conn.execute(sa.select(spliceai_sources.c.id).limit(1)).first() is not None
-        ) and check_spliceai_connection(conn).state != "ready":
-            raise ValueError(SPLICEAI_REINGEST)
-        return [
-            _load_spliceai_vcf(
-                path, conn, min_ds=min_ds, parse_progress=parse_progress, genome_build=genome_build
-            )
-            for path in vcf_paths
-        ]
+    database = engine.url.database
+    claim = (
+        build_claim("spliceai", Path(database).resolve().parent)
+        if engine.dialect.name == "sqlite" and database and database != ":memory:"
+        else nullcontext(True)
+    )
+    # Protect even the initially empty schema, and keep cleanup excluded until
+    # the batch transaction has committed or rolled back. SQLite's writer lock
+    # alone cannot prevent another process from unlinking its database file.
+    with claim as acquired:
+        if not acquired:
+            raise RuntimeError("Another SpliceAI import or cleanup is in progress; retry later.")
+        create_spliceai_tables(engine)
+        with engine.begin() as conn:
+            # Acquire SQLite's writer lock before checking append provenance. Even
+            # a zero-row DELETE begins the write transaction, so another ingestion
+            # cannot replace the source manifest between this check and insertion.
+            conn.execute(spliceai_scores.delete().where(sa.false()))
+            if clear_existing:
+                conn.execute(spliceai_scores.delete())
+                # Replacement also repairs malformed provenance schemas. SQLite DDL
+                # participates in this already-started write transaction, so a later
+                # failure restores the old manifest together with the old scores.
+                spliceai_sources.drop(conn)
+                spliceai_sources.create(conn)
+            elif (
+                conn.execute(sa.select(spliceai_scores.c.id).limit(1)).first() is not None
+                or conn.execute(sa.select(spliceai_sources.c.id).limit(1)).first() is not None
+            ) and check_spliceai_connection(conn).state != "ready":
+                raise ValueError(SPLICEAI_REINGEST)
+            return [
+                _load_spliceai_vcf(
+                    path,
+                    conn,
+                    min_ds=min_ds,
+                    parse_progress=parse_progress,
+                    genome_build=genome_build,
+                )
+                for path in vcf_paths
+            ]
 
 
 def _load_spliceai_vcf(

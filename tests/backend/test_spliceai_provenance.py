@@ -346,3 +346,141 @@ def test_deep_verification_detects_row_count_mismatch(install, tmp_path):
     with install.scores.begin() as conn:
         conn.execute(sa.text("UPDATE spliceai_sources SET row_count=row_count+1"))
     assert not validate_database("spliceai", install.settings, deep=True).ok
+
+
+def _child_import_until_released(path, database, started, release):
+    engine = sa.create_engine(f"sqlite:///{database}")
+
+    def progress(_count):
+        started.set()
+        assert release.wait(30), "parent did not release the import"
+
+    try:
+        stats = ingest_spliceai_vcf(Path(path), engine, parse_progress=progress)
+        assert stats.loaded == 1
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_import_claim_covers_schema_creation_and_commit(install, tmp_path, monkeypatch, existing):
+    from backend.annotation import spliceai
+    from backend.api.routes.databases import _clean_under_lock
+
+    path = _vcf(tmp_path)
+    if existing:
+        ingest_spliceai_vcf(path, install.scores)
+    observed = []
+    original_create = spliceai.create_spliceai_tables
+
+    def assert_protected(phase):
+        health = _health(install)
+        observed.append((phase, health.state))
+        assert health.state == "building"
+        assert not health.can_clean and not health.can_verify and not health.can_resume
+        assert (
+            _clean_under_lock(get_database("spliceai"), install.settings, install.reference)
+            == "locked"
+        )
+
+    def create(engine):
+        assert_protected("before_schema")
+        original_create(engine)
+
+    monkeypatch.setattr(spliceai, "create_spliceai_tables", create)
+    stats = ingest_spliceai_vcf(
+        path, install.scores, parse_progress=lambda _count: assert_protected("before_commit")
+    )
+    assert stats.loaded == 1
+    assert observed == [("before_schema", "building"), ("before_commit", "building")]
+    assert install.settings.spliceai_db_path.is_file()
+    assert _health(install).state == "ready"
+    assert len(_rows(install.scores, "spliceai_scores")) == 1
+    assert len(_rows(install.scores, "spliceai_sources")) == 1
+
+
+def test_cli_process_import_blocks_clean_route(install, tmp_path, monkeypatch):
+    import asyncio
+    import multiprocessing
+
+    from fastapi import HTTPException
+
+    from backend.api.routes import databases
+
+    pytest.importorskip("fcntl")
+    path = _vcf(tmp_path)
+    context = multiprocessing.get_context("spawn")
+    started, release = context.Event(), context.Event()
+    process = context.Process(
+        target=_child_import_until_released,
+        args=(str(path), str(install.settings.spliceai_db_path), started, release),
+    )
+    monkeypatch.setattr(databases, "get_settings", lambda: install.settings)
+    monkeypatch.setattr(
+        databases, "get_registry", lambda: SimpleNamespace(reference_engine=install.reference)
+    )
+    process.start()
+    try:
+        assert started.wait(20), "child import did not reach its uncommitted rows"
+        with pytest.raises(HTTPException) as error:
+            asyncio.run(databases.clean_database("spliceai"))
+        assert error.value.status_code == 409
+        assert "build" in error.value.detail
+        health = _health(install)
+        assert health.state == "building"
+        assert not health.can_clean and not health.can_verify
+        assert install.settings.spliceai_db_path.is_file()
+    finally:
+        release.set()
+        process.join(20)
+        if process.is_alive():
+            process.terminate()
+            process.join(5)
+    assert process.exitcode == 0
+    assert _health(install).state == "ready"
+    assert len(_rows(install.scores, "spliceai_scores")) == 1
+    assert len(_rows(install.scores, "spliceai_sources")) == 1
+
+
+def test_cleanup_claim_prevents_import_until_unlink_finishes(install, tmp_path, monkeypatch):
+    from backend.api.routes import databases
+
+    create_spliceai_tables(install.scores)
+    path = _vcf(tmp_path)
+    original_clean = databases.clean_database_artifacts
+    calls = []
+
+    def clean(db_info, settings, reference):
+        with pytest.raises(RuntimeError, match="SpliceAI.*in progress"):
+            ingest_spliceai_vcf(path, install.scores)
+        calls.append("blocked")
+        return original_clean(db_info, settings, reference)
+
+    monkeypatch.setattr(databases, "clean_database_artifacts", clean)
+    result = databases._clean_under_lock(
+        get_database("spliceai"), install.settings, install.reference
+    )
+    assert isinstance(result, dict) and result["removed"]
+    assert calls == ["blocked"]
+    assert not install.settings.spliceai_db_path.exists()
+    install.scores.dispose()
+    assert ingest_spliceai_vcf(path, install.scores).loaded == 1
+    assert _health(install).state == "ready"
+    assert (
+        databases._clean_under_lock(get_database("spliceai"), install.settings, install.reference)
+        == "ready"
+    )
+
+
+def test_failed_import_releases_cleanup_claim(install, tmp_path):
+    from backend.api.routes.databases import _clean_under_lock
+
+    with pytest.raises(ValueError):
+        ingest_spliceai_vcf(_vcf(tmp_path, row=""), install.scores)
+    assert _health(install).state == "corrupt"
+    result = _clean_under_lock(get_database("spliceai"), install.settings, install.reference)
+    assert isinstance(result, dict) and result["removed"]
+    assert not install.settings.spliceai_db_path.exists()
+    install.scores.dispose()
+    assert ingest_spliceai_vcf(_vcf(tmp_path), install.scores).loaded == 1
+    assert _health(install).state == "ready"
