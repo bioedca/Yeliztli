@@ -39,15 +39,10 @@ for (const theme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: theme })
     await setup(page)
     let ready = false
-    let importedAt = '2026-11-09T00:00:00Z'
     let verifications = 0
-    await page.route('**/api/databases/health', route => {
-      const result = health(ready)
-      return route.fulfill(json({databases: result.databases.map(db => ({...db, downloaded_at: importedAt}))}))
-    })
+    await page.route('**/api/databases/health', route => route.fulfill(json(health(ready))))
     await page.route('**/api/databases/spliceai/verify', route => {
       verifications += 1
-      if (verifications === 3) return route.abort('failed')
       return route.fulfill(json({ db_name: 'spliceai', ok: false, detail: 'synthetic-private-diagnostic', depth: 'deep' }))
     })
     await page.goto('/settings/health')
@@ -82,10 +77,34 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(instructions).toHaveCount(0)
     await expect(panel.getByText(/Re-ingest all original hg19 files/)).toHaveCount(0)
     await expect(panel.getByText('OK', { exact: true })).toBeVisible()
+  })
+
+  test(`deep SpliceAI verification preserves failure until recovery in ${theme} mode`, async ({ page }) => {
+    test.setTimeout(45_000)
+    await page.emulateMedia({ colorScheme: theme })
+    await setup(page)
+    let importedAt = '2026-11-09T00:00:00Z'
+    let verifications = 0
+    await page.route('**/api/databases/health', route => route.fulfill(json({
+      databases: health(true).databases.map(db => ({ ...db, downloaded_at: importedAt })),
+    })))
+    await page.route('**/api/databases/spliceai/verify', route => {
+      verifications += 1
+      if (verifications === 2) return route.abort('failed')
+      return route.fulfill(json({ db_name: 'spliceai', ok: false, detail: 'synthetic-private-diagnostic', depth: 'deep' }))
+    })
+    await page.goto('/settings/health')
+    await waitForReactHydration(page)
+    const panel = page.getByRole('region', { name: 'Database health', exact: true })
+    const instructions = panel.getByRole('link', { name: 'SpliceAI re-ingestion instructions' })
+    const verify = panel.getByRole('button', { name: 'Verify', exact: true })
+    await expect(panel.getByText('Ready', { exact: true })).toBeVisible()
+    await expect(panel.getByText('OK', { exact: true })).toBeVisible()
+    await expect(instructions).toHaveCount(0)
 
     // Deep verification can fail while the structural poll still reports Ready.
     await verify.click()
-    await expect.poll(() => verifications).toBe(2)
+    await expect.poll(() => verifications).toBe(1)
     await expect(instructions).toBeVisible()
     await expect(panel.getByText('Failed', { exact: true })).toBeVisible()
     await expect(panel.getByText('OK', { exact: true })).toHaveCount(0)
@@ -96,7 +115,7 @@ for (const theme of ['light', 'dark'] as const) {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
     expect(failedAccessibility.violations).toEqual([])
     await verify.click()
-    await expect.poll(() => verifications).toBe(3)
+    await expect.poll(() => verifications).toBe(2)
     await expect(panel.getByText('Integrity check failed. Please try again.')).toBeVisible()
     await expect(panel.getByText('Failed', { exact: true })).toBeVisible()
     await expect(panel.getByText('OK', { exact: true })).toHaveCount(0)
@@ -106,5 +125,7 @@ for (const theme of ['light', 'dark'] as const) {
     await panel.getByRole('button', { name: 'Refresh database health' }).click()
     await expect(instructions).toHaveCount(0)
     await expect(panel.getByText(/Re-ingest all original hg19 files/)).toHaveCount(0)
+    await expect(panel.getByText('Ready', { exact: true })).toBeVisible()
+    await expect(panel.getByText('OK', { exact: true })).toBeVisible()
   })
 }
