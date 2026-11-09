@@ -1557,6 +1557,39 @@ class TestSpliceaiBadge:
         assert after.status_code == 200
         assert after.json()["spliceai_badge"] is None
 
+    def test_badge_recovers_after_clean_and_reimport(self, spliceai_client, tmp_data_dir):
+        from backend.api.routes.variant_detail import get_registry
+
+        tc, sid = spliceai_client
+        registry = get_registry()
+        url = f"/api/variants/rs123456789?sample_id={sid}"
+        before = tc.get(url)
+        assert before.status_code == 200
+        assert before.json()["spliceai_badge"]["ds_max"] == 0.91
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'spliceai.db'}")
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM spliceai_scores"))
+        engine.dispose()
+        corrupt = tc.get(url)
+        assert corrupt.status_code == 200 and corrupt.json()["spliceai_badge"] is None
+        with (
+            patch("backend.api.routes.databases.get_registry", return_value=registry),
+            patch("backend.api.routes.databases.get_settings", return_value=registry.settings),
+        ):
+            clean = tc.post("/api/databases/spliceai/clean")
+            assert clean.status_code == 200 and clean.json()["removed"]
+            assert not registry.settings.spliceai_db_path.exists()
+            _seed_spliceai_db(tmp_data_dir, SAMPLE_VARIANT_VUS)
+            health = tc.get("/api/databases/health")
+            assert health.status_code == 200
+            records = health.json()["databases"]
+            assert records
+            assert next(row for row in records if row["name"] == "spliceai")["state"] == "ready"
+        after = tc.get(url)
+        assert after.status_code == 200
+        assert after.json()["spliceai_badge"] is not None
+        assert after.json()["spliceai_badge"]["ds_max"] == 0.91
+
     def test_no_badge_for_variant_without_prediction(self, spliceai_client):
         tc, sid = spliceai_client
         # rs80357906 (BRCA1) is annotated but absent from spliceai.db.

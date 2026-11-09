@@ -302,6 +302,7 @@ Settings → System Health marks a legacy SpliceAI database **Unverified** when 
 current import provenance. An old `GRCh37` version stamp cannot establish what its input
 header declared. Variant-detail SpliceAI context is withheld until re-ingestion succeeds;
 pressing **Verify** checks the stored evidence and cannot certify a legacy installation.
+Cleanup is refused for an unverified import, preserving its existing rows for re-ingestion.
 
 Use all of your original hg19 source files in one invocation, for example:
 
@@ -328,3 +329,5 @@ Health polling checks that the score table is readable and nonempty and that eve
 record has valid build evidence. **Verify** additionally checks SQLite integrity and the
 recorded total row count. Missing, empty, or malformed score storage is **Corrupt**. These
 checks establish import provenance and software readability, not biological accuracy.
+After cleaning corrupt storage and re-ingesting, variant context becomes available without
+restarting the app.

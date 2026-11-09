@@ -54,11 +54,13 @@ def _health(install):
     return get_database_health(get_database("spliceai"), install.settings, install.reference)
 
 
-def _rows(engine, table):
+def _rows(engine, table, order_by="id"):
     with engine.connect() as conn:
         return [
             dict(row)
-            for row in conn.execute(sa.text(f"SELECT * FROM {table} ORDER BY id")).mappings()
+            for row in conn.execute(
+                sa.text(f"SELECT * FROM {table} ORDER BY {order_by}")
+            ).mappings()
         ]
 
 
@@ -484,3 +486,63 @@ def test_failed_import_releases_cleanup_claim(install, tmp_path):
     install.scores.dispose()
     assert ingest_spliceai_vcf(_vcf(tmp_path), install.scores).loaded == 1
     assert _health(install).state == "ready"
+
+
+@pytest.mark.parametrize("wal", [False, True])
+def test_clean_reimport_reopens_warmed_consumer(install, tmp_path, monkeypatch, wal):
+    import asyncio
+
+    from backend.api.routes import databases
+    from backend.db.connection import DBRegistry
+
+    settings = install.settings.model_copy(update={"wal_mode": wal})
+    registry = DBRegistry(settings)
+    create_spliceai_tables(install.scores)
+    install.scores.dispose()
+    monkeypatch.setattr(databases, "get_settings", lambda: settings)
+    monkeypatch.setattr(databases, "get_registry", lambda: registry)
+    try:
+        assert lookup_spliceai_by_variant("1", 100, "A", "G", registry.spliceai_engine) is None
+        assert _health(install).state == "corrupt"
+        cleaned = asyncio.run(databases.clean_database("spliceai"))
+        assert cleaned.db_name == "spliceai" and cleaned.removed
+        assert not settings.spliceai_db_path.exists()
+        assert ingest_spliceai_vcf(_vcf(tmp_path), install.scores).loaded == 1
+        assert _health(install).state == "ready"
+        result = lookup_spliceai_by_variant("1", 100, "A", "G", registry.spliceai_engine)
+        assert result is not None
+        assert result["ds_max"] == 0.7 and result["symbol"] == "SYNTHETIC"
+        assert lookup_spliceai_by_variant("1", 100, "A", "T", registry.spliceai_engine) is None
+    finally:
+        registry.dispose_all()
+
+
+@pytest.mark.parametrize("drop_manifest", [False, True])
+def test_clean_route_preserves_unverified_legacy_import(install, monkeypatch, drop_manifest):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from backend.api.routes import databases
+
+    _legacy(install)
+    if drop_manifest:
+        with install.scores.begin() as conn:
+            conn.execute(sa.text("DROP TABLE spliceai_sources"))
+    before = _rows(install.scores, "spliceai_scores")
+    versions = _rows(install.reference, "database_versions", "db_name")
+    assert before and versions
+    monkeypatch.setattr(databases, "get_settings", lambda: install.settings)
+    monkeypatch.setattr(
+        databases, "get_registry", lambda: SimpleNamespace(reference_engine=install.reference)
+    )
+    health = _health(install)
+    assert health.state == "unverified" and not health.can_clean
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(databases.clean_database("spliceai"))
+    assert error.value.status_code == 409
+    assert "re-ingest" in error.value.detail.lower()
+    assert install.settings.spliceai_db_path.is_file()
+    assert _rows(install.scores, "spliceai_scores") == before
+    assert _rows(install.reference, "database_versions", "db_name") == versions
+    assert _health(install).state == "unverified"
