@@ -79,6 +79,12 @@ detail pages when available, including **[Gene Detail](../features/gene-detail.m
 individual genes. Modules that do not have their own dashboard page still surface their findings
 here.
 
+The list initially loads up to 200 findings. **Load more findings** keeps the loaded
+rows visible while requesting the next window, with a disabled **Loading…** button.
+If that request fails temporarily, **Retry loading more findings** retries the same
+window while preserving the loaded rows. Switching samples or filters starts a
+separate list; a withheld or inaccessible result clears the previous findings.
+
 After a full annotation run, the total finding count may be dominated by
 [Rare Variant Finder](../modules/rare-variants.md) rows. A typical sample can have tens of
 thousands of carried rare or gnomAD-AF-missing variants, usually at ★. Those
