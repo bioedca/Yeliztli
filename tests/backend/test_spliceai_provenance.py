@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -118,6 +119,94 @@ def test_unrelated_header_fields_are_not_persisted(install, tmp_path):
     assert json.loads(source["build_header_json"]) == ["##reference=GRCh37"]
     assert "synthetic-private-label" not in json.dumps(source)
     assert str(tmp_path) not in json.dumps(source)
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_source_checksum_describes_the_opened_file(install, tmp_path, monkeypatch, compressed):
+    import backend.annotation.spliceai as module
+
+    path = _vcf(tmp_path, name="source.vcf.gz" if compressed else "source.vcf")
+    original = path.read_bytes()
+    replacement = tmp_path / "replacement"
+    replaced_bytes = original.replace(b"1\t100\t", b"1\t200\t")
+    if compressed:
+        original = gzip.compress(original, mtime=0)
+        replaced_bytes = gzip.compress(replaced_bytes, mtime=0)
+    path.write_bytes(original)
+    replacement.write_bytes(replaced_bytes)
+    saved = tmp_path / "saved"
+    fingerprint = module._source_fingerprint
+    parse = module.parse_spliceai_info
+    swapped = False
+    restored = False
+
+    def fingerprint_and_replace(source):
+        nonlocal swapped
+        result = fingerprint(source)
+        if not swapped:
+            path.rename(saved)
+            replacement.rename(path)
+            swapped = True
+        return result
+
+    def parse_and_restore(info):
+        nonlocal restored
+        if not restored:
+            path.rename(replacement)
+            saved.rename(path)
+            restored = True
+        return parse(info)
+
+    monkeypatch.setattr(module, "_source_fingerprint", fingerprint_and_replace)
+    monkeypatch.setattr(module, "parse_spliceai_info", parse_and_restore)
+    stats = ingest_spliceai_vcf(path, install.scores)
+    assert swapped and restored
+    assert stats.loaded == 1
+    scores = _rows(install.scores, "spliceai_scores")
+    assert len(scores) == 1
+    assert scores[0]["pos"] == 100
+    assert scores[0]["ds_max"] == 0.7
+    sources = _rows(install.scores, "spliceai_sources")
+    assert len(sources) == 1
+    assert sources[0]["source_sha256"] == hashlib.sha256(original).hexdigest()
+    assert sources[0]["source_size_bytes"] == len(original)
+    assert _health(install).state == "ready"
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_in_place_source_change_rolls_back_import(install, tmp_path, monkeypatch, compressed):
+    import backend.annotation.spliceai as module
+
+    ingest_spliceai_vcf(_vcf(tmp_path, name="prior.vcf"), install.scores)
+    prior_scores = _rows(install.scores, "spliceai_scores")
+    prior_sources = _rows(install.scores, "spliceai_sources")
+    path = _vcf(
+        tmp_path,
+        name="source.vcf.gz" if compressed else "source.vcf",
+        row=_ROW.replace("1\t100\t", "1\t200\t"),
+    )
+    if compressed:
+        path.write_bytes(gzip.compress(path.read_bytes(), mtime=0))
+    parse = module.parse_spliceai_info
+    changed = False
+
+    def parse_and_change(info):
+        nonlocal changed
+        result = parse(info)
+        if not changed:
+            # Mutate the same inode after its row was read, preserving a valid VCF.
+            content = _vcf(tmp_path, name="changed.vcf", row=_ROW).read_bytes()
+            path.write_bytes(gzip.compress(content, mtime=0) if compressed else content)
+            changed = True
+        return result
+
+    monkeypatch.setattr(module, "parse_spliceai_info", parse_and_change)
+    with pytest.raises(ValueError, match="source changed during ingestion"):
+        ingest_spliceai_vcf(path, install.scores)
+    assert changed
+    assert _rows(install.scores, "spliceai_scores") == prior_scores
+    assert _rows(install.scores, "spliceai_sources") == prior_sources
+    assert _health(install).state == "ready"
 
 
 @pytest.mark.parametrize("drop_provenance", [False, True])

@@ -43,10 +43,11 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import io
 import json
 import math
 import re
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -58,7 +59,7 @@ import structlog
 from backend.db.build_guard import build_claim, is_build_locked, is_cross_process_build_claimed
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 logger = structlog.get_logger(__name__)
 
@@ -205,11 +206,32 @@ def check_spliceai_connection(conn: sa.Connection, *, deep: bool = False) -> Spl
     return SpliceAIHealth("ready", "ok (GRCh37 import provenance verified)")
 
 
-def _source_fingerprint(path: Path) -> tuple[str, int]:
-    with path.open("rb") as handle:
-        digest = hashlib.file_digest(handle, "sha256").hexdigest()
-        size = handle.tell()
+def _source_fingerprint(handle: IO[bytes]) -> tuple[str, int]:
+    handle.seek(0)
+    digest = hashlib.file_digest(handle, "sha256").hexdigest()
+    size = handle.tell()
+    handle.seek(0)
     return digest, size
+
+
+@contextmanager
+def _open_fingerprinted_source(path: Path) -> Iterator[tuple[IO[str], tuple[str, int]]]:
+    """Hash and parse one open file, even if its pathname is replaced."""
+    with path.open("rb") as source:
+        fingerprint = _source_fingerprint(source)
+        decoded = gzip.GzipFile(fileobj=source, mode="rb") if path.suffix == ".gz" else source
+        text = io.TextIOWrapper(decoded, encoding="utf-8")
+        try:
+            yield text, fingerprint
+        finally:
+            # Keep the original descriptor open for its final mutation check.
+            text.detach()
+            if decoded is not source:
+                decoded.close()
+        if fingerprint != _source_fingerprint(source):
+            raise ValueError(
+                "SpliceAI source changed during ingestion; retry with an unchanged file."
+            )
 
 
 @dataclass
@@ -573,15 +595,13 @@ def _load_spliceai_vcf(
     parse_progress: Callable[[int], None] | None,
     genome_build: str | None,
 ) -> SpliceAILoadStats:
-    fingerprint = _source_fingerprint(vcf_path)
-
     rows: list[dict] = []
     skipped_below = 0
     skipped_bad = 0
     lines = 0
     header: list[str] = []
     build: str | None = None
-    with _open_maybe_gzip(vcf_path) as fh:
+    with _open_fingerprinted_source(vcf_path) as (fh, fingerprint):
         for line in fh:
             if not line:
                 continue
@@ -654,8 +674,6 @@ def _load_spliceai_vcf(
             f"clear/replace with empty data (is this a SpliceAI-annotated VCF?)."
         )
 
-    if fingerprint != _source_fingerprint(vcf_path):
-        raise ValueError("SpliceAI source changed during ingestion; retry with an unchanged file.")
     build_header = [
         line for line in header if line.startswith(("##reference=", "##assembly=", "##contig="))
     ]
