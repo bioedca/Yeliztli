@@ -117,8 +117,12 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
   const currentVerification = verification?.key === verificationKey ? verification : null
   const verifyResult = currentVerification?.text ?? null
   const integrityOk = currentVerification?.ok === false ? false : db.integrity_ok
-  const setVerifyResult = (text: string, ok: boolean | null = null) =>
-    setVerification({ key: verificationKey, text, ok })
+  const setVerifyResult = (text: string, ok?: boolean) =>
+    setVerification(previous => ({
+      key: verificationKey,
+      text,
+      ok: ok ?? (previous?.key === verificationKey ? previous.ok : null),
+    }))
 
   const busy = resume.isPending || verify.isPending || clean.isPending
   const showTransferProgress =

@@ -353,9 +353,10 @@ def test_deep_verification_detects_row_count_mismatch(install, tmp_path):
 def _child_import_until_released(path, database, started, release):
     engine = sa.create_engine(f"sqlite:///{database}")
 
-    @sa.event.listens_for(engine, "connect")
     def small_cache(connection, _record):
         connection.execute("PRAGMA cache_size=1")
+
+    sa.event.listen(engine, "connect", small_cache)
 
     def progress(_count):
         started.set()
@@ -553,7 +554,8 @@ def test_clean_route_preserves_unverified_legacy_import(install, monkeypatch, dr
 
 
 @pytest.mark.parametrize("wal", [False, True])
-def test_lookup_skips_active_import_without_waiting_for_sqlite(install, tmp_path, wal):
+@pytest.mark.parametrize("consumer", ["lookup", "status"])
+def test_consumers_skip_active_import_without_waiting_for_sqlite(install, tmp_path, wal, consumer):
     import multiprocessing
     import threading
 
@@ -579,7 +581,12 @@ def test_lookup_skips_active_import_without_waiting_for_sqlite(install, tmp_path
 
     def lookup():
         try:
-            results.append(lookup_spliceai_by_variant("1", 100, "A", "G", reader))
+            if consumer == "lookup":
+                results.append(lookup_spliceai_by_variant("1", 100, "A", "G", reader))
+            else:
+                results.append(
+                    get_database_status(get_database("spliceai"), install.settings)["downloaded"]
+                )
         except Exception as exc:
             errors.append(exc)
         finally:
@@ -591,7 +598,7 @@ def test_lookup_skips_active_import_without_waiting_for_sqlite(install, tmp_path
         assert started.wait(20), "child import did not reach its uncommitted rows"
         reader_thread.start()
         assert returned.wait(5), "lookup waited on SQLite while the import was paused"
-        assert not errors and results == [None]
+        assert not errors and results == [None if consumer == "lookup" else False]
     finally:
         release.set()
         process.join(20)
@@ -609,3 +616,4 @@ def test_lookup_skips_active_import_without_waiting_for_sqlite(install, tmp_path
     finally:
         reader.dispose()
     assert len(_rows(install.scores, "spliceai_scores")) == 1
+    assert get_database_status(get_database("spliceai"), install.settings)["downloaded"] is True

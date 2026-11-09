@@ -47,6 +47,7 @@ for (const theme of ['light', 'dark'] as const) {
     })
     await page.route('**/api/databases/spliceai/verify', route => {
       verifications += 1
+      if (verifications === 3) return route.abort('failed')
       return route.fulfill(json({ db_name: 'spliceai', ok: false, detail: 'synthetic-private-diagnostic', depth: 'deep' }))
     })
     await page.goto('/settings/health')
@@ -94,6 +95,12 @@ for (const theme of ['light', 'dark'] as const) {
     const failedAccessibility = await new AxeBuilder({ page }).include('[aria-label="Database health"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
     expect(failedAccessibility.violations).toEqual([])
+    await verify.click()
+    await expect.poll(() => verifications).toBe(3)
+    await expect(panel.getByText('Integrity check failed. Please try again.')).toBeVisible()
+    await expect(panel.getByText('Failed', { exact: true })).toBeVisible()
+    await expect(panel.getByText('OK', { exact: true })).toHaveCount(0)
+    await expect(instructions).toBeVisible()
     // A new import of the same version clears feedback for the old installation.
     importedAt = '2026-11-09T00:01:00Z'
     await panel.getByRole('button', { name: 'Refresh database health' }).click()

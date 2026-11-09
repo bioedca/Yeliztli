@@ -742,4 +742,36 @@ describe('DatabaseHealthPanel — SpliceAI provenance', () => {
     expect(screen.queryByText(/Re-ingest all original hg19 files/)).not.toBeInTheDocument()
   })
 
+  it('preserves a failed deep verdict when a Verify retry has a network error', async () => {
+    setupHealth([makeDb({name: 'spliceai', display_name: 'SpliceAI', build_mode: 'manual',
+      state: 'ready', integrity_ok: true, version: '1.3', can_verify: true, can_clean: false})])
+    const original = mockFetch.getMockImplementation()!
+    let calls = 0
+    mockFetch.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/spliceai/verify')) {
+        calls += 1
+        if (calls === 2) return Promise.reject(new Error('synthetic-private-diagnostic'))
+        return Promise.resolve({ok: true, status: 200, json: async () => ({
+          db_name: 'spliceai', ok: calls === 3, detail: 'synthetic-private-diagnostic', depth: 'deep',
+        })})
+      }
+      return original(input, init)
+    })
+    renderPanel()
+    fireEvent.click(await screen.findByRole('button', {name: 'Verify'}))
+    expect(await screen.findByText('Failed', {exact: true})).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Verify'})).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', {name: 'Verify'}))
+    expect(await screen.findByText('Integrity check failed. Please try again.')).toBeInTheDocument()
+    expect(screen.getByText('Failed', {exact: true})).toBeInTheDocument()
+    expect(screen.queryByText('OK', {exact: true})).not.toBeInTheDocument()
+    expect(screen.getByRole('link', {name: 'SpliceAI re-ingestion instructions'})).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('synthetic-private-diagnostic')
+    fireEvent.click(screen.getByRole('button', {name: 'Verify'}))
+    expect(await screen.findByText('Integrity OK')).toBeInTheDocument()
+    expect(screen.getByText('OK', {exact: true})).toBeInTheDocument()
+    expect(screen.queryByRole('link', {name: 'SpliceAI re-ingestion instructions'})).not.toBeInTheDocument()
+    expect(calls).toBe(3)
+  })
+
 })
