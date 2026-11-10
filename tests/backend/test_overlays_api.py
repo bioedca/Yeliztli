@@ -31,11 +31,92 @@ from backend.config import Settings
 from backend.db.connection import reset_registry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
+    annotated_variants,
     raw_variants,
     reference_metadata,
     samples,
     variant_overlays,
 )
+
+
+@pytest.mark.parametrize("table", [annotated_variants, raw_variants], ids=["annotated", "raw"])
+def test_reapply_bed_corrects_saved_boundary_results(
+    overlay_client: TestClient, sample_db_path: Path, table: sa.Table
+) -> None:
+    """The existing Apply endpoint repairs old rows without changing another overlay."""
+    engine = sa.create_engine(f"sqlite:///{sample_db_path}")
+    rows = [
+        {"rsid": f"synthetic_pos_{pos}", "chrom": "17", "pos": pos, "genotype": "AA"}
+        for pos in (100, 101, 200, 201)
+    ]
+    if table is annotated_variants:
+        for row in rows:
+            row.update(ref="A", alt="G", annotation_coverage=0)
+    with engine.begin() as conn:
+        conn.execute(sa.delete(raw_variants))
+        conn.execute(sa.insert(table), rows)
+
+    upload = overlay_client.post(
+        "/api/overlays/upload?name=Synthetic+BED+boundary",
+        files={"file": ("boundary.bed", b"chr17\t100\t200\tcorrected\n", "text/plain")},
+    )
+    assert upload.status_code == 200
+    overlay_id = upload.json()["overlay"]["id"]
+    other_id = overlay_id + 1
+    with engine.begin() as conn:
+        # Exact membership produced by the old [start, end) predicate on one-based POS.
+        conn.execute(
+            sa.insert(variant_overlays),
+            [
+                {
+                    "rsid": "synthetic_pos_100",
+                    "overlay_id": overlay_id,
+                    "annotations": '{"bed_col_4":"old"}',
+                },
+                {
+                    "rsid": "synthetic_pos_101",
+                    "overlay_id": overlay_id,
+                    "annotations": '{"bed_col_4":"old"}',
+                },
+                {
+                    "rsid": "synthetic_pos_100",
+                    "overlay_id": other_id,
+                    "annotations": '{"label":"keep"}',
+                },
+            ],
+        )
+    before = overlay_client.get(f"/api/overlays/{overlay_id}/results?sample_id=1")
+    assert before.status_code == 200
+    assert before.json()["total"] == 2
+    assert {row["rsid"] for row in before.json()["results"]} == {
+        "synthetic_pos_100",
+        "synthetic_pos_101",
+    }
+
+    applied = overlay_client.post(f"/api/overlays/{overlay_id}/apply?sample_id=1")
+    assert applied.status_code == 200
+    assert applied.json() == {
+        "overlay_id": overlay_id,
+        "overlay_name": "Synthetic BED boundary",
+        "variants_matched": 2,
+        "records_checked": 1,
+    }
+    after = overlay_client.get(f"/api/overlays/{overlay_id}/results?sample_id=1")
+    assert after.status_code == 200
+    assert after.json()["total"] == 2
+    assert sorted(after.json()["results"], key=lambda row: row["rsid"]) == [
+        {"rsid": "synthetic_pos_101", "overlay_id": overlay_id, "bed_col_4": "corrected"},
+        {"rsid": "synthetic_pos_200", "overlay_id": overlay_id, "bed_col_4": "corrected"},
+    ]
+    with engine.connect() as conn:
+        other = conn.execute(
+            sa.select(variant_overlays.c.rsid, variant_overlays.c.annotations).where(
+                variant_overlays.c.overlay_id == other_id
+            )
+        ).fetchall()
+    assert other == [("synthetic_pos_100", '{"label":"keep"}')]
+    engine.dispose()
+
 
 # ── Test data ────────────────────────────────────────────────────────
 
