@@ -14,6 +14,7 @@ entries filterable by level and component.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,10 +22,11 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+import structlog
 from fastapi.testclient import TestClient
 
 from backend.config import Settings
-from backend.db.connection import reset_registry
+from backend.db.connection import get_registry, reset_registry
 from backend.db.tables import (
     LOG_ENTRY_PRESENTATION_POLICY_VERSION,
     jobs,
@@ -175,6 +177,97 @@ def admin_client(tmp_data_dir: Path) -> Generator[TestClient, None, None]:
 
 
 class TestLogExplorer:
+    @pytest.mark.parametrize("path", ["native", "stdlib"])
+    def test_new_structured_events_are_safe_in_storage_and_http(
+        self, admin_client: TestClient, path: str
+    ) -> None:
+        event = f"synthetic_privacy_fixture_{path}"
+        private = {
+            "phenotype": "synthetic-private-phenotype",
+            "involved_rsids": ["synthetic-carried-marker"],
+            "indeterminate_alleles": ["synthetic-unresolved-allele"],
+            "confidence_note": "synthetic-private-confidence-note",
+            "recommendation": "synthetic-private-guidance",
+        }
+        payload = {
+            **private,
+            "nested": [{"details": private}],
+            "involved_variant_count": 1,
+            "indeterminate_allele_count": 1,
+        }
+        if path == "native":
+            structlog.get_logger("backend.synthetic_privacy").info(event, **payload)
+        else:
+            logging.getLogger("backend.synthetic_privacy").info(event, extra=payload)
+
+        with get_registry().reference_engine.connect() as conn:
+            persisted = (
+                conn.execute(sa.select(log_entries).where(log_entries.c.message == event))
+                .mappings()
+                .one()
+            )
+        response = admin_client.get(
+            "/api/admin/logs",
+            params={"search": event, "component": "synthetic_privacy", "page_size": 1},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["total"] == 1 and len(body["entries"]) == 1
+        entry = body["entries"][0]
+        assert entry["id"] == persisted["id"]
+        assert entry["message"] == event and entry["level"] == "INFO"
+        assert entry["event_data"] == persisted["event_data"]
+        expected = dict.fromkeys(private, "[REDACTED]")
+        assert json.loads(entry["event_data"]) == {
+            **expected,
+            "nested": [{"details": expected}],
+            "involved_variant_count": 1,
+            "indeterminate_allele_count": 1,
+        }
+        assert body["has_more"] is False
+
+    def test_previous_log_policy_rows_stay_stored_but_out_of_explorer(
+        self, admin_client: TestClient
+    ) -> None:
+        old_payload = json.dumps({"phenotype": "synthetic-private-historical-value"})
+        engine = get_registry().reference_engine
+        with engine.begin() as conn:
+            old_id = conn.execute(
+                sa.insert(log_entries).values(
+                    timestamp=datetime.now(UTC),
+                    level="INFO",
+                    logger="backend.synthetic_policy",
+                    message="synthetic_policy_fixture_old",
+                    event_data=old_payload,
+                    presentation_policy_version=1,
+                )
+            ).inserted_primary_key[0]
+        structlog.get_logger("backend.synthetic_policy").info(
+            "synthetic_policy_fixture_current", count=2
+        )
+
+        params = {"search": "synthetic_policy_fixture", "page_size": 1}
+        first = admin_client.get("/api/admin/logs", params=params)
+        second = admin_client.get("/api/admin/logs", params={**params, "page": 2})
+
+        assert first.status_code == second.status_code == 200
+        body = first.json()
+        assert body["total"] == 1 and len(body["entries"]) == 1
+        assert body["entries"][0]["message"] == "synthetic_policy_fixture_current"
+        assert json.loads(body["entries"][0]["event_data"]) == {"count": 2}
+        assert body["has_more"] is False
+        assert second.json()["entries"] == [] and second.json()["total"] == 1
+        assert second.json()["has_more"] is False
+        assert "synthetic-private-historical-value" not in first.text + second.text
+        with engine.connect() as conn:
+            old_row = conn.execute(
+                sa.select(
+                    log_entries.c.event_data, log_entries.c.presentation_policy_version
+                ).where(log_entries.c.id == old_id)
+            ).one()
+        assert old_row.event_data == old_payload and old_row.presentation_policy_version == 1
+
     def test_returns_paginated_logs(self, admin_client: TestClient) -> None:
         """GET /api/admin/logs returns paginated log entries."""
         resp = admin_client.get("/api/admin/logs")

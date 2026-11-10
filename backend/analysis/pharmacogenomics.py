@@ -2382,11 +2382,9 @@ def call_all_star_alleles(
         logger.info(
             "pgx_star_allele_called",
             gene=gene,
-            diplotype=result.diplotype,
-            phenotype=result.phenotype,
             call_confidence=result.call_confidence.value,
-            involved_rsids=sorted(result.involved_rsids),
-            missing_rsids=sorted(result.missing_rsids),
+            involved_variant_count=len(result.involved_rsids),
+            missing_variant_count=len(result.missing_rsids),
         )
 
     return results
@@ -2796,7 +2794,6 @@ def generate_prescribing_alerts(
             logger.info(
                 "pgx_alert_skipped_no_phenotype",
                 gene=result.gene,
-                diplotype=result.diplotype,
             )
             continue
 
@@ -2804,8 +2801,8 @@ def generate_prescribing_alerts(
             logger.info(
                 "pgx_alert_skipped_insufficient",
                 gene=result.gene,
-                diplotype=result.diplotype,
-                confidence_note=result.confidence_note,
+                call_confidence=result.call_confidence.value,
+                indeterminate_allele_count=len(result.indeterminate_alleles),
             )
             continue
 
@@ -2840,15 +2837,12 @@ def generate_prescribing_alerts(
                 logger.warning(
                     "pgx_phenotype_no_guideline_row",
                     gene=result.gene,
-                    phenotype=alert_phenotype,
-                    diplotype=result.diplotype,
-                    covered_phenotypes=sorted(covered_phenotypes),
+                    covered_phenotype_count=len(covered_phenotypes),
                 )
             else:
                 logger.debug(
                     "pgx_no_guidelines",
                     gene=result.gene,
-                    phenotype=result.phenotype,
                 )
             continue
 
@@ -2875,9 +2869,8 @@ def generate_prescribing_alerts(
                     "pgx_alert_withheld_undetermined_direction",
                     gene=result.gene,
                     drug=guideline["drug"],
-                    diplotype=result.diplotype,
-                    indeterminate_alleles=result.indeterminate_alleles,
-                    confidence_note=result.confidence_note,
+                    call_confidence=result.call_confidence.value,
+                    indeterminate_allele_count=len(result.indeterminate_alleles),
                 )
                 continue
 
@@ -2914,8 +2907,6 @@ def generate_prescribing_alerts(
                 "pgx_prescribing_alert",
                 gene=result.gene,
                 drug=guideline["drug"],
-                phenotype=alert_phenotype,
-                recommendation=guideline["recommendation"],
                 classification=guideline["classification"],
                 call_confidence=result.call_confidence.value,
                 evidence_level=evidence_level,
