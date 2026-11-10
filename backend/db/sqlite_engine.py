@@ -37,9 +37,11 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, get_args
+from weakref import WeakSet
 
 import sqlalchemy as sa
 from sqlalchemy import event
+from sqlalchemy.pool import NullPool
 
 if TYPE_CHECKING:
     from sqlalchemy.pool import Pool
@@ -48,6 +50,64 @@ if TYPE_CHECKING:
 # "database is locked". The value DBRegistry has always used for its engines —
 # 6x Python sqlite3's 5 s connection default, sized for the concurrent install.
 DEFAULT_BUSY_TIMEOUT_MS = 30_000
+
+# These installed reference files are replaced as complete artifacts. Apply the
+# lease in the common factory so registry readers, health probes, and retained
+# Engine objects cannot accidentally bypass the publication fence.
+REPLACEABLE_DATABASES = {
+    "gnomad_af.db": "gnomad",
+    "dbnsfp.db": "dbnsfp",
+    "alphamissense.db": "alphamissense",
+    "gtex_eqtl.db": "gtex_eqtl",
+}
+
+
+def _leased_connection(db_path: Path, db_name: str) -> type[sqlite3.Connection]:
+    from backend.db.build_guard import database_access
+
+    class LeasedConnection(sqlite3.Connection):
+        def __init__(self, *args, **kwargs):
+            self._cursors = WeakSet()
+            self._lease = database_access(db_name, db_path.parent)
+            self._lease.__enter__()
+            try:
+                if db_path.with_name(f".{db_path.name}.publication.json").exists():
+                    raise RuntimeError("Database publication was interrupted; restart to recover")
+                super().__init__(*args, **kwargs)
+            except BaseException:
+                self._lease.__exit__(None, None, None)
+                self._lease = None
+                raise
+
+        def cursor(self, *args, **kwargs):
+            cursor = super().cursor(*args, **kwargs)
+            self._cursors.add(cursor)
+            return cursor
+
+        def execute(self, *args, **kwargs):
+            return self.cursor().execute(*args, **kwargs)
+
+        def executemany(self, *args, **kwargs):
+            return self.cursor().executemany(*args, **kwargs)
+
+        def executescript(self, *args, **kwargs):
+            return self.cursor().executescript(*args, **kwargs)
+
+        def close(self) -> None:
+            # PoolEvents.close fires BEFORE SQLite closes the handle, which
+            # would release the fence too early. Release only after actual close.
+            # sqlite3_close_v2 can also leave a zombie handle until outstanding
+            # statements finalize. Close unconsumed result cursors first.
+            for cursor in self._cursors:
+                cursor.close()
+            self._cursors.clear()
+            super().close()
+            if self._lease is not None:
+                self._lease.__exit__(None, None, None)
+                self._lease = None
+
+    return LeasedConnection
+
 
 SQLiteSynchronousMode = Literal["OFF", "NORMAL", "FULL", "EXTRA"]
 _VALID_SYNCHRONOUS_MODES = frozenset(get_args(SQLiteSynchronousMode))
@@ -122,7 +182,13 @@ def make_sqlite_engine(
         raise ValueError(f"synchronous must be one of {allowed}; got {synchronous!r}")
 
     kwargs: dict = {"echo": echo}
-    if poolclass is not None:
+    db_name = REPLACEABLE_DATABASES.get(Path(db_path).name)
+    if db_name is not None:
+        if poolclass not in (None, NullPool):
+            raise ValueError("Replaceable standalone databases require NullPool")
+        kwargs["poolclass"] = NullPool
+        kwargs["connect_args"] = {"factory": _leased_connection(Path(db_path), db_name)}
+    elif poolclass is not None:
         kwargs["poolclass"] = poolclass
     else:
         kwargs["pool_pre_ping"] = True

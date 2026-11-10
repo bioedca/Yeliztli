@@ -489,6 +489,62 @@ class TestVerifyEndpoint:
 
 
 class TestCleanEndpoint:
+    def test_reader_timeout_preserves_artifact_and_allows_retry(
+        self, db_client: TestClient, settings: Settings, monkeypatch: pytest.MonkeyPatch
+    ):
+        from backend.db import standalone
+        from backend.db.sqlite_engine import make_sqlite_engine
+
+        path = settings.data_dir / "gnomad_af.db"
+        retained = make_sqlite_engine(path, wal=False)
+        reference = _ref_engine(settings)
+        try:
+            with retained.begin() as connection:
+                connection.exec_driver_sql("CREATE TABLE previous (marker TEXT)")
+                connection.exec_driver_sql("INSERT INTO previous VALUES ('synthetic')")
+            _record_db_version(reference, "gnomad", "previous", 1)
+            real_access = standalone.database_access
+
+            def short_deadline(name, data_dir, *, publish=False):
+                return real_access(name, data_dir, publish=publish, timeout=0.02)
+
+            monkeypatch.setattr(standalone, "database_access", short_deadline)
+            with retained.connect() as reader:
+                assert reader.exec_driver_sql("SELECT marker FROM previous").all() == [
+                    ("synthetic",)
+                ]
+                response = db_client.post("/api/databases/gnomad/clean")
+                assert response.status_code == 409
+                assert "readers" in response.json()["detail"]
+                assert "retry" in response.json()["detail"]
+                assert path.exists()
+                with reference.connect() as connection:
+                    assert (
+                        connection.execute(
+                            sa.select(database_versions.c.version).where(
+                                database_versions.c.db_name == "gnomad"
+                            )
+                        ).scalar_one()
+                        == "previous"
+                    )
+                assert reader.exec_driver_sql("SELECT marker FROM previous").all() == [
+                    ("synthetic",)
+                ]
+            response = db_client.post("/api/databases/gnomad/clean")
+            assert response.status_code == 200
+            assert str(path) in response.json()["removed"]
+            assert not path.exists()
+            with reference.connect() as connection:
+                assert (
+                    connection.execute(
+                        sa.select(database_versions).where(database_versions.c.db_name == "gnomad")
+                    ).all()
+                    == []
+                )
+        finally:
+            retained.dispose()
+            reference.dispose()
+
     def test_clean_unknown_db_404(self, db_client: TestClient):
         resp = db_client.post("/api/databases/nonexistent/clean")
         assert resp.status_code == 404

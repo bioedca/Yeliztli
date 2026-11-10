@@ -67,6 +67,10 @@ class DBRegistry:
         self._encode_ccres_engine: sa.Engine | None = None
         self._encode_ccres_fingerprint: tuple[int, int, int, int] | None = None
 
+        from backend.db.standalone import recover_standalone_versions
+
+        recover_standalone_versions(settings, self.reference_engine)
+
     @property
     def _wal_synchronous(self) -> SQLiteSynchronousMode | None:
         """Use SQLite's WAL-recommended performance mode for reference engines only."""

@@ -23,6 +23,7 @@ import os
 import re
 import stat
 import threading
+import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -464,6 +465,57 @@ def cross_process_build_claim(db_name: str, data_dir: Path) -> Iterator[bool]:
             yield True
         finally:
             fcntl.flock(claim.fd, fcntl.LOCK_UN)
+
+
+@contextmanager
+def database_access(
+    db_name: str, data_dir: Path, *, publish: bool = False, timeout: float = 30.0
+) -> Iterator[None]:
+    """Lease a replaceable database until its SQLite handle has actually closed.
+
+    Readers share the access lock. A publisher first closes the entry gate to
+    new readers, then drains existing handles before replacing the file. These
+    locks are separate from the long-running build claim: downloading/parsing a
+    replacement never blocks reads. Kernel-owned leases disappear on process
+    exit. Native Windows can read, but cannot safely publish with this protocol.
+    """
+    db_name = _validated_claim_key(db_name)
+    if fcntl is None:
+        if publish:
+            raise RuntimeError("Safe database replacement requires Linux, macOS, or WSL")
+        yield
+        return
+    deadline = time.monotonic() + timeout
+
+    def acquire(claim: _ClaimFile, mode: int) -> None:
+        while True:
+            try:
+                fcntl.flock(claim.fd, mode | fcntl.LOCK_NB)
+                break
+            except OSError as exc:
+                if exc.errno not in _FLOCK_HELD_ERRNOS:
+                    raise
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        "Database publication is waiting for active readers"
+                    ) from exc
+                time.sleep(min(0.01, remaining))
+        claim.restore_marker()
+        claim.verify()
+
+    with (
+        _claim_file(f"publish_{db_name}", data_dir, create=True) as gate,
+        _claim_file(f"access_{db_name}", data_dir, create=True) as access,
+    ):
+        assert gate is not None and access is not None
+        mode = fcntl.LOCK_EX if publish else fcntl.LOCK_SH
+        acquire(gate, mode)
+        acquire(access, mode)
+        if not publish:
+            fcntl.flock(gate.fd, fcntl.LOCK_UN)
+        # Closing these descriptors releases both locks, including on failure.
+        yield
 
 
 def is_cross_process_build_claimed(db_name: str, data_dir: Path) -> bool:
