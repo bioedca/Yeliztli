@@ -19,6 +19,11 @@ The image includes the Playwright Chromium browser and Linux browser dependencie
 for **Generate PDF** and backend variant-card rendering endpoints. If you built an older
 image before this support was added, rebuild it with `docker compose up -d --build`.
 
+The image installs Debian's `libatomic1` before running Playwright's installer: its
+bundled Node executable needs `libatomic.so.1` even to start `--with-deps`. Chromium
+is installed in the application user's cache. Docker CI verifies that this non-root
+user can render a synthetic PDF through the application, as well as checking API health.
+
 Your data persists in a Docker volume named `yeliztli-data`.
 
 !!! warning "Keep the published port on loopback unless auth is configured"
