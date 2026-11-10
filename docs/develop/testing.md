@@ -426,11 +426,21 @@ those surfaces. Check opacity modifiers against the actual background too:
 populated overlay deletion controls, and blocked storage setup in both themes.
 It checks that the semantic foreground is actually applied (rather than inheriting
 neutral text), real error text with Axe, enabled/hover/focus contrast, and the
-disabled pending state and recovery. Run it in all three browser projects:
+disabled pending state and recovery. The spec serves unmodified production HTML,
+JavaScript, and CSS from `frontend/dist` through Playwright routes; API responses
+remain synthetic. This checks the shipped styles without relying on Vite's
+unflattened development CSS. Build before running it in all three browser projects:
 
 ```bash
+npm --prefix frontend run build
 npx playwright test tests/e2e/error-text-contrast.spec.ts
 ```
+
+The hover background must change when `(hover: hover)` matches, and remain
+unchanged when it does not; Chromium and WebKit must exercise the positive path.
+Headless Firefox can report `hover: none`. This follows [Tailwind's hover media
+query](https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile)
+(accessed 2026-11-10), while color and contrast assertions run in either state.
 
 Normal-size text needs at least 4.5:1 contrast, including on hover and keyboard
 focus; inactive controls are exempt from that numeric requirement but must retain

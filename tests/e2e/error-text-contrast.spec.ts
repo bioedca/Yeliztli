@@ -1,5 +1,7 @@
 /** Foreground errors must remain readable on their real surfaces (#2437). */
 import AxeBuilder from '@axe-core/playwright'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { bypassSetup, mockWizardChrome } from './helpers'
 
@@ -9,7 +11,20 @@ const overlay = {
   file_type: 'bed', column_names: ['label'], region_count: 1, created_at: null,
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, baseURL }) => {
+  // Exercise the shipped CSS, not Vite's development-only nested stylesheet.
+  // CI builds this bundle before E2E; local runs must do the same.
+  const dist = path.resolve(__dirname, '../../frontend/dist')
+  expect(existsSync(path.join(dist, 'index.html')), 'Run npm --prefix frontend run build first').toBe(true)
+  if (!baseURL) throw new Error('A baseURL is required for the production asset routes')
+  const origin = new URL(baseURL).origin
+  await page.route(url => url.origin === origin && ['/overlays', '/setup'].includes(url.pathname),
+    route => route.fulfill({ path: path.join(dist, 'index.html') }))
+  await page.route(url => url.origin === origin && url.pathname.startsWith('/assets/'), route => {
+    const asset = new URL(route.request().url()).pathname.slice('/assets/'.length)
+    expect(asset).toMatch(/^[A-Za-z0-9_.-]+$/)
+    return route.fulfill({ path: path.join(dist, 'assets', asset) })
+  })
   const unexpected: string[] = []
   unexpectedRequests.set(page, unexpected)
   await page.route(/^https?:\/\/[^/]+\/api\//, async route => {
@@ -29,6 +44,8 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }) => {
   expect(unexpectedRequests.get(page)).toEqual([])
+  await expect(page.locator('link[rel="stylesheet"][href^="/assets/"]')).toHaveCount(1)
+  await expect(page.locator('script[src*="@vite/client"]')).toHaveCount(0)
 })
 
 async function assertContrast(page: Page, selector: string) {
@@ -84,7 +101,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     expect(audit.violations).toEqual([])
   })
 
-  test(`destructive action stays readable and preserves its pending state in ${colorScheme} theme`, async ({ page }) => {
+  test(`destructive action stays readable and preserves its pending state in ${colorScheme} theme`, async ({ page, browserName }) => {
     await page.emulateMedia({ colorScheme })
     await page.route(/\/api\/overlays$/, route => route.fulfill({ json: { items: [overlay], total: 1 } }))
     let releaseDelete!: () => void
@@ -104,8 +121,15 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator(selector)).toHaveCount(1)
     await assertContrast(page, selector)
     const restingBackground = await button.evaluate(node => getComputedStyle(node).backgroundColor)
+    const supportsHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
+    // Keep a positive hover requirement; headless Firefox may report hover:none.
+    if (browserName !== 'firefox') expect(supportsHover).toBe(true)
     await button.hover()
-    await expect.poll(() => button.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(restingBackground)
+    if (supportsHover) {
+      await expect.poll(() => button.evaluate(node => getComputedStyle(node).backgroundColor)).not.toBe(restingBackground)
+    } else {
+      await expect(button).toHaveCSS('background-color', restingBackground)
+    }
     await assertErrorColor(button)
     await assertContrast(page, selector)
     await page.mouse.move(0, 0)
@@ -125,7 +149,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     } finally {
       releaseDelete()
     }
-    await expect(page.getByText('Delete failed. Please try again.', { exact: true })).toBeVisible()
+    const deleteError = page.getByText('Delete failed. Please try again.', { exact: true })
+    await expect(deleteError).toBeVisible()
+    await assertErrorColor(deleteError)
     await expect(button).toBeEnabled()
     await expect(button).toHaveCSS('opacity', '1')
     expect(deletes).toBe(1)
