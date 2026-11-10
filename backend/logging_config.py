@@ -28,6 +28,13 @@ _SENSITIVE_LOG_KEY_SUFFIXES = (
     "_haplotype",
     "_haplotypes",
     "_gt",
+    "_phenotype",
+    "_phenotypes",
+    "_involved_rsids",
+    "_indeterminate_alleles",
+    "_confidence_note",
+    "_recommendation",
+    "_recommendations",
 )
 _SENSITIVE_LOG_KEYS = {
     "e4_count",
@@ -40,6 +47,13 @@ _SENSITIVE_LOG_KEYS = {
     "haplotype",
     "haplotypes",
     "gt",
+    "phenotype",
+    "phenotypes",
+    "involved_rsids",
+    "indeterminate_alleles",
+    "confidence_note",
+    "recommendation",
+    "recommendations",
 }
 
 
@@ -81,8 +95,12 @@ def _redact_withheld_prescribing_alert_fields(
 
 
 def _is_sensitive_log_key(key: object) -> bool:
-    """Return True for structured log keys that carry genotype-like values."""
-    normalized = str(key).lower()
+    """Identify structured result fields, including prefixed aliases.
+
+    Keep diagnostic counts: several existing ``*_rsids`` fields hold counts,
+    so match the result-bearing field family rather than every rsID suffix.
+    """
+    normalized = str(key).strip().lower()
     return normalized in _SENSITIVE_LOG_KEYS or normalized.endswith(_SENSITIVE_LOG_KEY_SUFFIXES)
 
 
@@ -197,7 +215,7 @@ def _redact_sensitive_log_fields(
     method_name: str,
     event_dict: structlog.types.EventDict,
 ) -> structlog.types.EventDict:
-    """Redact genotype-like structured fields before any log sink sees them."""
+    """Redact sensitive structured results before either application log sink."""
     _redact_withheld_prescribing_alert_fields(event_dict)
     for key, value in list(event_dict.items()):
         event_dict[key] = (
