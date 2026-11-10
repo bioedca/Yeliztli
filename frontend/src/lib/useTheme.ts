@@ -23,8 +23,12 @@ function applyTheme(theme: Theme) {
 }
 
 function getStoredTheme(): Theme {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+  } catch {
+    return 'system'
+  }
 }
 
 export function useTheme() {
@@ -34,7 +38,11 @@ export function useTheme() {
   // Apply theme to DOM and localStorage whenever it changes
   useEffect(() => {
     applyTheme(theme)
-    localStorage.setItem(STORAGE_KEY, theme)
+    try {
+      localStorage.setItem(STORAGE_KEY, theme)
+    } catch {
+      // Browser storage is optional; keep the theme usable for this session.
+    }
   }, [theme])
 
   // Listen for OS preference changes when in system mode
