@@ -68,6 +68,7 @@ export interface VariantPage {
   items: VariantRow[]
   next_cursor_chrom: string | null
   next_cursor_pos: number | null
+  next_cursor_rsid: string | null
   has_more: boolean
   limit: number
 }
@@ -77,10 +78,11 @@ export interface VariantCount {
   filtered: boolean
 }
 
-/** Cursor used for keyset pagination. */
+/** Complete continuation cursor, or an inclusive position seek without rsid. */
 export interface VariantCursor {
   chrom: string
   pos: number
+  rsid?: string
 }
 
 /** Per-chromosome variant count for the chromosome nav bar (P1-15b). */

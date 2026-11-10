@@ -8,10 +8,32 @@ The Variant Explorer is the central table for browsing every variant in your sam
 
 - **Chromosome anchors** — jump to any chromosome from the navigation bar.
 - **Infinite scroll** — variants load progressively as you scroll.
+- Variants at the same position remain separate rows, including when a page ends
+  between them. Rows are ordered by chromosome order, chromosome name, position,
+  then variant ID.
 - **Total count** — shown asynchronously, so the first page appears immediately. By default this
   is the table count after hiding rows with missing annotation state; turn on
   **Show unannotated** to include those rows. This is separate from the dashboard's full
   uploaded-position count, which includes no-calls.
+
+### API pagination
+
+Both `GET /api/variants` and `GET /api/annotations` return `next_cursor_chrom`,
+`next_cursor_pos`, and `next_cursor_rsid`. When `has_more` is true, send all three
+values back as `cursor_chrom`, `cursor_pos`, and `cursor_rsid`, retaining the same
+sample and filters. The next page starts strictly after that row. Treat the rsID
+as an opaque string and URL-encode query parameters. All three next-cursor values
+are `null` on the last page, including an empty result.
+
+`/api/variants` also accepts a chromosome/position pair without `cursor_rsid` as an
+**inclusive position seek**: every row at that position is eligible. This supports
+chromosome navigation with `cursor_pos=0`. It is not a continuation cursor; older
+clients must forward `next_cursor_rsid` to avoid repeating boundary rows.
+`/api/annotations` requires all three cursor fields together. Other partial cursor
+combinations return HTTP 422 on both endpoints.
+
+These cursors traverse an unchanged filtered result set without omissions or
+duplicates. They do not preserve a snapshot if the sample changes between requests.
 
 ## Filtering
 

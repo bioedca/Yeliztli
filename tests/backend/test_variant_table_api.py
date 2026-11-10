@@ -194,7 +194,7 @@ class TestListVariants:
 
 
 class TestCursorPagination:
-    """Keyset cursor pagination on (chrom, pos)."""
+    """Keyset cursor pagination on the complete chromosome/position/rsID key."""
 
     def test_first_page_with_limit(self, client_with_sample):
         client, sid = client_with_sample
@@ -204,6 +204,7 @@ class TestCursorPagination:
         assert data["has_more"] is True
         assert data["next_cursor_chrom"] is not None
         assert data["next_cursor_pos"] is not None
+        assert data["next_cursor_rsid"] == data["items"][-1]["rsid"]
 
     def test_second_page_continues_from_cursor(self, client_with_sample):
         client, sid = client_with_sample
@@ -212,11 +213,12 @@ class TestCursorPagination:
         d1 = r1.json()
         cursor_chrom = d1["next_cursor_chrom"]
         cursor_pos = d1["next_cursor_pos"]
+        cursor_rsid = d1["next_cursor_rsid"]
 
         # Page 2
         r2 = client.get(
             f"/api/variants?sample_id={sid}&limit=3"
-            f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}"
+            f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}&cursor_rsid={cursor_rsid}"
         )
         d2 = r2.json()
         assert len(d2["items"]) == 3
@@ -232,11 +234,15 @@ class TestCursorPagination:
         all_items = []
         cursor_chrom = None
         cursor_pos = None
+        cursor_rsid = None
 
         for _ in range(20):  # safety limit
             params = f"sample_id={sid}&limit=3"
             if cursor_chrom is not None:
-                params += f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}"
+                params += (
+                    f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}"
+                    f"&cursor_rsid={cursor_rsid}"
+                )
             response = client.get(f"/api/variants?{params}")
             data = response.json()
             all_items.extend(data["items"])
@@ -244,6 +250,7 @@ class TestCursorPagination:
                 break
             cursor_chrom = data["next_cursor_chrom"]
             cursor_pos = data["next_cursor_pos"]
+            cursor_rsid = data["next_cursor_rsid"]
 
         assert len(all_items) == len(TEST_VARIANTS)
         collected_rsids = {i["rsid"] for i in all_items}
@@ -257,6 +264,7 @@ class TestCursorPagination:
         assert data["has_more"] is False
         assert data["next_cursor_chrom"] is None
         assert data["next_cursor_pos"] is None
+        assert data["next_cursor_rsid"] is None
 
     def test_cursor_at_end_returns_empty(self, client_with_sample):
         """Cursor past the last variant returns an empty page."""
@@ -316,6 +324,7 @@ class TestFiltering:
         r2 = client.get(
             f"/api/variants?sample_id={sid}&filter=chrom:1&limit=2"
             f"&cursor_chrom={data['next_cursor_chrom']}&cursor_pos={data['next_cursor_pos']}"
+            f"&cursor_rsid={data['next_cursor_rsid']}"
         )
         d2 = r2.json()
         assert len(d2["items"]) == 1
@@ -497,6 +506,7 @@ class TestSearch:
         second = client.get(
             f"/api/variants?sample_id={sid}&search=rs10&filter=chrom:1&limit=2"
             f"&cursor_chrom={body['next_cursor_chrom']}&cursor_pos={body['next_cursor_pos']}"
+            f"&cursor_rsid={body['next_cursor_rsid']}"
         )
         assert self._rsids(second) == ["rs102"]
         assert second.json()["has_more"] is False
@@ -586,7 +596,9 @@ class TestSearch:
             if not body["has_more"]:
                 break
             params.update(
-                cursor_chrom=body["next_cursor_chrom"], cursor_pos=body["next_cursor_pos"]
+                cursor_chrom=body["next_cursor_chrom"],
+                cursor_pos=body["next_cursor_pos"],
+                cursor_rsid=body["next_cursor_rsid"],
             )
         else:
             pytest.fail("search cursor did not terminate")

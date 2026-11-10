@@ -1,6 +1,6 @@
 """Variant table API endpoints (P1-14, P1-15d, P2-23, P2-25, P2-26, P3-26).
 
-Cursor-based keyset pagination on (chrom, pos) for raw_variants and
+Cursor-based keyset pagination on (chromosome order, chrom, pos, rsid) for raw_variants and
 annotated_variants tables in per-sample databases.
 
 GET  /api/variants                    — Paginated variant list
@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from backend.analysis.ancestry import get_ancestry_matched_af_column, get_inferred_ancestry
 from backend.analysis.zygosity import is_no_call
 from backend.api.dependencies import require_fresh_sample
-from backend.db.chrom_order import chrom_order_case
+from backend.api.variant_cursor import variant_cursor_clause, variant_order_key
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, raw_variants, samples, tags, variant_tags
 from backend.ingestion.chrom_order import chrom_sort_key
@@ -142,6 +142,7 @@ class VariantPage(BaseModel):
     items: list[VariantRow]
     next_cursor_chrom: str | None = None
     next_cursor_pos: int | None = None
+    next_cursor_rsid: str | None = None
     has_more: bool = False
     limit: int
 
@@ -323,33 +324,17 @@ def _build_cursor_clause(
     table: sa.Table,
     cursor_chrom: str | None,
     cursor_pos: int | None,
+    cursor_rsid: str | None = None,
 ) -> sa.ColumnElement | None:
-    """Build the WHERE clause for keyset cursor pagination.
-
-    The cursor is on (chrom_sort_order, pos). Since SQLite doesn't have a
-    native array comparison, we use the standard two-part OR:
-
-        (chrom_order > cursor_chrom_order)
-        OR (chrom_order = cursor_chrom_order AND pos > cursor_pos)
-
-    Because chrom is stored as text (e.g. "1", "X"), we compare using
-    CHROM_ORDER integer mapping via a CASE expression.
-    """
-    if cursor_chrom is None or cursor_pos is None:
-        return None
-
-    cursor_order = chrom_sort_key(cursor_chrom)
-    expr = chrom_order_case(table.c.chrom)
-
-    return sa.or_(
-        expr > cursor_order,
-        sa.and_(expr == cursor_order, table.c.pos > cursor_pos),
+    """Resume after a complete cursor, or seek inclusively without an rsID."""
+    return variant_cursor_clause(
+        table, cursor_chrom, cursor_pos, cursor_rsid, allow_position_seek=True
     )
 
 
 def _build_order_by(table: sa.Table) -> list:
-    """Build ORDER BY clause: chrom (canonical order), then pos."""
-    return [chrom_order_case(table.c.chrom).asc(), table.c.pos.asc()]
+    """Build the same total order used by the continuation cursor."""
+    return [column.asc() for column in variant_order_key(table)]
 
 
 def _row_to_variant(
@@ -426,6 +411,9 @@ def list_variants(
     sample_id: int = Query(..., description="Sample ID to query variants for"),
     cursor_chrom: str | None = Query(None, description="Cursor chromosome"),
     cursor_pos: int | None = Query(None, description="Cursor position"),
+    cursor_rsid: str | None = Query(
+        None, description="Cursor rsID; omit for inclusive position seek"
+    ),
     limit: int = Query(50, ge=1, le=500, description="Page size"),
     filter: str | None = Query(None, description="Filters as key:value,key:value"),
     tag: str | None = Query(None, description="Filter by tag name"),
@@ -436,8 +424,9 @@ def list_variants(
 ) -> VariantPage:
     """Return a page of variants using cursor-based keyset pagination.
 
-    Pagination is on ``(chrom, pos)`` using canonical chromosome order
-    (1-22, X, Y, MT). Performance is O(1) at any depth - no OFFSET.
+    Pagination uses ``(chromosome order, chrom, pos, rsid)`` without OFFSET.
+    Send all three returned cursor fields to resume strictly after the last row.
+    A chromosome/position pair without rsID is an inclusive position seek.
     """
     sample_engine = _get_sample_engine(sample_id)
     table = _select_table(sample_engine)
@@ -493,7 +482,7 @@ def list_variants(
         query = query.where(search_clause)
 
     # Apply cursor
-    cursor_clause = _build_cursor_clause(table, cursor_chrom, cursor_pos)
+    cursor_clause = _build_cursor_clause(table, cursor_chrom, cursor_pos, cursor_rsid)
     if cursor_clause is not None:
         query = query.where(cursor_clause)
 
@@ -528,15 +517,18 @@ def list_variants(
 
     next_chrom: str | None = None
     next_pos: int | None = None
+    next_rsid: str | None = None
     if has_more and result_rows:
         last = result_rows[-1]
         next_chrom = last.chrom
         next_pos = last.pos
+        next_rsid = last.rsid
 
     return VariantPage(
         items=items,
         next_cursor_chrom=next_chrom,
         next_cursor_pos=next_pos,
+        next_cursor_rsid=next_rsid,
         has_more=has_more,
         limit=limit,
     )
