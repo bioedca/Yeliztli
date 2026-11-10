@@ -53,9 +53,13 @@ has no matching row or no usable frequency, ancestry-continuous calibration and 
 percentile are withheld. Scored typed variants with incomplete allele annotations
 also withhold calibration when the frequency store is absent. Typed-only scoring
 with complete allele annotations retains its existing calibration rules.
-When a lookup is needed, an installed store that cannot be read fails the run
-instead of being treated as absent. Bundle publication and connection leases apply as they do to
-other standalone reference readers.
+The PRS reader opens SQLite in read-only mode and rechecks existence under the
+publication lease, so cleanup between engine selection and lookup cannot recreate
+an empty database. When a lookup is needed, an installed store that cannot be read
+fails the run instead of being treated as absent. Metabolic, FH and eBMD score
+freshness includes the standalone file and its non-empty WAL; restoration,
+replacement, installation or removal therefore makes prior scores stale even when
+the central reference-version snapshot is unchanged.
 
 ## The pipeline: upload → annotate → analyse
 

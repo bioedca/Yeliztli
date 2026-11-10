@@ -282,16 +282,13 @@ class TestCancerPRSCallSites:
         settings = Settings(data_dir=tmp_path)
         settings.gnomad_db_path.touch()
         reference_engine = object()
-        gnomad_engine = object()
         captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XY")
 
         monkeypatch.setattr(cancer_routes, "_get_sample_engine", lambda _sample_id: sample_engine)
         monkeypatch.setattr(
             cancer_routes,
             "get_registry",
-            lambda: SimpleNamespace(
-                reference_engine=reference_engine, gnomad_engine=gnomad_engine, settings=settings
-            ),
+            lambda: SimpleNamespace(reference_engine=reference_engine, settings=settings),
         )
 
         response = cancer_routes.run_cancer_analysis(sample_id=42)
@@ -304,7 +301,10 @@ class TestCancerPRSCallSites:
         assert captured["inferred_ancestry"] == "EUR"
         assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XY"
-        assert captured["prs_gnomad_engine"] is gnomad_engine
+        prs_engine = captured["prs_gnomad_engine"]
+        assert isinstance(prs_engine, sa.Engine)
+        assert prs_engine.url.database == settings.gnomad_db_path.absolute().as_uri()
+        assert prs_engine.url.query["mode"] == "ro"
         assert captured["constraint_engine"] is reference_engine
 
     def test_run_all_cancer_runner_uses_resolved_sex_for_prs(
@@ -316,11 +316,8 @@ class TestCancerPRSCallSites:
         settings = Settings(data_dir=tmp_path)
         settings.gnomad_db_path.touch()
         reference_engine = object()
-        gnomad_engine = object()
         captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XX")
-        registry = SimpleNamespace(
-            reference_engine=reference_engine, gnomad_engine=gnomad_engine, settings=settings
-        )
+        registry = SimpleNamespace(reference_engine=reference_engine, settings=settings)
 
         count = run_all._run_cancer(sample_engine, registry, sample_id=43)
 
@@ -331,7 +328,10 @@ class TestCancerPRSCallSites:
         assert captured["inferred_ancestry"] == "EUR"
         assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XX"
-        assert captured["prs_gnomad_engine"] is gnomad_engine
+        prs_engine = captured["prs_gnomad_engine"]
+        assert isinstance(prs_engine, sa.Engine)
+        assert prs_engine.url.database == settings.gnomad_db_path.absolute().as_uri()
+        assert prs_engine.url.query["mode"] == "ro"
         assert captured["constraint_engine"] is reference_engine
 
     def test_run_all_dispatch_passes_sample_id_to_cancer(

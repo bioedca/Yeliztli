@@ -49,15 +49,20 @@ if TYPE_CHECKING:
 def get_optional_gnomad_engine(registry: DBRegistry) -> sa.Engine | None:
     """Return the installed frequency store without creating an absent database.
 
-    Registry engines are lazy and can create an empty SQLite file on connection.
-    Only absence is optional here; an unreadable or malformed installed store must
-    still fail the run rather than silently change its calibration inputs.
+    This dedicated reader uses a noncreating SQLite connection and rechecks
+    existence under the publication lease at connection time. Its NullPool
+    releases every connection when the lookup ends. Only absence is optional;
+    an unreadable or malformed installed store must still fail the run.
     """
+    from backend.db.sqlite_engine import make_sqlite_engine
+
     try:
         registry.settings.gnomad_db_path.stat()
     except FileNotFoundError:
         return None
-    return registry.gnomad_engine
+    return make_sqlite_engine(
+        registry.settings.gnomad_db_path, wal=False, read_only=True, read_optimized=True
+    )
 
 
 # Super-population code → gnomAD alt-allele-frequency column. CSA maps to gnomAD
@@ -367,7 +372,12 @@ def _resolve_imputed_against_gnomad(
         for (chrom, pos), alleles in ref_alts.items()
         for (ref, alt) in alleles
     ]
-    annotations = lookup_gnomad_by_positions(positions, gnomad_engine)
+    try:
+        annotations = lookup_gnomad_by_positions(positions, gnomad_engine)
+    except FileNotFoundError:
+        # Cleanup can remove the optional store after engine selection. The
+        # connection checks under its lease and never recreates the file.
+        return []
 
     entries: list[dict] = []
     for (chrom, pos), weights_at_locus in by_locus.items():
