@@ -67,17 +67,24 @@ async function stubExplorer(page: Page) {
   return requests
 }
 
-test('scrolling and chromosome jumps retain same-position variants exactly once', async ({ page }) => {
+async function openExplorer(page: Page) {
   const requests = await stubExplorer(page)
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/variants?sample_id=1')
   await waitForReactHydration(page)
   const table = page.getByRole('region', { name: 'Variant table', exact: true })
-  const scrollToEnd = () => table.evaluate((element) => {
-    element.scrollTop = element.scrollHeight
-  })
+  // Native input gives intersection observers each rendered page's geometry.
+  const scrollToEnd = async () => {
+    await table.hover()
+    await page.mouse.wheel(0, 10_000)
+  }
   const renderedIds = () => table.getByText(/^iYELIZTLI_[1X]_\d{3}$/).allTextContents()
   await expect(table.getByText(rows[0].rsid, { exact: true })).toBeVisible()
+  return { requests, table, scrollToEnd, renderedIds }
+}
+
+test('scrolling retains every same-position variant exactly once', async ({ page }) => {
+  const { requests, table, scrollToEnd, renderedIds } = await openExplorer(page)
   await scrollToEnd()
   await expect(table.getByText(rows[100].rsid, { exact: true })).toHaveCount(1)
   await scrollToEnd()
@@ -89,7 +96,10 @@ test('scrolling and chromosome jumps retain same-position variants exactly once'
   expect(requests.map((params) => params.get('cursor_rsid'))).toEqual([
     null, rows[99].rsid, rows[199].rsid,
   ])
+})
 
+test('keyboard chromosome jumps preserve complete cursors and accessible navigation', async ({ page }) => {
+  const { requests, table, scrollToEnd, renderedIds } = await openExplorer(page)
   const jump = page.getByRole('button', { name: 'Jump to chromosome X, 101 variants', exact: true })
   await jump.focus()
   await page.keyboard.press('Enter')
@@ -100,12 +110,12 @@ test('scrolling and chromosome jumps retain same-position variants exactly once'
   await expect(table.getByText(rows.at(-1)!.rsid, { exact: true })).toHaveCount(1)
   await scrollToEnd()
   await expect(table.getByText(rows.at(-1)!.rsid, { exact: true })).toBeVisible()
-  expect(Object.fromEntries(requests[3])).toMatchObject({ cursor_chrom: 'X', cursor_pos: '0' })
-  expect(requests[3].has('cursor_rsid')).toBe(false)
-  expect(Object.fromEntries(requests[4])).toMatchObject({
+  expect(Object.fromEntries(requests[1])).toMatchObject({ cursor_chrom: 'X', cursor_pos: '0' })
+  expect(requests[1].has('cursor_rsid')).toBe(false)
+  expect(Object.fromEntries(requests[2])).toMatchObject({
     cursor_chrom: 'X', cursor_pos: '5', cursor_rsid: rows[200].rsid,
   })
-  expect(requests).toHaveLength(5)
+  expect(requests).toHaveLength(3)
   await expect(table.locator('tbody tr')).toHaveCount(101)
   expect(await renderedIds()).toEqual(rows.slice(101).map((row) => row.rsid))
   const accessibility = await new AxeBuilder({ page })
