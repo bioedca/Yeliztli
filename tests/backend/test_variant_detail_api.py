@@ -418,33 +418,20 @@ def gtex_client(tmp_data_dir: Path):
 
 def _seed_spliceai_db(data_dir: Path, variant: dict) -> None:
     """Seed a standalone spliceai.db with one high-confidence prediction for ``variant``."""
-    from backend.annotation.spliceai import create_spliceai_tables, spliceai_scores
+    from backend.annotation.spliceai import ingest_spliceai_vcf
 
     eng = sa.create_engine(f"sqlite:///{data_dir / 'spliceai.db'}")
-    create_spliceai_tables(eng)
-    with eng.begin() as conn:
-        conn.execute(
-            spliceai_scores.insert(),
-            [
-                {
-                    "chrom": variant["chrom"],
-                    "pos": variant["pos"],
-                    "ref": variant["ref"],
-                    "alt": variant["alt"],
-                    "symbol": "CFTR",
-                    "ds_ag": 0.02,
-                    "ds_al": 0.91,
-                    "ds_dg": 0.00,
-                    "ds_dl": 0.05,
-                    "dp_ag": -7,
-                    "dp_al": 3,
-                    "dp_dg": 12,
-                    "dp_dl": -21,
-                    "ds_max": 0.91,
-                }
-            ],
-        )
-    eng.dispose()
+    source = data_dir / "synthetic-spliceai.vcf"
+    source.write_text(
+        "##fileformat=VCFv4.2\n##reference=GRCh37\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        f"{variant['chrom']}\t{variant['pos']}\t.\t{variant['ref']}\t{variant['alt']}\t.\t.\t"
+        f"SpliceAI={variant['alt']}|CFTR|0.02|0.91|0.00|0.05|-7|3|12|-21\n"
+    )
+    try:
+        ingest_spliceai_vcf(source, eng)
+    finally:
+        eng.dispose()
 
 
 @pytest.fixture
@@ -1547,6 +1534,61 @@ class TestSpliceaiBadge:
         # In-silico prediction only — never an ACMG vote.
         assert badge["acmg_evidence"] is False
         assert badge["context_only"] is True
+
+    def test_legacy_rows_are_withheld_even_with_old_build_stamp(
+        self, spliceai_client, tmp_data_dir
+    ):
+        from backend.annotation.spliceai import record_spliceai_version
+
+        tc, sid = spliceai_client
+        url = f"/api/variants/rs123456789?sample_id={sid}"
+        before = tc.get(url)
+        assert before.status_code == 200
+        assert before.json()["spliceai_badge"]["ds_max"] == 0.91
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'spliceai.db'}")
+        with engine.begin() as conn:
+            assert conn.execute(sa.text("SELECT COUNT(*) FROM spliceai_scores")).scalar_one() > 0
+            conn.execute(sa.text("DROP TABLE spliceai_sources"))
+        engine.dispose()
+        reference = sa.create_engine(f"sqlite:///{tmp_data_dir / 'reference.db'}")
+        record_spliceai_version(reference, genome_build="GRCh37", version="legacy")
+        reference.dispose()
+        after = tc.get(url)
+        assert after.status_code == 200
+        assert after.json()["spliceai_badge"] is None
+
+    def test_badge_recovers_after_clean_and_reimport(self, spliceai_client, tmp_data_dir):
+        from backend.api.routes.variant_detail import get_registry
+
+        tc, sid = spliceai_client
+        registry = get_registry()
+        url = f"/api/variants/rs123456789?sample_id={sid}"
+        before = tc.get(url)
+        assert before.status_code == 200
+        assert before.json()["spliceai_badge"]["ds_max"] == 0.91
+        engine = sa.create_engine(f"sqlite:///{tmp_data_dir / 'spliceai.db'}")
+        with engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM spliceai_scores"))
+        engine.dispose()
+        corrupt = tc.get(url)
+        assert corrupt.status_code == 200 and corrupt.json()["spliceai_badge"] is None
+        with (
+            patch("backend.api.routes.databases.get_registry", return_value=registry),
+            patch("backend.api.routes.databases.get_settings", return_value=registry.settings),
+        ):
+            clean = tc.post("/api/databases/spliceai/clean")
+            assert clean.status_code == 200 and clean.json()["removed"]
+            assert not registry.settings.spliceai_db_path.exists()
+            _seed_spliceai_db(tmp_data_dir, SAMPLE_VARIANT_VUS)
+            health = tc.get("/api/databases/health")
+            assert health.status_code == 200
+            records = health.json()["databases"]
+            assert records
+            assert next(row for row in records if row["name"] == "spliceai")["state"] == "ready"
+        after = tc.get(url)
+        assert after.status_code == 200
+        assert after.json()["spliceai_badge"] is not None
+        assert after.json()["spliceai_badge"]["ds_max"] == 0.91
 
     def test_no_badge_for_variant_without_prediction(self, spliceai_client):
         tc, sid = spliceai_client

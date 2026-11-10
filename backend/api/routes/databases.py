@@ -22,6 +22,7 @@ import shutil
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -155,7 +156,7 @@ class DatabaseHealthResponse(BaseModel):
     display_name: str
     build_mode: str
     required: bool
-    state: str  # not_installed|downloading|building|partial|corrupt|ready|failed
+    state: str  # not_installed|downloading|building|partial|corrupt|unverified|ready|failed
     present: bool
     version: str | None
     downloaded_at: str | None
@@ -1533,6 +1534,11 @@ async def clean_database(db_name: str) -> CleanResponse:
             status_code=409,
             detail=f"'{db_name}' is healthy; nothing to clean.",
         )
+    if result == "unverified":
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{db_name}' is unverified; re-ingest its original source files.",
+        )
     return CleanResponse(db_name=result["db_name"], removed=result["removed"])
 
 
@@ -1544,14 +1550,26 @@ def _clean_under_lock(
     """Acquire the per-DB build lock, re-check health, then clean atomically.
 
     Returns the clean result dict on success, or a sentinel string
-    (``"locked"`` / ``"active"`` / ``"ready"``) the caller maps to a 409.
+    (``"locked"`` / ``"active"`` / ``"ready"`` / ``"unverified"``) mapped to a 409.
     """
     with try_acquire_build_lock(db_info.name) as acquired:
         if not acquired:
             return "locked"
-        health = get_database_health(db_info, settings, engine)
-        if health.state in ("downloading", "building"):
-            return "active"
-        if health.state == "ready":
-            return "ready"
-        return clean_database_artifacts(db_info, settings, engine)
+        # A manual SpliceAI import may run in another process. Hold its shared
+        # claim across BOTH the health re-check and unlink so a completed import
+        # cannot be deleted using an earlier corrupt/empty health snapshot.
+        spliceai = db_info.name == "spliceai"
+        claim = (
+            cross_process_build_claim(db_info.name, settings.data_dir)
+            if spliceai
+            else nullcontext(True)
+        )
+        with claim as claimed:
+            if not claimed:
+                return "locked"
+            health = get_database_health(db_info, settings, engine, build_claim_held=spliceai)
+            if health.state in ("downloading", "building"):
+                return "active"
+            if health.state in ("ready", "unverified"):
+                return health.state
+            return clean_database_artifacts(db_info, settings, engine)

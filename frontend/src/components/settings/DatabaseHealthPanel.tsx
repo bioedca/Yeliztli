@@ -71,6 +71,11 @@ const STATE_META: Record<DatabaseHealthState, StateMeta> = {
     className: 'text-amber-700 dark:text-amber-400',
     icon: AlertTriangle,
   },
+  unverified: {
+    label: 'Unverified',
+    className: 'text-amber-700 dark:text-amber-400',
+    icon: AlertTriangle,
+  },
   corrupt: {
     label: 'Corrupt',
     className: 'text-red-700 dark:text-red-400',
@@ -105,16 +110,33 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
   const resume = useResumeDownload()
   const verify = useVerifyDatabase()
   const clean = useCleanDatabase()
-  const [verifyResult, setVerifyResult] = useState<string | null>(null)
+  const [verification, setVerification] = useState<{
+    key: string; text: string; ok: boolean | null
+  } | null>(null)
+  const verificationKey = `${db.state}:${db.version ?? ''}:${db.downloaded_at ?? ''}`
+  const currentVerification = verification?.key === verificationKey ? verification : null
+  const verifyResult = currentVerification?.text ?? null
+  const integrityOk = currentVerification?.ok === false ? false : db.integrity_ok
+  const setVerifyResult = (text: string, ok?: boolean) =>
+    setVerification(previous => ({
+      key: verificationKey,
+      text,
+      ok: ok ?? (previous?.key === verificationKey ? previous.ok : null),
+    }))
 
   const busy = resume.isPending || verify.isPending || clean.isPending
   const showTransferProgress =
     db.total_bytes != null &&
     (db.state === 'downloading' || (db.state === 'partial' && db.resumable))
 
-  const integrityNote =
-    db.integrity_ok === false ||
-    (db.state !== 'ready' && (Boolean(db.last_error) || Boolean(db.integrity_detail)))
+  const needsSpliceaiIngest = db.name === 'spliceai' &&
+    (db.integrity_ok === false || currentVerification?.ok === false)
+  const spliceaiRecovery =
+    'SpliceAI import needs verification. Re-ingest all original hg19 files using the current importer to verify their build.'
+  const integrityNote = needsSpliceaiIngest
+    ? spliceaiRecovery
+    : db.integrity_ok === false ||
+        (db.state !== 'ready' && (Boolean(db.last_error) || Boolean(db.integrity_detail)))
       ? 'Database integrity needs attention. Re-check or clean and re-download the database.'
       : null
 
@@ -148,15 +170,16 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
 
         {/* Integrity */}
         <td className="py-2.5 pr-4 text-xs">
-          {db.integrity_ok == null ? (
+          {integrityOk == null ? (
             <span className="text-muted-foreground">—</span>
-          ) : db.integrity_ok ? (
+          ) : integrityOk ? (
             <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
               <ShieldCheck className="h-3 w-3" /> OK
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400">
-              <AlertTriangle className="h-3 w-3" /> Failed
+              <AlertTriangle className="h-3 w-3" />
+              {db.state === 'unverified' ? 'Not verified' : 'Failed'}
             </span>
           )}
         </td>
@@ -185,7 +208,10 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
                       setVerifyResult(
                         r.ok
                           ? 'Integrity OK'
-                          : 'Integrity check failed. Re-check or clean and re-download the database.',
+                          : db.name === 'spliceai'
+                            ? spliceaiRecovery
+                            : 'Integrity check failed. Re-check or clean and re-download the database.',
+                        r.ok,
                       ),
                     onError: () =>
                       setVerifyResult('Integrity check failed. Please try again.'),
@@ -223,6 +249,16 @@ function HealthRow({ db }: { db: DatabaseHealth }) {
           <td colSpan={5} className="pb-2 pr-4" aria-live="polite">
             {integrityNote && (
               <p className="text-[11px] text-red-700 dark:text-red-400 break-words">{integrityNote}</p>
+            )}
+            {needsSpliceaiIngest && (
+              <a
+                className="text-xs text-foreground underline underline-offset-2"
+                href="https://bioedca.github.io/Yeliztli/install/reference-data/#manual-spliceai-re-ingestion"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                SpliceAI re-ingestion instructions
+              </a>
             )}
             {verifyResult && (
               <p
@@ -289,11 +325,11 @@ export default function DatabaseHealthPanel() {
 
   const needsAttention =
     data?.databases.filter((d) =>
-      ['partial', 'corrupt', 'failed'].includes(d.state),
+      ['partial', 'corrupt', 'unverified', 'failed'].includes(d.state),
     ) ?? []
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <section aria-label="Database health" className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
           <Activity className="h-4 w-4 text-teal-600 dark:text-teal-400" />
@@ -349,6 +385,6 @@ export default function DatabaseHealthPanel() {
           </table>
         </div>
       )}
-    </div>
+    </section>
   )
 }

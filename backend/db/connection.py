@@ -63,6 +63,7 @@ class DBRegistry:
         self._alphamissense_engine: sa.Engine | None = None
         self._gtex_eqtl_engine: sa.Engine | None = None
         self._spliceai_engine: sa.Engine | None = None
+        self._spliceai_fingerprint: tuple[int, int, int, int] | None = None
         self._encode_ccres_engine: sa.Engine | None = None
         self._encode_ccres_fingerprint: tuple[int, int, int, int] | None = None
 
@@ -444,14 +445,24 @@ class DBRegistry:
 
     @property
     def spliceai_engine(self) -> sa.Engine:
-        """Lazy-loaded SpliceAI engine (read-only, optional BYO splice predictions)."""
-        if self._spliceai_engine is None:
+        """Reopen optional SpliceAI storage after cleanup and re-ingestion.
+
+        A warmed pooled connection otherwise keeps reading the unlinked old
+        file while health validates the replacement. Track file identity just
+        as the VEP and ENCODE engines do, including removal between imports.
+        """
+        db_path = self._settings.spliceai_db_path
+        fingerprint = self._file_fingerprint(db_path)
+        if self._spliceai_engine is None or self._spliceai_fingerprint != fingerprint:
+            if self._spliceai_engine is not None:
+                self._spliceai_engine.dispose()
             self._spliceai_engine = self._create_engine(
-                self._settings.spliceai_db_path,
+                db_path,
                 wal=self._settings.wal_mode,
                 synchronous=self._wal_synchronous,
                 read_optimized=True,
             )
+            self._spliceai_fingerprint = fingerprint
         return self._spliceai_engine
 
     @property
@@ -600,6 +611,7 @@ class DBRegistry:
         if self._spliceai_engine is not None:
             self._spliceai_engine.dispose()
             self._spliceai_engine = None
+            self._spliceai_fingerprint = None
         if self._encode_ccres_engine is not None:
             self._encode_ccres_engine.dispose()
             self._encode_ccres_engine = None

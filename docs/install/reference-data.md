@@ -294,3 +294,47 @@ reference data:
 These sources do not appear in the per-database auto-update table and do not have automatic
 upstream release checks. To refresh them, use the relevant manual rebuild, local ingest, or setup
 flow; then re-annotate samples whose results should reflect the refreshed snapshot.
+
+
+### Manual SpliceAI re-ingestion
+
+Settings → System Health marks a legacy SpliceAI database **Unverified** when it has no
+current import provenance. An old `GRCh37` version stamp cannot establish what its input
+header declared. Variant-detail SpliceAI context is withheld until re-ingestion succeeds;
+pressing **Verify** checks the stored evidence and cannot certify a legacy installation.
+Cleanup is refused for an unverified import, preserving its existing rows for re-ingestion.
+
+Use all of your original hg19 source files in one invocation, for example:
+
+```bash
+python scripts/ingest_spliceai_scores.py snv.hg19.vcf.gz indel.hg19.vcf.gz --version 1.3
+```
+
+For a file whose header has no build evidence, confirm that it is the hg19 release before
+adding `--genome-build GRCh37`. This records your explicit confirmation separately from
+header-based verification; it cannot override conflicting or malformed metadata. A source
+file's name alone is not build evidence. See the ingestion command's `--help` for filtering
+and version options.
+
+The importer commits every file's scores and provenance together. If parsing or writing any
+file fails, the previous scores and provenance remain intact. Each source record contains its
+basename, SHA-256, byte size, build-related header records, verification method and caller
+confirmation, filter threshold, loaded-row count, ingestion revision, and time. Hashing and
+parsing use the same open source file, and the bytes delivered to the parser must match the
+recorded checksum. This also catches an in-place change restored before the final source
+check. Unrelated VCF header records and sample-column names are not stored in this manifest.
+Appending to legacy
+unverified rows is refused; re-ingest the complete set instead. While an import is running,
+health reports **Building** and cleanup is blocked, including when the importer runs in a
+separate command-line process. Optional variant lookups withhold SpliceAI context while an
+import is active so they do not wait through source parsing. The import releases this
+protection after commit or failure.
+
+Health polling checks that the score table is readable and nonempty and that every source
+record has valid build evidence. **Verify** additionally checks SQLite integrity and the
+recorded total row count. If this deeper check fails while structural health is Ready,
+the verification result links to the same manual re-ingestion instructions. Missing, empty,
+or malformed score storage is **Corrupt**. These
+checks establish import provenance and software readability, not biological accuracy.
+After cleaning corrupt storage and re-ingesting, variant context becomes available without
+restarting the app.

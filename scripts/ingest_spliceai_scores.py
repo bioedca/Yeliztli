@@ -36,7 +36,7 @@ import structlog
 from backend.annotation.spliceai import (
     DEFAULT_MIN_DS,
     SPLICEAI_VERSION,
-    ingest_spliceai_vcf,
+    ingest_spliceai_vcfs,
     read_spliceai_assembly,
     record_spliceai_version,
 )
@@ -104,17 +104,14 @@ def main(argv: list[str] | None = None) -> int:
     db_path = registry.settings.spliceai_db_path
     engine = registry.spliceai_engine
 
-    total = 0
-    for i, p in enumerate(args.vcf):
-        logger.info("spliceai_ingest_start", file=str(p), min_ds=args.min_ds)
-        stats = ingest_spliceai_vcf(
-            p,
-            engine,
-            min_ds=args.min_ds,
-            clear_existing=(i == 0),
-            genome_build=args.genome_build,
-        )
-        total += stats.loaded
+    results = ingest_spliceai_vcfs(
+        args.vcf,
+        engine,
+        min_ds=args.min_ds,
+        genome_build=args.genome_build,
+    )
+    total = sum(stats.loaded for stats in results)
+    for p, stats in zip(args.vcf, results, strict=True):
         logger.info(
             "spliceai_ingest_file_done",
             file=str(p),
@@ -127,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     last = args.vcf[-1]
     record_spliceai_version(
         registry.reference_engine,
-        genome_build=stats.genome_build,
+        genome_build=results[-1].genome_build,
         version=args.version,
         file_path=str(last),
         file_size_bytes=last.stat().st_size,
