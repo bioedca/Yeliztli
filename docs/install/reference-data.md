@@ -56,6 +56,8 @@ The downloaded dbNSFP archive is retained until publication succeeds, so a publi
 retry can finish without downloading it again. An explicit **Clean** discards recognized
 partial import staging, waits for installed-database readers, and refuses to race an active
 build. Unknown staging storage is preserved for inspection.
+If readers outlast the cleanup deadline, **Clean** reports a retryable conflict and leaves
+the artifact and version intact; finish the active queries before retrying.
 
 Publication requires the process-lock support available on Linux, macOS, and WSL. Native
 Windows refuses this operation with an explicit error. A long-running reader can cause a

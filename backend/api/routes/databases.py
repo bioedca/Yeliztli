@@ -1477,6 +1477,12 @@ async def clean_database(db_name: str) -> CleanResponse:
             status_code=409,
             detail=f"Cannot clean '{db_name}' while a build is in progress.",
         )
+    if result == "readers":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot clean '{db_name}' while database readers are active. "
+            "Let queries finish and retry.",
+        )
     if result == "active":
         raise HTTPException(
             status_code=409,
@@ -1503,7 +1509,8 @@ def _clean_under_lock(
     """Acquire the per-DB build lock, re-check health, then clean atomically.
 
     Returns the clean result dict on success, or a sentinel string
-    (``"locked"`` / ``"active"`` / ``"ready"`` / ``"unverified"``) mapped to a 409.
+    (``"locked"`` / ``"readers"`` / ``"active"`` / ``"ready"`` / ``"unverified"``)
+    mapped to a 409.
     """
     with try_acquire_build_lock(db_info.name) as acquired:
         if not acquired:
@@ -1536,3 +1543,5 @@ def _clean_under_lock(
                     return result
             except BlockingIOError:
                 return "locked"
+            except TimeoutError:
+                return "readers"
