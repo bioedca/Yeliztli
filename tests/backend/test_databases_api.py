@@ -32,6 +32,7 @@ from backend.db.connection import reset_registry
 from backend.db.database_registry import (
     DATABASES,
     DatabaseInfo,
+    _record_db_version,
     get_all_databases,
     get_database,
     get_database_status,
@@ -290,26 +291,27 @@ class TestDatabaseRegistry:
         settings = Settings(data_dir=tmp_data_dir, wal_mode=False)
         reference_engine = sa.create_engine(f"sqlite:///{settings.reference_db_path}")
         reference_metadata.create_all(reference_engine)
-        target_engine = sa.create_engine("sqlite://")
         try:
             captured: dict[str, Path] = {}
 
             def fake_build(
-                _target_engine: sa.Engine,
+                target_engine: sa.Engine,
                 dest_dir: Path,
+                *,
+                reference_engine: sa.Engine,
                 **_kwargs: object,
             ) -> None:
                 captured["dest_dir"] = dest_dir
+                captured["target"] = Path(target_engine.url.database)
+                with target_engine.begin() as connection:
+                    connection.exec_driver_sql("CREATE TABLE dbnsfp_scores (rsid TEXT)")
+                    connection.exec_driver_sql("INSERT INTO dbnsfp_scores VALUES ('synthetic')")
+                _record_db_version(reference_engine, "dbnsfp", "synthetic", 1)
 
             monkeypatch.setattr(
                 "backend.api.routes.databases.get_build_fn",
                 lambda _name: fake_build,
             )
-            monkeypatch.setattr(
-                "backend.api.routes.databases.get_registry",
-                lambda: SimpleNamespace(dbnsfp_engine=target_engine),
-            )
-
             db_info = get_database("dbnsfp")
             assert db_info is not None
             job_id = "job-dbnsfp-staging"
@@ -324,9 +326,12 @@ class TestDatabaseRegistry:
 
             assert captured["dest_dir"] == settings.downloads_dir
             assert captured["dest_dir"] != settings.data_dir
+            assert captured["target"] != db_info.dest_path(settings)
+            with reference_engine.connect() as connection:
+                job = connection.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).one()
+                assert job.status == "complete", job.error
         finally:
             reference_engine.dispose()
-            target_engine.dispose()
 
     def test_all_databases_have_required_fields(self):
         for db in get_all_databases():

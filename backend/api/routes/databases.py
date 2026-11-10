@@ -25,7 +25,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -847,48 +846,9 @@ def _execute_build(
             message=f"Building {db_info.display_name} from upstream source...",
         )
 
-        # Hardening: a build killed mid-write can leave a corrupt/truncated
-        # standalone SQLite with no version stamp. Re-opening it for the rebuild
-        # would fail outright (malformed image) or splice onto stale rows. Drop
-        # a corrupt partial first so the build starts clean. reference.db is
-        # shared across DBs and is never removed here.
-        if db_info.target_db == "standalone" and db_info.build_mode == "pipeline":
-            dest = db_info.dest_path(settings)
-            if dest.exists() and not validate_database(db_info.name, settings).ok:
-                for stale in (dest, Path(f"{dest}-wal"), Path(f"{dest}-shm")):
-                    try:
-                        stale.unlink(missing_ok=True)
-                    except OSError as unlink_exc:
-                        logger.warning(
-                            "stale_partial_unlink_failed",
-                            path=str(stale),
-                            error=str(unlink_exc),
-                        )
-                logger.info(
-                    "corrupt_standalone_partial_removed",
-                    db_name=db_info.name,
-                    path=str(dest),
-                )
-
         build_fn = get_build_fn(db_info.name)
         if build_fn is None:
             raise ValueError(f"No build function registered for {db_info.name}")
-
-        # Determine which engine to pass
-        if db_info.target_db == "reference":
-            target_engine = engine
-        else:
-            registry = get_registry()
-            if db_info.name == "gnomad":
-                target_engine = registry.gnomad_engine
-            elif db_info.name == "dbnsfp":
-                target_engine = registry.dbnsfp_engine
-            elif db_info.name == "alphamissense":
-                target_engine = registry.alphamissense_engine
-            elif db_info.name == "gtex_eqtl":
-                target_engine = registry.gtex_eqtl_engine
-            else:
-                target_engine = engine
 
         # Throttle progress writes to at most once per 2 seconds per callback
         _last_dl_update = 0.0
@@ -934,29 +894,22 @@ def _execute_build(
             except sa.exc.OperationalError:
                 _last_parse_update = now
 
-        # Call the build function — signatures vary slightly
-        if db_info.name in ("gnomad", "dbnsfp"):
-            build_fn(
-                target_engine,
-                settings.downloads_dir,
+        if db_info.target_db == "standalone":
+            from backend.db.standalone import run_standalone_build
+
+            run_standalone_build(
+                db_info,
+                settings,
+                engine,
+                build_fn,
                 download_progress=on_download_progress,
                 parse_progress=on_parse_progress,
-                reference_engine=engine,
-            )
-        elif db_info.name in ("alphamissense", "gtex_eqtl"):
-            build_fn(
-                target_engine,
-                settings.downloads_dir,
-                download_progress=on_download_progress,
-                parse_progress=on_parse_progress,
-                reference_engine=engine,
             )
         elif db_info.name == "mondo_hpo":
-            # mondo_hpo does not accept parse_progress
-            build_fn(target_engine, settings.downloads_dir, download_progress=on_download_progress)
+            build_fn(engine, settings.downloads_dir, download_progress=on_download_progress)
         else:
             build_fn(
-                target_engine,
+                engine,
                 settings.downloads_dir,
                 download_progress=on_download_progress,
                 parse_progress=on_parse_progress,
@@ -1524,6 +1477,12 @@ async def clean_database(db_name: str) -> CleanResponse:
             status_code=409,
             detail=f"Cannot clean '{db_name}' while a build is in progress.",
         )
+    if result == "readers":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot clean '{db_name}' while database readers are active. "
+            "Let queries finish and retry.",
+        )
     if result == "active":
         raise HTTPException(
             status_code=409,
@@ -1550,26 +1509,39 @@ def _clean_under_lock(
     """Acquire the per-DB build lock, re-check health, then clean atomically.
 
     Returns the clean result dict on success, or a sentinel string
-    (``"locked"`` / ``"active"`` / ``"ready"`` / ``"unverified"``) mapped to a 409.
+    (``"locked"`` / ``"readers"`` / ``"active"`` / ``"ready"`` / ``"unverified"``)
+    mapped to a 409.
     """
     with try_acquire_build_lock(db_info.name) as acquired:
         if not acquired:
             return "locked"
-        # A manual SpliceAI import may run in another process. Hold its shared
-        # claim across BOTH the health re-check and unlink so a completed import
-        # cannot be deleted using an earlier corrupt/empty health snapshot.
-        spliceai = db_info.name == "spliceai"
+        from backend.db.sqlite_engine import REPLACEABLE_DATABASES
+        from backend.db.standalone import standalone_cleanup
+
+        # Hold the build claim across the health re-check and cleanup so a
+        # worker cannot publish using an earlier corrupt/empty health snapshot.
+        standalone = db_info.name in REPLACEABLE_DATABASES.values()
+        guarded = standalone or db_info.name == "spliceai"
         claim = (
             cross_process_build_claim(db_info.name, settings.data_dir)
-            if spliceai
+            if guarded
             else nullcontext(True)
         )
         with claim as claimed:
             if not claimed:
                 return "locked"
-            health = get_database_health(db_info, settings, engine, build_claim_held=spliceai)
+            health = get_database_health(db_info, settings, engine, build_claim_held=guarded)
             if health.state in ("downloading", "building"):
                 return "active"
             if health.state in ("ready", "unverified"):
                 return health.state
-            return clean_database_artifacts(db_info, settings, engine)
+            cleanup = standalone_cleanup(db_info, settings) if standalone else nullcontext([])
+            try:
+                with cleanup as staged_removed:
+                    result = clean_database_artifacts(db_info, settings, engine)
+                    result["removed"].extend(staged_removed)
+                    return result
+            except BlockingIOError:
+                return "locked"
+            except TimeoutError:
+                return "readers"
