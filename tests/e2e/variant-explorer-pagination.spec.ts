@@ -73,10 +73,12 @@ async function openExplorer(page: Page) {
   await page.goto('/variants?sample_id=1')
   await waitForReactHydration(page)
   const table = page.getByRole('region', { name: 'Variant table', exact: true })
-  // Native input gives intersection observers each rendered page's geometry.
   const scrollToEnd = async () => {
-    await table.hover()
-    await page.mouse.wheel(0, 10_000)
+    // Let the observer see the appended page before scrolling its sentinel back in.
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    }))
+    await table.evaluate((element) => { element.scrollTop = element.scrollHeight })
   }
   const renderedIds = () => table.getByText(/^iYELIZTLI_[1X]_\d{3}$/).allTextContents()
   await expect(table.getByText(rows[0].rsid, { exact: true })).toBeVisible()
