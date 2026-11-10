@@ -92,6 +92,15 @@ discovery-context ★ rows are an inventory for review, not diagnoses and not kn
 associations. ClinVar pathogenic and lower-penetrance/risk-allele rows are labelled
 separately. Use the module, category, and minimum-evidence filters to narrow the list.
 
+## Pathway details
+
+The allergy, fitness, gene health, methylation, nutrigenomics, skin, sleep, and traits
+pathway panels show a genotype-orientation explanation above the individual variants
+when nucleotide genotypes are present. In methylation, expand **Advanced View** to see
+it. The explanation leaves the displayed variant names and genotype values unchanged
+and does not assign a strand to individual calls. It is omitted for empty lists and
+lists containing only missing calls or non-nucleotide tokens.
+
 ## Sensitive results are opt-in
 
 A few modules are **disclosure-gated**: their results stay hidden until you explicitly
