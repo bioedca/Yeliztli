@@ -559,3 +559,56 @@ class TestCleanEndpoint:
             ).fetchone()
         engine.dispose()
         assert row is None
+
+
+class TestSpliceAIProvenanceHealth:
+    def test_legacy_verify_stays_unverified_and_reingestion_restores_ready(
+        self, db_client, settings
+    ):
+        from backend.annotation.spliceai import (
+            create_spliceai_tables,
+            ingest_spliceai_vcf,
+            record_spliceai_version,
+            spliceai_scores,
+        )
+
+        scores = sa.create_engine(f"sqlite:///{settings.spliceai_db_path}")
+        create_spliceai_tables(scores)
+        with scores.begin() as conn:
+            conn.execute(
+                spliceai_scores.insert(),
+                dict(chrom="1", pos=100, ref="A", alt="G", symbol="SYNTHETIC", ds_max=0.7),
+            )
+            conn.execute(sa.text("DROP TABLE spliceai_sources"))
+        reference = _ref_engine(settings)
+        record_spliceai_version(reference, genome_build="GRCh37", version="legacy")
+        reference.dispose()
+
+        def spliceai_health():
+            response = db_client.get("/api/databases/health")
+            assert response.status_code == 200
+            databases = response.json()["databases"]
+            assert databases
+            return next(item for item in databases if item["name"] == "spliceai")
+
+        before = spliceai_health()
+        assert before["state"] == "unverified"
+        assert before["present"] and not before["integrity_ok"]
+        assert "re-ingest" in before["integrity_detail"]
+        response = db_client.post("/api/databases/spliceai/verify")
+        assert response.status_code == 200
+        assert response.json()["ok"] is False
+        assert "re-ingest" in response.json()["detail"]
+        assert spliceai_health()["state"] == "unverified"
+        source = settings.data_dir / "synthetic.vcf"
+        source.write_text(
+            "##fileformat=VCFv4.2\n##reference=GRCh37\n"
+            "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+            "1\t100\t.\tA\tG\t.\t.\tSpliceAI=G|SYNTHETIC|0.7|0|0|0|1|2|3|4\n"
+        )
+        ingest_spliceai_vcf(source, scores)
+        scores.dispose()
+        after = spliceai_health()
+        assert after["state"] == "ready" and after["integrity_ok"]
+        response = db_client.post("/api/databases/spliceai/verify")
+        assert response.status_code == 200 and response.json()["ok"] is True

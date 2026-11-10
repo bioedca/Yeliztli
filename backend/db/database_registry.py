@@ -894,6 +894,18 @@ def get_database_status(db_info: DatabaseInfo, settings: Settings) -> dict:
         # reference.db-resident: check database_versions table
         downloaded = _check_db_version_is_serviceable(db_info.name, settings)
         file_size = None
+    elif db_info.name == "spliceai":
+        from backend.db.build_guard import is_build_locked, is_cross_process_build_claimed
+        from backend.db.db_health import validate_database
+
+        dest = db_info.dest_path(settings)
+        file_size = dest.stat().st_size if dest.exists() else None
+        # This status feeds the synchronous database-list path. Never enter
+        # SQLite while an importer may hold its write lock through source parsing.
+        importing = is_build_locked("spliceai") or is_cross_process_build_claimed(
+            "spliceai", settings.data_dir
+        )
+        downloaded = not importing and validate_database("spliceai", settings).ok
     elif db_info.build_mode == "pipeline" and db_info.target_db == "standalone":
         # Standalone pipeline DB (gnomad, dbnsfp, alphamissense): require both the file
         # AND a database_versions entry. A file alone may be a partial
