@@ -293,20 +293,25 @@ class TestHappyPaths:
     def test_patch_explicit_null_display_name_returns_422(
         self, individuals_client: TestClient
     ) -> None:
-        ind_id = individuals_client.post(
-            "/api/individuals", json={"display_name": "Original"}
-        ).json()["id"]
+        created = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": "Original", "notes": "Keep", "biological_sex": "XX"},
+        )
+        assert created.status_code == 201
+        original = created.json()
+        ind_id = original["id"]
 
         resp = individuals_client.patch(
             f"/api/individuals/{ind_id}",
-            json={"display_name": None},
+            json={"display_name": None, "notes": "Changed", "biological_sex": "XY"},
         )
 
         assert resp.status_code == 422
+        assert resp.json() == {"detail": "display_name cannot be null."}
 
         after = individuals_client.get(f"/api/individuals/{ind_id}")
         assert after.status_code == 200
-        assert after.json()["display_name"] == "Original"
+        assert after.json() == original
 
     def test_link_and_unlink_sample(self, individuals_client: TestClient) -> None:
         sample1_id = individuals_client.sample1_id  # type: ignore[attr-defined]
@@ -413,6 +418,153 @@ class TestHappyPaths:
     def test_delete_nonexistent_returns_404(self, individuals_client: TestClient) -> None:
         resp = individuals_client.delete("/api/individuals/999")
         assert resp.status_code == 404
+
+
+class TestDisplayNameValidation:
+    @pytest.mark.parametrize("name", ["   ", "\t\r\n", "\u00a0\u2003"])
+    def test_create_rejects_whitespace_without_inserting(
+        self, individuals_client: TestClient, name: str
+    ) -> None:
+        response = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": name, "notes": "Must not persist", "biological_sex": "XX"},
+        )
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Individual display name must not be empty."}
+        listing = individuals_client.get("/api/individuals")
+        assert listing.status_code == 200
+        assert listing.json() == []
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [("  Subject  A\t", "Subject  A"), ("\u00a0María  Santos\u2003", "María  Santos")],
+    )
+    def test_create_persists_trimmed_name_and_preserves_internal_spacing(
+        self, individuals_client: TestClient, name: str, expected: str
+    ) -> None:
+        response = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": name, "notes": "  Keep notes  ", "biological_sex": "XX"},
+        )
+        assert response.status_code == 201
+        created = response.json()
+        assert created["display_name"] == expected
+        assert created["notes"] == "  Keep notes  "
+        assert created["biological_sex"] == "XX"
+        detail = individuals_client.get(f"/api/individuals/{created['id']}")
+        assert detail.status_code == 200
+        assert detail.json() == created
+        listing = individuals_client.get("/api/individuals")
+        assert listing.status_code == 200
+        rows = listing.json()
+        assert len(rows) == 1
+        assert (rows[0]["id"], rows[0]["display_name"]) == (created["id"], expected)
+
+    @pytest.mark.parametrize("name", [None, ""])
+    def test_create_rejects_schema_invalid_name_without_inserting(
+        self, individuals_client: TestClient, name: str | None
+    ) -> None:
+        response = individuals_client.post("/api/individuals", json={"display_name": name})
+        assert response.status_code == 422
+        errors = response.json()["detail"]
+        assert len(errors) == 1
+        assert errors[0]["loc"] == ["body", "display_name"]
+        listing = individuals_client.get("/api/individuals")
+        assert listing.status_code == 200
+        assert listing.json() == []
+
+    @pytest.mark.parametrize("name", ["   ", "\t\r\n", "\u00a0\u2003"])
+    def test_patch_rejects_whitespace_without_changing_any_fields(
+        self, individuals_client: TestClient, name: str
+    ) -> None:
+        created = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": "Original", "notes": "Keep", "biological_sex": "XX"},
+        )
+        assert created.status_code == 201
+        original = created.json()
+        response = individuals_client.patch(
+            f"/api/individuals/{original['id']}",
+            json={"display_name": name, "notes": "Changed", "biological_sex": "XY"},
+        )
+        assert response.status_code == 422
+        assert response.json() == {"detail": "Individual display name must not be empty."}
+        after = individuals_client.get(f"/api/individuals/{original['id']}")
+        assert after.status_code == 200
+        assert after.json() == original
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [("  Subject  A\t", "Subject  A"), ("\u00a0María  Santos\u2003", "María  Santos")],
+    )
+    def test_patch_persists_trimmed_name_and_preserves_other_fields(
+        self, individuals_client: TestClient, name: str, expected: str
+    ) -> None:
+        created = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": "Original", "notes": "  Keep notes  ", "biological_sex": "XX"},
+        )
+        assert created.status_code == 201
+        ind_id = created.json()["id"]
+        response = individuals_client.patch(
+            f"/api/individuals/{ind_id}", json={"display_name": name}
+        )
+        assert response.status_code == 200
+        updated = response.json()
+        assert updated["display_name"] == expected
+        assert updated["notes"] == "  Keep notes  "
+        assert updated["biological_sex"] == "XX"
+        detail = individuals_client.get(f"/api/individuals/{ind_id}")
+        assert detail.status_code == 200
+        assert detail.json() == updated
+        listing = individuals_client.get("/api/individuals")
+        assert listing.status_code == 200
+        rows = listing.json()
+        assert len(rows) == 1
+        assert (rows[0]["id"], rows[0]["display_name"]) == (ind_id, expected)
+
+    @pytest.mark.parametrize("name", ["   ", "\t\r\n", "\u00a0\u2003"])
+    def test_patch_whitespace_on_missing_individual_preserves_404(
+        self, individuals_client: TestClient, name: str
+    ) -> None:
+        response = individuals_client.patch(
+            "/api/individuals/999", json={"display_name": name, "notes": "Must not persist"}
+        )
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Individual 999 not found."}
+        listing = individuals_client.get("/api/individuals")
+        assert listing.status_code == 200
+        assert listing.json() == []
+
+    @pytest.mark.parametrize(
+        ("updates", "expected_notes", "expected_sex"),
+        [
+            ({"notes": "Changed"}, "Changed", "XX"),
+            ({"notes": None, "biological_sex": None}, None, None),
+        ],
+    )
+    def test_patch_omitted_name_preserves_it_and_nullable_field_behavior(
+        self,
+        individuals_client: TestClient,
+        updates: dict[str, str | None],
+        expected_notes: str | None,
+        expected_sex: str | None,
+    ) -> None:
+        created = individuals_client.post(
+            "/api/individuals",
+            json={"display_name": "Original", "notes": "Keep", "biological_sex": "XX"},
+        )
+        assert created.status_code == 201
+        ind_id = created.json()["id"]
+        response = individuals_client.patch(f"/api/individuals/{ind_id}", json=updates)
+        assert response.status_code == 200
+        updated = response.json()
+        assert updated["display_name"] == "Original"
+        assert updated["notes"] == expected_notes
+        assert updated["biological_sex"] == expected_sex
+        detail = individuals_client.get(f"/api/individuals/{ind_id}")
+        assert detail.status_code == 200
+        assert detail.json() == updated
 
 
 # ── (b) 409 on double-link ───────────────────────────────────────────

@@ -186,6 +186,13 @@ class MergeCommitResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
+def _normalize_display_name(display_name: str) -> str:
+    name = display_name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Individual display name must not be empty.")
+    return name
+
+
 def _vendor_from_file_format(file_format: str | None) -> str | None:
     """Extract the leading vendor token from ``file_format`` (e.g. ``"23andme"``)."""
     if not file_format:
@@ -348,10 +355,11 @@ def list_individuals() -> list[IndividualSummary]:
 @router.post("", status_code=201)
 def create_individual(body: IndividualCreate) -> IndividualDetail:
     """Create a new individual."""
+    display_name = _normalize_display_name(body.display_name)
     registry = get_registry()
     now = datetime.now(UTC)
     insert_values = {
-        "display_name": body.display_name,
+        "display_name": display_name,
         "notes": body.notes or "",
         "biological_sex": body.biological_sex,
         "updated_at": now,
@@ -428,6 +436,10 @@ def update_individual(individual_id: int, body: IndividualUpdate) -> IndividualD
     registry = get_registry()
     with registry.reference_engine.begin() as conn:
         _require_individual(conn, individual_id)
+        # Keep missing-individual precedence, then reject a blank name before
+        # writing any field (including notes, biological_sex, and updated_at).
+        if "display_name" in update_values:
+            update_values["display_name"] = _normalize_display_name(update_values["display_name"])
         conn.execute(
             individuals.update().where(individuals.c.id == individual_id).values(**update_values)
         )
