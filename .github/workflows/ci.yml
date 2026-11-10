@@ -472,6 +472,25 @@ jobs:
       - name: Verify image exists
         run: docker images yeliztli:latest --format "{{.Repository}}:{{.Tag}} {{.Size}}"
 
+      - name: Render a PDF as the application user
+        timeout-minutes: 2
+        run: |
+          docker run --rm --network none -i yeliztli:latest python - <<'PY'
+          import asyncio
+          import os
+          from pathlib import Path
+
+          from backend.reports.generator import _html_to_pdf
+
+          assert os.geteuid() != 0, "Report rendering must run as a non-root user"
+          assert Path.home() == Path("/home/appuser")
+          pdf = asyncio.run(_html_to_pdf("<!doctype html><title>Smoke test</title><p>Synthetic report</p>"))
+          assert pdf.startswith(b"%PDF-"), "Expected a PDF from the production renderer"
+          assert pdf.rstrip().endswith(b"%%EOF"), "Expected a complete PDF"
+          assert len(pdf) > 1000, "Expected a non-empty rendered document"
+          print(f"Non-root report rendering passed ({len(pdf)} PDF bytes)")
+          PY
+
       - name: Start and health-check
         run: |
           docker compose up -d
