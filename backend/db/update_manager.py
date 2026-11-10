@@ -1067,22 +1067,56 @@ def _bundle_asset_filename(url: str, fallback: str) -> str:
     return name or fallback
 
 
-def _install_gnomad_bundle_download(downloaded_path: Path, final_dest: Path) -> None:
-    """Install a downloaded gnomAD asset as the uncompressed SQLite DB."""
-    final_dest.parent.mkdir(parents=True, exist_ok=True)
-    if downloaded_path.name.endswith(".gz"):
-        tmp_dest = final_dest.with_name(f"{final_dest.name}.tmp")
-        try:
-            with gzip.open(downloaded_path, "rb") as src, tmp_dest.open("wb") as dst:
-                shutil.copyfileobj(src, dst, length=1024 * 1024)
-            tmp_dest.replace(final_dest)
-            downloaded_path.unlink(missing_ok=True)
-        except Exception:
-            tmp_dest.unlink(missing_ok=True)
-            raise
-        return
+def _install_gnomad_bundle_download(
+    downloaded_path: Path,
+    final_dest: Path,
+    *,
+    reference_engine: Engine,
+    version: str,
+    checksum: str | None,
+) -> None:
+    """Validate and publish a gnomAD bundle without exposing partial data."""
+    from tempfile import TemporaryDirectory
 
-    shutil.move(str(downloaded_path), str(final_dest))
+    from backend.db.database_registry import _record_db_version
+    from backend.db.standalone import publish_standalone
+
+    final_dest.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=".gnomad-build-", dir=final_dest.parent) as directory:
+        staged = Path(directory) / "replacement.db"
+        if downloaded_path.name.endswith(".gz"):
+            with gzip.open(downloaded_path, "rb") as src, staged.open("wb") as dst:
+                shutil.copyfileobj(src, dst, length=1024 * 1024)
+        else:
+            shutil.copy2(downloaded_path, staged)
+        target = make_sqlite_engine(Path(directory) / "version.db", wal=False)
+        try:
+            database_versions.create(target)
+            _record_db_version(
+                target,
+                db_name="gnomad",
+                version=version,
+                file_size_bytes=staged.stat().st_size,
+                sha256=checksum,
+            )
+            with target.connect() as connection:
+                row = (
+                    connection.execute(
+                        sa.select(database_versions).where(database_versions.c.db_name == "gnomad")
+                    )
+                    .mappings()
+                    .one()
+                )
+        finally:
+            target.dispose()
+        publish_standalone(
+            "gnomad",
+            staged,
+            final_dest,
+            reference_engine=reference_engine,
+            version_row=row,
+        )
+    downloaded_path.unlink(missing_ok=True)
 
 
 def run_lai_bundle_update(
@@ -1311,7 +1345,7 @@ def run_gnomad_bundle_update(
     release exists.
     """
     from backend.config import get_settings
-    from backend.db.database_registry import DATABASES, _record_db_version
+    from backend.db.database_registry import DATABASES
     from backend.db.manifest import get_bundle_info
 
     if settings is None:
@@ -1351,22 +1385,20 @@ def run_gnomad_bundle_update(
 
         final_dest = db_info.dest_path(settings)  # data_dir/gnomad_af.db
         try:
-            _install_gnomad_bundle_download(downloaded_path, final_dest)
+            _install_gnomad_bundle_download(
+                downloaded_path,
+                final_dest,
+                reference_engine=engine,
+                version=entry.version,
+                checksum=entry.sha256,
+            )
         except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)
             logger.exception("gnomad_materialize_failed", error=str(exc))
             return None
 
-        file_size = final_dest.stat().st_size
         duration = int(time.monotonic() - start_time)
 
-        _record_db_version(
-            engine,
-            db_name="gnomad",
-            version=entry.version,
-            file_size_bytes=file_size,
-            sha256=entry.sha256,
-        )
         _record_update_history(
             engine,
             db_name="gnomad",

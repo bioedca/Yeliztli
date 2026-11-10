@@ -869,10 +869,19 @@ class TestRunGnomadBundleUpdate:
         monkeypatch: pytest.MonkeyPatch,
         data_dir_with_ref: Path,
         serve_payload: Callable[[bytes], str],
+        request: pytest.FixtureRequest,
     ) -> None:
         # The hosted gnomAD asset is gzip-compressed to fit GitHub's release
         # asset limit; the runner installs the decompressed SQLite file.
-        payload = b"SQLite format 3\x00fake-gnomad-af-db" * 64
+        source = tmp_path / "synthetic-gnomad.db"
+        with sqlite3.connect(source) as connection:
+            connection.execute(
+                "CREATE TABLE gnomad_af (rsid TEXT, chrom TEXT, pos INTEGER, "
+                "ref TEXT, alt TEXT, homozygous_count INTEGER)"
+            )
+            connection.execute("INSERT INTO gnomad_af VALUES ('synthetic', '1', 1, 'A', 'C', 0)")
+        connection.close()
+        payload = source.read_bytes()
         compressed_payload = gzip.compress(payload)
         url = serve_payload(compressed_payload) + "/gnomad_af.db.gz"
         sha = hashlib.sha256(compressed_payload).hexdigest()
@@ -892,6 +901,14 @@ class TestRunGnomadBundleUpdate:
         monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(manifest_path))
 
         settings = Settings(data_dir=data_dir_with_ref, wal_mode=False)
+        from backend.db.connection import DBRegistry
+
+        registry = DBRegistry(settings)
+        request.addfinalizer(registry.dispose_all)
+        retained_engine = registry.gnomad_engine
+        with retained_engine.begin() as connection:
+            connection.exec_driver_sql("CREATE TABLE previous (value TEXT)")
+            connection.exec_driver_sql("INSERT INTO previous VALUES ('old')")
         result = run_gnomad_bundle_update(settings)
 
         assert isinstance(result, UpdateResult)
@@ -903,6 +920,11 @@ class TestRunGnomadBundleUpdate:
         dest = data_dir_with_ref / "gnomad_af.db"
         assert dest.exists()
         assert dest.read_bytes() == payload
+        with retained_engine.connect() as connection:
+            assert connection.exec_driver_sql("SELECT rsid FROM gnomad_af").all() == [
+                ("synthetic",)
+            ]
+            assert not sa.inspect(connection).has_table("previous")
 
         ref_path = data_dir_with_ref / "reference.db"
         version_row = _query_one(ref_path, database_versions, "gnomad")

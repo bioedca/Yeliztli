@@ -25,7 +25,6 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import asdict, replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -847,48 +846,9 @@ def _execute_build(
             message=f"Building {db_info.display_name} from upstream source...",
         )
 
-        # Hardening: a build killed mid-write can leave a corrupt/truncated
-        # standalone SQLite with no version stamp. Re-opening it for the rebuild
-        # would fail outright (malformed image) or splice onto stale rows. Drop
-        # a corrupt partial first so the build starts clean. reference.db is
-        # shared across DBs and is never removed here.
-        if db_info.target_db == "standalone" and db_info.build_mode == "pipeline":
-            dest = db_info.dest_path(settings)
-            if dest.exists() and not validate_database(db_info.name, settings).ok:
-                for stale in (dest, Path(f"{dest}-wal"), Path(f"{dest}-shm")):
-                    try:
-                        stale.unlink(missing_ok=True)
-                    except OSError as unlink_exc:
-                        logger.warning(
-                            "stale_partial_unlink_failed",
-                            path=str(stale),
-                            error=str(unlink_exc),
-                        )
-                logger.info(
-                    "corrupt_standalone_partial_removed",
-                    db_name=db_info.name,
-                    path=str(dest),
-                )
-
         build_fn = get_build_fn(db_info.name)
         if build_fn is None:
             raise ValueError(f"No build function registered for {db_info.name}")
-
-        # Determine which engine to pass
-        if db_info.target_db == "reference":
-            target_engine = engine
-        else:
-            registry = get_registry()
-            if db_info.name == "gnomad":
-                target_engine = registry.gnomad_engine
-            elif db_info.name == "dbnsfp":
-                target_engine = registry.dbnsfp_engine
-            elif db_info.name == "alphamissense":
-                target_engine = registry.alphamissense_engine
-            elif db_info.name == "gtex_eqtl":
-                target_engine = registry.gtex_eqtl_engine
-            else:
-                target_engine = engine
 
         # Throttle progress writes to at most once per 2 seconds per callback
         _last_dl_update = 0.0
@@ -934,33 +894,36 @@ def _execute_build(
             except sa.exc.OperationalError:
                 _last_parse_update = now
 
-        # Call the build function — signatures vary slightly
-        if db_info.name in ("gnomad", "dbnsfp"):
-            build_fn(
-                target_engine,
-                settings.downloads_dir,
-                download_progress=on_download_progress,
-                parse_progress=on_parse_progress,
-                reference_engine=engine,
-            )
-        elif db_info.name in ("alphamissense", "gtex_eqtl"):
-            build_fn(
-                target_engine,
-                settings.downloads_dir,
-                download_progress=on_download_progress,
-                parse_progress=on_parse_progress,
-                reference_engine=engine,
-            )
-        elif db_info.name == "mondo_hpo":
-            # mondo_hpo does not accept parse_progress
-            build_fn(target_engine, settings.downloads_dir, download_progress=on_download_progress)
-        else:
-            build_fn(
-                target_engine,
-                settings.downloads_dir,
-                download_progress=on_download_progress,
-                parse_progress=on_parse_progress,
-            )
+        from backend.db.standalone import standalone_build
+
+        standalone = db_info.target_db == "standalone"
+        target_context = (
+            standalone_build(db_info, settings, engine)
+            if standalone
+            else nullcontext((engine, engine))
+        )
+        with target_context as (target_engine, version_engine):
+            if standalone:
+                # The builder's version row belongs to the private artifact
+                # until validation and publication have both succeeded.
+                build_fn(
+                    target_engine,
+                    settings.downloads_dir,
+                    download_progress=on_download_progress,
+                    parse_progress=on_parse_progress,
+                    reference_engine=version_engine,
+                )
+            elif db_info.name == "mondo_hpo":
+                build_fn(
+                    target_engine, settings.downloads_dir, download_progress=on_download_progress
+                )
+            else:
+                build_fn(
+                    target_engine,
+                    settings.downloads_dir,
+                    download_progress=on_download_progress,
+                    parse_progress=on_parse_progress,
+                )
 
         _update_job(
             engine,

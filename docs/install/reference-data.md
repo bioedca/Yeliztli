@@ -32,6 +32,45 @@ show the same moving progress bar. If **Settings → System Health → Database 
 the database as `Downloading` or `Building`, setup is still active. If it shows `Failed`, use
 the repair/resume controls from that page.
 
+## Rebuilding standalone databases
+
+Rebuilds of dbNSFP, AlphaMissense, and GTEx eQTL use a private staging database.
+gnomAD bundle updates use the same publication procedure. The installed database stays
+available while the replacement downloads and builds. Keep enough free space for the
+existing database, the replacement, and downloaded source files at the same time.
+
+Before publication, Yeliztli checks the replacement's required tables and SQLite integrity.
+It then waits for active readers to close, prevents new connections from opening, and
+atomically replaces the installed file. Cached engine objects open fresh connections on
+their next use. The version record is updated before readers resume. A build, validation,
+or publication failure before the metadata commit preserves the previous artifact and
+version. An interruption after that commit keeps the new artifact and a recovery receipt;
+restart the application to finish recovery before using the database.
+
+dbNSFP keeps partial imports in the private `.dbnsfp-rebuild` directory. Retrying with the
+same source archive resumes completed chromosomes; a different archive checksum resets the
+partial import. Do not delete this directory to retry a build. AlphaMissense and GTEx rebuild
+their private staging database on retry. Valid dbNSFP progress from an older installation is
+copied into private staging before resuming, leaving the installed file untouched.
+
+Publication requires the process-lock support available on Linux, macOS, and WSL. Native
+Windows refuses this operation with an explicit error. A long-running reader can cause a
+publication timeout; let the query finish and retry. A SQLite journal that cannot be safely
+recovered also stops publication. Do not manually remove `-wal`, `-shm`, or `-journal` files
+while Yeliztli or another SQLite client is running.
+
+If a process exits during publication, restart Yeliztli. Startup reconciles the durable
+publication receipt against the exact installed bytes before restoring access. An existing
+process refuses new connections while that receipt is pending, so restart every application
+and worker process. Do not mix old and new application versions against one data directory:
+all readers must participate in the same publication protocol.
+
+A killed build may leave a hidden `.<source>-build-*` staging directory or a
+`.<database>.previous-*` backup in the data directory. These files are never treated as an
+installed database. Preserve them until startup recovery succeeds and the installed database
+passes verification; only then remove confirmed abandoned artifacts with all processes stopped.
+Do not remove a `.<database>.publication.json` recovery receipt by hand.
+
 ## Prebuilt bundles
 
 These are published as GitHub release assets, pinned by version and SHA-256 checksum in

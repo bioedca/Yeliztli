@@ -1440,7 +1440,7 @@ def _execute_database_update(
             mondo_url = pin.url
 
         # Build functions for reference-target DBs take the reference engine;
-        # standalone DBs write to their own file and take a fresh engine.
+        # standalone DBs build privately and publish after validation.
         # Serialize per-DB so an auto-update can't race a setup-wizard build of
         # the same file (the "database is locked" failure mode).
         with build_lock(db_name):
@@ -1469,23 +1469,13 @@ def _execute_database_update(
                             )
                 else:
                     build_fn(engine, settings.downloads_dir)
+            elif db_info is not None:
+                from backend.db.standalone import standalone_build
+
+                with standalone_build(db_info, settings, engine) as (target, versions):
+                    build_fn(target, settings.downloads_dir, reference_engine=versions)
             else:
-                from backend.db.sqlite_engine import make_sqlite_engine
-
-                dest = (
-                    db_info.dest_path(settings) if db_info else settings.data_dir / f"{db_name}.db"
-                )
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                # This build OWNS the standalone DB file, so it opts into WAL
-                # (wal=True) exactly as the old hand-rolled listener did; the
-                # factory also applies busy_timeout so the build waits out
-                # (instead of failing on) a concurrent writer of the same file.
-                standalone_engine = make_sqlite_engine(dest, wal=True, synchronous="NORMAL")
-
-                try:
-                    build_fn(standalone_engine, settings.downloads_dir)
-                finally:
-                    standalone_engine.dispose()
+                raise ValueError(f"No database target registered for '{db_name}'")
 
         _run_version_staleness_check()
 
