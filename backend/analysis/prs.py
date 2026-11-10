@@ -1147,7 +1147,7 @@ def run_prs(
     top_ancestry_fraction: float | None = None,
     n_bootstrap: int = 1000,
     rng_seed: int | None = None,
-    reference_engine: sa.Engine | None = None,
+    gnomad_engine: sa.Engine | None = None,
 ) -> PRSResult:
     """Run the complete PRS pipeline: compute → percentile → bootstrap → ancestry check.
 
@@ -1161,6 +1161,7 @@ def run_prs(
             None if unavailable.
         n_bootstrap: Bootstrap iterations (default 1000).
         rng_seed: Optional RNG seed for reproducibility.
+        gnomad_engine: Optional standalone gnomAD frequency store for imputed PRS inputs.
 
     Returns:
         Complete PRSResult.
@@ -1208,13 +1209,13 @@ def run_prs(
         ]
         # SW-C5 imputed contributions enter raw_score but live in imputed_variants,
         # not annotated_variants, so continuous_reference_distribution can only put
-        # them in the expected moments when a reference_engine is supplied to source
+        # them in the expected moments when a gnomad_engine is supplied to source
         # their per-pop gnomAD AF (#1236). Without one, standardizing a raw score
         # that includes imputed contributions against a typed-only distribution
         # biases the z-score — so withhold the percentile rather than emit a biased
-        # one (cf. #7); raw_score + coverage are still reported. With a reference
+        # one (cf. #7); raw_score + coverage are still reported. With a gnomAD
         # engine, those variants are calibrated and the percentile stands.
-        if result.snps_used_imputed > 0 and reference_engine is None:
+        if result.snps_used_imputed > 0 and gnomad_engine is None:
             dist = None
             logger.info(
                 "prs_continuous_calibration_withheld_imputed",
@@ -1222,7 +1223,7 @@ def run_prs(
                 snps_used_imputed=result.snps_used_imputed,
             )
         else:
-            dist = continuous_reference_distribution(weights, sample_engine, reference_engine)
+            dist = continuous_reference_distribution(weights, sample_engine, gnomad_engine)
         if dist is not None:
             reference_mean = dist.mean
             reference_std = dist.std

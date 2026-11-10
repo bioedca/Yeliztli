@@ -547,6 +547,7 @@ def run_traits(
 
     Example: ``POST /api/analysis/traits/run?sample_id=1``
     """
+    from backend.analysis.prs_calibration import get_optional_gnomad_engine
     from backend.analysis.traits import (
         load_traits_panel,
         score_traits_pathways,
@@ -558,7 +559,12 @@ def run_traits(
     sample_engine = _get_sample_engine(sample_id)
 
     panel = load_traits_panel()
-    result = score_traits_pathways(panel, sample_engine, registry.reference_engine)
+    result = score_traits_pathways(
+        panel,
+        sample_engine,
+        registry.reference_engine,
+        gnomad_engine=get_optional_gnomad_engine(registry),
+    )
     count = store_traits_findings(result, sample_engine)
 
     # Set annotation_coverage bitmask bit 5 for GWAS-matched variants

@@ -130,6 +130,7 @@ def _run_cancer(
         run_cancer_prs,
         store_cancer_prs_findings,
     )
+    from backend.analysis.prs_calibration import get_optional_gnomad_engine
 
     panel = load_cancer_panel()
     result = extract_cancer_variants(panel, sample_engine)
@@ -151,7 +152,7 @@ def _run_cancer(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
         inferred_sex=sex_context,
-        reference_engine=registry.reference_engine,
+        gnomad_engine=get_optional_gnomad_engine(registry),
     )
     count += store_cancer_prs_findings(prs_result, sample_engine)
     return count
@@ -208,6 +209,7 @@ def _run_nutrigenomics(sample_engine: Engine, registry: DBRegistry) -> int:
 
 
 def _run_traits(sample_engine: Engine, registry: DBRegistry) -> int:
+    from backend.analysis.prs_calibration import get_optional_gnomad_engine
     from backend.analysis.traits import (
         load_traits_panel,
         score_traits_pathways,
@@ -215,7 +217,12 @@ def _run_traits(sample_engine: Engine, registry: DBRegistry) -> int:
     )
 
     panel = load_traits_panel()
-    result = score_traits_pathways(panel, sample_engine, registry.reference_engine)
+    result = score_traits_pathways(
+        panel,
+        sample_engine,
+        registry.reference_engine,
+        gnomad_engine=get_optional_gnomad_engine(registry),
+    )
     return store_traits_findings(result, sample_engine)
 
 
