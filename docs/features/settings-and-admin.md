@@ -74,6 +74,9 @@ Optionally protect your instance with a PIN or password:
 Switch between **Light**, **Dark**, and **System** (follows your OS) from the top navigation
 or Settings.
 
+If the saved browser preference cannot be read, the app starts in **System** mode.
+You can still switch themes for the current session when browser storage is unavailable.
+
 ## Backup & restore
 
 Export a `.tar.gz` of your samples and configuration, and restore it later — see
