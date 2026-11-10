@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from backend.analysis.alphamissense import alphamissense_badge_for_variant
 from backend.api.dependencies import require_fresh_sample
-from backend.db.chrom_order import chrom_order_case
+from backend.api.variant_cursor import variant_cursor_clause, variant_order_key
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, samples
 from backend.ingestion.chrom_order import chrom_sort_key
@@ -128,6 +128,7 @@ class AnnotatedVariantPage(BaseModel):
     items: list[AnnotatedVariantRow]
     next_cursor_chrom: str | None = None
     next_cursor_pos: int | None = None
+    next_cursor_rsid: str | None = None
     has_more: bool = False
     limit: int
 
@@ -184,19 +185,13 @@ def _require_annotated(engine: sa.Engine) -> None:
 def _build_cursor_clause(
     cursor_chrom: str | None,
     cursor_pos: int | None,
+    cursor_rsid: str | None = None,
 ) -> sa.ColumnElement | None:
-    if cursor_chrom is None or cursor_pos is None:
-        return None
-    cursor_order = chrom_sort_key(cursor_chrom)
-    expr = chrom_order_case(_TABLE.c.chrom)
-    return sa.or_(
-        expr > cursor_order,
-        sa.and_(expr == cursor_order, _TABLE.c.pos > cursor_pos),
-    )
+    return variant_cursor_clause(_TABLE, cursor_chrom, cursor_pos, cursor_rsid)
 
 
 def _build_order_by() -> list:
-    return [chrom_order_case(_TABLE.c.chrom).asc(), _TABLE.c.pos.asc()]
+    return [column.asc() for column in variant_order_key(_TABLE)]
 
 
 def _build_filters(
@@ -284,6 +279,9 @@ def list_annotated_variants(
     sample_id: int = Query(..., description="Sample ID"),
     cursor_chrom: str | None = Query(None, description="Cursor chromosome"),
     cursor_pos: int | None = Query(None, description="Cursor position"),
+    cursor_rsid: str | None = Query(
+        None, description="Cursor rsID; requires chromosome and position"
+    ),
     limit: int = Query(50, ge=1, le=500, description="Page size"),
     # Filters
     chrom: str | None = Query(None, description="Chromosome filter"),
@@ -303,7 +301,8 @@ def list_annotated_variants(
 ) -> AnnotatedVariantPage:
     """Return a page of annotated variants with full annotation fields.
 
-    Cursor-based keyset pagination on (chrom, pos). Supports filtering by
+    Cursor-based keyset pagination on (chromosome order, chrom, pos, rsid).
+    Send all three returned cursor fields together to continue. Supports filtering by
     ClinVar significance, consequence type, AF threshold, evidence conflict,
     and more.
 
@@ -331,7 +330,7 @@ def list_annotated_variants(
     if filter_clauses:
         query = query.where(sa.and_(*filter_clauses))
 
-    cursor_clause = _build_cursor_clause(cursor_chrom, cursor_pos)
+    cursor_clause = _build_cursor_clause(cursor_chrom, cursor_pos, cursor_rsid)
     if cursor_clause is not None:
         query = query.where(cursor_clause)
 
@@ -350,15 +349,18 @@ def list_annotated_variants(
 
     next_chrom: str | None = None
     next_pos: int | None = None
+    next_rsid: str | None = None
     if has_more and result_rows:
         last = result_rows[-1]
         next_chrom = last.chrom
         next_pos = last.pos
+        next_rsid = last.rsid
 
     return AnnotatedVariantPage(
         items=items,
         next_cursor_chrom=next_chrom,
         next_cursor_pos=next_pos,
+        next_cursor_rsid=next_rsid,
         has_more=has_more,
         limit=limit,
     )

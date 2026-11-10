@@ -65,7 +65,8 @@ function makePage(
       alt_rsid: "",
     })),
     next_cursor_chrom: hasMore ? "1" : null,
-    next_cursor_pos: hasMore ? startPos + count * 100 : null,
+    next_cursor_pos: hasMore ? startPos + (count - 1) * 100 : null,
+    next_cursor_rsid: hasMore ? `rs${100 + count - 1}` : null,
     has_more: hasMore,
     limit: 100,
   }

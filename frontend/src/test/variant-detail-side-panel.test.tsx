@@ -48,6 +48,7 @@ function makeVariantPage(count: number): VariantPage {
     })),
     next_cursor_chrom: null,
     next_cursor_pos: null,
+    next_cursor_rsid: null,
     has_more: false,
     limit: 100,
   }

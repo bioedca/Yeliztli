@@ -44,6 +44,7 @@ async function fetchVariantPage(
   if (cursor) {
     params.set("cursor_chrom", cursor.chrom)
     params.set("cursor_pos", String(cursor.pos))
+    if (cursor.rsid != null) params.set("cursor_rsid", cursor.rsid)
   }
   if (filter) {
     params.set("filter", filter)
@@ -122,12 +123,18 @@ export function useVariants({
       fetchVariantPage(sampleId!, pageParam, PAGE_SIZE, effectiveFilter, tag, effectiveSearch),
     initialPageParam: initialCursor,
     getNextPageParam: (lastPage): VariantCursor | null => {
-      if (!lastPage.has_more || !lastPage.next_cursor_chrom || lastPage.next_cursor_pos == null) {
+      if (
+        !lastPage.has_more ||
+        lastPage.next_cursor_chrom == null ||
+        lastPage.next_cursor_pos == null ||
+        lastPage.next_cursor_rsid == null
+      ) {
         return null
       }
       return {
         chrom: lastPage.next_cursor_chrom,
         pos: lastPage.next_cursor_pos,
+        rsid: lastPage.next_cursor_rsid,
       }
     },
     enabled: sampleId != null,
