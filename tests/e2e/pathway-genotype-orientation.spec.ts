@@ -71,10 +71,12 @@ for (const module of modules) {
       await expect(note).toContainText('complementary letters (A pairs with T, C with G)')
       await expect(note).toContainText('cannot be compared letter by letter with a genotype.')
       await expect(dialog.getByText('GG', { exact: true })).toBeVisible()
-      const bounds = await note.boundingBox()
-      expect(bounds).not.toBeNull()
-      expect(bounds!.x).toBeGreaterThanOrEqual(0)
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(mode.width)
+      // A visible slide-in panel can still be moving. Require both edges to
+      // reach the viewport instead of sampling geometry during its animation.
+      await expect.poll(async () => {
+        const bounds = await note.boundingBox()
+        return bounds !== null && bounds.x >= 0 && bounds.x + bounds.width <= mode.width
+      }).toBe(true)
       expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
       expect(await page.locator('html').evaluate(element => element.classList.contains('dark')))
         .toBe(mode.theme === 'dark')
