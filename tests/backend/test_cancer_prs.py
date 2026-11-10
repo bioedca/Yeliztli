@@ -174,7 +174,7 @@ def _patch_cancer_run_dependencies(
     monkeypatch.setattr(
         cancer_module,
         "store_cancer_findings",
-        lambda _result, _sample_engine, _reference_engine: 2,
+        lambda _result, _sample_engine, engine: captured.update(constraint_engine=engine) or 2,
     )
     monkeypatch.setattr(cancer_prs_module, "load_cancer_prs_weights", lambda: [])
     monkeypatch.setattr(ancestry_module, "get_inferred_ancestry", lambda _sample_engine: "EUR")
@@ -199,7 +199,7 @@ def _patch_cancer_run_dependencies(
         captured["inferred_ancestry"] = kwargs["inferred_ancestry"]
         captured["top_ancestry_fraction"] = kwargs["top_ancestry_fraction"]
         captured["inferred_sex"] = kwargs["inferred_sex"]
-        captured["prs_reference_engine"] = kwargs.get("reference_engine")
+        captured["prs_gnomad_engine"] = kwargs.get("gnomad_engine")
         return SimpleNamespace(results=[])
 
     monkeypatch.setattr(cancer_prs_module, "resolve_cancer_prs_sex_context", fake_resolve)
@@ -274,18 +274,24 @@ class TestCancerPRSSexContextResolution:
 
 class TestCancerPRSCallSites:
     def test_api_run_uses_resolved_sex_for_prs(
-        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine, tmp_path
     ) -> None:
         from backend.api.routes import cancer as cancer_routes
+        from backend.config import Settings
 
+        settings = Settings(data_dir=tmp_path)
+        settings.gnomad_db_path.touch()
         reference_engine = object()
+        gnomad_engine = object()
         captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XY")
 
         monkeypatch.setattr(cancer_routes, "_get_sample_engine", lambda _sample_id: sample_engine)
         monkeypatch.setattr(
             cancer_routes,
             "get_registry",
-            lambda: SimpleNamespace(reference_engine=reference_engine),
+            lambda: SimpleNamespace(
+                reference_engine=reference_engine, gnomad_engine=gnomad_engine, settings=settings
+            ),
         )
 
         response = cancer_routes.run_cancer_analysis(sample_id=42)
@@ -298,16 +304,23 @@ class TestCancerPRSCallSites:
         assert captured["inferred_ancestry"] == "EUR"
         assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XY"
-        assert captured["prs_reference_engine"] is reference_engine
+        assert captured["prs_gnomad_engine"] is gnomad_engine
+        assert captured["constraint_engine"] is reference_engine
 
     def test_run_all_cancer_runner_uses_resolved_sex_for_prs(
-        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine
+        self, monkeypatch: pytest.MonkeyPatch, sample_engine: sa.Engine, tmp_path
     ) -> None:
         from backend.analysis import run_all
+        from backend.config import Settings
 
+        settings = Settings(data_dir=tmp_path)
+        settings.gnomad_db_path.touch()
         reference_engine = object()
+        gnomad_engine = object()
         captured = _patch_cancer_run_dependencies(monkeypatch, sex_context="XX")
-        registry = SimpleNamespace(reference_engine=reference_engine)
+        registry = SimpleNamespace(
+            reference_engine=reference_engine, gnomad_engine=gnomad_engine, settings=settings
+        )
 
         count = run_all._run_cancer(sample_engine, registry, sample_id=43)
 
@@ -318,7 +331,8 @@ class TestCancerPRSCallSites:
         assert captured["inferred_ancestry"] == "EUR"
         assert captured["top_ancestry_fraction"] == 0.55
         assert captured["inferred_sex"] == "XX"
-        assert captured["prs_reference_engine"] is reference_engine
+        assert captured["prs_gnomad_engine"] is gnomad_engine
+        assert captured["constraint_engine"] is reference_engine
 
     def test_run_all_dispatch_passes_sample_id_to_cancer(
         self, monkeypatch: pytest.MonkeyPatch
@@ -742,7 +756,7 @@ class TestRunCancerPRS:
     ) -> None:
         breast = next(ws for ws in cancer_weight_sets if ws.trait == "breast_cancer")
         colorectal = next(ws for ws in cancer_weight_sets if ws.trait == "colorectal_cancer")
-        reference_engine = object()
+        gnomad_engine = object()
         calls: list[tuple[PRSWeightSet, sa.Engine, dict[str, object]]] = []
 
         def fake_run_prs(
@@ -773,7 +787,7 @@ class TestRunCancerPRS:
             inferred_sex="XX",
             n_bootstrap=17,
             rng_seed=9,
-            reference_engine=reference_engine,
+            gnomad_engine=gnomad_engine,
         )
 
         assert result.trait_names == ["colorectal_cancer"]
@@ -785,7 +799,7 @@ class TestRunCancerPRS:
         assert called_kwargs["top_ancestry_fraction"] == 0.75
         assert called_kwargs["n_bootstrap"] == 17
         assert called_kwargs["rng_seed"] == 9
-        assert called_kwargs["reference_engine"] is reference_engine
+        assert called_kwargs["gnomad_engine"] is gnomad_engine
 
     @pytest.mark.parametrize(
         ("inferred_sex", "expected_traits"),

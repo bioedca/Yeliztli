@@ -616,9 +616,11 @@ def run_cancer_analysis(
         run_cancer_prs,
         store_cancer_prs_findings,
     )
+    from backend.analysis.prs_calibration import get_optional_gnomad_engine
 
     sample_engine = _get_sample_engine(sample_id)
-    reference_engine = get_registry().reference_engine
+    registry = get_registry()
+    reference_engine = registry.reference_engine
 
     # Monogenic extraction (P3-13)
     panel = load_cancer_panel()
@@ -645,7 +647,7 @@ def run_cancer_analysis(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_fraction,
         inferred_sex=sex_context,
-        reference_engine=reference_engine,
+        gnomad_engine=get_optional_gnomad_engine(registry),
     )
     prs_count = store_cancer_prs_findings(prs_result, sample_engine)
 

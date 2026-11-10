@@ -35,11 +35,30 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 
 from backend.analysis.allele_match import AMBIGUOUS_MAF_HIGH, AMBIGUOUS_MAF_LOW
 from backend.analysis.zygosity import COMPLEMENT
+
+if TYPE_CHECKING:
+    from backend.db.connection import DBRegistry
+
+
+def get_optional_gnomad_engine(registry: DBRegistry) -> sa.Engine | None:
+    """Return the installed frequency store without creating an absent database.
+
+    Registry engines are lazy and can create an empty SQLite file on connection.
+    Only absence is optional here; an unreadable or malformed installed store must
+    still fail the run rather than silently change its calibration inputs.
+    """
+    try:
+        registry.settings.gnomad_db_path.stat()
+    except FileNotFoundError:
+        return None
+    return registry.gnomad_engine
+
 
 # Super-population code → gnomAD alt-allele-frequency column. CSA maps to gnomAD
 # "sas"; MID/OCE have no dedicated gnomAD population (dropped + renormalised).
@@ -291,19 +310,19 @@ def _pair_orients(effect_allele: str, other_allele: str | None, ref: str, alt: s
     return {ea, oa} == pair or {COMPLEMENT[ea], COMPLEMENT[oa]} == pair
 
 
-def _resolve_imputed_against_reference(
+def _resolve_imputed_against_gnomad(
     weights: list[dict],
     sample_engine: sa.Engine,
-    reference_engine: sa.Engine,
+    gnomad_engine: sa.Engine,
     af_cols: list[str],
 ) -> list[dict]:
     """Build calibration entries for scored variants absent from annotated_variants.
 
     These are the imputed-only contributions SW-C5 adds to the raw score (#1236).
     Their ref/alt come from the sample's ``imputed_variants``; their per-population
-    gnomAD AF from the reference DB (``lookup_gnomad_by_positions``). A variant
-    whose ref/alt or gnomAD AF can't be sourced is left out — it then sits in the
-    same coverage-tolerance bucket as before, never standardized over wrong moments.
+    gnomAD AF from ``gnomad_af.db`` (``lookup_gnomad_by_positions``). A variant
+    whose ref/alt or gnomAD row can't be sourced is left out. The caller withholds
+    calibration if any scored imputed contribution lacks usable frequency data.
     """
     from backend.annotation.gnomad import lookup_gnomad_by_positions
     from backend.db.tables import imputed_variants
@@ -348,7 +367,7 @@ def _resolve_imputed_against_reference(
         for (chrom, pos), alleles in ref_alts.items()
         for (ref, alt) in alleles
     ]
-    annotations = lookup_gnomad_by_positions(positions, reference_engine)
+    annotations = lookup_gnomad_by_positions(positions, gnomad_engine)
 
     entries: list[dict] = []
     for (chrom, pos), weights_at_locus in by_locus.items():
@@ -379,7 +398,7 @@ def _resolve_imputed_against_reference(
 def continuous_reference_distribution(
     weights: list[dict],
     sample_engine: sa.Engine,
-    reference_engine: sa.Engine | None = None,
+    gnomad_engine: sa.Engine | None = None,
 ) -> CalibratedDistribution | None:
     """Build an ancestry-continuous reference distribution for a PRS weight set.
 
@@ -389,12 +408,12 @@ def continuous_reference_distribution(
     ``annotated_variants``. Returns ``None`` if ancestry is unknown or too few
     variants have a usable AF.
 
-    When ``reference_engine`` is supplied, scored variants that are **absent from
+    When ``gnomad_engine`` is supplied, scored variants that are **absent from
     ``annotated_variants``** — the imputed-only contributions SW-C5 adds to the
     raw score (#1236) — are resolved against the gnomAD reference: their ref/alt
     come from the sample's ``imputed_variants`` and their per-population gnomAD AF
-    from the reference DB. This keeps the expected distribution over the *same*
-    typed+imputed set the raw score used; without it, imputed contributions would
+    from the standalone ``gnomad_af.db``. This keeps the expected distribution over
+    the *same* typed+imputed set the raw score used; without it, imputed contributions would
     inflate the raw score but be missing from the moments, biasing the z-score.
     """
     from backend.db.tables import annotated_variants
@@ -465,9 +484,9 @@ def continuous_reference_distribution(
     for key, w in by_pos.items():
         _append_from_annotated(rows_by_pos.get(key), w)
 
-    if reference_engine is not None and unresolved:
-        resolved = _resolve_imputed_against_reference(
-            unresolved, sample_engine, reference_engine, af_cols
+    if gnomad_engine is not None and unresolved:
+        resolved = _resolve_imputed_against_gnomad(
+            unresolved, sample_engine, gnomad_engine, af_cols
         )
         # Every scored variant absent from annotated_variants must be calibrated
         # against the reference; the helper emits exactly one entry per resolvable
@@ -477,6 +496,11 @@ def continuous_reference_distribution(
         # — over moments that omit it (#1236); the typed-only coverage gate could
         # otherwise still pass on a mixed set and re-introduce the bias.
         if len(resolved) != len(unresolved):
+            return None
+        # A matching row alone is insufficient: missing population frequencies or
+        # an ambiguous effect allele can still exclude it from the moments.
+        _, _, resolved_used = expected_prs_mean_sd(resolved, fractions)
+        if resolved_used != len(resolved):
             return None
         variants.extend(resolved)
 

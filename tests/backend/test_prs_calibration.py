@@ -29,7 +29,7 @@ from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import annotated_variants, findings, imputed_variants
 
 
-def _reference_with_gnomad(rows: list[dict]) -> sa.Engine:
+def _gnomad_store(rows: list[dict]) -> sa.Engine:
     """In-memory reference engine with a gnomad_af table seeded with ``rows``.
 
     Each row needs chrom/pos/ref/alt; per-pop AF columns default to None.
@@ -586,7 +586,7 @@ class TestRunPrsCalibrationProjectionLocksAllFields:
 
         captured: dict[str, list[dict]] = {}
 
-        def _capture(weights: list[dict], sample_engine, reference_engine=None):
+        def _capture(weights: list[dict], sample_engine, gnomad_engine=None):
             captured["weights"] = weights
             return None  # withhold calibration; we only inspect the projection
 
@@ -651,7 +651,7 @@ class TestRunPrsCalibrationProjectionLocksAllFields:
         assert wd["pos"] == 100
 
 
-class TestImputedCalibrationViaReference:
+class TestImputedCalibrationViaGnomad:
     """Imputed-scored variants must enter the calibration distribution, not just the
     raw score (#1236). They live in imputed_variants, not annotated_variants, so a
     reference engine is needed to source their per-pop gnomAD AF; without one (or
@@ -686,7 +686,7 @@ class TestImputedCalibrationViaReference:
 
     def test_imputed_variant_enters_distribution_via_reference(self) -> None:
         sample = self._imputed_sample()
-        reference = _reference_with_gnomad(
+        reference = _gnomad_store(
             [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
         )
         dist = continuous_reference_distribution(self._weights(), sample, reference)
@@ -705,7 +705,7 @@ class TestImputedCalibrationViaReference:
     def test_reference_without_matching_gnomad_row_leaves_it_uncalibrated(self) -> None:
         # Reference engine present but gnomAD has no row at 1:999 A>G → unresolved.
         sample = self._imputed_sample()
-        reference = _reference_with_gnomad([])
+        reference = _gnomad_store([])
         assert continuous_reference_distribution(self._weights(), sample, reference) is None
 
     def _mixed_sample(self) -> sa.Engine:
@@ -769,7 +769,7 @@ class TestImputedCalibrationViaReference:
         # gate and yield a (biased) distribution, but the imputed contribution in
         # the raw score has no reference engine to calibrate it → withhold rather
         # than standardize against typed-only moments (#1236).
-        result = run_prs(self._mixed_weight_set(), self._mixed_sample())  # no reference_engine
+        result = run_prs(self._mixed_weight_set(), self._mixed_sample())  # no gnomad_engine
         assert result.snps_used == 2
         assert result.snps_used_imputed == 1
         assert result.calibration_method is None
@@ -779,12 +779,10 @@ class TestImputedCalibrationViaReference:
         # Preserve path: with a reference engine sourcing the imputed variant's
         # per-pop gnomAD AF, BOTH the typed and imputed contributions enter the
         # distribution and the percentile is emitted over the same set as the raw.
-        reference = _reference_with_gnomad(
+        reference = _gnomad_store(
             [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
         )
-        result = run_prs(
-            self._mixed_weight_set(), self._mixed_sample(), reference_engine=reference
-        )
+        result = run_prs(self._mixed_weight_set(), self._mixed_sample(), gnomad_engine=reference)
         assert result.snps_used_imputed == 1
         assert result.calibration_method == "ancestry_continuous"
         assert result.calibration_variants_used == 2  # typed + imputed both calibrated
@@ -797,7 +795,7 @@ class TestImputedCalibrationViaReference:
         # score — so the whole distribution is withheld, not calibrated over
         # typed-only moments (#1236).
         sample = self._mixed_sample()
-        reference = _reference_with_gnomad([])  # no gnomAD row for the imputed 1:999
+        reference = _gnomad_store([])  # no gnomAD row for the imputed 1:999
         weights = [
             {
                 "rsid": "rsTYP",
@@ -818,8 +816,8 @@ class TestImputedCalibrationViaReference:
         ]
         assert continuous_reference_distribution(weights, sample, reference) is None
 
-    def test_run_cancer_prs_threads_reference_engine_to_preserve_percentile(self) -> None:
-        # #1281: a PRS module entry point must forward reference_engine to run_prs so
+    def test_run_cancer_prs_threads_gnomad_engine_to_preserve_percentile(self) -> None:
+        # #1281: a PRS module entry point must forward gnomad_engine to run_prs so
         # an imputed-contributed score keeps a calibrated percentile (the "preserve"
         # counterpart to the run_prs-level tests above) instead of withholding it.
         # run_cancer_prs is the representative module; mixed_trait is not sex-gated,
@@ -834,32 +832,32 @@ class TestImputedCalibrationViaReference:
 
         # With a reference engine threaded through, the imputed variant is calibrated
         # and the percentile is emitted over the same variant set as the raw score.
-        reference = _reference_with_gnomad(
+        reference = _gnomad_store(
             [{"chrom": "1", "pos": 999, "ref": "A", "alt": "G", "af_eur": 0.3}]
         )
         preserved = run_cancer_prs(
-            [self._mixed_weight_set()], self._mixed_sample(), reference_engine=reference
+            [self._mixed_weight_set()], self._mixed_sample(), gnomad_engine=reference
         ).results[0]
         assert preserved.calibration_method == "ancestry_continuous"
         assert preserved.calibration_variants_used == 2  # typed + imputed both calibrated
         assert preserved.percentile is not None
 
 
-class TestReferenceEngineThreading:
-    """Every PRS entry point must forward ``reference_engine`` down to ``run_prs`` so
+class TestGnomadEngineThreading:
+    """Every PRS entry point must forward ``gnomad_engine`` down to ``run_prs`` so
     imputed-contributed percentiles are preserved, not withheld (#1281).
 
     These lock the one-line wiring at each entry point with a spy; the end-to-end
-    preserve behaviour itself is covered by TestImputedCalibrationViaReference.
+    preserve behaviour itself is covered by TestImputedCalibrationViaGnomad.
     """
 
-    def test_run_traits_prs_forwards_reference_engine(self, monkeypatch) -> None:
+    def test_run_traits_prs_forwards_gnomad_engine(self, monkeypatch) -> None:
         import backend.analysis.traits as t
 
         captured: dict = {}
 
         def _spy(*_a, **kw):
-            captured["reference_engine"] = kw.get("reference_engine")
+            captured["gnomad_engine"] = kw.get("gnomad_engine")
             return types.SimpleNamespace(
                 evidence_level=1,
                 trait="t",
@@ -876,12 +874,12 @@ class TestReferenceEngineThreading:
         monkeypatch.setattr(t, "run_prs", _spy)
 
         sentinel = object()
-        t._run_traits_prs(types.SimpleNamespace(evidence_cap=4), None, reference_engine=sentinel)
-        assert captured["reference_engine"] is sentinel
+        t._run_traits_prs(types.SimpleNamespace(evidence_cap=4), None, gnomad_engine=sentinel)
+        assert captured["gnomad_engine"] is sentinel
 
-    def test_score_traits_pathways_forwards_reference_engine(self, monkeypatch) -> None:
-        # The outer hop the issue overlooked: score_traits_pathways already receives
-        # reference_engine (for gwas_matched_rsids) but must also pass it to the PRS.
+    def test_score_traits_pathways_forwards_gnomad_engine(self, monkeypatch) -> None:
+        # Traits uses central reference metadata for GWAS and the separate gnomAD
+        # store for PRS calibration. Both must reach the appropriate consumer.
         import backend.analysis.traits as t
         from backend.analysis.traits import load_traits_panel, score_traits_pathways
 
@@ -889,22 +887,28 @@ class TestReferenceEngineThreading:
         monkeypatch.setattr(
             t,
             "_run_traits_prs",
-            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")) or [],
+            lambda *_a, **kw: captured.update(gnomad_engine=kw.get("gnomad_engine")) or [],
         )
         monkeypatch.setattr(t, "_fetch_genotypes", lambda _r, _e: {})
-        monkeypatch.setattr(t, "gwas_matched_rsids", lambda _r, _e: [])
+        monkeypatch.setattr(
+            t,
+            "gwas_matched_rsids",
+            lambda _r, engine: captured.update(reference_engine=engine) or [],
+        )
 
-        sentinel = object()
-        score_traits_pathways(load_traits_panel(), None, sentinel)
-        assert captured["reference_engine"] is sentinel
+        reference = object()
+        gnomad = object()
+        score_traits_pathways(load_traits_panel(), None, reference, gnomad_engine=gnomad)
+        assert captured["gnomad_engine"] is gnomad
+        assert captured["reference_engine"] is reference
 
-    def test_run_metabolic_prs_forwards_reference_engine(self, monkeypatch) -> None:
+    def test_run_metabolic_prs_forwards_gnomad_engine(self, monkeypatch) -> None:
         import backend.analysis.metabolic_prs as m
 
         captured: dict = {}
 
         def _spy(*_a, **kw):
-            captured["reference_engine"] = kw.get("reference_engine")
+            captured["gnomad_engine"] = kw.get("gnomad_engine")
             return types.SimpleNamespace(
                 pgs_id="x", coverage_fraction=0.0, snps_used=0, snps_total=0
             )
@@ -915,10 +919,10 @@ class TestReferenceEngineThreading:
         monkeypatch.setattr(m, "run_prs", _spy)
 
         sentinel = object()
-        m.run_metabolic_prs(None, object(), reference_engine=sentinel)
-        assert captured["reference_engine"] is sentinel
+        m.run_metabolic_prs(None, object(), gnomad_engine=sentinel)
+        assert captured["gnomad_engine"] is sentinel
 
-    def test_score_ebmd_prs_forwards_reference_engine(self, monkeypatch) -> None:
+    def test_score_ebmd_prs_forwards_gnomad_engine(self, monkeypatch) -> None:
         import backend.analysis.ebmd_prs as e
 
         captured: dict = {}
@@ -927,14 +931,14 @@ class TestReferenceEngineThreading:
         monkeypatch.setattr(
             e,
             "run_prs",
-            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")),
+            lambda *_a, **kw: captured.update(gnomad_engine=kw.get("gnomad_engine")),
         )
 
         sentinel = object()
-        e.score_ebmd_prs(None, object(), reference_engine=sentinel)
-        assert captured["reference_engine"] is sentinel
+        e.score_ebmd_prs(None, object(), gnomad_engine=sentinel)
+        assert captured["gnomad_engine"] is sentinel
 
-    def test_assess_fh_forwards_reference_engine_to_run_prs(self, monkeypatch) -> None:
+    def test_assess_fh_forwards_gnomad_engine_to_run_prs(self, monkeypatch) -> None:
         # Two-hop: assess_fh → score_ldl_prs → run_prs.
         import backend.analysis.fh as f
 
@@ -946,9 +950,9 @@ class TestReferenceEngineThreading:
         monkeypatch.setattr(
             f,
             "run_prs",
-            lambda *_a, **kw: captured.update(reference_engine=kw.get("reference_engine")),
+            lambda *_a, **kw: captured.update(gnomad_engine=kw.get("gnomad_engine")),
         )
 
         sentinel = object()
-        f.assess_fh(None, object(), reference_engine=sentinel)
-        assert captured["reference_engine"] is sentinel
+        f.assess_fh(None, object(), gnomad_engine=sentinel)
+        assert captured["gnomad_engine"] is sentinel

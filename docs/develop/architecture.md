@@ -43,6 +43,18 @@ no reanalysis is required for this text repair.
 Large reference datasets (gnomAD, the VEP bundle, dbNSFP, …) are separate SQLite files
 downloaded into the data directory — see [reference data](../install/reference-data.md).
 
+PRS calibration reads typed variants' stored frequencies from the sample database.
+For scored imputed-only variants it uses the separate `gnomad_af.db`, matched by
+exact `(chrom, pos, ref, alt)`. PRS callers pass this store as `gnomad_engine`;
+`reference_engine` remains the central `reference.db` connection for sample
+metadata, gene constraints, GWAS associations and reference-version tracking.
+An absent gnomAD store is not created by scoring. When a scored imputed contribution
+has no matching row or no usable frequency, ancestry-continuous calibration and its
+percentile are withheld. Typed-only scoring retains its existing calibration rules.
+When a lookup is needed, an installed store that cannot be read fails the run
+instead of being treated as absent. Bundle publication and connection leases apply as they do to
+other standalone reference readers.
+
 ## The pipeline: upload → annotate → analyse
 
 1. **Ingest.** A raw file is uploaded (`POST /api/ingest/upload`). A **dispatcher** detects

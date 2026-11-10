@@ -271,9 +271,11 @@ def run_fh_analysis(
     from backend.analysis.ancestry import get_inferred_ancestry, get_top_ancestry_fraction
     from backend.analysis.fh import assess_fh, store_fh_findings
     from backend.analysis.pgs_bridge import get_pgs_scores_engine
+    from backend.analysis.prs_calibration import get_optional_gnomad_engine
 
     sample_engine = _get_sample_engine(sample_id)
-    reference_engine = get_registry().reference_engine
+    registry = get_registry()
+    reference_engine = registry.reference_engine
     # One run per sample at a time: overlapping runs could pair one run's
     # findings with the other's fingerprint.
     with serialized_scoring_run(MODULE_NAME, sample_engine):
@@ -288,7 +290,7 @@ def run_fh_analysis(
                 pgs_engine,
                 inferred,
                 top_fraction,
-                reference_engine=reference_engine,
+                gnomad_engine=get_optional_gnomad_engine(registry),
             )
             count = store_fh_findings(assessment, sample_engine)
         finally:

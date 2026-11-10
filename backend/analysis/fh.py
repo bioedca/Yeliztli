@@ -205,11 +205,11 @@ def score_ldl_prs(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
-    reference_engine: sa.Engine | None = None,
+    gnomad_engine: sa.Engine | None = None,
 ) -> PRSResult | None:
     """Compute the LDL-C PRS via the bridge (uncalibrated, coverage reported).
 
-    ``reference_engine`` (optional gnomAD reference) lets imputed-only scored
+    ``gnomad_engine`` (optional gnomAD reference) lets imputed-only scored
     variants be calibrated so their continuous percentile is preserved rather than
     withheld (#1281/#1236).
     """
@@ -226,7 +226,7 @@ def score_ldl_prs(
         inferred_ancestry=inferred_ancestry,
         top_ancestry_fraction=top_ancestry_fraction,
         n_bootstrap=0,
-        reference_engine=reference_engine,
+        gnomad_engine=gnomad_engine,
     )
 
 
@@ -238,11 +238,11 @@ def assess_fh(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
-    reference_engine: sa.Engine | None = None,
+    gnomad_engine: sa.Engine | None = None,
 ) -> FHAssessment:
     """Compose the full FH assessment for a sample.
 
-    ``reference_engine`` is threaded to the LDL-C PRS so an imputed-contributed
+    ``gnomad_engine`` is threaded to the LDL-C PRS so an imputed-contributed
     score keeps a calibrated percentile instead of withholding it (#1281/#1236).
     """
     return FHAssessment(
@@ -253,7 +253,7 @@ def assess_fh(
             pgs_engine,
             inferred_ancestry,
             top_ancestry_fraction,
-            reference_engine=reference_engine,
+            gnomad_engine=gnomad_engine,
         ),
     )
 
