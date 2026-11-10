@@ -425,6 +425,15 @@ include the browser, workflow run and attempt, with seven-day retention. Reusing
 an existing diagnostic directory stops before launch, preserving its evidence.
 
 The E2E SDK is pinned to Playwright 1.64.1 (WebKit 27.2, revision 2370).
+Its Linux visual baselines include the light-settings Firefox checkbox and all
+eight WebKit page/theme captures. A controlled comparison on the same public
+source and native/font runtime passed all 24 existing snapshots with SDK 1.58.2;
+SDK 1.64.1 passed 15 and differed on those nine captures. Visual review identified
+browser text-metric and native-control rendering changes. The refreshed images
+come from those unchanged tests; screenshot assertions, tolerances and coverage
+remain unchanged. Preserve the old/new measurements when reviewing future SDK
+updates rather than treating every screenshot difference as an application bug.
+
 Use the locked SDK and its matching browser downloads on a provisioned Ubuntu
 24.04 runner with Node 22. Install browser system dependencies using the
 [upstream installation procedure](https://playwright.dev/docs/ci)
