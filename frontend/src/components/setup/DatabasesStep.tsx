@@ -401,8 +401,8 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
     return (
       <div className="space-y-6">
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
-          <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
-          <p className="mt-3 text-sm font-medium text-destructive">
+          <AlertCircle className="mx-auto h-8 w-8 text-destructive-text" />
+          <p className="mt-3 text-sm font-medium text-destructive-text">
             Failed to load database information
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -596,7 +596,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                       <CheckCircle2 className="h-5 w-5 text-green-500" />
                     )}
                     {(isFailed || hasIntegrityFailure) && (
-                      <AlertCircle className="h-5 w-5 text-destructive" />
+                      <AlertCircle className="h-5 w-5 text-destructive-text" />
                     )}
                     {isRunning && (
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -701,7 +701,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                     {isFailed && (
                       <div className="mt-1 space-y-1.5">
                         <p
-                          className="text-xs text-destructive"
+                          className="text-xs text-destructive-text"
                           data-testid={`db-error-${db.name}`}
                         >
                           The download failed. Retry the download or check your connection.
@@ -736,7 +736,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                               disabled={isDownloading}
                               className={cn(
                                 'inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2 py-1 text-xs font-medium',
-                                'text-destructive hover:bg-destructive/10',
+                                'text-destructive-text hover:bg-destructive/10',
                                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                                 'disabled:cursor-not-allowed disabled:opacity-60',
                               )}
@@ -813,7 +813,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         {hasIntegrityFailure && (
                           <div className="flex flex-wrap items-center gap-2">
                             <span
-                              className="inline-flex items-center gap-1 text-[11px] text-destructive"
+                              className="inline-flex items-center gap-1 text-[11px] text-destructive-text"
                               data-testid={`db-integrity-failed-${db.name}`}
                             >
                               <ShieldAlert className="h-3 w-3" />
@@ -825,7 +825,7 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                                 onClick={() => handleCleanAndRetry(db.name)}
                                 className={cn(
                                   'inline-flex items-center gap-1 rounded-md border border-destructive/50 px-2 py-1 text-[11px] font-medium',
-                                  'text-destructive hover:bg-destructive/10',
+                                  'text-destructive-text hover:bg-destructive/10',
                                   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
                                 )}
                                 data-testid={`db-clean-${db.name}`}
@@ -877,8 +877,8 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
       {downloadError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
           <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive" />
-            <p className="text-sm text-destructive">{downloadError}</p>
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive-text" />
+            <p className="text-sm text-destructive-text">{downloadError}</p>
           </div>
         </div>
       )}

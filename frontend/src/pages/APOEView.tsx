@@ -146,9 +146,9 @@ export default function APOEView() {
                 {findingsQuery.isError && (
                   <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6">
                     <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                      <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
                       <div>
-                        <p className="font-medium text-destructive">Failed to load findings</p>
+                        <p className="font-medium text-destructive-text">Failed to load findings</p>
                         <p className="text-sm text-muted-foreground mt-1">
                           {findingsQuery.error instanceof Error
                             ? findingsQuery.error.message
@@ -205,9 +205,9 @@ export default function APOEView() {
               {disclaimerQuery.isError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
                     <div>
-                      <p className="font-medium text-destructive">Failed to load disclaimer</p>
+                      <p className="font-medium text-destructive-text">Failed to load disclaimer</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {disclaimerQuery.error instanceof Error
                           ? disclaimerQuery.error.message
@@ -221,8 +221,8 @@ export default function APOEView() {
               {acknowledgeMutation.isError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 mt-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-                    <p className="text-sm text-destructive">
+                    <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
+                    <p className="text-sm text-destructive-text">
                       Failed to acknowledge gate. Please try again.
                     </p>
                   </div>

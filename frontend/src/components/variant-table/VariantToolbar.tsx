@@ -456,7 +456,7 @@ export default function VariantToolbar({
         </span>
       )}
       {showGRCh38 && liftoverFailed && (
-        <span className="flex items-center gap-1.5 text-xs text-destructive" role="status">
+        <span className="flex items-center gap-1.5 text-xs text-destructive-text" role="status">
           <span>GRCh38 coordinates could not be computed; blank cells are not final.</span>
           {onRetryLiftover && (
             <button

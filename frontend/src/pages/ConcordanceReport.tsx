@@ -118,7 +118,7 @@ function StaleSampleNotice({
             view the concordance report.
           </p>
           {reannotate.isError ? (
-            <p className="mt-2 text-sm text-destructive" role="alert">
+            <p className="mt-2 text-sm text-destructive-text" role="alert">
               {reannotate.error instanceof Error
                 ? reannotate.error.message
                 : "Unable to start re-annotation. Please try again."}

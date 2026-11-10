@@ -219,7 +219,7 @@ export default function DrugDetailPanel({
 
         {isError && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-            <p className="text-sm text-destructive">
+            <p className="text-sm text-destructive-text">
               Failed to load drug details: {(error as Error).message}
             </p>
           </div>

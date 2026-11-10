@@ -30,7 +30,7 @@ export default function PageError({
       role="alert"
     >
       <div className="flex items-start gap-3">
-        <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+        <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
         <div className="flex-1">
           <p className="font-medium text-foreground">
             {notFound ? "Data not found" : "Failed to load data"}

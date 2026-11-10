@@ -155,9 +155,9 @@ export default function RareVariantsView() {
       {searchMutation.isError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 mb-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
             <div>
-              <p className="font-medium text-destructive">Search failed</p>
+              <p className="font-medium text-destructive-text">Search failed</p>
               <p className="text-sm text-muted-foreground mt-1">
                 {searchMutation.error instanceof Error
                   ? searchMutation.error.message

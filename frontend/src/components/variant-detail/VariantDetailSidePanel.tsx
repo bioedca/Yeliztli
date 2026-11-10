@@ -400,7 +400,7 @@ export default function VariantDetailSidePanel({
         ) : error ? (
           <div className="flex-1 flex items-center justify-center p-4">
             <div className="text-center">
-              <p className="text-sm text-destructive">Failed to load variant detail</p>
+              <p className="text-sm text-destructive-text">Failed to load variant detail</p>
               <p className="text-xs text-muted-foreground mt-1">{error.message}</p>
               <button
                 type="button"

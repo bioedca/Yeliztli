@@ -226,7 +226,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           >
             <div className="flex items-center gap-2">
               {isBlocked ? (
-                <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+                <XCircle className="h-5 w-5 text-destructive-text flex-shrink-0" />
               ) : isWarning ? (
                 <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0" />
               ) : (
@@ -236,7 +236,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                 className={cn(
                   'text-sm font-medium',
                   isBlocked
-                    ? 'text-destructive'
+                    ? 'text-destructive-text'
                     : isWarning
                       ? 'text-amber-700 dark:text-amber-400'
                       : 'text-foreground',
@@ -254,7 +254,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
               className={cn(
                 'text-sm',
                 isBlocked
-                  ? 'text-destructive/80'
+                  ? 'text-destructive-text/80'
                   : isWarning
                     ? 'text-amber-700 dark:text-amber-400'
                     : 'text-muted-foreground',
@@ -303,7 +303,7 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
                   'font-medium',
                   storageInfo.path_writable
                     ? 'text-green-700 dark:text-green-400'
-                    : 'text-destructive',
+                    : 'text-destructive-text',
                 )}
               >
                 {storageInfo.path_writable ? 'Yes' : 'No'}
@@ -314,8 +314,8 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           {/* Error from set-storage-path */}
           {setStorageMutation.isError && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
-              <AlertTriangle className="mx-auto h-5 w-5 text-destructive" />
-              <p className="mt-2 text-sm text-destructive">
+              <AlertTriangle className="mx-auto h-5 w-5 text-destructive-text" />
+              <p className="mt-2 text-sm text-destructive-text">
                 {setStorageMutation.error instanceof Error
                   ? setStorageMutation.error.message
                   : 'Failed to set storage path.'}
@@ -327,8 +327,8 @@ export default function StorageStep({ onNext, onBack }: StorageStepProps) {
           {setStorageMutation.isSuccess &&
             setStorageMutation.data?.status === 'blocked' && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
-                <XCircle className="mx-auto h-5 w-5 text-destructive" />
-                <p className="mt-2 text-sm text-destructive">
+                <XCircle className="mx-auto h-5 w-5 text-destructive-text" />
+                <p className="mt-2 text-sm text-destructive-text">
                   {setStorageMutation.data.message}
                 </p>
               </div>

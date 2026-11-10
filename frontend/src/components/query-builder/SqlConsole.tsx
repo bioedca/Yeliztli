@@ -162,9 +162,9 @@ export default function SqlConsole({ sampleId }: SqlConsoleProps) {
             data-testid="sql-error"
           >
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
               <div>
-                <p className="font-medium text-destructive">Query failed</p>
+                <p className="font-medium text-destructive-text">Query failed</p>
                 <p className="text-sm text-muted-foreground mt-1 font-mono whitespace-pre-wrap">
                   {executeSql.error instanceof Error
                     ? executeSql.error.message
@@ -332,7 +332,7 @@ function SchemaPanel({ tables, isLoading, isError, onInsertTable }: SchemaPanelP
         )}
 
         {isError && (
-          <p className="text-xs text-destructive p-2">Failed to load schema.</p>
+          <p className="text-xs text-destructive-text p-2">Failed to load schema.</p>
         )}
 
         {!isLoading && !isError && tables.length === 0 && (

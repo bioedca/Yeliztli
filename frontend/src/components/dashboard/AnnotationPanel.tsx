@@ -145,7 +145,7 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
           </button>
         </div>
         {startAnnotation.isError && (
-          <p className="mt-2 text-xs text-destructive" role="alert">
+          <p className="mt-2 text-xs text-destructive-text" role="alert">
             {startAnnotation.error.message}
           </p>
         )}
@@ -238,7 +238,7 @@ export default function AnnotationPanel({ sampleId, variantCount }: AnnotationPa
 
       {/* Error message */}
       {progress?.status === "failed" && (
-        <p className="mt-2 text-xs text-destructive" role="alert">
+        <p className="mt-2 text-xs text-destructive-text" role="alert">
           Annotation failed. Please try again.
         </p>
       )}
@@ -255,7 +255,7 @@ function StatusIcon({ status }: { status: AnnotationProgress["status"] }) {
     case "complete":
       return <CheckCircle2 className="h-4 w-4 text-green-500" />
     case "failed":
-      return <XCircle className="h-4 w-4 text-destructive" />
+      return <XCircle className="h-4 w-4 text-destructive-text" />
     case "cancelling":
       // Still working: the worker has not acknowledged the cancel yet, and the
       // sample stays interlocked until it does. A Ban icon here would say the
