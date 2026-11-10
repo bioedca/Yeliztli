@@ -10,6 +10,7 @@ import { useDialogFocus } from "@/hooks/useDialogFocus"
 import { cn } from "@/lib/utils"
 import { useAllergyPathwayDetail } from "@/api/allergy"
 import EvidenceStars from "@/components/ui/EvidenceStars"
+import GenotypeOrientationNote from "@/components/ui/GenotypeOrientationNote"
 import { SNP_CATEGORY_COLORS, SNP_CATEGORY_DOT } from "@/lib/snpCategory"
 import type { SNPDetail } from "@/types/allergy"
 import { X, Loader2, ExternalLink, AlertCircle, Dna, Info, Shield } from "lucide-react"
@@ -294,6 +295,7 @@ export default function PathwayDetailPanel({
               <h3 className="text-sm font-semibold mb-3">
                 Individual Variants ({detailQuery.data.snp_details.length})
               </h3>
+              <GenotypeOrientationNote snps={detailQuery.data.snp_details} />
               {detailQuery.data.snp_details.length > 0 ? (
                 <div className="space-y-3">
                   {detailQuery.data.snp_details.map((snp) => (
