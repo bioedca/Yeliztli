@@ -384,9 +384,9 @@ export default function QueryBuilderView() {
               {resultsMatchSample && runError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
                     <div>
-                      <p className="font-medium text-destructive">Query failed</p>
+                      <p className="font-medium text-destructive-text">Query failed</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {runError}
                       </p>
@@ -401,9 +401,9 @@ export default function QueryBuilderView() {
                   role="alert"
                 >
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
                     <div>
-                      <p className="font-medium text-destructive">Export failed</p>
+                      <p className="font-medium text-destructive-text">Export failed</p>
                       <p className="text-sm text-muted-foreground mt-1">{exportError}</p>
                     </div>
                   </div>
@@ -430,9 +430,9 @@ export default function QueryBuilderView() {
               {resultsMatchSample && loadMoreError && (
                 <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-destructive-text mt-0.5 shrink-0" />
                     <div>
-                      <p className="font-medium text-destructive">Failed to load more results</p>
+                      <p className="font-medium text-destructive-text">Failed to load more results</p>
                       <p className="text-sm text-muted-foreground mt-1">{loadMoreError}</p>
                     </div>
                   </div>

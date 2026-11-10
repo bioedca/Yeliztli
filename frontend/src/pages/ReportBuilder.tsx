@@ -589,7 +589,7 @@ export default function ReportBuilder() {
 
               {/* Error messages */}
               {fhirMutation.isError && (
-                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive-text">
                   <AlertCircle className="h-3 w-3 inline-block mr-1" />
                   {fhirMutation.error instanceof Error
                     ? fhirMutation.error.message
@@ -598,7 +598,7 @@ export default function ReportBuilder() {
               )}
 
               {generateMutation.isError && (
-                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive-text">
                   <AlertCircle className="h-3 w-3 inline-block mr-1" />
                   {generateMutation.error instanceof Error
                     ? generateMutation.error.message
@@ -607,7 +607,7 @@ export default function ReportBuilder() {
               )}
 
               {previewError && (
-                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive-text">
                   <AlertCircle className="h-3 w-3 inline-block mr-1" />
                   {previewError}
                 </div>

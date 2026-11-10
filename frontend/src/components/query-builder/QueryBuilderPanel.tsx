@@ -130,9 +130,9 @@ export default function QueryBuilderPanel({
           addGroup:
             "rounded-md bg-secondary text-secondary-foreground px-3 py-1.5 text-xs font-medium hover:bg-secondary/80 transition-colors",
           removeRule:
-            "rounded-md text-destructive hover:bg-destructive/10 px-2 py-1 text-xs transition-colors",
+            "rounded-md text-destructive-text hover:bg-destructive/10 px-2 py-1 text-xs transition-colors",
           removeGroup:
-            "rounded-md text-destructive hover:bg-destructive/10 px-2 py-1 text-xs transition-colors",
+            "rounded-md text-destructive-text hover:bg-destructive/10 px-2 py-1 text-xs transition-colors",
         }}
         controlElements={{ valueEditor: AccessibleValueEditor }}
         addRuleToNewGroups

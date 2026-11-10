@@ -42,8 +42,8 @@ export default function DisclaimerStep({ onAccepted }: DisclaimerStepProps) {
   if (error || !disclaimer) {
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
-        <p className="mt-3 text-sm text-destructive">
+        <AlertTriangle className="mx-auto h-8 w-8 text-destructive-text" />
+        <p className="mt-3 text-sm text-destructive-text">
           Failed to load disclaimer. Please restart the application.
         </p>
       </div>
@@ -142,7 +142,7 @@ export default function DisclaimerStep({ onAccepted }: DisclaimerStepProps) {
       </button>
 
       {acceptMutation.isError && (
-        <p className="text-center text-sm text-destructive">
+        <p className="text-center text-sm text-destructive-text">
           Failed to save acceptance. Please try again.
         </p>
       )}

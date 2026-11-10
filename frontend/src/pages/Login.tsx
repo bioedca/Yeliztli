@@ -94,7 +94,7 @@ export default function Login() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-sm text-destructive" role="alert">
+                <div className="flex items-center gap-2 text-sm text-destructive-text" role="alert">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   {error}
                 </div>

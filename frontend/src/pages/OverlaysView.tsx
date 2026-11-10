@@ -198,11 +198,11 @@ function UploadPanel() {
       </button>
 
       {/* Rejected file type (unsupported extension from drag-and-drop) */}
-      {fileError && <p className="text-sm text-destructive">{fileError}</p>}
+      {fileError && <p className="text-sm text-destructive-text">{fileError}</p>}
 
       {/* Preview error */}
       {previewMutation.isError && (
-        <p className="text-sm text-destructive">{previewMutation.error.message}</p>
+        <p className="text-sm text-destructive-text">{previewMutation.error.message}</p>
       )}
 
       {/* Preview */}
@@ -288,7 +288,7 @@ function UploadPanel() {
             </button>
           )}
           {uploadMutation.isError && (
-            <p className="text-sm text-destructive">{uploadMutation.error.message}</p>
+            <p className="text-sm text-destructive-text">{uploadMutation.error.message}</p>
           )}
         </div>
       )}
@@ -390,7 +390,7 @@ function OverlayList({
                 Apply
               </button>
               <button
-                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-destructive-text hover:bg-destructive/10 disabled:opacity-50"
                 onClick={(e) => {
                   e.stopPropagation()
                   if (confirm(`Delete overlay "${overlay.name}"?`)) {
@@ -412,10 +412,10 @@ function OverlayList({
         ))}
       </div>
       {applyMutation.isError && (
-        <p className="text-sm text-destructive mt-2">{applyMutation.error.message}</p>
+        <p className="text-sm text-destructive-text mt-2">{applyMutation.error.message}</p>
       )}
       {deleteMutation.isError && (
-        <p className="text-sm text-destructive mt-2">{deleteMutation.error.message}</p>
+        <p className="text-sm text-destructive-text mt-2">{deleteMutation.error.message}</p>
       )}
     </div>
   )

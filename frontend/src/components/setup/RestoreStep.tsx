@@ -41,7 +41,7 @@ export default function RestoreStep({
     >
       <div className="text-center space-y-2">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-          <AlertTriangle className="h-7 w-7 text-destructive" />
+          <AlertTriangle className="h-7 w-7 text-destructive-text" />
         </div>
         <h2 className="text-xl font-semibold text-foreground">{headline}</h2>
         <p className="text-sm text-muted-foreground">

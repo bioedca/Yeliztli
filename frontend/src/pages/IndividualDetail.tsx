@@ -297,7 +297,7 @@ function ReannotateLinkedSampleButton({ sample }: { sample: LinkedSample }) {
         </button>
       )}
       {reannotate.isError && !annotationAlreadyRunning ? (
-        <span className="text-xs text-destructive" role="alert">
+        <span className="text-xs text-destructive-text" role="alert">
           Unable to start re-annotation. Please try again.
         </span>
       ) : null}

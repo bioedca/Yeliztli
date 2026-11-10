@@ -448,7 +448,7 @@ const IgvBrowser = forwardRef<IgvBrowserHandle, IgvBrowserProps>(
         )}
         {canInitialize && state.status === "error" && (
           <div
-            className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive text-sm"
+            className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive-text text-sm"
             role="alert"
           >
             <p className="font-medium">Failed to load genome browser</p>

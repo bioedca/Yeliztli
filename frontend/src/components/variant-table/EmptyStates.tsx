@@ -145,7 +145,7 @@ export function ErrorEmpty({
 }) {
   return (
     <EmptyWrapper
-      icon={<ShieldAlert className="h-10 w-10 text-destructive/60" />}
+      icon={<ShieldAlert className="h-10 w-10 text-destructive-text/60" />}
       title="Error loading variants"
       description={message}
     >

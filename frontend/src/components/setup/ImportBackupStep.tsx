@@ -307,7 +307,7 @@ export default function ImportBackupStep({
 
       {/* File type error */}
       {fileError && (
-        <p className="text-center text-sm text-destructive">{fileError}</p>
+        <p className="text-center text-sm text-destructive-text">{fileError}</p>
       )}
 
       {/* Import button */}
@@ -340,8 +340,8 @@ export default function ImportBackupStep({
       {/* Error state */}
       {importMutation.isError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-center">
-          <AlertTriangle className="mx-auto h-5 w-5 text-destructive" />
-          <p className="mt-2 text-sm text-destructive">
+          <AlertTriangle className="mx-auto h-5 w-5 text-destructive-text" />
+          <p className="mt-2 text-sm text-destructive-text">
             {importMutation.error instanceof Error
               ? importMutation.error.message
               : 'Failed to import backup. Please check the file and try again.'}

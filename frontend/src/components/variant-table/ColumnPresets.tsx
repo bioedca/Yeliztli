@@ -179,7 +179,7 @@ export default function ColumnPresets({ activePreset, onPresetChange }: ColumnPr
                   <button
                     type="button"
                     onClick={() => handleDelete(preset.name)}
-                    className="p-1.5 mr-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="p-1.5 mr-1 text-muted-foreground hover:text-destructive-text opacity-0 group-hover:opacity-100 transition-opacity"
                     aria-label={`Delete preset ${preset.name}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
