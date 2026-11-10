@@ -168,8 +168,10 @@ class TestCoverageGapTelemetry:
         assert len(warnings) == 1
         assert warnings[0]["log_level"] == "warning"
         assert warnings[0]["gene"] == "GENEX"
-        assert warnings[0]["phenotype"] == "Poor Metabolizer"
-        assert warnings[0]["covered_phenotypes"] == ["Normal Metabolizer"]
+        assert warnings[0]["covered_phenotype_count"] == 1
+        assert "phenotype" not in warnings[0]
+        assert "covered_phenotypes" not in warnings[0]
+        assert "diplotype" not in warnings[0]
 
     def test_no_warning_when_gene_has_no_guidelines(self) -> None:
         engine = _reference_engine_with_guidelines([])

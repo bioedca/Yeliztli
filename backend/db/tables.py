@@ -384,7 +384,9 @@ uniprot_cache = sa.Table(
 # A durable attestation that a row was normalized and redacted by the current
 # patient-presentation policy before it was persisted. Both newly created and
 # migrated databases default un-attested/raw rows to version 0.
-LOG_ENTRY_PRESENTATION_POLICY_VERSION = 1
+# Version 2 adds structured PGx result redaction. Older rows remain stored but
+# cannot attest this policy and are excluded from Log Explorer queries.
+LOG_ENTRY_PRESENTATION_POLICY_VERSION = 2
 
 log_entries = sa.Table(
     "log_entries",

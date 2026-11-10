@@ -14,9 +14,16 @@ machine.**
   services can capture in `journalctl`, `~/Library/Logs/yeliztli-*.log`, or Docker logs. These
   logs are for troubleshooting and can include sample filenames or local paths, gene symbols,
   variant identifiers such as rsIDs, genomic coordinates, download paths, and error details.
-  New structured log entries redact genotype-like fields such as genotypes, diplotypes,
-  haplotypes, and `gt` values before they reach the Log explorer or service logs, but older logs
-  from earlier Yeliztli versions may still contain those values. Logs can still show what you
+  New structured log entries redact genotypes, diplotypes, haplotypes, `gt` values,
+  phenotypes, carried-marker lists, unresolved-allele lists, confidence-note text, and
+  recommendations before they reach the Log explorer or application console. The same rules
+  apply to nested structured fields and application events from Python's standard logger.
+  PGx events use diagnostic categories and counts instead of these result values.
+  The Log explorer shows only entries written under the current presentation policy;
+  upgrading this policy hides older entries from its filters, counts, and pages without
+  rewriting or deleting them. Older database and service logs may still contain values that
+  newer versions redact. General free-text messages, exception text, and separately configured
+  logging handlers are not covered by the structured-field rules. Logs can still show what you
   analyzed and where files live. Yeliztli does not currently prune the `log_entries` table
   automatically; service-log retention is controlled by your operating system, launch service, or
   Docker runtime.
