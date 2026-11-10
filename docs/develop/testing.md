@@ -409,6 +409,63 @@ deadline cleanup; otherwise it is labelled `kill_status`, since KILL alone
 does not identify its cause. These diagnostics upload even when browser tests never
 start. All three browser projects remain required.
 
+### Native browser lifecycle evidence
+
+Before the full E2E suite, each browser CI job runs the two synthetic specs in
+`playwright.lifecycle.config.ts`: 13 cases per browser, 39 across Chromium,
+Firefox and WebKit. This gate uses one worker, zero retries, fresh backend/Vite
+servers, disposable application data, and no global setup. The existing
+application, accessibility and contrast assertions remain unchanged. A failed
+first attempt fails the job.
+
+`DEBUG=pw:browser` records browser launch/exit events. Failure traces are retained
+on that first attempt. The JSON report, process log and test artifacts upload
+even when the command fails; application databases are excluded. Artifact names
+include the browser, workflow run and attempt, with seven-day retention. Reusing
+an existing diagnostic directory stops before launch, preserving its evidence.
+
+The E2E SDK is pinned to Playwright 1.64.1 (WebKit 27.2, revision 2370).
+Use the locked SDK and its matching browser downloads on a provisioned Ubuntu
+24.04 runner with Node 22. Install browser system dependencies using the
+[upstream installation procedure](https://playwright.dev/docs/ci)
+(accessed 2026-11-10), then build the production frontend. From the repository
+root, with the development Python environment active:
+
+```bash
+set -euo pipefail
+npm ci
+npm --prefix frontend ci
+npm --prefix frontend run build
+export YELIZTLI_BROWSER_DIAGNOSTICS="output/playwright/lifecycle-local-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+test ! -e "$YELIZTLI_BROWSER_DIAGNOSTICS"
+mkdir -p "$YELIZTLI_BROWSER_DIAGNOSTICS"
+export YELIZTLI_DATA_DIR="$(cd "$YELIZTLI_BROWSER_DIAGNOSTICS" && pwd)/data"
+DEBUG=pw:browser node node_modules/@playwright/test/cli.js test \
+  --config=playwright.lifecycle.config.ts --workers=1 --retries=0 \
+  2>&1 | tee "$YELIZTLI_BROWSER_DIAGNOSTICS/browser.log"
+```
+
+Add `--project=webkit --repeat-each=5` for 65 WebKit executions, using a fresh
+diagnostic directory. Preserve every failed attempt and record its source SHA,
+actual SDK/browser versions, native dependencies and resources. Private library
+overlays must be checked in the browser's effective loader environment: the WPE
+wrapper replaces the parent's `LD_LIBRARY_PATH`. A successful parent-process
+library probe alone does not establish a working child runtime.
+
+The two historical 1.58.2 runs in [#2672](https://github.com/bioedca/Yeliztli/issues/2672)
+each passed 38 cases and failed a different WebKit case before application
+assertions. Neither is a pass. `TargetClosedError` alone does not identify a
+native crash: inspect the exit code/signal and whether shutdown was requested.
+Distinguish loader failures, native faults, test timeouts and normal server
+cleanup; SIGKILL alone does not establish an out-of-memory kill.
+
+Upstream [WebKit r2370](https://github.com/microsoft/playwright/pull/43084), shipped
+with Playwright 1.64, includes an [EGL exit-race fix](https://github.com/WebKit/WebKit/pull/74728)
+(accessed 2026-11-10). The [upstream report](https://github.com/microsoft/playwright/issues/42940)
+describes crashes after pages close, while #2672 failed before assertions.
+Passing instrumented repetitions or selecting a compatible newer runtime does
+not prove that this race caused the historical failures.
+
 !!! tip "Verify UI changes before merging"
     Because the E2E suite is Tier 2 (merge-time), it's worth driving a UI change in a real
     browser before merging so a frontend regression doesn't surface only at merge.
