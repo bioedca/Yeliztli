@@ -15,6 +15,9 @@ An **individual** is a container that links the samples belonging to one person.
 1. Create an individual (give it a name).
 2. **Link** your samples to it (each sample is annotated on its own first).
 
+Individual names must contain at least one non-whitespace character. Leading and trailing
+whitespace is removed when a name is created or changed; spacing within the name is kept.
+
 This alone is useful for keeping a person's samples together. To actually combine them,
 continue to merging.
 
