@@ -1011,6 +1011,7 @@ def download_and_load_dbnsfp(
     parse_progress: Callable[[int], None] | None = None,
     timeout: float = 3600.0,
     reference_engine: sa.Engine | None = None,
+    archive_cleanup: Callable[[Path], None] | None = None,
 ) -> LoadStats:
     """Full pipeline: download dbNSFP, parse, and load into dbnsfp.db.
 
@@ -1022,6 +1023,8 @@ def download_and_load_dbnsfp(
         parse_progress: Callback for parse progress.
         timeout: HTTP timeout in seconds.
         reference_engine: Optional engine for reference.db to record version.
+        archive_cleanup: Optional cleanup scheduler. A staged build defers
+            archive removal until its installed artifact and version commit.
 
     Returns:
         LoadStats with counts and metadata.
@@ -1059,7 +1062,7 @@ def download_and_load_dbnsfp(
             checksum=sha256,
         )
 
-    _cleanup_dbnsfp_archive(downloaded_path)
+    (archive_cleanup or _cleanup_dbnsfp_archive)(downloaded_path)
     return stats
 
 

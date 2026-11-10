@@ -894,36 +894,26 @@ def _execute_build(
             except sa.exc.OperationalError:
                 _last_parse_update = now
 
-        from backend.db.standalone import standalone_build
+        if db_info.target_db == "standalone":
+            from backend.db.standalone import run_standalone_build
 
-        standalone = db_info.target_db == "standalone"
-        target_context = (
-            standalone_build(db_info, settings, engine)
-            if standalone
-            else nullcontext((engine, engine))
-        )
-        with target_context as (target_engine, version_engine):
-            if standalone:
-                # The builder's version row belongs to the private artifact
-                # until validation and publication have both succeeded.
-                build_fn(
-                    target_engine,
-                    settings.downloads_dir,
-                    download_progress=on_download_progress,
-                    parse_progress=on_parse_progress,
-                    reference_engine=version_engine,
-                )
-            elif db_info.name == "mondo_hpo":
-                build_fn(
-                    target_engine, settings.downloads_dir, download_progress=on_download_progress
-                )
-            else:
-                build_fn(
-                    target_engine,
-                    settings.downloads_dir,
-                    download_progress=on_download_progress,
-                    parse_progress=on_parse_progress,
-                )
+            run_standalone_build(
+                db_info,
+                settings,
+                engine,
+                build_fn,
+                download_progress=on_download_progress,
+                parse_progress=on_parse_progress,
+            )
+        elif db_info.name == "mondo_hpo":
+            build_fn(engine, settings.downloads_dir, download_progress=on_download_progress)
+        else:
+            build_fn(
+                engine,
+                settings.downloads_dir,
+                download_progress=on_download_progress,
+                parse_progress=on_parse_progress,
+            )
 
         _update_job(
             engine,
@@ -1518,21 +1508,31 @@ def _clean_under_lock(
     with try_acquire_build_lock(db_info.name) as acquired:
         if not acquired:
             return "locked"
-        # A manual SpliceAI import may run in another process. Hold its shared
-        # claim across BOTH the health re-check and unlink so a completed import
-        # cannot be deleted using an earlier corrupt/empty health snapshot.
-        spliceai = db_info.name == "spliceai"
+        from backend.db.sqlite_engine import REPLACEABLE_DATABASES
+        from backend.db.standalone import standalone_cleanup
+
+        # Hold the build claim across the health re-check and cleanup so a
+        # worker cannot publish using an earlier corrupt/empty health snapshot.
+        standalone = db_info.name in REPLACEABLE_DATABASES.values()
+        guarded = standalone or db_info.name == "spliceai"
         claim = (
             cross_process_build_claim(db_info.name, settings.data_dir)
-            if spliceai
+            if guarded
             else nullcontext(True)
         )
         with claim as claimed:
             if not claimed:
                 return "locked"
-            health = get_database_health(db_info, settings, engine, build_claim_held=spliceai)
+            health = get_database_health(db_info, settings, engine, build_claim_held=guarded)
             if health.state in ("downloading", "building"):
                 return "active"
             if health.state in ("ready", "unverified"):
                 return health.state
-            return clean_database_artifacts(db_info, settings, engine)
+            cleanup = standalone_cleanup(db_info, settings) if standalone else nullcontext([])
+            try:
+                with cleanup as staged_removed:
+                    result = clean_database_artifacts(db_info, settings, engine)
+                    result["removed"].extend(staged_removed)
+                    return result
+            except BlockingIOError:
+                return "locked"

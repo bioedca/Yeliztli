@@ -243,6 +243,145 @@ def test_dbnsfp_retry_reuses_only_matching_source_progress(
     assert _version(registry, name) == "5.3.1a"
 
 
+@pytest.mark.parametrize("rebuild_env", [("dbnsfp", True)], indirect=True)
+@pytest.mark.parametrize("worker", [False, True])
+def test_dbnsfp_publication_retry_keeps_source_until_success(rebuild_env, monkeypatch, worker):
+    from backend.annotation import dbnsfp
+    from backend.db import connection, database_registry, standalone
+    from backend.tasks.huey_tasks import _execute_database_update
+
+    name, settings, registry, retained_engine, _build, run = rebuild_env
+    archive = settings.downloads_dir / "synthetic-dbnsfp.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr(
+            "dbNSFP5.3.1a_variant.chr1",
+            "#chr\tpos(1-based)\tref\talt\trs_dbSNP\tCADD_phred\n"
+            "1\t1\tA\tC\trsYELIZTLISYNTHETIC\t2.0\n",
+        )
+
+    def cached_download(*_args, **_kwargs):
+        assert archive.exists(), "Retry must work without downloading another archive"
+        return archive
+
+    monkeypatch.setattr(dbnsfp, "download_dbnsfp", cached_download)
+    monkeypatch.setattr(databases, "get_build_fn", lambda _name: dbnsfp.download_and_load_dbnsfp)
+    if worker:
+        monkeypatch.setattr(connection, "get_registry", lambda: registry)
+        monkeypatch.setattr(
+            database_registry, "get_build_fn", lambda _name: dbnsfp.download_and_load_dbnsfp
+        )
+
+        def run():
+            _execute_database_update("rebuild", name)
+
+    def failed_commit(*_args):
+        raise OSError("synthetic publication failure")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(standalone, "_record_published_version", failed_commit)
+        run()
+    assert _job(registry).status == "failed"
+    assert "synthetic publication failure" in _job(registry).error
+    assert archive.exists(), "Do not remove the source before publication commits"
+    assert _version(registry, name) == "old"
+    with retained_engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT value FROM previous").scalar_one() == "usable-old-data"
+
+    def unexpected_parse(*_args):
+        yield pytest.fail("Completed members must not be parsed again on publication retry")
+
+    monkeypatch.setattr(dbnsfp, "_read_zip_member", unexpected_parse)
+    run()
+    assert _job(registry).status == "complete", _job(registry).error
+    assert not archive.exists(), "Successful publication releases the transient archive"
+    assert _version(registry, name) == "5.3.1a"
+    with retained_engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT rsid FROM dbnsfp_scores").all() == [
+            ("rsYELIZTLISYNTHETIC",)
+        ]
+
+
+@pytest.mark.parametrize("rebuild_env", [("dbnsfp", True)], indirect=True)
+@pytest.mark.parametrize("claim_key", ["dbnsfp", "dbnsfp_staging"])
+def test_clean_discards_partial_staging_only_when_unclaimed(rebuild_env, monkeypatch, claim_key):
+    from backend.db.build_guard import cross_process_build_claim
+
+    name, settings, registry, _retained, build, run = rebuild_env
+
+    def partial(*args, **kwargs):
+        build(*args, **kwargs)
+        raise RuntimeError("synthetic partial import")
+
+    monkeypatch.setattr(databases, "get_build_fn", lambda _name: partial)
+    run()
+    assert _job(registry).status == "failed"
+    cache = settings.data_dir / ".dbnsfp-rebuild"
+    assert (cache / "replacement.db").exists()
+    destination = DATABASES[name].dest_path(settings)
+    with cross_process_build_claim(claim_key, settings.data_dir) as acquired:
+        assert acquired
+        assert (
+            databases._clean_under_lock(DATABASES[name], settings, registry.reference_engine)
+            == "locked"
+        )
+        assert cache.exists() and destination.exists()
+        assert _version(registry, name) == "old"
+    result = databases._clean_under_lock(DATABASES[name], settings, registry.reference_engine)
+    assert result["db_name"] == name
+    assert str(cache) in result["removed"]
+    assert not cache.exists() and not destination.exists()
+    with registry.reference_engine.connect() as conn:
+        assert (
+            conn.execute(
+                sa.select(database_versions).where(database_versions.c.db_name == name)
+            ).all()
+            == []
+        )
+
+
+@pytest.mark.parametrize("rebuild_env", [("dbnsfp", True)], indirect=True)
+def test_clean_preserves_unrecognized_staging(rebuild_env):
+    name, settings, registry, retained, _build, _run = rebuild_env
+    cache = settings.data_dir / ".dbnsfp-rebuild"
+    cache.mkdir(mode=0o700)
+    unrelated = cache / "unrecognized.txt"
+    unrelated.write_text("preserve")
+    databases._update_job(registry.reference_engine, "rebuild", status="failed")
+    with pytest.raises(ValueError, match="Unrecognized standalone staging"):
+        databases._clean_under_lock(DATABASES[name], settings, registry.reference_engine)
+    assert unrelated.read_text() == "preserve"
+    assert _version(registry, name) == "old"
+    with retained.connect() as conn:
+        assert conn.exec_driver_sql("SELECT value FROM previous").scalar_one() == "usable-old-data"
+
+
+@pytest.mark.parametrize("rebuild_env", [("gtex_eqtl", True)], indirect=True)
+def test_clean_drains_live_readers(rebuild_env):
+    name, settings, registry, retained, _build, _run = rebuild_env
+    databases._update_job(registry.reference_engine, "rebuild", status="failed")
+    entered = threading.Event()
+
+    def clean():
+        entered.set()
+        return databases._clean_under_lock(DATABASES[name], settings, registry.reference_engine)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with retained.connect() as reader:
+            assert (
+                reader.exec_driver_sql("SELECT value FROM previous").scalar_one()
+                == "usable-old-data"
+            )
+            future = executor.submit(clean)
+            assert entered.wait(5)
+            with pytest.raises(TimeoutError):
+                future.result(timeout=0.1)
+            assert DATABASES[name].dest_path(settings).exists()
+            assert _version(registry, name) == "old"
+        result = future.result(timeout=5)
+    assert result["db_name"] == name
+    assert not DATABASES[name].dest_path(settings).exists()
+
+
 def test_invalid_replacement_preserves_artifact(rebuild_env, monkeypatch):
     name, _settings, registry, retained_engine, build, run = rebuild_env
 

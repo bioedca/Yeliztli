@@ -52,6 +52,10 @@ same source archive resumes completed chromosomes; a different archive checksum 
 partial import. Do not delete this directory to retry a build. AlphaMissense and GTEx rebuild
 their private staging database on retry. Valid dbNSFP progress from an older installation is
 copied into private staging before resuming, leaving the installed file untouched.
+The downloaded dbNSFP archive is retained until publication succeeds, so a publication
+retry can finish without downloading it again. An explicit **Clean** discards recognized
+partial import staging, waits for installed-database readers, and refuses to race an active
+build. Unknown staging storage is preserved for inspection.
 
 Publication requires the process-lock support available on Linux, macOS, and WSL. Native
 Windows refuses this operation with an explicit error. A long-running reader can cause a

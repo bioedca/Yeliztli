@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import stat
 from contextlib import closing, contextmanager
@@ -20,7 +21,7 @@ from backend.db.build_guard import cross_process_build_claim, database_access
 from backend.db.sqlite_engine import REPLACEABLE_DATABASES, make_sqlite_engine
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Callable, Iterator, Mapping
 
     from backend.config import Settings
     from backend.db.database_registry import DatabaseInfo
@@ -267,6 +268,17 @@ def _seed_dbnsfp_staging(staged: Path, destination: Path) -> None:
             # Corrupt installed data stays untouched; build a new private file.
 
 
+def _validate_staging_owner(directory: Path) -> None:
+    _check_private_entry(directory, directory=True)
+    marker = directory / "owner.json"
+    expected = {"schema": 1, "database": "dbnsfp", "purpose": "standalone-rebuild"}
+    if not marker.exists():
+        raise ValueError("Unrecognized standalone staging directory")
+    _check_private_entry(marker)
+    if json.loads(marker.read_text()) != expected:
+        raise ValueError("Unrecognized standalone staging owner")
+
+
 def _prepare_dbnsfp_staging(directory: Path, destination: Path) -> None:
     """Keep a private resume cache without ever writing through a live alias."""
     directory.mkdir(mode=0o700, exist_ok=True)
@@ -281,9 +293,7 @@ def _prepare_dbnsfp_staging(directory: Path, destination: Path) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         _sync_directory(directory)
-    _check_private_entry(marker)
-    if json.loads(marker.read_text()) != expected:
-        raise ValueError("Unrecognized standalone staging owner")
+    _validate_staging_owner(directory)
     staged = directory / "replacement.db"
     for suffix in ("", "-wal", "-shm", "-journal"):
         path = Path(f"{staged}{suffix}")
@@ -338,6 +348,53 @@ def _staging_workspace(db_info: DatabaseInfo, settings: Settings) -> Iterator[Pa
         directory = settings.data_dir / ".dbnsfp-rebuild"
         _prepare_dbnsfp_staging(directory, db_info.dest_path(settings))
         yield directory
+
+
+@contextmanager
+def standalone_cleanup(db_info: DatabaseInfo, settings: Settings) -> Iterator[list[str]]:
+    """Fence installed readers and discard only recognized, idle resume state.
+
+    The caller holds the database's build claim across its health check and
+    cleanup. The separate staging claim also protects direct build callers.
+    """
+    destination = db_info.dest_path(settings)
+    with database_access(db_info.name, settings.data_dir, publish=True):
+        if _journal_path(destination).exists():
+            raise RuntimeError("Database publication was interrupted; restart to recover")
+        removed = []
+        if db_info.name == "dbnsfp":
+            with cross_process_build_claim("dbnsfp_staging", settings.data_dir) as acquired:
+                if not acquired:
+                    raise BlockingIOError("Another process is using the dbNSFP rebuild cache")
+                directory = settings.data_dir / ".dbnsfp-rebuild"
+                if directory.exists() or directory.is_symlink():
+                    _validate_staging_owner(directory)
+                    shutil.rmtree(directory)
+                    _sync_directory(settings.data_dir)
+                    removed.append(str(directory))
+                yield removed
+        else:
+            yield removed
+
+
+def run_standalone_build(
+    db_info: DatabaseInfo,
+    settings: Settings,
+    reference_engine: sa.Engine,
+    build_fn: Callable,
+    **kwargs,
+) -> None:
+    """Run a pipeline and release transient inputs only after publication."""
+    archives = []
+    if db_info.name == "dbnsfp":
+        kwargs["archive_cleanup"] = archives.append
+    with standalone_build(db_info, settings, reference_engine) as (target, versions):
+        build_fn(target, settings.downloads_dir, reference_engine=versions, **kwargs)
+    if archives:
+        from backend.annotation.dbnsfp import _cleanup_dbnsfp_archive
+
+        for archive in archives:
+            _cleanup_dbnsfp_archive(archive)
 
 
 @contextmanager

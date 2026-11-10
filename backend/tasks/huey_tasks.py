@@ -1470,10 +1470,9 @@ def _execute_database_update(
                 else:
                     build_fn(engine, settings.downloads_dir)
             elif db_info is not None:
-                from backend.db.standalone import standalone_build
+                from backend.db.standalone import run_standalone_build
 
-                with standalone_build(db_info, settings, engine) as (target, versions):
-                    build_fn(target, settings.downloads_dir, reference_engine=versions)
+                run_standalone_build(db_info, settings, engine, build_fn)
             else:
                 raise ValueError(f"No database target registered for '{db_name}'")
 
