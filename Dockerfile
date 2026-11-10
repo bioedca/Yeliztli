@@ -13,8 +13,9 @@ WORKDIR /app
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser
 
-# Install Node.js 22.x for frontend build
-RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
+# Install Node.js 22.x for frontend build. Playwright's bundled Node also needs
+# libatomic before its --with-deps installer can start.
+RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg libatomic1 \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
