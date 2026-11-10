@@ -1,4 +1,5 @@
 {
+  "name": "yeliztli",
   "private": true,
   "devDependencies": {
     "@axe-core/playwright": "^4.11.1",
