@@ -328,6 +328,17 @@ function OverlayList({
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold">Saved Overlays ({overlays.length})</h2>
+      {overlays.some((overlay) => overlay.file_type === "bed") && (
+        <p
+          role="note"
+          aria-label="BED overlay update"
+          className="rounded-lg border bg-muted p-3 text-sm text-foreground"
+        >
+          BED overlays now use corrected interval boundaries. If you applied a BED overlay
+          before this update, select each sample where you used it and click <strong>Apply</strong>{" "}
+          again for that overlay. Saved results do not update automatically.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {overlays.map((overlay) => (
           <div

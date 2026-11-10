@@ -564,8 +564,9 @@ def apply_overlay(
 ) -> ApplyResult:
     """Apply a parsed overlay to a sample's variants.
 
-    For BED overlays: matches variants whose (chrom, pos) falls within
-    any overlay region [start, end).
+    For BED overlays: matches a variant's one-based POS when
+    ``start < pos <= end`` for a zero-based half-open BED region [start, end).
+    This is point matching: a multi-base REF does not extend the matched span.
     For VCF overlays: matches variants allele-aware by exact (chrom, pos, ref, alt)
     when a sample row has alleles (annotated_variants), so an allele-specific INFO
     value attaches only to the matching allele (#1228); falls back to (chrom, pos)-only
@@ -689,9 +690,10 @@ def apply_overlay(
                     }
                 )
         else:
-            # BED: range overlap [start, end)
+            # BED uses zero-based [start, end); sample POS is one-based.
+            # Keep point matching, including for variants with multi-base REF.
             for (chrom, pos), rsids in pos_index.items():
-                if chrom == rec.chrom and rec.start <= pos < rec.end:
+                if chrom == rec.chrom and rec.start < pos <= rec.end:
                     for rsid in rsids:
                         matches.append(
                             {

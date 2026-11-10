@@ -221,6 +221,29 @@ describe("OverlaysView", () => {
     })
   })
 
+  it("tells existing BED overlay users to reapply on each affected sample", async () => {
+    mockOverlaysFetch()
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+
+    const notice = await screen.findByRole("note", { name: "BED overlay update" })
+    expect(notice).toHaveTextContent("corrected interval boundaries")
+    expect(notice).toHaveTextContent("each sample")
+    expect(notice).toHaveTextContent("Apply")
+    expect(notice).toHaveTextContent("Saved results do not update automatically")
+  })
+
+  it("does not ask VCF-only users to reapply for the BED correction", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url === "/api/overlays") {
+        return { ok: true, json: async () => ({ items: [MOCK_OVERLAYS.items[0]], total: 1 }) }
+      }
+      return { ok: false, status: 404, text: async () => "Not found" }
+    })
+    renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
+    await screen.findByText("ClinVar Custom")
+    expect(screen.queryByRole("note", { name: "BED overlay update" })).not.toBeInTheDocument()
+  })
+
   it("shows drop zone text", () => {
     mockOverlaysFetch()
     renderWithRoute(<OverlaysView />, ["/overlays?sample_id=1"])
