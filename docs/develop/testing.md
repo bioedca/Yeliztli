@@ -468,6 +468,13 @@ native crash: inspect the exit code/signal and whether shutdown was requested.
 Distinguish loader failures, native faults, test timeouts and normal server
 cleanup; SIGKILL alone does not establish an out-of-memory kill.
 
+History-navigation tests must wait for the destination route to settle before
+pressing Back. The Settings index replaces `/settings` with `/settings/updates`;
+matching only the intermediate URL can race that replacement. The cross-browser
+Back/Forward test retains its URL checks and 30-second timeout and additionally
+checks the final Settings route and the visible destination headings. A URL-wait
+timeout with a normally exiting browser is separate from a native lifetime fault.
+
 Upstream [WebKit r2370](https://github.com/microsoft/playwright/pull/43084), shipped
 with Playwright 1.64, includes an [EGL exit-race fix](https://github.com/WebKit/WebKit/pull/74728)
 (accessed 2026-11-10). The [upstream report](https://github.com/microsoft/playwright/issues/42940)
