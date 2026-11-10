@@ -256,6 +256,50 @@ def test_prs_entrypoints_use_the_standalone_frequency_store(
             assert result["z_score"] is None
 
 
+@pytest.mark.parametrize("routing_env", ["no_imputation"], indirect=True)
+@pytest.mark.parametrize("entrypoint", ENTRYPOINTS)
+@pytest.mark.parametrize("missing_alleles", ["ref", "alt", "both", "neither"])
+def test_typed_contributions_need_complete_alleles_when_gnomad_is_absent(
+    routing_env: _Environment,
+    entrypoint: str,
+    missing_alleles: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with routing_env.sample.begin() as conn:
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="SYN_INCOMPLETE_TYPED",
+                chrom="1",
+                pos=999,
+                ref=None if missing_alleles in {"ref", "both"} else "A",
+                alt=None if missing_alleles in {"alt", "both"} else "G",
+                genotype="GG",
+                gnomad_af_global=0.3,
+                gnomad_af_eur=0.3,
+            )
+        )
+    results = routing_env.run(entrypoint, monkeypatch)
+    assert not routing_env.registry.settings.gnomad_db_path.exists()
+    for result in results:
+        assert result["snps_used"] == result["snps_total"] == 2
+        assert result["snps_used_imputed"] == 0
+        if missing_alleles == "neither":
+            assert result["calibrated"] is True
+            assert result["stored_score"] == 4.0
+            assert result["calibration_variants_used"] == 2
+            assert result["calibration_reference_mean"] == pytest.approx(1.4)
+            assert result["calibration_reference_std"] == pytest.approx(math.sqrt(0.9), abs=1e-6)
+            assert result["percentile"] is not None
+        else:
+            assert result["calibrated"] is False
+            assert result["calibration_method"] is None
+            assert result["calibration_reference_mean"] is None
+            assert result["calibration_reference_std"] is None
+            assert result["stored_score"] is None
+            assert result["percentile"] is None
+            assert result["z_score"] is None
+
+
 @pytest.mark.parametrize("routing_env", ["absent"], indirect=True)
 @pytest.mark.parametrize("entrypoint", ENTRYPOINTS)
 def test_an_unreadable_installed_store_fails_without_persisting_a_prs(

@@ -50,7 +50,9 @@ exact `(chrom, pos, ref, alt)`. PRS callers pass this store as `gnomad_engine`;
 metadata, gene constraints, GWAS associations and reference-version tracking.
 An absent gnomAD store is not created by scoring. When a scored imputed contribution
 has no matching row or no usable frequency, ancestry-continuous calibration and its
-percentile are withheld. Typed-only scoring retains its existing calibration rules.
+percentile are withheld. Scored typed variants with incomplete allele annotations
+also withhold calibration when the frequency store is absent. Typed-only scoring
+with complete allele annotations retains its existing calibration rules.
 When a lookup is needed, an installed store that cannot be read fails the run
 instead of being treated as absent. Bundle publication and connection leases apply as they do to
 other standalone reference readers.

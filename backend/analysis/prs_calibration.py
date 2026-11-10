@@ -466,12 +466,22 @@ def continuous_reference_distribution(
                     if key in by_pos:
                         rows_by_pos[key] = r
 
+    # A typed genotype may score even when its annotation lacks an allele. With
+    # no frequency store to resolve that contribution, do not let the remaining
+    # typed variants clear the coverage gate while omitting it from the moments.
+    if gnomad_engine is None and any(
+        row.ref is None or row.alt is None
+        for matched_rows in (rows_by_rsid, rows_by_pos)
+        for row in matched_rows.values()
+    ):
+        return None
+
     variants: list[dict] = []
     unresolved: list[dict] = []
 
     def _append_from_annotated(row: sa.Row | None, weight: dict) -> None:
-        # Scored variants missing from annotated_variants (imputed-only) are held
-        # for reference-DB resolution rather than silently dropped (#1236).
+        # Scored variants absent from annotated_variants or lacking ref/alt are
+        # held for gnomAD resolution rather than silently dropped (#1236).
         if row is None or row.ref is None or row.alt is None:
             unresolved.append(weight)
             return
