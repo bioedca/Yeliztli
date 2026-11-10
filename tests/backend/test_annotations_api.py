@@ -407,17 +407,22 @@ class TestAnnotationPagination:
         all_items = []
         cursor_chrom = None
         cursor_pos = None
+        cursor_rsid = None
 
         for _ in range(20):
             params = f"sample_id={sid}&limit=3"
             if cursor_chrom is not None:
-                params += f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}"
+                params += (
+                    f"&cursor_chrom={cursor_chrom}&cursor_pos={cursor_pos}"
+                    f"&cursor_rsid={cursor_rsid}"
+                )
             data = tc.get(f"/api/annotations?{params}").json()
             all_items.extend(data["items"])
             if not data["has_more"]:
                 break
             cursor_chrom = data["next_cursor_chrom"]
             cursor_pos = data["next_cursor_pos"]
+            cursor_rsid = data["next_cursor_rsid"]
 
         assert len(all_items) == len(ANNOTATED_VARIANTS)
         collected = {i["rsid"] for i in all_items}
@@ -426,7 +431,9 @@ class TestAnnotationPagination:
 
     def test_cursor_past_end(self, client):
         tc, sid = client
-        r = tc.get(f"/api/annotations?sample_id={sid}&cursor_chrom=MT&cursor_pos=999999")
+        r = tc.get(
+            f"/api/annotations?sample_id={sid}&cursor_chrom=MT&cursor_pos=999999&cursor_rsid=synthetic_end"
+        )
         data = r.json()
         assert len(data["items"]) == 0
         assert data["has_more"] is False
@@ -726,6 +733,7 @@ class TestCombinedFilters:
         r2 = tc.get(
             f"/api/annotations?sample_id={sid}&clinvar=pathogenic&limit=2"
             f"&cursor_chrom={data['next_cursor_chrom']}&cursor_pos={data['next_cursor_pos']}"
+            f"&cursor_rsid={data['next_cursor_rsid']}"
         )
         d2 = r2.json()
         assert len(d2["items"]) == 2

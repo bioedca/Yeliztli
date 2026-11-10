@@ -71,7 +71,8 @@ function makeVariantPage(
       pos_grch38: startPos + i * 100 + 50000,
     })),
     next_cursor_chrom: hasMore ? "1" : null,
-    next_cursor_pos: hasMore ? startPos + count * 100 : null,
+    next_cursor_pos: hasMore ? startPos + (count - 1) * 100 : null,
+    next_cursor_rsid: hasMore ? `rs${100 + count - 1}` : null,
     has_more: hasMore,
     limit: 100,
   }
@@ -589,6 +590,7 @@ describe("VariantTable", () => {
       ],
       next_cursor_chrom: null,
       next_cursor_pos: null,
+      next_cursor_rsid: null,
       has_more: false,
       limit: 100,
     }

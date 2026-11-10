@@ -686,26 +686,28 @@ class TestE2EPipeline:
         assert resp1.status_code == 200
         page1 = resp1.json()
         assert len(page1["items"]) == 5
+        assert page1["has_more"] is True
+        assert page1["next_cursor_rsid"] == page1["items"][-1]["rsid"]
 
-        if page1["has_more"]:
-            # Fetch second page
-            resp2 = e2e_client.get(
-                "/api/variants",
-                params={
-                    "sample_id": sample_id,
-                    "limit": 5,
-                    "cursor_chrom": page1["next_cursor_chrom"],
-                    "cursor_pos": page1["next_cursor_pos"],
-                },
-            )
-            assert resp2.status_code == 200
-            page2 = resp2.json()
-            assert len(page2["items"]) > 0
+        # Fetch second page with the complete continuation key.
+        resp2 = e2e_client.get(
+            "/api/variants",
+            params={
+                "sample_id": sample_id,
+                "limit": 5,
+                "cursor_chrom": page1["next_cursor_chrom"],
+                "cursor_pos": page1["next_cursor_pos"],
+                "cursor_rsid": page1["next_cursor_rsid"],
+            },
+        )
+        assert resp2.status_code == 200
+        page2 = resp2.json()
+        assert len(page2["items"]) > 0
 
-            # No overlap between pages
-            rsids_p1 = {v["rsid"] for v in page1["items"]}
-            rsids_p2 = {v["rsid"] for v in page2["items"]}
-            assert rsids_p1.isdisjoint(rsids_p2)
+        # No overlap between pages
+        rsids_p1 = {v["rsid"] for v in page1["items"]}
+        rsids_p2 = {v["rsid"] for v in page2["items"]}
+        assert rsids_p1.isdisjoint(rsids_p2)
 
     # ── Sample management ──────────────────────────────────────────────
 
