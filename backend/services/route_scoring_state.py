@@ -17,6 +17,9 @@ sample no longer has, so anything that might change a score is included:
 - the installed ``pgs_scores.db`` file's identity (size, mtime, inode, and a
   non-empty WAL), because its tables carry no content version and a reload
   can change weights without changing their metadata;
+- the standalone ``gnomad_af.db`` identity, including a non-empty WAL, because
+  imputed PRS calibration reads it directly and backup restore can replace it
+  without changing the central reference-version snapshot;
 - the reference-database release snapshot;
 - the per-sample ``annotated_variants`` and ``imputed_variants`` generation
   tokens, written in the same transaction that replaces those tables;
@@ -59,7 +62,7 @@ from backend.version import app_version
 ScoringState = Literal["current", "stale", "never"]
 
 _FINGERPRINT_KEY_PREFIX = "route_scoring_fingerprint:"
-_FINGERPRINT_SCHEMA = 1
+_FINGERPRINT_SCHEMA = 2
 _BACKEND_DIR = Path(__file__).resolve().parents[1]
 # Finding columns that change when an identical finding is rewritten or its
 # SVG is re-rendered, so they say nothing about the score's inputs.
@@ -98,8 +101,7 @@ def _file_identity(path: Path) -> list[int] | None:
     return [st.st_size, st.st_mtime_ns, st.st_ino]
 
 
-def _pgs_scores_identity() -> dict[str, list[int] | None]:
-    path = pgs_scores_db_path()
+def _database_identity(path: Path) -> dict[str, list[int] | None]:
     wal = _file_identity(path.with_name(f"{path.name}-wal"))
     # An empty WAL holds no pages, so it is the same content as no WAL.
     return {"db": _file_identity(path), "wal": wal if wal and wal[0] > 0 else None}
@@ -124,6 +126,8 @@ def compute_scoring_fingerprint(
     reference_engine: sa.Engine,
 ) -> str:
     """Fingerprint of everything ``module``'s score reads for this sample."""
+    from backend.config import get_settings
+
     with sample_engine.connect() as conn:
         sample_inputs = {
             "annotated_variants": _state_value(conn, ANNOTATED_VARIANTS_GENERATION_KEY),
@@ -138,7 +142,8 @@ def compute_scoring_fingerprint(
         "module": module,
         "app_version": app_version(),
         "code": _code_digest(),
-        "pgs_scores": _pgs_scores_identity(),
+        "pgs_scores": _database_identity(pgs_scores_db_path()),
+        "gnomad": _database_identity(get_settings().gnomad_db_path),
         "reference_versions": compact_reference_versions(
             read_current_reference_snapshot(reference_engine)
         ),

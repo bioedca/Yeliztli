@@ -62,7 +62,9 @@ REPLACEABLE_DATABASES = {
 }
 
 
-def _leased_connection(db_path: Path, db_name: str) -> type[sqlite3.Connection]:
+def _leased_connection(
+    db_path: Path, db_name: str, *, read_only: bool = False
+) -> type[sqlite3.Connection]:
     from backend.db.build_guard import database_access
 
     class LeasedConnection(sqlite3.Connection):
@@ -73,6 +75,12 @@ def _leased_connection(db_path: Path, db_name: str) -> type[sqlite3.Connection]:
             try:
                 if db_path.with_name(f".{db_path.name}.publication.json").exists():
                     raise RuntimeError("Database publication was interrupted; restart to recover")
+                if read_only:
+                    # Check under the lease, immediately before SQLite opens.
+                    # Preserve FileNotFoundError for optional readers, while
+                    # permission/corruption errors remain failures. mode=ro also
+                    # prevents creation if an external remover ignores the lease.
+                    db_path.stat()
                 super().__init__(*args, **kwargs)
             except BaseException:
                 self._lease.__exit__(None, None, None)
@@ -143,6 +151,7 @@ def make_sqlite_engine(
     wal: bool = True,
     synchronous: SQLiteSynchronousMode | None = None,
     read_optimized: bool = False,
+    read_only: bool = False,
     busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     poolclass: type[Pool] | None = None,
     echo: bool = False,
@@ -167,6 +176,10 @@ def make_sqlite_engine(
             fewer fsyncs; per-sample engines should keep the default ``FULL``.
         read_optimized: Apply aggressive read-performance PRAGMAs (larger page
             cache, mmap, in-memory temp store) for large read-only reference DBs.
+        read_only: Open an existing file with SQLite's ``mode=ro``; never create
+            or modify it. Requires ``wal=False`` to inherit its journal mode.
+            For replaceable stores, absence is checked under the reader lease
+            and raises ``FileNotFoundError``.
         busy_timeout_ms: Milliseconds to wait for a contended write lock before
             raising "database is locked".
         poolclass: Optional SQLAlchemy pool class (e.g. ``NullPool`` for a
@@ -180,6 +193,8 @@ def make_sqlite_engine(
     if synchronous is not None and synchronous not in _VALID_SYNCHRONOUS_MODES:
         allowed = ", ".join(sorted(_VALID_SYNCHRONOUS_MODES))
         raise ValueError(f"synchronous must be one of {allowed}; got {synchronous!r}")
+    if read_only and wal:
+        raise ValueError("Read-only engines require wal=False")
 
     kwargs: dict = {"echo": echo}
     db_name = REPLACEABLE_DATABASES.get(Path(db_path).name)
@@ -187,13 +202,24 @@ def make_sqlite_engine(
         if poolclass not in (None, NullPool):
             raise ValueError("Replaceable standalone databases require NullPool")
         kwargs["poolclass"] = NullPool
-        kwargs["connect_args"] = {"factory": _leased_connection(Path(db_path), db_name)}
+        kwargs["connect_args"] = {
+            "factory": _leased_connection(Path(db_path), db_name, read_only=read_only)
+        }
     elif poolclass is not None:
         kwargs["poolclass"] = poolclass
     else:
         kwargs["pool_pre_ping"] = True
 
-    engine = sa.create_engine(f"sqlite:///{db_path}", **kwargs)
+    url = (
+        sa.URL.create(
+            "sqlite",
+            database=Path(db_path).absolute().as_uri(),
+            query={"mode": "ro", "uri": "true"},
+        )
+        if read_only
+        else f"sqlite:///{db_path}"
+    )
+    engine = sa.create_engine(url, **kwargs)
 
     @event.listens_for(engine, "connect")
     def _set_sqlite_pragmas(dbapi_connection, connection_record):  # noqa: ANN001

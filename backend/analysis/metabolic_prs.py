@@ -252,14 +252,14 @@ def run_metabolic_prs(
     pgs_engine: sa.Engine | None,
     inferred_ancestry: str | None = None,
     top_ancestry_fraction: float | None = None,
-    reference_engine: sa.Engine | None = None,
+    gnomad_engine: sa.Engine | None = None,
 ) -> MetabolicResult:
     """Run T2D & BMI PRS (uncalibrated, coverage-reported) + anchor SNPs.
 
     When ``pgs_engine`` is None (score DB not installed) the polygenic results are
     empty but anchor SNPs are still resolved.
 
-    ``reference_engine`` (optional gnomAD reference) lets imputed-only scored
+    ``gnomad_engine`` (optional gnomAD reference) lets imputed-only scored
     variants be calibrated so their continuous percentile is preserved rather than
     withheld (#1281/#1236).
     """
@@ -285,7 +285,7 @@ def run_metabolic_prs(
             inferred_ancestry=inferred_ancestry,
             top_ancestry_fraction=top_ancestry_fraction,
             n_bootstrap=0,
-            reference_engine=reference_engine,
+            gnomad_engine=gnomad_engine,
         )
         result.prs_results.append(prs)
         logger.info(

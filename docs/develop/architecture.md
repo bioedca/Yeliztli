@@ -43,6 +43,24 @@ no reanalysis is required for this text repair.
 Large reference datasets (gnomAD, the VEP bundle, dbNSFP, …) are separate SQLite files
 downloaded into the data directory — see [reference data](../install/reference-data.md).
 
+PRS calibration reads typed variants' stored frequencies from the sample database.
+For scored imputed-only variants it uses the separate `gnomad_af.db`, matched by
+exact `(chrom, pos, ref, alt)`. PRS callers pass this store as `gnomad_engine`;
+`reference_engine` remains the central `reference.db` connection for sample
+metadata, gene constraints, GWAS associations and reference-version tracking.
+An absent gnomAD store is not created by scoring. When a scored imputed contribution
+has no matching row or no usable frequency, ancestry-continuous calibration and its
+percentile are withheld. Scored typed variants with incomplete allele annotations
+also withhold calibration when the frequency store is absent. Typed-only scoring
+with complete allele annotations retains its existing calibration rules.
+The PRS reader opens SQLite in read-only mode and rechecks existence under the
+publication lease, so cleanup between engine selection and lookup cannot recreate
+an empty database. When a lookup is needed, an installed store that cannot be read
+fails the run instead of being treated as absent. Metabolic, FH and eBMD score
+freshness includes the standalone file and its non-empty WAL; restoration,
+replacement, installation or removal therefore makes prior scores stale even when
+the central reference-version snapshot is unchanged.
+
 ## The pipeline: upload → annotate → analyse
 
 1. **Ingest.** A raw file is uploaded (`POST /api/ingest/upload`). A **dispatcher** detects
