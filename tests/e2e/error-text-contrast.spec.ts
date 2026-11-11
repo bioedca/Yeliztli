@@ -155,6 +155,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(button).toBeEnabled()
     await expect(button).toHaveCSS('opacity', '1')
     expect(deletes).toBe(1)
+    // Contrast analysis must inspect the error after it enters the viewport.
+    await deleteError.scrollIntoViewIfNeeded()
+    await expect(deleteError).toBeInViewport({ ratio: 1 })
     await assertContrast(page, '#main-content p[class*="text-destructive"]')
   })
 
