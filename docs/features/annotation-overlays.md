@@ -35,6 +35,17 @@ Saved overlay definitions are stored once, but applying an overlay writes matche
 rows for each sample. Reapplying the same overlay to the same sample replaces that
 sample's previous overlay results for that overlay.
 
+### Refresh Previously Applied BED Overlays
+
+BED interval matching has been corrected to include the right bases at both
+boundaries. Existing saved results do not update automatically. If you applied a
+BED overlay before this correction, select each sample where you used it and click
+**Apply** again for that saved overlay. Repeat for every affected BED overlay.
+There is no need to upload the file again: **Apply** reparses the saved file and
+replaces only that overlay's results for the selected sample. If the saved file is
+missing, the app asks you to re-upload it. VCF overlays are unaffected by this
+coordinate correction.
+
 ## File Requirements
 
 | Requirement | Details |
@@ -51,13 +62,24 @@ another coordinate system, it may match nothing or match the wrong locus.
 
 ## BED Matching
 
-BED overlays match by chromosome and positional overlap:
+BED overlays match by chromosome and the variant's stored position:
 
 - the first three columns are interpreted as `chrom`, `start`, and `end`
-- a variant matches when its stored position falls inside the interval
+- BED uses a zero-based start and an exclusive end; sample positions are one-based,
+  so a variant matches when `start < pos <= end`
+- for example, BED `[100, 200)` matches sample positions 101 through 200; positions
+  100 and 201 are outside, and `[199, 200)` matches only position 200
+- matching remains point-based for all variants: a multi-base REF does not extend
+  the matched span, unlike the Rare Variant Finder's REF-span overlap
 - additional columns become overlay annotation fields
+- if several records cover the same variant, the first matching record's
+  annotations are kept
 - a header comment such as `#chrom start end label score` is used to name the
   annotation columns; otherwise columns are named automatically
+
+The coordinate conversion follows the
+[UCSC BED format specification](https://genome.ucsc.edu/FAQ/FAQformat.html#format1)
+(accessed 2026-11-10).
 
 Use GRCh37 coordinates and keep intervals narrow enough for the question you are
 asking. Broad regions can match many variants and make the results table less useful.
