@@ -629,6 +629,33 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+      - name: Run browser lifecycle regression
+        env:
+          DEBUG: pw:browser
+          YELIZTLI_BROWSER_DIAGNOSTICS: output/playwright/lifecycle-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+          YELIZTLI_HUEY_IMMEDIATE: "true"
+        run: |
+          set -euo pipefail
+          test ! -e "$YELIZTLI_BROWSER_DIAGNOSTICS"
+          mkdir -p "$YELIZTLI_BROWSER_DIAGNOSTICS"
+          lifecycle_output="$(cd "$YELIZTLI_BROWSER_DIAGNOSTICS" && pwd)"
+          YELIZTLI_DATA_DIR="$lifecycle_output/data" \
+            node node_modules/@playwright/test/cli.js test \
+              --config=playwright.lifecycle.config.ts --project=${{ matrix.browser }} \
+              --workers=1 --retries=0 2>&1 | tee "$lifecycle_output/browser.log"
+
+      - name: Upload browser lifecycle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-lifecycle-${{ matrix.browser }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/playwright/lifecycle-*/browser.log
+            output/playwright/lifecycle-*/browser-results.json
+            output/playwright/lifecycle-*/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Run E2E tests (${{ matrix.browser }})
         run: npx playwright test --project=${{ matrix.browser }}
         env:

@@ -219,12 +219,19 @@ test.describe('P4-26d: Cross-browser — client-side navigation', () => {
     const settingsLink = page.locator('nav[aria-label="Main navigation"] a[title="Settings"]')
     await settingsLink.click()
     await page.waitForURL(/\/settings/)
+    // The Settings index replaces its history entry with the updates route.
+    // Wait for that redirect before asking the browser to traverse history.
+    await page.waitForURL(/\/settings\/updates(?:\?|$)/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Settings', exact: true })).toBeVisible()
 
     await page.goBack()
     await page.waitForURL('/')
+    await expect(page.getByRole('heading', { level: 1, name: 'Dashboard', exact: true })).toBeVisible()
 
     await page.goForward()
     await page.waitForURL(/\/settings/)
+    await page.waitForURL(/\/settings\/updates(?:\?|$)/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Settings', exact: true })).toBeVisible()
   })
 
   test('direct URL navigation works for all core routes', async ({ page }) => {

@@ -2839,6 +2839,22 @@ def test_protected_rename_raises_route_floor() -> None:
     assert "selected route Low is below changed-path minimum Load-bearing" in errors
 
 
+def test_browser_lifecycle_gate_requires_load_bearing_route() -> None:
+    path = "playwright.lifecycle.config.ts"
+    assert (Path(__file__).resolve().parents[2] / path).is_file()
+    changes = [
+        ChangedFile(path),
+        ChangedFile(path.upper()),
+        ChangedFile("docs/browser-history.md", previous_filename=path),
+    ]
+    assert changes
+    for change in changes:
+        files = [change]
+        errors = validate_context(_context("Standard", files), files, now=NOW)
+        assert "selected route Standard is below changed-path minimum Load-bearing" in errors
+        assert minimum_route(files) == "Load-bearing"
+
+
 @pytest.mark.parametrize(
     "path",
     [

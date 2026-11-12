@@ -152,6 +152,7 @@ LOAD_BEARING_EXACT = {
     "package-lock.json",
     "package.json",
     "playwright.config.ts",
+    "playwright.lifecycle.config.ts",
     "pyproject.toml",
     "tests/conftest.py",
     "tests/backend/test_review_route_policy.py",
