@@ -6,7 +6,7 @@
  * re-annotation prompt banner.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Logo from '@/components/layout/Logo'
 import {
@@ -26,9 +26,11 @@ import {
   type UpdateAvailable,
   type UpdateHistoryEntry,
   type ReannotationPrompt,
+  type TriggerUpdateResponse,
   type TriggerUpdateVariables,
 } from '@/api/updates'
 import {
+  DB_HEALTH_KEY,
   busyLabel,
   isDatabaseBusy,
   useDatabaseHealth,
@@ -799,15 +801,19 @@ function HistorySection({
 function UpdateJobProgress({
   displayName,
   jobId,
+  bridged = false,
 }: {
   displayName: string
   jobId: string | null
+  /** True when this row exists because the user just clicked "Update now" in
+   *  this page and we are bridging until the job id is captured. */
+  bridged?: boolean
 }) {
   const { data: job } = useUpdateJobStatus(jobId)
   const pct = Math.min(100, Math.max(0, job?.progress_pct ?? 0))
-  // No job record yet (just clicked; the health poll hasn't linked the job id)
-  // — an indeterminate-looking 0% with the starting label beats a blank gap.
-  const message = job?.message ?? 'Starting update…'
+  // Without a job record yet: a just-clicked update is starting, while a busy
+  // database with no linked id (an auto-update) is simply already running.
+  const message = job?.message ?? (bridged ? 'Starting update…' : 'Update in progress…')
   const failed = job?.status === 'failed'
   return (
     <div>
@@ -860,7 +866,15 @@ export default function UpdateManager() {
   } = useUpdateCheck(autoCheckEnabled)
   const { data: prompts } = useReannotationPrompts()
   const { data: health } = useDatabaseHealth()
-  const triggerMutation = useTriggerUpdate()
+  // db_name -> job_id for updates triggered from this page, captured the
+  // moment each POST resolves. Entries persist after the job finishes; they
+  // are only read while the DB is busy or a new click is pending, and every
+  // new click for the same DB overwrites its entry.
+  const [triggeredJobs, setTriggeredJobs] = useState<Record<string, string>>({})
+  const captureTriggeredJob = useCallback((resp: TriggerUpdateResponse) => {
+    setTriggeredJobs((prev) => ({ ...prev, [resp.db_name]: resp.job_id }))
+  }, [])
+  const triggerMutation = useTriggerUpdate({ onTriggered: captureTriggeredJob })
   const autoUpdateMutation = useToggleAutoUpdate()
 
   const updatesMap = new Map(
@@ -873,18 +887,26 @@ export default function UpdateManager() {
   )
 
   // In-flight updates for the header progress bars: every DB health marks
-  // busy, keyed to its active job id. A just-clicked "Update now" bridges the
-  // gap until the next health poll links the job id (bar shows "Starting…").
+  // busy. Database health canNOT link an update-manager job id — `_job_for_db`
+  // joins through download_session_jobs, which only the setup wizard and the
+  // resume endpoint register — so the job ids captured from this page's own
+  // trigger responses fill that gap. A just-clicked "Update now" renders a
+  // bridged row ("Starting update…") until its POST resolves and the id lands.
   const displayNames = new Map((statuses ?? []).map((s) => [s.db_name, s.display_name]))
-  const inflightJobs = new Map<string, string | null>(
-    (health?.databases ?? [])
-      .filter((h) => isDatabaseBusy(h))
-      .map((h) => [h.name, h.active_job_id]),
+  const busyNames = new Set(
+    (health?.databases ?? []).filter((h) => isDatabaseBusy(h)).map((h) => h.name),
   )
   const pendingTarget =
     triggerMutation.isPending ? (triggerMutation.variables?.dbName ?? null) : null
+  const inflightJobs = new Map<string, { jobId: string | null; bridged: boolean }>()
+  for (const name of busyNames) {
+    inflightJobs.set(name, {
+      jobId: healthMap.get(name)?.active_job_id ?? triggeredJobs[name] ?? null,
+      bridged: false,
+    })
+  }
   if (pendingTarget && !inflightJobs.has(pendingTarget)) {
-    inflightJobs.set(pendingTarget, null)
+    inflightJobs.set(pendingTarget, { jobId: triggeredJobs[pendingTarget] ?? null, bridged: true })
   }
 
   // When a DB finishes a download/build (its health leaves the busy set), its
@@ -906,6 +928,22 @@ export default function UpdateManager() {
     }
     prevBusy.current = busyNow
   }, [health, queryClient])
+
+  // A click on "Update now" is the moment a job starts, but the health query
+  // only self-polls once it has SEEN a busy database — from an idle snapshot
+  // it never refetches, so the header bar would sit on the bridge row's
+  // "Starting update…" forever. Kick a health refetch the moment an update is
+  // clicked (which links the job id) and again when it settles, so the
+  // version/"update available" columns refresh even for an update that began
+  // and finished between polls.
+  const prevUpdating = useRef(false)
+  useEffect(() => {
+    const updating = triggerMutation.isPending
+    if (updating !== prevUpdating.current) {
+      prevUpdating.current = updating
+      void queryClient.invalidateQueries({ queryKey: DB_HEALTH_KEY })
+    }
+  }, [triggerMutation.isPending, queryClient])
 
   const isLoading = statusLoading || checkLoading
 
@@ -997,11 +1035,12 @@ export default function UpdateManager() {
           multi-gigabyte build is not an indeterminate wait. */}
       {inflightJobs.size > 0 && (
         <div className="space-y-4 rounded-md border border-border px-4 py-3">
-          {[...inflightJobs.entries()].map(([dbName, jobId]) => (
+          {[...inflightJobs.entries()].map(([dbName, entry]) => (
             <UpdateJobProgress
               key={dbName}
               displayName={displayNames.get(dbName) ?? dbName}
-              jobId={jobId}
+              jobId={entry.jobId}
+              bridged={entry.bridged}
             />
           ))}
         </div>
@@ -1102,10 +1141,20 @@ export default function UpdateManager() {
         </div>
       )}
 
-      {/* Trigger success */}
+      {/* Trigger finished — the mutation resolves only after the job reached
+          a terminal state, so report the outcome, not "started". */}
       {triggerMutation.isSuccess && (
-        <div className="rounded-lg border border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30 p-3 text-sm text-green-700 dark:text-green-300">
-          Update started (job: {triggerMutation.data.job_id}). Check back shortly for results.
+        <div
+          className={cn(
+            'rounded-lg border p-3 text-sm',
+            triggerMutation.data.final_status === 'failed'
+              ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300'
+              : 'border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950/30 dark:text-green-300',
+          )}
+        >
+          {triggerMutation.data.final_status === 'failed'
+            ? `Update failed: ${triggerMutation.data.final_error ?? 'unknown error'}`
+            : 'Update complete.'}
         </div>
       )}
 

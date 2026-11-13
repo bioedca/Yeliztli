@@ -123,7 +123,10 @@ function setupFetchMocks(options: {
   appUpdate?: unknown
   appUpdateStatus?: number
   health?: { databases: unknown[] }
+  /** Successive /api/databases/health payloads; the last repeats. */
+  healthSequence?: unknown[]
 } = {}) {
+  let healthCalls = 0
   mockFetch.mockImplementation((url: string, init?: RequestInit) => {
     if (typeof url === 'string') {
       if (url.includes('/api/updates/trigger') && init?.method === 'POST')
@@ -172,12 +175,19 @@ function setupFetchMocks(options: {
               error: null,
             },
         })
-      if (url.includes('/api/databases/health'))
+      if (url.includes('/api/databases/health')) {
+        healthCalls++
+        const seq = options.healthSequence
+        const data =
+          seq && seq.length > 0
+            ? seq[Math.min(healthCalls - 1, seq.length - 1)]
+            : (options.health ?? { databases: [] })
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: async () => options.health ?? { databases: [] },
+          json: async () => data,
         })
+      }
       if (url.includes('/api/updates/status'))
         return Promise.resolve(mockStatusResponse(options.statuses))
       if (url.includes('/api/updates/check'))
@@ -601,6 +611,47 @@ describe('UpdateManager', () => {
     render(<UpdateManager />, { wrapper: createWrapper() })
     await screen.findByRole('table', { name: /Database versions/i })
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  it('drives the bar from the trigger response when health cannot link the job', async () => {
+    // Production shape for an update clicked here: health reports the DB busy
+    // but active_job_id is null — update-manager jobs have no
+    // download_session_jobs row, so only the page's own trigger response
+    // knows the id.
+    setupFetchMocks({
+      ...clinvarUpdate,
+      statuses: [
+        {
+          db_name: 'clinvar',
+          display_name: 'ClinVar',
+          current_version: '20260301',
+          version_display: '20260301',
+          downloaded_at: '2026-03-15T00:00:00',
+          auto_update: true,
+          update_available: false,
+        },
+      ],
+      healthSequence: [
+        { databases: [] },
+        { databases: [{ name: 'clinvar', state: 'building', active_job_id: null }] },
+      ],
+      triggerResponse: { job_id: 'job-live', db_name: 'clinvar', message: 'Update queued' },
+      jobStatus: {
+        job_id: 'job-live',
+        status: 'running',
+        progress_pct: 42,
+        message: 'Downloading ClinVar... 42%',
+        error: null,
+      },
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByText('Update now'))
+
+    expect(await screen.findByText('Downloading ClinVar... 42%')).toBeInTheDocument()
+    const bar = screen.getByRole('progressbar', { name: 'ClinVar update progress' })
+    expect(bar).toHaveAttribute('aria-valuenow', '42')
+    expect(screen.queryByText('Starting update…')).not.toBeInTheDocument()
   })
 })
 

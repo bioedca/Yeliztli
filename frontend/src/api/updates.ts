@@ -365,20 +365,38 @@ export interface TriggerUpdateVariables {
   force?: boolean
 }
 
-/** Trigger a database update. Polls for job completion, then invalidates caches. */
-export function useTriggerUpdate() {
+export interface TriggerUpdateResult extends TriggerUpdateResponse {
+  /** Terminal state of the job this mutation waited for. */
+  final_status: string
+  final_error: string | null
+}
+
+/** Trigger a database update. Polls for job completion, then invalidates caches.
+ *
+ * `onTriggered` fires the moment the POST resolves — before the completion
+ * poll — because database health cannot link these jobs: `_job_for_db` joins
+ * through `download_session_jobs`, which only the setup wizard and the resume
+ * endpoint register. The Update Manager is the one surface that knows this
+ * job_id, so it must capture it immediately to drive the live progress bar. */
+export function useTriggerUpdate(
+  { onTriggered }: { onTriggered?: (resp: TriggerUpdateResponse) => void } = {},
+) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ dbName, force = false }: TriggerUpdateVariables) => {
+    mutationFn: async ({
+      dbName,
+      force = false,
+    }: TriggerUpdateVariables): Promise<TriggerUpdateResult> => {
       const resp = await triggerUpdate(dbName, force)
+      onTriggered?.(resp)
       // Poll until the background Huey task finishes. The default 10-minute
       // cap predates live progress: a multi-gigabyte database legitimately
       // runs for tens of minutes, and the thrown "did not complete within
       // 600s" rendered as "Update failed" while the job was still healthy.
       // Two hours bounds a wedged job without failing a real one; the header
       // progress bar reports live state independently of this poll.
-      await pollJobUntilDone(resp.job_id, 2000, 2 * 60 * 60 * 1000)
-      return resp
+      const final = await pollJobUntilDone(resp.job_id, 2000, 2 * 60 * 60 * 1000)
+      return { ...resp, final_status: final.status, final_error: final.error }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: DB_STATUS_KEY })
