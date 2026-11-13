@@ -53,6 +53,15 @@ function useETA(progress: AnnotationProgress | null) {
       return
     }
 
+    // Past 99% the remaining work is post-analysis (finding diff, then SVG
+    // generation), which the linear variant-rate extrapolation cannot see. It
+    // used to freeze at "~1s remaining" for the whole twenty-minute tail, so
+    // show the stage message instead of a countdown that is known to be wrong.
+    if (pct >= 99) {
+      setEta(null)
+      return
+    }
+
     const elapsed = (Date.now() - startTimeRef.current) / 1000
     const remaining = (elapsed / pct) * (100 - pct)
 

@@ -239,6 +239,33 @@ describe("AnnotationPanel", () => {
       })
     })
 
+    it("hides the remaining-time estimate during post-analysis stages", async () => {
+      // Past 99% the tail is the finding diff and SVG generation, which the
+      // linear variant-rate extrapolation cannot see: it froze at "~1s
+      // remaining" for roughly twenty minutes. The stage message must be the
+      // only thing shown there.
+      mockStartAnnotation()
+      render(<AnnotationPanel sampleId={1} variantCount={1000} />)
+
+      fireEvent.click(screen.getByText("Run Annotation"))
+      await waitFor(() => expect(MockEventSource.instances.length).toBe(1))
+
+      act(() => {
+        MockEventSource.instances[0]._emit("progress", {
+          job_id: "test-job-123",
+          status: "running",
+          progress_pct: 99.0,
+          message: "Generating finding SVGs",
+          error: null,
+        })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText("Generating finding SVGs")).toBeInTheDocument()
+      })
+      expect(screen.queryByText(/remaining/)).not.toBeInTheDocument()
+    })
+
     it("shows Cancelling... while the worker has not acknowledged the cancel", async () => {
       // `cancelling` is an ACTIVE state (#2232): the sample stays interlocked
       // until the worker acknowledges. Labelling it "Annotation Cancelled" — or

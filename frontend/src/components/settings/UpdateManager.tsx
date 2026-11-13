@@ -14,6 +14,7 @@ import {
   useAppUpdate,
   useDatabaseStatuses,
   useUpdateCheck,
+  useUpdateJobStatus,
   useUpdateHistory,
   useReannotationPrompts,
   useTriggerUpdate,
@@ -794,6 +795,49 @@ function HistorySection({
   )
 }
 
+/** Live progress bar for one in-flight database update (manual or auto). */
+function UpdateJobProgress({
+  displayName,
+  jobId,
+}: {
+  displayName: string
+  jobId: string | null
+}) {
+  const { data: job } = useUpdateJobStatus(jobId)
+  const pct = Math.min(100, Math.max(0, job?.progress_pct ?? 0))
+  // No job record yet (just clicked; the health poll hasn't linked the job id)
+  // — an indeterminate-looking 0% with the starting label beats a blank gap.
+  const message = job?.message ?? 'Starting update…'
+  const failed = job?.status === 'failed'
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-sm font-medium">{displayName}</span>
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {Math.round(pct)}%
+        </span>
+      </div>
+      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all duration-300',
+            failed ? 'bg-destructive' : 'bg-primary',
+          )}
+          style={{ width: `${pct}%` }}
+          role="progressbar"
+          aria-valuenow={Math.round(pct)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${displayName} update progress`}
+        />
+      </div>
+      <p className="mt-1 truncate text-xs text-muted-foreground" role="status">
+        {failed && job?.error ? `${message} — ${job.error}` : message}
+      </p>
+    </div>
+  )
+}
+
 // ── Main Component ───────────────────────────────────────────────────
 
 export default function UpdateManager() {
@@ -827,6 +871,21 @@ export default function UpdateManager() {
   const healthMap = new Map(
     (health?.databases ?? []).map((h) => [h.name, h]),
   )
+
+  // In-flight updates for the header progress bars: every DB health marks
+  // busy, keyed to its active job id. A just-clicked "Update now" bridges the
+  // gap until the next health poll links the job id (bar shows "Starting…").
+  const displayNames = new Map((statuses ?? []).map((s) => [s.db_name, s.display_name]))
+  const inflightJobs = new Map<string, string | null>(
+    (health?.databases ?? [])
+      .filter((h) => isDatabaseBusy(h))
+      .map((h) => [h.name, h.active_job_id]),
+  )
+  const pendingTarget =
+    triggerMutation.isPending ? (triggerMutation.variables?.dbName ?? null) : null
+  if (pendingTarget && !inflightJobs.has(pendingTarget)) {
+    inflightJobs.set(pendingTarget, null)
+  }
 
   // When a DB finishes a download/build (its health leaves the busy set), its
   // version stamp has just changed — refetch the (short-cached) status list so
@@ -931,6 +990,20 @@ export default function UpdateManager() {
           <span className="text-muted-foreground">
             Last checked: {formatDateTime(updateCheck.checked_at)}
           </span>
+        </div>
+      )}
+
+      {/* Live progress for every in-flight update (manual or auto), so a
+          multi-gigabyte build is not an indeterminate wait. */}
+      {inflightJobs.size > 0 && (
+        <div className="space-y-4 rounded-md border border-border px-4 py-3">
+          {[...inflightJobs.entries()].map(([dbName, jobId]) => (
+            <UpdateJobProgress
+              key={dbName}
+              displayName={displayNames.get(dbName) ?? dbName}
+              jobId={jobId}
+            />
+          ))}
         </div>
       )}
 

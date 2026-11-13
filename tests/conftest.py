@@ -201,6 +201,24 @@ def tmp_data_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def _clear_findings_summary_cache():
+    """Reset the module-global summary response cache around every test.
+
+    `GET /analysis/findings/summary` caches its response against a
+    (sample_id, hidden_modules, fingerprint) key, and many suites reuse
+    sample_id=1 with identically-shaped seeds. Without a reset, one test's
+    cached payload can be served to another test's client — including past a
+    monkeypatched presentability guard or an in-test data mutation that the
+    fingerprint happens to match.
+    """
+    from backend.api.routes import findings as findings_routes
+
+    findings_routes._SUMMARY_CACHE.clear()
+    yield
+    findings_routes._SUMMARY_CACHE.clear()
+
+
 @pytest.fixture
 def test_settings(tmp_data_dir: Path) -> Settings:
     """Return a Settings instance pointing at the temporary data directory.

@@ -118,6 +118,7 @@ function setupFetchMocks(options: {
   prompts?: unknown[]
   samples?: unknown[]
   triggerResponse?: unknown
+  jobStatus?: unknown
   autoUpdateResponse?: unknown
   appUpdate?: unknown
   appUpdateStatus?: number
@@ -155,6 +156,19 @@ function setupFetchMocks(options: {
               latest_version: '0.1.0',
               release_url: null,
               release_notes: null,
+              error: null,
+            },
+        })
+      if (url.includes('/api/updates/job/'))
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () =>
+            options.jobStatus ?? {
+              job_id: 'job-unknown',
+              status: 'running',
+              progress_pct: 0,
+              message: 'Updating',
               error: null,
             },
         })
@@ -548,6 +562,45 @@ describe('UpdateManager', () => {
     setupFetchMocks()
     render(<UpdateManager />, { wrapper: createWrapper() })
     expect(await screen.findByText(/Last checked:/)).toBeInTheDocument()
+  })
+
+  it('shows a live progress bar under the summary while an update runs', async () => {
+    setupFetchMocks({
+      statuses: [
+        {
+          db_name: 'clinvar',
+          display_name: 'ClinVar',
+          current_version: '20260301',
+          version_display: '20260301',
+          downloaded_at: '2026-03-15T00:00:00',
+          auto_update: true,
+          update_available: false,
+        },
+      ],
+      health: {
+        databases: [{ name: 'clinvar', state: 'building', active_job_id: 'job-1' }],
+      },
+      jobStatus: {
+        job_id: 'job-1',
+        status: 'running',
+        progress_pct: 42,
+        message: 'Downloading ClinVar... 42%',
+        error: null,
+      },
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Downloading ClinVar... 42%')).toBeInTheDocument()
+    const bar = screen.getByRole('progressbar', { name: 'ClinVar update progress' })
+    expect(bar).toHaveAttribute('aria-valuenow', '42')
+    expect(screen.getByText('42%')).toBeInTheDocument()
+  })
+
+  it('renders no progress bar when no update is in flight', async () => {
+    setupFetchMocks()
+    render(<UpdateManager />, { wrapper: createWrapper() })
+    await screen.findByRole('table', { name: /Database versions/i })
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 })
 

@@ -450,7 +450,7 @@ class TestSaveFindingSvgs:
     """Test bulk SVG generation and file writing."""
 
     def test_saves_svg_files_to_disk(self, tmp_path, prs_finding):
-        updated = save_finding_svgs([prs_finding], tmp_path)
+        updated = save_finding_svgs([prs_finding], tmp_path / "svgs")
         assert len(updated) == 1
         assert updated[0]["svg_path"] is not None
         svg_file = tmp_path / "svgs" / f"{prs_finding['id']}.svg"
@@ -459,12 +459,12 @@ class TestSaveFindingSvgs:
         assert "<svg" in content
 
     def test_creates_svgs_directory(self, tmp_path, prs_finding):
-        save_finding_svgs([prs_finding], tmp_path)
+        save_finding_svgs([prs_finding], tmp_path / "svgs")
         assert (tmp_path / "svgs").is_dir()
 
     def test_multiple_findings(self, tmp_path, prs_finding, nutrigenomics_finding):
         findings_list = [prs_finding, nutrigenomics_finding]
-        updated = save_finding_svgs(findings_list, tmp_path)
+        updated = save_finding_svgs(findings_list, tmp_path / "svgs")
         assert len(updated) == 2
         for f in updated:
             assert f["svg_path"] is not None
@@ -475,11 +475,11 @@ class TestSaveFindingSvgs:
             "module": "unknown",
             "category": "unknown",
         }
-        updated = save_finding_svgs([finding], tmp_path)
+        updated = save_finding_svgs([finding], tmp_path / "svgs")
         assert updated[0].get("svg_path") is None
 
     def test_svg_path_is_relative_to_sample_dir(self, tmp_path, prs_finding):
-        updated = save_finding_svgs([prs_finding], tmp_path)
+        updated = save_finding_svgs([prs_finding], tmp_path / "svgs")
         svg_path = updated[0]["svg_path"]
         assert svg_path is not None
         # Relative for portability (e.g. "svgs/1.svg")
@@ -490,7 +490,7 @@ class TestSaveFindingSvgs:
     def test_withheld_prs_percentile_does_not_save_quantitative_gauge(self, tmp_path, prs_finding):
         prs_finding["prs_percentile"] = None
 
-        updated = save_finding_svgs([prs_finding], tmp_path)
+        updated = save_finding_svgs([prs_finding], tmp_path / "svgs")
 
         assert updated[0].get("svg_path") is None
         assert not (tmp_path / "svgs" / f"{prs_finding['id']}.svg").exists()
@@ -524,7 +524,7 @@ class TestGenerateSvgsForSample:
                 )
             )
 
-        count = generate_svgs_for_sample(sample_engine, tmp_path)
+        count = generate_svgs_for_sample(sample_engine, tmp_path, 7)
         assert count >= 1
 
         # Verify svg_path was updated in the DB
@@ -559,7 +559,7 @@ class TestGenerateSvgsForSample:
                 )
             )
 
-        count = generate_svgs_for_sample(sample_engine, tmp_path)
+        count = generate_svgs_for_sample(sample_engine, tmp_path, 7)
 
         assert count == 0
         with sample_engine.connect() as conn:
@@ -568,13 +568,13 @@ class TestGenerateSvgsForSample:
         assert not (tmp_path / "svgs" / f"{row.id}.svg").exists()
 
     def test_empty_findings_returns_zero(self, sample_engine, tmp_path):
-        count = generate_svgs_for_sample(sample_engine, tmp_path)
+        count = generate_svgs_for_sample(sample_engine, tmp_path, 7)
         assert count == 0
 
     def test_unqualified_local_ancestry_is_not_rendered(self, sample_engine, tmp_path):
         finding_id = 101
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
+        svg_dir = tmp_path / "svgs" / "sample_7"
+        svg_dir.mkdir(parents=True)
         stale_svg = svg_dir / f"{finding_id}.svg"
         stale_svg.write_text("stale local-ancestry artifact")
         unrelated_svg = svg_dir / "999.svg"
@@ -588,11 +588,11 @@ class TestGenerateSvgsForSample:
                     category="local_ancestry",
                     evidence_level=4,
                     finding_text="Unqualified legacy chromosome painting",
-                    svg_path=f"svgs/{finding_id}.svg",
+                    svg_path=f"svgs/sample_7/{finding_id}.svg",
                 )
             )
 
-        assert generate_svgs_for_sample(sample_engine, tmp_path) == 0
+        assert generate_svgs_for_sample(sample_engine, tmp_path, 7) == 0
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings)).one()
         assert row.svg_path is None
@@ -602,8 +602,8 @@ class TestGenerateSvgsForSample:
     def test_nested_held_payload_clears_stale_svg(self, sample_engine, tmp_path):
         """#2019: payload quarantine removes existing patient-facing artifacts."""
         finding_id = 2020
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
+        svg_dir = tmp_path / "svgs" / "sample_7"
+        svg_dir.mkdir(parents=True)
         stale_svg = svg_dir / f"{finding_id}.svg"
         stale_svg.write_text("<svg>nested tamoxifen advice</svg>", encoding="utf-8")
 
@@ -630,7 +630,7 @@ class TestGenerateSvgsForSample:
                 )
             )
 
-        assert generate_svgs_for_sample(sample_engine, tmp_path) == 0
+        assert generate_svgs_for_sample(sample_engine, tmp_path, 7) == 0
         with sample_engine.connect() as conn:
             row = conn.execute(sa.select(findings)).one()
         assert row.svg_path is None
@@ -661,7 +661,7 @@ class TestGenerateSvgsForSample:
                 )
             )
 
-        count = generate_svgs_for_sample(sample_engine, tmp_path)
+        count = generate_svgs_for_sample(sample_engine, tmp_path, 7)
         assert count == 2
 
         # Both findings should have svg_path set
@@ -670,3 +670,70 @@ class TestGenerateSvgsForSample:
             assert len(rows) == 2
             for row in rows:
                 assert row.svg_path is not None
+
+    def test_prunes_svgs_from_previous_run(self, sample_engine, tmp_path):
+        """A re-annotation replaces every finding id, so old SVG files must go.
+
+        Annotation recreates the findings table with fresh primary keys each
+        run. The previous run's cards are then addressed by nothing, and
+        without pruning they accumulate in the sample directory indefinitely.
+        """
+        svg_dir = tmp_path / "svgs" / "sample_7"
+        svg_dir.mkdir(parents=True)
+        stale = svg_dir / "999999.svg"
+        stale.write_text("<svg/>", encoding="utf-8")
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="cancer",
+                    category="prs",
+                    evidence_level=1,
+                    finding_text="Breast Cancer: 72nd percentile",
+                    prs_percentile=72.0,
+                )
+            )
+
+        count = generate_svgs_for_sample(sample_engine, tmp_path, 7)
+        assert count == 1
+        assert not stale.exists()
+
+        # The card generated by this run survives.
+        with sample_engine.connect() as conn:
+            svg_path = conn.execute(sa.select(findings.c.svg_path)).scalar_one()
+        assert (tmp_path / svg_path).exists()
+
+    def test_does_not_touch_a_sibling_samples_cards(self, sample_engine, tmp_path):
+        """Cards are per-sample: finding ids restart at 1 in every sample DB.
+
+        All samples share one directory, so a flat ``svgs/`` layout would let
+        pruning sample 7 delete sample 8's cards, whose ids occupy the same
+        range. The sweep must stay inside ``svgs/sample_<id>/``.
+        """
+        sibling_dir = tmp_path / "svgs" / "sample_8"
+        sibling_dir.mkdir(parents=True)
+        # An id that exists only in the sibling sample. Sample databases number
+        # their own findings from 1, so a wide sweep keyed on this sample's ids
+        # would find no matching row and delete a live card.
+        sibling_card = sibling_dir / "999.svg"
+        sibling_card.write_text("<svg/>", encoding="utf-8")
+
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    id=1,
+                    module="cancer",
+                    category="prs",
+                    evidence_level=1,
+                    finding_text="Breast Cancer: 72nd percentile",
+                    prs_percentile=72.0,
+                )
+            )
+
+        assert generate_svgs_for_sample(sample_engine, tmp_path, 7) == 1
+
+        assert sibling_card.exists()
+        assert (tmp_path / "svgs" / "sample_7" / "1.svg").exists()
+        with sample_engine.connect() as conn:
+            marker = conn.execute(sa.select(findings.c.svg_path)).scalar_one()
+        assert marker == "svgs/sample_7/1.svg"

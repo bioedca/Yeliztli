@@ -371,6 +371,9 @@ def _identifier_normalization_group(character: str) -> tuple[str | tuple[str], b
     return unicodedata.normalize("NFD", unicodedata.normalize("NFKC", character)), False
 
 
+# Sized from a real 67,575-finding sample: the predicate sees ~149k distinct
+# rendered text values, so a smaller cache thrashes and renormalizes every row.
+@lru_cache(maxsize=524_288)
 def _normalize_prescribing_text(
     value: str,
     *,
@@ -433,6 +436,7 @@ def _identifier_match_characters(identifier: str) -> str:
     )
 
 
+@lru_cache(maxsize=64)
 def _identifier_match_variants(identifier: str) -> tuple[str, ...]:
     """Return the canonical and pinned UTS #39 skeleton forms of an identifier."""
     canonical = _identifier_match_characters(identifier)
@@ -668,6 +672,7 @@ def is_patient_presentable_rendered_text_chunks(chunks: Iterable[str]) -> bool:
     return scanner.is_presentable()
 
 
+@lru_cache(maxsize=262_144)
 def _identifier_character_matches(actual: str, expected: str) -> bool:
     """Match one identifier position without regex backtracking.
 
@@ -690,6 +695,7 @@ def _identifier_character_matches(actual: str, expected: str) -> bool:
     )
 
 
+@lru_cache(maxsize=65_536)
 def _is_identifier_character(character: str) -> bool:
     """Whether a character may fill an identifier position while scanning."""
     return character.isalnum() or character.casefold() in _CURATED_IDENTIFIER_CONFUSABLE_CASEFOLDS
@@ -736,6 +742,7 @@ def _text_mentions_identifier_characters(
     return False
 
 
+@lru_cache(maxsize=524_288)
 def _text_mentions_identifier(value: str, identifier: str) -> bool:
     """Match an identifier through separators and Unicode lookalikes in O(n).
 
@@ -749,6 +756,7 @@ def _text_mentions_identifier(value: str, identifier: str) -> bool:
     )
 
 
+@lru_cache(maxsize=524_288)
 def _text_mentions_identifier_sequence(value: str, *identifiers: str) -> bool:
     """Match a held identifier sequence even when legacy text fuses its terms."""
     variants = ("",)

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -360,6 +361,64 @@ def list_findings(
     return response if _responses_are_patient_presentable(response) else []
 
 
+def _summary_fingerprint(engine: sa.Engine) -> tuple[int, int, int, int]:
+    """Cheap content fingerprint of the findings table behind ``engine``.
+
+    The summary's presentation gate parses every payload-bearing column of
+    every row in Python, which costs ~10-20 s on a 67k-finding sample -- on
+    every request. The response is a pure function of the rows plus the
+    disclosure gates, so it is cached against this fingerprint. ``COUNT`` and
+    ``MAX(id)`` make inserts and deletes exact; the length sum catches in-place
+    rewrites that change any payload length; and the sample DB's schema
+    ``user_version`` moves with every migration pass, so the rewrite-style
+    migrations in ``sample_schema`` (which edit rows in place) invalidate the
+    cache even when an edited value keeps its length.
+    """
+    with engine.connect() as conn:
+        count, length_sum, max_id = conn.execute(
+            sa.select(
+                sa.func.count(),
+                sa.func.coalesce(
+                    sa.func.sum(
+                        sa.func.length(sa.func.coalesce(findings.c.finding_text, ""))
+                        + sa.func.length(sa.func.coalesce(findings.c.detail_json, ""))
+                        + sa.func.length(sa.func.coalesce(findings.c.pmid_citations, ""))
+                        + sa.func.length(sa.func.coalesce(findings.c.module, ""))
+                        + sa.func.length(sa.func.coalesce(findings.c.category, ""))
+                        + sa.func.coalesce(findings.c.evidence_level, 0)
+                    ),
+                    0,
+                ),
+                sa.func.coalesce(sa.func.max(findings.c.id), 0),
+            ).select_from(findings)
+        ).one()
+        schema_version = int(conn.execute(sa.text("PRAGMA user_version")).scalar_one())
+    return int(count), int(length_sum), int(max_id), schema_version
+
+
+# Bounded: one entry per recently-summarised sample/gate-state combination,
+# keyed on the fingerprint above so any writer invalidates it.
+_SUMMARY_CACHE: dict[
+    tuple[int, tuple[str, ...], tuple[int, int, int, int]], FindingsSummaryResponse
+] = {}
+_SUMMARY_CACHE_MAX = 8
+
+
+def _cached_summary(
+    key: tuple[int, tuple[str, ...], tuple[int, int, int, int]],
+    build: Callable[[], FindingsSummaryResponse],
+) -> FindingsSummaryResponse:
+    """Serve ``build()``'s response from the in-process cache when possible."""
+    cached = _SUMMARY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    response = build()
+    if len(_SUMMARY_CACHE) >= _SUMMARY_CACHE_MAX:
+        _SUMMARY_CACHE.pop(next(iter(_SUMMARY_CACHE)), None)
+    _SUMMARY_CACHE[key] = response
+    return response
+
+
 @router.get("/summary", response_model=FindingsSummaryResponse)
 def findings_summary(
     sample_id: int = Query(..., description="Sample ID"),
@@ -373,6 +432,21 @@ def findings_summary(
     # sex-aneuploidy #299). Drop each unacknowledged gated module from every query.
     hidden_modules = gated_modules_to_hide(engine)
 
+    cache_key = (
+        sample_id,
+        tuple(sorted(hidden_modules)),
+        _summary_fingerprint(engine),
+    )
+    return _cached_summary(
+        cache_key, lambda: _build_summary(engine, tuple(sorted(hidden_modules)))
+    )
+
+
+def _build_summary(
+    engine: sa.Engine,
+    hidden_modules: tuple[str, ...],
+) -> FindingsSummaryResponse:
+    """Aggregate the payload-gated rows of one sample into its summary."""
     with engine.connect() as conn:
         # The complete row set is already needed for each module's top finding.
         # Aggregate it below after the Python payload gate so counts cannot
@@ -468,8 +542,11 @@ def findings_summary(
             )
         )
 
-    # High-confidence: top 5 findings with >=3 stars
-    high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
+    # High-confidence: top 5 findings with >=3 stars. ``all_rows`` is already
+    # ordered strongest-first, so resolve only the five that are kept instead
+    # of running the full response conversion over every >=3-star row.
+    high_confidence_rows = [r for r in all_rows if (r.evidence_level or 0) >= 3][:5]
+    high_conf = [_row_to_response(r, engine) for r in high_confidence_rows]
 
     response = FindingsSummaryResponse(
         total_findings=sum(module_counts.values()),

@@ -1,7 +1,9 @@
 """SVG rendering functions for PDF report generation.
 
 Generates standalone SVG files at analysis time and stores them alongside
-findings in the sample directory (``{sample_dir}/svgs/``). The SVGs are
+findings in the sample directory (``{sample_dir}/svgs/sample_{id}/``). Sample
+databases number their findings from 1, so cards are namespaced by sample to
+keep sibling samples from overwriting or pruning each other. The SVGs are
 embedded in HTML reports rendered to PDF via Playwright ``page.pdf()``.
 
 Pure Python SVG generation — no matplotlib, cairosvg, or other external
@@ -33,7 +35,7 @@ Usage::
     )
 
     # Generate SVGs for all findings and persist to disk
-    updated_findings = save_finding_svgs(finding_dicts, sample_dir)
+    updated_findings = save_finding_svgs(finding_dicts, sample_dir / "svgs" / "sample_7")
 """
 
 from __future__ import annotations
@@ -831,19 +833,27 @@ def _render_apoe_card(
 def generate_svgs_for_sample(
     sample_engine: Any,
     sample_dir: str | Path,
+    sample_id: int,
 ) -> int:
     """Post-analysis SVG generation: read all findings, render SVGs, update DB.
 
     Queries all findings from the sample database, generates SVGs for each
     finding that has a visual representation, writes them to
-    ``{sample_dir}/svgs/``, and updates the ``svg_path`` column in the DB.
+    ``{sample_dir}/svgs/sample_{sample_id}/``, and updates the ``svg_path``
+    column in the DB.
 
     Parameters
     ----------
     sample_engine:
         SQLAlchemy engine for the sample database.
     sample_dir:
-        Path to the sample directory (parent of the ``.db`` file).
+        The *shared* samples root (the parent of the ``sample_<id>.db`` file).
+        Every sample lives in it, so cards are namespaced by ``sample_id``:
+        ``findings.id`` restarts at 1 in each sample database, and a flat
+        ``svgs/`` directory would let one sample's run overwrite — or prune —
+        another's files.
+    sample_id:
+        The owning sample. Determines the per-sample card directory.
 
     Returns
     -------
@@ -855,6 +865,8 @@ def generate_svgs_for_sample(
     from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
     sample_dir = Path(sample_dir)
+    svg_dir = _sample_svg_dir(sample_dir, sample_id)
+    svg_marker_prefix = f"{svg_dir.relative_to(sample_dir).as_posix()}"
     qualified_clause = policy_qualified_finding_clause(findings.c.category)
 
     # 1. Reconcile artifacts for findings quarantined by the production policy.
@@ -896,7 +908,7 @@ def generate_svgs_for_sample(
     quarantined_ids = sorted(set(policy_quarantined_ids) | set(payload_quarantined_ids))
 
     for finding_id in quarantined_ids:
-        stale_svg = sample_dir / "svgs" / f"{finding_id}.svg"
+        stale_svg = svg_dir / f"{finding_id}.svg"
         try:
             stale_svg.unlink(missing_ok=True)
         except OSError as exc:
@@ -915,7 +927,7 @@ def generate_svgs_for_sample(
         return 0
 
     # 4. Generate SVGs and persist to disk
-    updated = save_finding_svgs(finding_dicts, sample_dir)
+    updated = save_finding_svgs(finding_dicts, svg_dir, svg_marker_prefix=svg_marker_prefix)
 
     # 5. Update svg_path in the DB for findings that got an SVG
     updates = [{"_fid": f["id"], "_svg": f["svg_path"]} for f in updated if f.get("svg_path")]
@@ -929,41 +941,83 @@ def generate_svgs_for_sample(
                 )
 
     generated = len(updates)
+    # Annotation recreates every finding row with a fresh id, so the previous
+    # run's SVGs are never addressed again. Without this sweep they accumulate
+    # in the sample's card directory forever (~266 MB per 67k-finding run).
+    # Only THIS sample's directory is swept: sibling samples share the parent
+    # and their finding ids overlap, so a wider glob would delete live cards.
+    # Every id still present in the table is kept, not just the ones rendered
+    # here, so a quarantined or visually-empty row can never lose its file.
+    with sample_engine.connect() as conn:
+        keep_ids = {str(fid) for fid in conn.execute(sa.select(findings.c.id)).scalars()}
+    _prune_stale_svgs(svg_dir, keep_ids)
     logger.info(
         "generate_svgs_for_sample_complete",
         total_findings=len(finding_dicts),
         svgs_generated=generated,
         sample_dir=str(sample_dir),
+        svg_dir=str(svg_dir),
     )
     return generated
 
 
+def _sample_svg_dir(sample_dir: str | Path, sample_id: int) -> Path:
+    """Return the card directory owned by one sample."""
+    return Path(sample_dir) / "svgs" / f"sample_{sample_id}"
+
+
+def _prune_stale_svgs(svg_dir: str | Path, keep_stems: set[str]) -> None:
+    """Delete generated SVGs in ``svg_dir`` whose finding id is no longer stored."""
+    svg_dir = Path(svg_dir)
+    if not svg_dir.is_dir():
+        return
+    removed = 0
+    for path in svg_dir.glob("*.svg"):
+        if path.stem in keep_stems:
+            continue
+        try:
+            path.unlink()
+            removed += 1
+        except OSError as exc:
+            logger.warning("stale_finding_svg_delete_failed", svg_path=str(path), error=str(exc))
+    if removed:
+        logger.info("stale_finding_svgs_pruned", removed=removed, svg_dir=str(svg_dir))
+
+
 def save_finding_svgs(
     finding_dicts: list[dict[str, Any]],
-    sample_dir: str | Path,
+    svg_dir: str | Path,
+    *,
+    svg_marker_prefix: str | None = None,
 ) -> list[dict[str, Any]]:
     """Generate SVGs for findings and persist to disk.
 
     For each finding dict, attempts to render an SVG.  If successful,
-    writes the SVG file to ``{sample_dir}/svgs/{finding_id}.svg`` and
-    sets the ``svg_path`` key on the finding dict.
+    writes the SVG file to ``{svg_dir}/{finding_id}.svg`` and sets the
+    ``svg_path`` key on the finding dict.
 
     Parameters
     ----------
     finding_dicts:
         List of dicts matching the ``findings`` table columns.
         Each must have an ``id`` key (integer).
-    sample_dir:
-        Path to the sample directory (e.g., ``data/samples/sample_001``).
+    svg_dir:
+        Directory that owns this sample's cards, e.g.
+        ``data/samples/svgs/sample_7``. Callers passing the shared samples
+        root would collide across samples, whose finding ids overlap, so
+        ``generate_svgs_for_sample`` always namespaces it by sample id.
+    svg_marker_prefix:
+        Relative marker prefix written into ``svg_path``. Defaults to
+        ``svgs`` so standalone callers keep the historical marker shape.
 
     Returns
     -------
     The same list of finding dicts, with ``svg_path`` populated for
     those that have a visual representation.
     """
-    sample_dir = Path(sample_dir)
-    svg_dir = sample_dir / "svgs"
+    svg_dir = Path(svg_dir)
     svg_dir.mkdir(parents=True, exist_ok=True)
+    marker_prefix = svg_marker_prefix if svg_marker_prefix is not None else "svgs"
 
     generated = 0
     for finding in finding_dicts:
@@ -980,8 +1034,9 @@ def save_finding_svgs(
         svg_path = svg_dir / svg_filename
         svg_path.write_text(svg_content, encoding="utf-8")
 
-        # Store relative path from sample_dir for portability
-        finding["svg_path"] = f"svgs/{svg_filename}"
+        # Store a relative marker for portability. Patient-facing code uses it
+        # only as an availability hint and regenerates the card from the row.
+        finding["svg_path"] = f"{marker_prefix}/{svg_filename}"
         generated += 1
 
     logger.info(

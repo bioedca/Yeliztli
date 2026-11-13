@@ -9,8 +9,9 @@ from ipaddress import ip_address
 from pathlib import Path
 
 import sqlalchemy as sa
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.routes.acmg import router as acmg_router
@@ -466,10 +467,30 @@ def create_app() -> FastAPI:
     api_router.include_router(variant_detail_router)
     app.include_router(api_router)
 
-    # Static files - SPA fallback (only if frontend has been built)
+    # Static files (only if frontend has been built). Assets keep StaticFiles
+    # (ETag/range support); every other GET serves the built file if it exists
+    # and index.html otherwise, so SPA deep links like /settings/updates
+    # survive a browser refresh instead of 404ing with {"detail": "Not Found"}
+    # — StaticFiles(html=True) only maps "/" to index.html. /api paths are
+    # excluded so unknown API routes still return a JSON 404.
     frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
     if frontend_dist.is_dir():
-        app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="static")
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def spa_fallback(full_path: str) -> FileResponse:
+            if full_path == "api" or full_path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="Not Found")
+            candidate = (frontend_dist / full_path).resolve()
+            try:
+                candidate.relative_to(frontend_dist.resolve())
+            except ValueError:
+                raise HTTPException(status_code=404, detail="Not Found")
+            if full_path and candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(frontend_dist / "index.html")
 
     return app
 

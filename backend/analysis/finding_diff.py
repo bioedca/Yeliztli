@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -400,6 +401,7 @@ def compute_and_store_finding_diff(
     findings. Best-effort: the caller wraps this so a failure never affects the
     annotation run or the staleness gate.
     """
+    started = time.monotonic()
     current = snapshot_findings(sample_engine)
     snapshot = (
         reference_snapshot
@@ -417,6 +419,11 @@ def compute_and_store_finding_diff(
             "changed": diff["counts"]["changed"],
             "added": diff["counts"]["added"],
             "removed": diff["counts"]["removed"],
+            "snapshotted_findings": len(current),
+            # Visible from the job's log stream: this step runs after the last
+            # "Analyzing: ..." message, so a slow snapshot used to look like a
+            # hung analysis with no diagnostic.
+            "elapsed_seconds": round(time.monotonic() - started, 2),
         },
     )
     return diff

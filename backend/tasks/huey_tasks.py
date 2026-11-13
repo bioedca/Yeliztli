@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -773,6 +774,15 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             try:
                 from backend.analysis.finding_diff import compute_and_store_finding_diff
 
+                # The diff used to run silently after the last "Analyzing: ..."
+                # message, so a slow snapshot looked like a hung analysis with a
+                # "~1s remaining" estimate that never arrived.
+                _update_job(
+                    job_id,
+                    status="running",
+                    progress_pct=98.0,
+                    message="Comparing against the previous run",
+                )
                 compute_and_store_finding_diff(
                     sample_engine,
                     registry.reference_engine,
@@ -797,7 +807,7 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
             from backend.analysis.svg_renderer import generate_svgs_for_sample
 
             sample_dir = Path(sample_db_full).parent
-            svg_count = generate_svgs_for_sample(sample_engine, sample_dir)
+            svg_count = generate_svgs_for_sample(sample_engine, sample_dir, sample_id)
             logger.info(
                 "svg_generation_complete",
                 extra={
@@ -1433,6 +1443,52 @@ def _execute_database_update(
                 )
             mondo_url = pin.url
 
+        # Feed the same live progress the setup wizard's builds report
+        # (_execute_build in databases.py): download bytes map to 0-90% of the
+        # job, parse/import to 90-99%. Without these callbacks a manual update
+        # sits at 0% for the whole multi-gigabyte build and the Update Manager
+        # cannot show progress. Throttled to one jobs-table write per 2 s per
+        # callback, exactly as the wizard path does.
+        display_name = db_info.display_name if db_info else db_name
+        _last_dl_update = 0.0
+        _last_parse_update = 0.0
+        _PROGRESS_THROTTLE_SECONDS = 2.0
+
+        def on_download_progress(downloaded: int, total: int | None) -> None:
+            nonlocal _last_dl_update
+            now = time.monotonic()
+            if now - _last_dl_update < _PROGRESS_THROTTLE_SECONDS:
+                return
+            if total and total > 0:
+                pct = min(90.0, (downloaded / total) * 90.0)
+                try:
+                    _update_job(
+                        job_id,
+                        status="running",
+                        progress_pct=pct,
+                        message=f"Downloading {display_name}... {pct:.0f}%",
+                    )
+                    _last_dl_update = now
+                except OperationalError:
+                    _last_dl_update = now  # back off even on failure
+
+        def on_parse_progress(variants_parsed: int) -> None:
+            nonlocal _last_parse_update
+            now = time.monotonic()
+            if now - _last_parse_update < _PROGRESS_THROTTLE_SECONDS:
+                return
+            pct = min(99.0, 90.0 + min(9.0, variants_parsed / 100_000))
+            try:
+                _update_job(
+                    job_id,
+                    status="running",
+                    progress_pct=pct,
+                    message=f"Importing {display_name}... {variants_parsed:,} records",
+                )
+                _last_parse_update = now
+            except OperationalError:
+                _last_parse_update = now
+
         # Build functions for reference-target DBs take the reference engine;
         # standalone DBs write to their own file and take a fresh engine.
         # Serialize per-DB so an auto-update can't race a setup-wizard build of
@@ -1441,7 +1497,12 @@ def _execute_database_update(
             if db_info and db_info.target_db == "reference":
                 if db_name == "mondo_hpo":
                     if mondo_source_expectations is None:
-                        build_fn(engine, settings.downloads_dir, mondo_url=mondo_url)
+                        build_fn(
+                            engine,
+                            settings.downloads_dir,
+                            mondo_url=mondo_url,
+                            download_progress=on_download_progress,
+                        )
                     else:
                         from backend.annotation.http_download import (
                             bind_strong_etag_downloads,
@@ -1460,9 +1521,15 @@ def _execute_database_update(
                                 mondo_url=mondo_url,
                                 hpo_url=hpo_url,
                                 mondo_sssom_url=mondo_sssom_url,
+                                download_progress=on_download_progress,
                             )
                 else:
-                    build_fn(engine, settings.downloads_dir)
+                    build_fn(
+                        engine,
+                        settings.downloads_dir,
+                        download_progress=on_download_progress,
+                        parse_progress=on_parse_progress,
+                    )
             else:
                 from backend.db.sqlite_engine import make_sqlite_engine
 
@@ -1477,7 +1544,12 @@ def _execute_database_update(
                 standalone_engine = make_sqlite_engine(dest, wal=True, synchronous="NORMAL")
 
                 try:
-                    build_fn(standalone_engine, settings.downloads_dir)
+                    build_fn(
+                        standalone_engine,
+                        settings.downloads_dir,
+                        download_progress=on_download_progress,
+                        parse_progress=on_parse_progress,
+                    )
                 finally:
                     standalone_engine.dispose()
 

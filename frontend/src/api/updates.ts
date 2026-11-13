@@ -302,6 +302,24 @@ export function useDatabaseStatuses() {
   })
 }
 
+/** Poll one update job's live status (progress_pct + message).
+ *
+ * Polls every 2 s while the job is pending/running and stops once terminal,
+ * so a finished job costs no further requests. `enabled` lets the caller
+ * mount the hook unconditionally and gate polling on the job existing. */
+export function useUpdateJobStatus(jobId: string | null) {
+  return useQuery({
+    queryKey: ['updates', 'job', jobId],
+    queryFn: () => fetchJobStatus(jobId as string),
+    enabled: jobId != null,
+    refetchInterval: (query) => {
+      const status = query.state.data as JobStatus | undefined
+      if (status == null) return 2000
+      return status.status === 'pending' || status.status === 'running' ? 2000 : false
+    },
+  })
+}
+
 /** Check for app updates via GitHub Releases. staleTime=1h. */
 export function useAppUpdate(enabled = true) {
   return useQuery({

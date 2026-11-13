@@ -154,6 +154,12 @@ def findings_client(
         patch("backend.db.connection.get_settings", return_value=settings),
     ):
         reset_registry()
+        # Each test seeds its own sample DB; the summary response cache is
+        # module-global and must not leak a previous test's payload-gated
+        # verdict (or dodge a monkeypatched presentability guard).
+        from backend.api.routes import findings as findings_routes
+
+        findings_routes._SUMMARY_CACHE.clear()
 
         from backend.main import create_app
 
@@ -162,6 +168,7 @@ def findings_client(
             yield tc
 
         reset_registry()
+        findings_routes._SUMMARY_CACHE.clear()
 
 
 # ── List findings tests ─────────────────────────────────────────────
@@ -2000,6 +2007,53 @@ class TestFindingsSummary:
 
         cancer_mod = next(m for m in data["modules"] if m["module"] == "cancer")
         assert cancer_mod["evidence_level_counts"] == [{"evidence_level": 4, "count": 1}]
+
+    def test_summary_repeats_are_served_from_the_response_cache(self, findings_client):
+        """A 67k-finding sample pays the ~20 s payload-gate cost once, not per poll.
+
+        The dashboard's "Loading findings…" panel calls this endpoint on every
+        visit; re-gating every row on each request stalled it for minutes.
+        """
+        import backend.api.routes.findings as findings_route
+
+        first = findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        assert first.status_code == 200
+        assert len(findings_route._SUMMARY_CACHE) == 1
+
+        builds = []
+        original_build = findings_route._build_summary
+        findings_route._build_summary = lambda *a, **k: builds.append(a) or original_build(*a, **k)
+        try:
+            second = findings_client.get("/api/analysis/findings/summary?sample_id=1")
+        finally:
+            findings_route._build_summary = original_build
+
+        assert second.status_code == 200
+        assert builds == []
+        assert second.json() == first.json()
+
+    def test_summary_cache_invalidates_when_findings_change(self, findings_client):
+        primed = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        assert primed["total_findings"] == 8  # a stale cache would keep returning this
+
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = findings_route._get_sample_engine(1)
+        with sample_engine.begin() as conn:
+            conn.execute(
+                findings.insert().values(
+                    module="cancer",
+                    category="monogenic_variant",
+                    evidence_level=1,
+                    gene_symbol="TP53",
+                    finding_text="TP53 benign (cache invalidation probe)",
+                )
+            )
+
+        data = findings_client.get("/api/analysis/findings/summary?sample_id=1").json()
+        assert data["total_findings"] == 9
+        cancer = next(m for m in data["modules"] if m["module"] == "cancer")
+        assert cancer["count"] == 2
 
 
 class TestLAIPolicyQuarantine:
