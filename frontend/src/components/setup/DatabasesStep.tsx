@@ -17,7 +17,9 @@ import {
   useTriggerDownload,
 } from '@/api/setup'
 import {
+  busyLabel,
   DB_HEALTH_KEY,
+  isDatabaseBusy,
   useCleanDatabase,
   useDatabaseHealth,
   useResumeDownload,
@@ -525,7 +527,15 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
             }
             const bundledIncluded = isBundled && isComplete && !hasIntegrityFailure
             const isFailed = progress?.status === 'failed'
-            const isRunning = progress?.status === 'running'
+            // A DB the backend reports as actively downloading/building is
+            // running even when this browser has no SSE progress for it — after
+            // a reload, or when another window launched the job. Without this
+            // the row says "Download required" during a live build, and
+            // clicking Download looked like a hard failure.
+            const isBackendBusy = isDatabaseBusy(dbHealth)
+            const isRunning =
+              progress?.status === 'running' ||
+              (isBackendBusy && !isComplete && !isFailed)
             const isPending = progress?.status === 'pending'
             const showCheckbox = isSelectable(db)
             const isSelected = selectedDbs.has(db.name)
@@ -658,11 +668,18 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                                 : 'bg-muted-foreground/30',
                             )}
                             style={{
-                              width: `${Math.max(progress?.progress_pct ?? 0, isRunning ? 2 : 0)}%`,
+                              width: `${Math.max(
+                                progress?.progress_pct ??
+                                  dbHealth?.progress_pct ??
+                                  0,
+                                isRunning ? 2 : 0,
+                              )}%`,
                             }}
                             role="progressbar"
                             aria-valuenow={Math.round(
-                              progress?.progress_pct ?? 0,
+                              progress?.progress_pct ??
+                                dbHealth?.progress_pct ??
+                                0,
                             )}
                             aria-valuemin={0}
                             aria-valuemax={100}
@@ -670,7 +687,9 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                           />
                         </div>
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          {progress?.message || 'Waiting...'}
+                          {progress?.message ||
+                            busyLabel(dbHealth) ||
+                            'Waiting...'}
                         </p>
                         {progress &&
                           (progress.downloaded_bytes != null ||

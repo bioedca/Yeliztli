@@ -990,6 +990,77 @@ class TestTriggerDownload:
         finally:
             manifest_mod.reset_cache()
 
+    def test_download_attaches_to_in_flight_build(self, db_client: TestClient, tmp_data_dir: Path):
+        """A DB already building must be joined, not reported as downloaded.
+
+        Clicking Download while a multi-hour dbNSFP build runs used to answer
+        409 "All requested databases are already downloaded." — false, and
+        unrecoverable from the wizard. The route must return a session over the
+        running job so the caller streams its progress.
+        """
+        from datetime import UTC, datetime
+
+        from backend.db.tables import download_session_jobs, download_sessions
+
+        running_job_id = "dbdl-dbnsfp-inflight"
+        now = datetime.now(UTC)
+        ref_path = tmp_data_dir / "reference.db"
+        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        with engine.begin() as conn:
+            conn.execute(
+                jobs.insert().values(
+                    job_id=running_job_id,
+                    job_type="database_download",
+                    status="running",
+                    progress_pct=99.0,
+                    message="Importing dbNSFP... 1,300,000 records",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            conn.execute(
+                download_sessions.insert().values(
+                    session_id="dbdl-original",
+                    status="in_progress",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            conn.execute(
+                download_session_jobs.insert().values(
+                    session_id="dbdl-original",
+                    db_name="dbnsfp",
+                    job_id=running_job_id,
+                )
+            )
+        engine.dispose()
+
+        resp = db_client.post(
+            "/api/databases/download",
+            json={"databases": ["dbnsfp"]},
+        )
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["session_id"] != "dbdl-original"
+        assert data["downloads"] == [{"db_name": "dbnsfp", "job_id": running_job_id}]
+
+        # The returned session must actually reference the running job, or the
+        # wizard's SSE stream would report "Job not found". Check the persisted
+        # session rows rather than opening the (endless) SSE stream.
+        engine = sa.create_engine(f"sqlite:///{ref_path}")
+        try:
+            with engine.connect() as conn:
+                entries = conn.execute(
+                    sa.select(
+                        download_session_jobs.c.db_name,
+                        download_session_jobs.c.job_id,
+                    ).where(download_session_jobs.c.session_id == data["session_id"])
+                ).fetchall()
+        finally:
+            engine.dispose()
+        assert [(row.db_name, row.job_id) for row in entries] == [("dbnsfp", running_job_id)]
+
     def test_download_specific_dbs(
         self,
         db_client: TestClient,

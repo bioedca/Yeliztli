@@ -269,6 +269,13 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
     in_flight |= {
         name for name in db_names if is_cross_process_build_claimed(name, settings.data_dir)
     }
+    # A DB already being downloaded/built is not an error: the caller (the setup
+    # wizard, or a second window) is attached to the running job so its progress
+    # is rendered from the jobs table. Without this, clicking Download while a
+    # multi-hour dbNSFP build is running answers 409 "already downloaded", which
+    # is both false and unrecoverable from the UI.
+    already_running = _active_job_ids(engine, set(db_names))
+
     to_download: list[str] = []
     for name in db_names:
         db_info = get_database(name)
@@ -291,7 +298,15 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
         if not status["downloaded"]:
             to_download.append(name)
 
-    if not to_download:
+    if not to_download and not already_running:
+        if in_flight & set(db_names):
+            # A build owned by another process (an update-manager Huey job) has
+            # no session job to attach to; say so instead of claiming the
+            # database is already downloaded.
+            raise HTTPException(
+                status_code=409,
+                detail="A download/build for these databases is already in progress.",
+            )
         raise HTTPException(
             status_code=409,
             detail="All requested databases are already downloaded.",
@@ -301,6 +316,15 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
     session_id = f"dbdl-{uuid.uuid4().hex[:12]}"
     download_jobs: list[DownloadJobInfo] = []
     session_entries: list[tuple[str, str]] = []
+
+    # Join work already in flight before launching anything new, so one session
+    # reports the full requested set (the wizard's SSE stream is per-session).
+    for name in db_names:
+        running_job_id = already_running.get(name)
+        if running_job_id is None:
+            continue
+        download_jobs.append(DownloadJobInfo(db_name=name, job_id=running_job_id))
+        session_entries.append((name, running_job_id))
 
     executor = get_download_executor()
 
@@ -356,6 +380,7 @@ async def trigger_download(body: DownloadRequest) -> DownloadResponse:
         "database_download_started",
         session_id=session_id,
         databases=to_download,
+        attached=list(already_running),
     )
 
     return DownloadResponse(
@@ -757,6 +782,31 @@ def _get_in_flight_db_names(engine: sa.Engine) -> set[str]:
             .where(jobs.c.status.in_(ACTIVE_JOB_STATUSES))
         ).fetchall()
     return {row.db_name for row in rows}
+
+
+def _active_job_ids(engine: sa.Engine, db_names: set[str]) -> dict[str, str]:
+    """Map each named database to its newest pending/running job id.
+
+    Used to *attach* a caller to work already in flight instead of refusing the
+    request: the wizard renders progress from the jobs table, so joining the
+    existing job is exactly what a second click should do.
+    """
+    if not db_names:
+        return {}
+    with engine.connect() as conn:
+        rows = conn.execute(
+            sa.select(
+                download_session_jobs.c.db_name,
+                download_session_jobs.c.job_id,
+                jobs.c.created_at,
+            )
+            .join(jobs, download_session_jobs.c.job_id == jobs.c.job_id)
+            .where(jobs.c.status.in_(ACTIVE_JOB_STATUSES))
+            .where(download_session_jobs.c.db_name.in_(db_names))
+            .order_by(jobs.c.created_at)
+        ).fetchall()
+    # Later rows win: order_by ascending overwrites older duplicates.
+    return {row.db_name: row.job_id for row in rows}
 
 
 def _create_job_record(engine: sa.Engine, job_id: str, db_name: str) -> None:

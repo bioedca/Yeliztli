@@ -1374,6 +1374,61 @@ describe('DatabasesStep', () => {
     vi.unstubAllGlobals()
   })
 
+  it('renders an in-flight backend build as running, not "Download required"', async () => {
+    // Regression: while dbNSFP imported (99%, hours long) with no SSE progress
+    // in this tab, the row read "Download required" and clicking Download
+    // produced the generic "Unable to start the download" banner. Health state
+    // must drive the running UI.
+    routeDatabasesFetch({
+      list: {
+        databases: [
+          {
+            name: 'dbnsfp',
+            display_name: 'dbNSFP',
+            description: 'Functional predictions',
+            filename: 'dbnsfp.db',
+            expected_size_bytes: 12_000_000_000,
+            required: true,
+            phase: 2,
+            downloaded: false,
+            file_size_bytes: 9_800_000_000,
+            build_mode: 'pipeline',
+          },
+        ],
+      },
+      health: {
+        databases: [
+          {
+            name: 'dbnsfp',
+            state: 'building',
+            progress_pct: 99,
+            resumable: false,
+            can_resume: false,
+          },
+        ],
+      },
+    })
+
+    class MockEventSource {
+      addEventListener() {}
+      close() {}
+    }
+    vi.stubGlobal('EventSource', MockEventSource)
+
+    render(<DatabasesStep onNext={vi.fn()} onBack={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('dbNSFP download progress')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Download required')).not.toBeInTheDocument()
+    expect(
+      screen.getByLabelText('dbNSFP download progress'),
+    ).toHaveAttribute('aria-valuenow', '99')
+    expect(screen.getByText('Building…')).toBeInTheDocument()
+
+    vi.unstubAllGlobals()
+  })
+
   // ─── Step 14: Per-DB checkbox + running total ──────────────────
 
   function mockDatabaseListWithModes() {
