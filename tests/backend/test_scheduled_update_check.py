@@ -100,6 +100,8 @@ class TestAppDeliveredGating:
         would re-stamp the same bundle and log a meaningless "update".
         """
         registry = _make_registry(reference_engine, tmp_path)
+        # Toggle ON so the skip can only be attributed to requires_app_update.
+        set_auto_update(reference_engine, "cpic", True)
         info = _info("cpic")
         info.requires_app_update = True
 
