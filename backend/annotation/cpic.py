@@ -460,27 +460,32 @@ def check_cpic_update(
     *,
     timeout: float = 30.0,
 ):
-    """Check whether a newer CPIC release is available on GitHub.
+    """Check whether the CPIC database can be updated, and by what.
 
-    Uses ``pipeline_pins["cpic"]`` from ``bundles/manifest.json`` to locate
-    the GitHub releases-API endpoint (``…/repos/cpicpgx/cpic-data/releases/latest``),
-    then performs an HTTP GET to read the latest release's ``tag_name``.
-    The tag is compared against the recorded value in ``database_versions``;
-    when they differ a :class:`VersionInfo` is returned with the release tag
-    as ``latest_version`` and the first GitHub asset (if any) as the download
-    URL/size. Returns ``None`` when the manifest pin is missing/unreachable,
-    the GitHub API call fails, the payload lacks ``tag_name``, or the
-    recorded version already matches the latest tag.
+    CPIC data ships as CSVs bundled with the app; a database update can only
+    reinstall the bundled set, whose version ``pipeline_pins["cpic"]
+    .last_known_version`` in ``bundles/manifest.json`` records. The pin also
+    locates the GitHub releases-API endpoint whose ``tag_name`` is read for
+    the upstream signal. When the pin carries a real release tag:
+
+    - recorded != pin → a rebuild WILL install the pinned version, so an
+      actionable :class:`VersionInfo` (``latest_version`` = the pin) is
+      returned; "Update now" delivers exactly what it advertises.
+    - recorded == pin, GitHub ahead → the newer dataset ships with a Yeliztli
+      app update, not a database update: the VersionInfo comes back with
+      ``requires_app_update=True`` so the UI must not offer "Update now"
+      (the rebuild would re-stamp the same bundle and change nothing).
+    - recorded == pin == GitHub latest → ``None``.
+
+    Without a real pin tag (development/fixture manifests) the legacy
+    behaviour applies: the GitHub tag is reported whenever it differs from
+    the recorded version.
 
     Args:
         reference_engine: Reference DB engine for ``database_versions`` lookup.
         settings: Accepted for dispatch-signature parity with other
             ``check_*_update`` functions; unused.
         timeout: HTTP timeout in seconds for both the manifest fetch and GET.
-
-    Returns:
-        ``VersionInfo`` when the GitHub release tag differs from the recorded
-        version, otherwise ``None``.
     """
     del settings  # unused; kept for dispatch-signature parity
     from backend.db.manifest import get_pipeline_pin
@@ -490,6 +495,11 @@ def check_cpic_update(
     if pin is None or not pin.url:
         return None
 
+    # The upstream tag is informational: the actionable offer below depends
+    # only on the manifest pin, so a GitHub outage must not hide a rebuild
+    # that "Update now" can genuinely deliver.
+    tag_name: str | None = None
+    payload: dict | None = None
     try:
         with httpx.Client(
             follow_redirects=True,
@@ -500,24 +510,64 @@ def check_cpic_update(
                 headers={"Accept": "application/vnd.github.v3+json"},
             )
             resp.raise_for_status()
-            payload = resp.json()
+            parsed = resp.json()
+        if isinstance(parsed, dict):
+            payload = parsed
     except Exception as exc:
         logger.warning("cpic_update_check_failed", error=str(exc))
-        return None
 
-    if not isinstance(payload, dict):
-        return None
-    tag_name = payload.get("tag_name")
-    if not isinstance(tag_name, str) or not tag_name:
-        return None
+    if isinstance(payload, dict):
+        candidate = payload.get("tag_name")
+        if isinstance(candidate, str) and candidate:
+            tag_name = candidate
 
     current = get_current_version(reference_engine, "cpic")
+
+    # A database update can only (re)install the CSVs bundled with the app,
+    # whose version the manifest pin records. When the pin carries a real
+    # release tag, that — not the GitHub tag — is what "Update now" delivers.
+    pin_version = (
+        pin.last_known_version
+        if pin.last_known_version and pin.last_known_version != "bundled"
+        else None
+    )
+    if pin_version is not None:
+        if current == pin_version:
+            # Installed data IS the app's bundle. A newer upstream release is
+            # informational only: it ships with a Yeliztli app update (new
+            # CSVs plus a bumped pin), and a database rebuild cannot change
+            # the version — so do not offer "Update now" for it.
+            if tag_name is None or (current is not None and current == tag_name):
+                return None
+            return VersionInfo(
+                db_name="cpic",
+                latest_version=tag_name,
+                download_url=pin.url,
+                download_size_bytes=0,
+                release_date=None,
+                requires_app_update=True,
+            )
+        # The recorded stamp drifted from the bundle (e.g. data from an older
+        # app build): the rebuild will install the bundled version, so that is
+        # the honest offer — even if this GitHub call is looking at newer tags.
+        return VersionInfo(
+            db_name="cpic",
+            latest_version=pin_version,
+            download_url=pin.url,
+            download_size_bytes=0,
+            release_date=None,
+        )
+
+    # No real pin version (development/fixture manifests): legacy behaviour —
+    # report the GitHub tag whenever it differs from the recorded one.
+    if tag_name is None:
+        return None
     if current is not None and current == tag_name:
         return None
 
     download_url = pin.url
     download_size = 0
-    assets = payload.get("assets")
+    assets = payload.get("assets") if payload else None
     if isinstance(assets, list) and assets:
         first = assets[0]
         if isinstance(first, dict):
@@ -529,7 +579,7 @@ def check_cpic_update(
                 download_size = asset_size
 
     release_date: str | None = None
-    published_at = payload.get("published_at")
+    published_at = payload.get("published_at") if payload else None
     if isinstance(published_at, str) and len(published_at) >= 10:
         release_date = published_at[:10]
 

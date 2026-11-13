@@ -35,6 +35,12 @@ export interface UpdateAvailable {
   latest_version_display?: string | null
   download_size_bytes: number
   release_date: string | null
+  /**
+   * True when this version ships with a Yeliztli app update and "Update now"
+   * cannot install it (bundled data, e.g. CPIC). Optional — older backends
+   * omit it.
+   */
+  requires_app_update?: boolean
 }
 
 interface UpdateCheckResult {

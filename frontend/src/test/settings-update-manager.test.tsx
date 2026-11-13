@@ -653,6 +653,37 @@ describe('UpdateManager', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '42')
     expect(screen.queryByText('Starting update…')).not.toBeInTheDocument()
   })
+
+  it('shows "Ships with app updates" instead of "Update now" for bundled data', async () => {
+    setupFetchMocks({
+      statuses: [
+        {
+          db_name: 'clinvar',
+          display_name: 'ClinVar',
+          current_version: 'v1.58.0',
+          version_display: 'v1.58.0',
+          downloaded_at: '2026-03-15T00:00:00',
+          auto_update: true,
+          update_available: false,
+        },
+      ],
+      available: [
+        {
+          db_name: 'clinvar',
+          latest_version: 'v1.61.0',
+          latest_version_display: 'v1.61.0',
+          download_size_bytes: 0,
+          release_date: null,
+          requires_app_update: true,
+        },
+      ],
+    })
+    render(<UpdateManager />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('Ships with app updates')).toBeInTheDocument()
+    expect(screen.queryByText('Update now')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('db-update-clinvar')).not.toBeInTheDocument()
+  })
 })
 
 // ── Update History ──────────────────────────────────────────────────

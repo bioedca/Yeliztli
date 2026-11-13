@@ -107,6 +107,10 @@ class VersionInfo:
     download_url: str
     download_size_bytes: int
     release_date: str | None = None
+    # True when the advertised version cannot be installed by the update
+    # manager (e.g. CPIC data ships inside the app bundle): the UI must not
+    # offer "Update now", and the auto-update scheduler must skip it.
+    requires_app_update: bool = False
     # Internal, opaque evidence binding every source behind a multi-source offer
     # to the worker's actual downloads.  It is deliberately excluded from
     # repr/equality and from the API response model.
@@ -3003,6 +3007,11 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
             logger.info("update_skipped_auto_disabled", db_name=db_name)
             continue
 
+        if update_info.requires_app_update:
+            # The advertised version ships with a Yeliztli app update (e.g.
+            # bundled CPIC data); the database rebuild cannot install it.
+            logger.info("update_skipped_app_delivered", db_name=db_name)
+            continue
         if not should_download_now(
             update_info.download_size_bytes, settings.update_download_window
         ):

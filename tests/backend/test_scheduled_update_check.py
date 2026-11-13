@@ -92,6 +92,34 @@ def _info(db_name: str, *, size: int = 1_000_000) -> VersionInfo:
 # ──────────────────────────────────────────────────────────────────────
 
 
+class TestAppDeliveredGating:
+    def test_requires_app_update_entry_is_not_dispatched(self, reference_engine, tmp_path: Path):
+        """A version that ships with a Yeliztli app update is never dispatched.
+
+        The rebuild cannot install it (bundled data, e.g. CPIC), so dispatching
+        would re-stamp the same bundle and log a meaningless "update".
+        """
+        registry = _make_registry(reference_engine, tmp_path)
+        info = _info("cpic")
+        info.requires_app_update = True
+
+        with (
+            patch(
+                "backend.db.update_manager.check_all_updates",
+                return_value=UpdateCheckResult(available=[info]),
+            ),
+            patch("backend.tasks.huey_tasks.run_database_update_task") as mock_run_task,
+            patch("backend.db.update_manager.run_clinvar_update") as mock_clinvar,
+        ):
+            result = run_scheduled_update_check(registry)
+
+        mock_run_task.assert_not_called()
+        mock_clinvar.assert_not_called()
+        # The informational entry still reaches the UI's available list.
+        assert [a.db_name for a in result.available] == ["cpic"]
+        assert result.errors == []
+
+
 class TestToggleGating:
     def test_pipeline_db_skipped_when_toggle_off(self, reference_engine, tmp_path: Path):
         """Toggle off → ``huey_tasks`` plumbing is never invoked."""

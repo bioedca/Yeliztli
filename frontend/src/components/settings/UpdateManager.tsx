@@ -508,7 +508,15 @@ function DatabaseRow({
 
       {/* Update now */}
       <td className="py-3 px-4">
-        {hasUpdate && (
+        {hasUpdate &&
+          (updateInfo?.requires_app_update ? (
+            <span
+              className="text-xs text-muted-foreground"
+              title={`${updateInfo.latest_version_display ?? updateInfo.latest_version} ships with a Yeliztli app update — updating the app is what brings new bundled data.`}
+            >
+              Ships with app updates
+            </span>
+          ) : (
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -579,7 +587,7 @@ function DatabaseRow({
               </>
             )}
           </div>
-        )}
+          ))}
       </td>
     </tr>
   )

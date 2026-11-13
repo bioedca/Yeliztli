@@ -51,6 +51,9 @@ class UpdateAvailable(BaseModel):
     latest_version_display: str | None = None
     download_size_bytes: int
     release_date: str | None = None
+    # True when this version ships with a Yeliztli app update and cannot be
+    # installed by "Update now" (bundled data, e.g. CPIC).
+    requires_app_update: bool = False
 
 
 class UpdateCheckResponse(BaseModel):
@@ -336,6 +339,7 @@ async def check_for_updates() -> UpdateCheckResponse:
                 latest_version_display=format_version_display(v.latest_version),
                 download_size_bytes=v.download_size_bytes,
                 release_date=v.release_date,
+                requires_app_update=v.requires_app_update,
             )
             for v in result.available
         ],

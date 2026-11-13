@@ -368,6 +368,84 @@ class TestCheckCpicUpdate:
         with patch("backend.annotation.cpic.httpx.Client", mock_client):
             assert check_cpic_update(reference_engine) is None
 
+    @staticmethod
+    def _pinned_manifest() -> dict:
+        """SAMPLE_MANIFEST with a real CPIC pin version (production shape)."""
+        return {
+            **SAMPLE_MANIFEST,
+            "pipeline_pins": {
+                **SAMPLE_MANIFEST["pipeline_pins"],
+                "cpic": {
+                    "url": CPIC_RELEASE_API_URL,
+                    "last_known_version": "v1.58.0",
+                },
+            },
+        }
+
+    def test_pinned_and_github_ahead_is_app_delivered(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """recorded == manifest pin, GitHub ahead → informational offer only.
+
+        CPIC data ships inside the app: a database rebuild would re-stamp the
+        same bundle, so the entry is flagged requires_app_update and the UI
+        must not offer "Update now" for it.
+        """
+        path = _write_manifest(tmp_path, self._pinned_manifest())
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "cpic", "v1.58.0")
+
+        mock_client, _ = _mock_get_client()
+        with patch("backend.annotation.cpic.httpx.Client", mock_client):
+            result = check_cpic_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v1.30.0"
+        assert result.requires_app_update is True
+
+    def test_pinned_stamp_drift_offers_the_pin_version(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """recorded != pin → "Update now" offers exactly what it can install."""
+        path = _write_manifest(tmp_path, self._pinned_manifest())
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "cpic", "v1.29.0")
+
+        mock_client, _ = _mock_get_client()
+        with patch("backend.annotation.cpic.httpx.Client", mock_client):
+            result = check_cpic_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v1.58.0"
+        assert result.requires_app_update is False
+
+    def test_pinned_stamp_drift_survives_github_outage(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """The actionable pin offer must not depend on the informational GET."""
+        path = _write_manifest(tmp_path, self._pinned_manifest())
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "cpic", "v1.29.0")
+
+        failing = MagicMock(side_effect=RuntimeError("github unreachable"))
+        with patch("backend.annotation.cpic.httpx.Client", failing):
+            result = check_cpic_update(reference_engine)
+
+        assert result is not None
+        assert result.latest_version == "v1.58.0"
+
+    def test_pinned_and_github_unreachable_returns_none(
+        self, tmp_path: Path, monkeypatch, reference_engine
+    ):
+        """recorded == pin and no upstream signal → nothing to report."""
+        path = _write_manifest(tmp_path, self._pinned_manifest())
+        monkeypatch.setenv(manifest_mod.MANIFEST_PATH_ENV, str(path))
+        _record_version_row(reference_engine, "cpic", "v1.58.0")
+
+        failing = MagicMock(side_effect=RuntimeError("github unreachable"))
+        with patch("backend.annotation.cpic.httpx.Client", failing):
+            assert check_cpic_update(reference_engine) is None
+
     def test_no_recorded_version_returns_version_info(
         self, tmp_path: Path, monkeypatch, reference_engine
     ):
