@@ -371,8 +371,13 @@ export function useTriggerUpdate() {
   return useMutation({
     mutationFn: async ({ dbName, force = false }: TriggerUpdateVariables) => {
       const resp = await triggerUpdate(dbName, force)
-      // Poll until the background Huey task finishes
-      await pollJobUntilDone(resp.job_id)
+      // Poll until the background Huey task finishes. The default 10-minute
+      // cap predates live progress: a multi-gigabyte database legitimately
+      // runs for tens of minutes, and the thrown "did not complete within
+      // 600s" rendered as "Update failed" while the job was still healthy.
+      // Two hours bounds a wedged job without failing a real one; the header
+      // progress bar reports live state independently of this poll.
+      await pollJobUntilDone(resp.job_id, 2000, 2 * 60 * 60 * 1000)
       return resp
     },
     onSuccess: () => {
