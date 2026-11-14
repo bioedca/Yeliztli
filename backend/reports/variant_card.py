@@ -40,7 +40,7 @@ from backend.analysis.roh import normalize_legacy_finding_text
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
 from backend.api.gating import gated_modules_to_hide
 from backend.db.tables import findings
-from backend.reports.generator import _get_sample_info
+from backend.reports.generator import _chromium_launch_failure, _get_sample_info
 from backend.reports.module_disclaimers import MODULE_DISCLAIMERS, MODULE_DISPLAY_NAMES
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
 from backend.version import app_version
@@ -262,10 +262,7 @@ async def _html_to_pdf_single_page(html: str) -> bytes:
         try:
             browser = await pw.chromium.launch(headless=True)
         except PlaywrightError as exc:
-            raise RuntimeError(
-                "Playwright Chromium is required for PDF generation. "
-                "Install it with: python -m playwright install chromium"
-            ) from exc
+            raise _chromium_launch_failure(exc, "PDF") from exc
         try:
             page = await browser.new_page()
             await page.set_content(html, wait_until="networkidle", timeout=30000)
@@ -300,10 +297,7 @@ async def _html_to_png(html: str) -> bytes:
         try:
             browser = await pw.chromium.launch(headless=True)
         except PlaywrightError as exc:
-            raise RuntimeError(
-                "Playwright Chromium is required for PNG generation. "
-                "Install it with: python -m playwright install chromium"
-            ) from exc
+            raise _chromium_launch_failure(exc, "PNG") from exc
         try:
             page = await browser.new_page(
                 viewport={"width": 800, "height": 1200},

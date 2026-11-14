@@ -45,3 +45,6 @@ async def test_missing_playwright_chromium_reports_install_hint(
     message = str(exc_info.value)
     assert f"Playwright Chromium is required for {export_kind} generation" in message
     assert "python -m playwright install chromium" in message
+    # The underlying Playwright error rides along so a missing system library
+    # (not a missing binary) self-diagnoses instead of masking as "install it".
+    assert "Executable doesn't exist" in message

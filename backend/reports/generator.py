@@ -456,6 +456,23 @@ async def generate_report_pdf(
     return pdf_bytes
 
 
+def _chromium_launch_failure(exc: Exception, kind: str) -> RuntimeError:
+    """Build the launch-failure error the routes translate to a 503.
+
+    Carries the underlying cause: a missing browser binary, a missing system
+    library (``error while loading shared libraries: libnspr4.so…``) and a
+    crashed sandbox otherwise present identically, and the old generic
+    "install chromium" advice masked a missing-library problem in the field.
+    """
+    cause = " ".join(str(exc).split())
+    return RuntimeError(
+        f"Playwright Chromium is required for {kind} generation, but failed to "
+        "launch. Install the browser with: python -m playwright install chromium "
+        "(missing system libraries need `sudo python -m playwright "
+        f"install-deps chromium`). Cause: {cause[-500:]}"
+    )
+
+
 async def _html_to_pdf(html: str) -> bytes:
     """Convert an HTML string to PDF bytes via Playwright.
 
@@ -475,10 +492,7 @@ async def _html_to_pdf(html: str) -> bytes:
         try:
             browser = await pw.chromium.launch(headless=True)
         except PlaywrightError as exc:
-            raise RuntimeError(
-                "Playwright Chromium is required for PDF generation. "
-                "Install it with: python -m playwright install chromium"
-            ) from exc
+            raise _chromium_launch_failure(exc, "PDF") from exc
         try:
             page = await browser.new_page()
             await page.set_content(html, wait_until="networkidle")
