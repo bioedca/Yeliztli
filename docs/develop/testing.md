@@ -399,11 +399,34 @@ The command bounds the whole logging
 pipeline and its process group, with a 30-second TERM-to-KILL grace period.
 The supervisor stays alive through escalation so descendants that ignore TERM
 are killed before diagnostics upload. Any nonzero phase exit still fails the gate.
+It disables inherited Bash monitor mode so a `BASH_ENV` startup file cannot put
+the background installer pipeline outside the timeout-controlled process group.
+
+The installer requires **GNU Coreutils timeout**. Its resolver checks
+`gnutimeout`, `gtimeout`, then `timeout`, verifying the executable's `--version`
+identity before invoking it. A missing or incompatible provider fails with
+`timeout_unavailable` before installation starts. The deadline and descendant
+controls still execute real GNU timeout; they do not silently skip when a
+different implementation owns the unqualified name on Linux. These Ubuntu
+installer probes retain their existing skip on other platforms without GNU
+timeout; a Linux runner missing GNU fails the prerequisite check.
+
+Ubuntu 26.04 uses uutils for the unqualified `timeout` command and provides GNU
+timeout separately as `gnutimeout`. Selecting that existing executable keeps the
+current runner and system-wide provider unchanged. See
+[Ubuntu's provider documentation](https://ubuntu.com/server/docs/reference/other-tools/sudo-rs/),
+the [GNU package file list](https://packages.ubuntu.com/resolute/amd64/gnu-coreutils/filelist)
+and the [GNU timeout manual](https://manpages.ubuntu.com/manpages/resolute/man1/gnutimeout.1.html)
+(accessed 2026-11-17). The local synthetic probe in #2692 reproduced the
+descendant assertion failure with uutils 0.10.0 and passed with GNU timeout;
+this comparison does not establish the exact uutils version on a retired CI runner.
 
 Each browser/run attempt retains a `playwright-install-<browser>-<attempt>`
 artifact for seven days, including installer stdout/stderr and JSON outcome,
 exit code, elapsed seconds, configured budget, kill grace and whether the
-supervisor observed TERM. Exit 124 is labelled `timeout_status`. Exit 137 is
+supervisor observed TERM. The selected timeout executable and version are
+recorded in the outcome and a separate tool metadata JSON. Exit 124 is labelled
+`timeout_status`. Exit 137 is
 also labelled `timeout_status` when the supervisor recorded TERM during the
 deadline cleanup; otherwise it is labelled `kill_status`, since KILL alone
 does not identify its cause. These diagnostics upload even when browser tests never
