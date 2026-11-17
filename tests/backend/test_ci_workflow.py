@@ -244,6 +244,8 @@ def test_installer_uses_gnu_when_default_timeout_is_incompatible(installer_probe
     assert status["outcome"] == "succeeded"
     assert status["exit_code"] == 0
     assert "installer stdout" in log and "installer stderr" in log
+    assert "Using gnutimeout:" in log
+    assert "(GNU coreutils)" in log
     assert "incompatible timeout invoked" not in result.stdout + result.stderr + log
 
 
