@@ -250,7 +250,10 @@ def test_installer_deadline_kills_a_term_ignoring_descendant(installer_probe, tm
     # The child tries to write at t=5s; the deadline plus kill grace is 3s.
     # Waiting past its finite fallback also leaves no synthetic process behind.
     time.sleep(5)
-    assert not (tmp_path / "child.escaped").exists(), "installer child survived cleanup"
+    assert not (tmp_path / "child.escaped").exists(), (
+        f"installer child survived cleanup; returncode={result.returncode}; "
+        f"status={status}; stdout={result.stdout!r}; stderr={result.stderr!r}"
+    )
     assert result.returncode == 137, result.stdout + result.stderr
     assert status["outcome"] == "timeout_status"
     assert status["termination_observed"] is True
