@@ -10,9 +10,9 @@
  *
  * Search + navigation only — no destructive or state-changing actions.
  */
-import { useState, useCallback, useDeferredValue } from "react"
+import { useState, useCallback, useDeferredValue, useEffect, useRef } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { Command, defaultFilter } from "cmdk"
+import { Command, defaultFilter, useCommandState } from "cmdk"
 import * as Dialog from "@radix-ui/react-dialog"
 import { Dna, MapPin, ArrowRightLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -22,11 +22,30 @@ import { useVariantSearch } from "@/api/variants"
 import { useSamples } from "@/api/samples"
 import { parseSampleId } from "@/lib/format"
 import { withActiveSample } from "@/lib/navigation"
+import type { VariantSearchResult } from "@/types/variants"
 
 // The server trims the query before searching, so score against the same
 // trimmed text: otherwise a padded query ("LDLR ") hides what it returned.
 const filterTrimmed = (value: string, search: string, keywords?: string[]) =>
   defaultFilter(value, search.trim(), keywords)
+
+/** Wait for cmdk to register, filter and sort newly mounted results. */
+function SelectFirstResult({
+  search, results, automatic, onSelect,
+}: {
+  search: string
+  results: VariantSearchResult[] | undefined
+  automatic: boolean
+  onSelect: () => void
+}) {
+  const count = useCommandState((state) => state.filtered.count)
+  const menuSearch = useCommandState((state) => state.search)
+  useEffect(() => {
+    if (!automatic || menuSearch !== search) return
+    onSelect()
+  }, [search, menuSearch, results, count, automatic, onSelect])
+  return null
+}
 
 export interface CommandPaletteProps {
   open: boolean
@@ -37,15 +56,41 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState("")
+  const [userSelection, setUserSelection] = useState<{
+    search: string
+    sampleId: number | null
+  } | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const selectingFirst = useRef(false)
   const deferredSearch = useDeferredValue(search)
 
   const activeSampleId = parseSampleId(searchParams.get("sample_id"))
   const { data: samples } = useSamples()
-  const { data: variantResults } = useVariantSearch(activeSampleId, deferredSearch)
+  const { data: searchResults } = useVariantSearch(activeSampleId, deferredSearch)
+  const variantResults = deferredSearch.trim() === search.trim() ? searchResults : undefined
+  const automaticSelection = userSelection?.search !== search || userSelection?.sampleId !== activeSampleId
+
+  const preserveSelection = () => setUserSelection({ search, sampleId: activeSampleId })
+  const selectFirst = useCallback(() => {
+    const command = listRef.current?.closest("[cmdk-root]")
+    if (!command) return
+    // Use cmdk's Home action so its own selection AND aria-activedescendant
+    // advance together. In cmdk 1.1.1, changing a controlled value directly
+    // updates the highlight but leaves selectedItemId stale.
+    selectingFirst.current = true
+    try {
+      command.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }))
+    } finally {
+      selectingFirst.current = false
+    }
+  }, [])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
-      if (!next) setSearch("")
+      if (!next) {
+        setSearch("")
+        setUserSelection(null)
+      }
       onOpenChange(next)
     },
     [onOpenChange],
@@ -97,9 +142,14 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
       onOpenChange={handleOpenChange}
       label="Command Menu"
       filter={filterTrimmed}
-      // Server results mount after cmdk has already picked a selection, and it
-      // does not re-pick, so they can land above it; wrap-around keeps every
-      // item reachable by arrow key (#2065).
+      onKeyDownCapture={(event) => {
+        if (!selectingFirst.current && (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+          || (event.ctrlKey && ["n", "j", "p", "k"].includes(event.key)))) preserveSelection()
+      }}
+      onPointerMoveCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest("[cmdk-item]")) preserveSelection()
+      }}
+      // Wrap-around keeps every result reachable (#2065).
       loop
       className={cn(
         "fixed inset-0 z-50",
@@ -120,12 +170,15 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
         <div className="bg-background border border-border rounded-lg shadow-lg overflow-hidden">
           <Command.Input
             value={search}
-            onValueChange={setSearch}
+            onValueChange={(next) => {
+              setSearch(next)
+              setUserSelection(null)
+            }}
             placeholder="Search pages, variants, genes, or samples..."
             className="w-full px-4 py-3 text-sm bg-transparent border-b border-border outline-none placeholder:text-muted-foreground"
             data-testid="command-palette-input"
           />
-          <Command.List className="max-h-72 overflow-y-auto p-2">
+          <Command.List ref={listRef} className="max-h-72 overflow-y-auto p-2">
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               No results found.
             </Command.Empty>
@@ -207,6 +260,12 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                 ))}
               </Command.Group>
             )}
+            <SelectFirstResult
+              search={search}
+              results={variantResults}
+              automatic={automaticSelection}
+              onSelect={selectFirst}
+            />
           </Command.List>
         </div>
       </div>

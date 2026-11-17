@@ -28,3 +28,8 @@ search for:
 
 The command palette is **navigation-only** — it performs no destructive or state-changing
 actions.
+
+When search results arrive, the first ranked result is highlighted. Press `Enter`
+to open it, or use `Arrow Up` / `Arrow Down` to choose another result. A choice
+you make with the keyboard or pointer while results load stays selected; typing
+a new query returns to automatic selection.
