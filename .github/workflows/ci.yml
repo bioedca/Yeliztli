@@ -563,15 +563,17 @@ jobs:
           install_log="output/playwright/install-${PLAYWRIGHT_BROWSER}.log"
           install_status="output/playwright/install-${PLAYWRIGHT_BROWSER}.json"
           install_term="${install_status}.$$.term"
+          install_timeout_metadata="${install_status}.timeout-tool.json"
           install_started=$SECONDS
           : > "$install_log"
-          rm -f "$install_term"
+          rm -f "$install_term" "$install_timeout_metadata"
           write_install_status() {
-            python - "$install_status" "$1" "$2" "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" "$((SECONDS - install_started))" "$PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS" "$install_term" <<'PY'
+            python - "$install_status" "$1" "$2" "$PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS" "$((SECONDS - install_started))" "$PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS" "$install_term" "$install_timeout_metadata" <<'PY'
           import json
           import sys
           from pathlib import Path
-          path, outcome, code, budget, elapsed, grace, term = sys.argv[1:]
+          path, outcome, code, budget, elapsed, grace, term, tool_path = sys.argv[1:]
+          tool = json.loads(Path(tool_path).read_text()) if Path(tool_path).is_file() else {}
           Path(path).write_text(json.dumps({
               "outcome": outcome,
               "exit_code": None if code == "null" else int(code),
@@ -579,6 +581,8 @@ jobs:
               "elapsed_seconds": int(elapsed),
               "kill_grace_seconds": int(grace) if grace.isdecimal() else None,
               "termination_observed": Path(term).exists(),
+              "timeout_executable": tool.get("executable"),
+              "timeout_version": tool.get("version"),
           }, indent=2) + "\n", encoding="utf-8")
           PY
           }
@@ -587,11 +591,22 @@ jobs:
             write_install_status invalid_budget 2
             exit 2
           fi
+          set +e
+          install_timeout="$(python "$GITHUB_WORKSPACE/scripts/resolve_gnu_timeout.py" --metadata-file "$install_timeout_metadata" 2>> "$install_log")"
+          resolve_exit=$?
+          set -e
+          if [[ "$resolve_exit" != 0 ]]; then
+            echo "::error title=GNU timeout unavailable::A verified GNU Coreutils timeout is required; see installation diagnostics." | tee -a "$install_log"
+            write_install_status timeout_unavailable "$resolve_exit"
+            exit "$resolve_exit"
+          fi
           write_install_status running null
           set +e
           # Keep the supervisor alive after TERM so timeout cannot cancel KILL
           # escalation while a descendant that ignores TERM still runs.
-          timeout --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
+          # Positional parameters expand inside the supervised Bash, not here.
+          # shellcheck disable=SC2016
+          "$install_timeout" --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
             bash -o pipefail -c '
               trap '\''printf "TERM received; awaiting group cleanup\n" > "$3"; while :; do sleep 1; done'\'' TERM
               npx playwright install --with-deps "$1" 2>&1 | tee "$2" &
