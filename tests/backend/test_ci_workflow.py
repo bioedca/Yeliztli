@@ -112,12 +112,27 @@ def _installer_shell() -> str:
 @pytest.fixture
 def installer_probe(tmp_path: Path):
     """Replace only npx; use real Bash, tee and GNU timeout for the Ubuntu CI step."""
-    timeout = shutil.which("timeout") or shutil.which("gtimeout")
-    if os.name != "posix" or timeout is None:
+    if os.name != "posix":
         pytest.skip("the Ubuntu CI shell probe requires POSIX and GNU timeout")
+    timeout = None
+    for name in ("gnutimeout", "gtimeout", "timeout"):
+        executable = shutil.which(name)
+        if executable:
+            version = subprocess.run(
+                [executable, "--version"], capture_output=True, text=True, timeout=5
+            )
+            if version.returncode == 0 and "(GNU coreutils)" in version.stdout:
+                timeout = executable
+                break
+    if timeout is None and sys.platform != "linux":
+        pytest.skip("the Ubuntu CI shell probe requires POSIX and GNU timeout")
+    assert timeout is not None, "install GNU Coreutils for the real deadline probes"
     tools = tmp_path / "probe tools"
     tools.mkdir()
-    (tools / "timeout").symlink_to(timeout)
+    for name in ("bash", "mkdir", "rm", "tee", "sleep"):
+        executable = shutil.which(name)
+        assert executable is not None
+        (tools / name).symlink_to(executable)
     (tools / "python").symlink_to(sys.executable)
     npx = tools / "npx"
     npx.write_text(
@@ -166,10 +181,36 @@ def installer_probe(tmp_path: Path):
     )
     npx.chmod(0o755)
 
-    def run(mode: str, budget: str = "30", browser: str = "webkit", grace: str = "1"):
+    def run(
+        mode: str,
+        budget: str = "30",
+        browser: str = "webkit",
+        grace: str = "1",
+        timeout_names: tuple[str, ...] = ("timeout",),
+        non_gnu_default: bool = False,
+        non_gnu_names: tuple[str, ...] = (),
+    ):
+        for name in ("gnutimeout", "gtimeout", "timeout"):
+            (tools / name).unlink(missing_ok=True)
+        for name in timeout_names:
+            (tools / name).symlink_to(timeout)
+        for name in (*non_gnu_names, *(("timeout",) if non_gnu_default else ())):
+            default = tools / name
+            default.write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "--version" ]; then\n'
+                "  echo 'timeout (uutils coreutils) synthetic'\n"
+                "  exit 0\n"
+                "fi\n"
+                "echo NON_GNU_TIMEOUT_EXECUTED\n"
+                "exit 43\n"
+            )
+            default.chmod(0o755)
         env = {
             **os.environ,
-            "PATH": str(tools) + os.pathsep + os.environ["PATH"],
+            # Do not let a host-provided GNU alias rescue the negative control.
+            "PATH": str(tools),
+            "GITHUB_WORKSPACE": str(_PROJECT_ROOT),
             "PLAYWRIGHT_BROWSER": browser,
             "PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS": grace,
             "INSTALL_PROBE_BROWSER": browser,
@@ -196,6 +237,53 @@ def installer_probe(tmp_path: Path):
     return run
 
 
+@pytest.mark.parametrize("gnu_name", ["gnutimeout", "gtimeout"])
+def test_installer_prefers_explicit_gnu_over_a_non_gnu_default(installer_probe, gnu_name):
+    result, status, log = installer_probe(
+        "success", timeout_names=(gnu_name,), non_gnu_default=True
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert status["outcome"] == "succeeded"
+    assert Path(status["timeout_executable"]).name == gnu_name
+    assert "(GNU coreutils)" in status["timeout_version"]
+    assert "installer stdout" in log
+    assert "NON_GNU_TIMEOUT_EXECUTED" not in result.stdout + result.stderr + log
+
+
+@pytest.mark.parametrize(
+    ("platform", "exception"),
+    [("linux", AssertionError), ("darwin", pytest.skip.Exception)],
+)
+def test_installer_probe_missing_gnu_preserves_platform_scope(
+    tmp_path, monkeypatch, platform, exception
+):
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    with pytest.raises(exception, match="GNU"):
+        installer_probe.__wrapped__(tmp_path)
+
+
+def test_installer_verifies_an_explicit_gnu_alias_before_using_it(installer_probe):
+    result, status, log = installer_probe("success", non_gnu_names=("gnutimeout",))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert status["outcome"] == "succeeded"
+    assert Path(status["timeout_executable"]).name == "timeout"
+    assert "(GNU coreutils)" in status["timeout_version"]
+    assert "installer stdout" in log
+    assert "NON_GNU_TIMEOUT_EXECUTED" not in result.stdout + result.stderr + log
+
+
+def test_installer_rejects_a_non_gnu_default_without_a_supported_provider(installer_probe):
+    result, status, log = installer_probe("success", timeout_names=(), non_gnu_default=True)
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert status["outcome"] == "timeout_unavailable"
+    assert status["timeout_executable"] is None
+    assert status["timeout_version"] is None
+    assert "::error title=GNU timeout unavailable::" in log
+    assert "installer stdout" not in result.stdout + log
+    assert "NON_GNU_TIMEOUT_EXECUTED" not in result.stdout + result.stderr + log
+
+
 @pytest.mark.parametrize(
     ("mode", "code", "outcome", "browser"),
     [("success", 0, "succeeded", browser) for browser in ("chromium", "firefox", "webkit")]
@@ -211,6 +299,8 @@ def test_installer_retains_output_and_propagates_phase_status(
     assert status["timeout_seconds"] == 30
     assert status["elapsed_seconds"] >= 0
     assert status["termination_observed"] is False
+    assert Path(status["timeout_executable"]).name == "timeout"
+    assert "(GNU coreutils)" in status["timeout_version"]
     assert "installer stdout" in log and "installer stderr" in log
     assert "installer stdout" in result.stdout and "installer stderr" in result.stdout
     if code:
