@@ -528,6 +528,15 @@ button color decision remains tracked in
 The suite follows specific assertion standards (assert real values, not just non-null;
 carriage-gated modules need `hom_ref` negative controls). See [contributing](contributing.md).
 
+When a click starts an asynchronous API mutation, register a
+[`page.waitForResponse`](https://playwright.dev/docs/api/class-page#page-wait-for-response)
+wait before clicking (accessed 2026-11-17). Match the endpoint and request method,
+then await the response and assert its status and request payload. Click completion
+does not establish that a route handler has captured the request: the wizard
+download checks in [#2687](https://github.com/bioedca/Yeliztli/issues/2687) reproduced
+that ordering with delayed dispatch. Keep the exact selected-database and streamed
+progress assertions; retries or a fixed sleep do not establish request completion.
+
 Prefix-search plan guards exercise the production predicate with 2,000 synthetic
 rows, bound parameters, and both list and count projections, before and after
 `ANALYZE`. They require both NOCASE search indexes and reject scans for selective
