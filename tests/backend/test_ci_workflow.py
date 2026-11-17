@@ -124,6 +124,8 @@ def installer_probe(tmp_path: Path):
             if version.returncode == 0 and "(GNU coreutils)" in version.stdout:
                 timeout = executable
                 break
+    if timeout is None and sys.platform != "linux":
+        pytest.skip("the Ubuntu CI shell probe requires POSIX and GNU timeout")
     assert timeout is not None, "install GNU Coreutils for the real deadline probes"
     tools = tmp_path / "probe tools"
     tools.mkdir()
@@ -246,6 +248,19 @@ def test_installer_prefers_explicit_gnu_over_a_non_gnu_default(installer_probe, 
     assert "(GNU coreutils)" in status["timeout_version"]
     assert "installer stdout" in log
     assert "NON_GNU_TIMEOUT_EXECUTED" not in result.stdout + result.stderr + log
+
+
+@pytest.mark.parametrize(
+    ("platform", "exception"),
+    [("linux", AssertionError), ("darwin", pytest.skip.Exception)],
+)
+def test_installer_probe_missing_gnu_preserves_platform_scope(
+    tmp_path, monkeypatch, platform, exception
+):
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    with pytest.raises(exception, match="GNU"):
+        installer_probe.__wrapped__(tmp_path)
 
 
 def test_installer_verifies_an_explicit_gnu_alias_before_using_it(installer_probe):

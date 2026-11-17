@@ -405,7 +405,9 @@ The installer requires **GNU Coreutils timeout**. Its resolver checks
 identity before invoking it. A missing or incompatible provider fails with
 `timeout_unavailable` before installation starts. The deadline and descendant
 controls still execute real GNU timeout; they do not silently skip when a
-different implementation owns the unqualified name.
+different implementation owns the unqualified name on Linux. These Ubuntu
+installer probes retain their existing skip on other platforms without GNU
+timeout; a Linux runner missing GNU fails the prerequisite check.
 
 Ubuntu 26.04 uses uutils for the unqualified `timeout` command and provides GNU
 timeout separately as `gnutimeout`. Selecting that existing executable keeps the
