@@ -608,6 +608,9 @@ jobs:
           # shellcheck disable=SC2016
           "$install_timeout" --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
             bash -o pipefail -c '
+              # BASH_ENV may enable monitor mode; keep the background pipeline
+              # in the process group controlled by timeout.
+              set +m
               trap '\''printf "TERM received; awaiting group cleanup\n" > "$3"; while :; do sleep 1; done'\'' TERM
               npx playwright install --with-deps "$1" 2>&1 | tee "$2" &
               wait "$!"
