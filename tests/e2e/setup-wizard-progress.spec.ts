@@ -108,9 +108,7 @@ test.describe('Setup wizard — download progress observability', () => {
       }),
     )
 
-    let downloadTriggered = false
     await page.route('**/api/databases/download', (route) => {
-      downloadTriggered = true
       return route.fulfill({
         status: 202,
         contentType: 'application/json',
@@ -152,8 +150,15 @@ test.describe('Setup wizard — download progress observability', () => {
 
     // encode_ccres is default-selected; trigger the download.
     await expect(page.getByTestId('db-checkbox-encode_ccres')).toBeChecked()
+    // The click can finish before the asynchronous mutation dispatches its POST.
+    const downloadResponse = page.waitForResponse(response =>
+      response.url().endsWith('/api/databases/download') &&
+      response.request().method() === 'POST',
+    )
     await page.getByRole('button', { name: /Download Selected/i }).click()
-    expect(downloadTriggered).toBe(true)
+    const response = await downloadResponse
+    expect(response.status()).toBe(202)
+    expect(response.request().postDataJSON()).toEqual({ databases: ['encode_ccres'] })
 
     // The aggregate bar reflects the SSE roll-up.
     const aggregate = page.getByTestId('download-aggregate')
@@ -234,10 +239,7 @@ test.describe('Setup wizard — download progress observability', () => {
       }),
     )
 
-    let requestedDatabases: string[] = []
-    await page.route('**/api/databases/download', async (route) => {
-      const body = await route.request().postDataJSON()
-      requestedDatabases = body.databases ?? []
+    await page.route('**/api/databases/download', (route) => {
       return route.fulfill({
         status: 202,
         contentType: 'application/json',
@@ -262,8 +264,14 @@ test.describe('Setup wizard — download progress observability', () => {
     await expect(page.getByTestId('db-checkbox-gnomad')).toBeDisabled()
     await expect(page.getByText('Download required').first()).toBeVisible()
 
+    const downloadResponse = page.waitForResponse(response =>
+      response.url().endsWith('/api/databases/download') &&
+      response.request().method() === 'POST',
+    )
     await page.getByRole('button', { name: /Download Selected/i }).click()
-    expect(requestedDatabases).toEqual(['gnomad'])
+    const response = await downloadResponse
+    expect(response.status()).toBe(202)
+    expect(response.request().postDataJSON()).toEqual({ databases: ['gnomad'] })
   })
 
   test('never-downloaded reference DBs with empty tables show download required', async ({
