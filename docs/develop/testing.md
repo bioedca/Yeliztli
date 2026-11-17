@@ -399,6 +399,8 @@ The command bounds the whole logging
 pipeline and its process group, with a 30-second TERM-to-KILL grace period.
 The supervisor stays alive through escalation so descendants that ignore TERM
 are killed before diagnostics upload. Any nonzero phase exit still fails the gate.
+It disables inherited Bash monitor mode so a `BASH_ENV` startup file cannot put
+the background installer pipeline in a separate process group outside that cleanup.
 
 The installer requires GNU `timeout` and checks `gnutimeout`, `gtimeout`, then
 `timeout` for the GNU Coreutils version banner. It records the selected command

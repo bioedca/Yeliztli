@@ -159,7 +159,7 @@ def installer_probe(tmp_path: Path):
                     )
                 subprocess.Popen([sys.executable, "-c", child])
             if mode in ("timeout", "child_timeout", "stubborn_child"):
-                time.sleep(120)
+                time.sleep(float(os.environ["INSTALL_PROBE_PARENT_FALLBACK"]))
             """
         ),
         encoding="utf-8",
@@ -172,6 +172,8 @@ def installer_probe(tmp_path: Path):
         browser: str = "webkit",
         grace: str = "1",
         timeout_provider: str | None = None,
+        bash_env: str | None = None,
+        parent_fallback: int = 120,
     ):
         if timeout_provider is not None:
             (tools / "timeout").unlink()
@@ -220,7 +222,12 @@ def installer_probe(tmp_path: Path):
             "INSTALL_PROBE_MODE": mode,
             "INSTALL_PROBE_READY": str(tmp_path / "child.ready"),
             "INSTALL_PROBE_TERMINATED": str(tmp_path / "child.terminated"),
+            "INSTALL_PROBE_PARENT_FALLBACK": str(parent_fallback),
         }
+        if bash_env is not None:
+            startup = tmp_path / "probe-bash-env.sh"
+            startup.write_text(bash_env, encoding="utf-8")
+            env["BASH_ENV"] = str(startup)
         result = subprocess.run(
             ["bash", "-c", _installer_shell()],
             cwd=tmp_path,
@@ -317,6 +324,19 @@ def test_installer_deadline_kills_a_term_ignoring_descendant(installer_probe, tm
         f"installer child survived cleanup; returncode={result.returncode}; "
         f"status={status}; stdout={result.stdout!r}; stderr={result.stderr!r}"
     )
+    assert result.returncode == 137, result.stdout + result.stderr
+    assert status["outcome"] == "timeout_status"
+    assert status["termination_observed"] is True
+
+
+def test_installer_keeps_descendants_grouped_with_inherited_job_control(installer_probe, tmp_path):
+    result, status, _log = installer_probe(
+        "stubborn_child", "2", bash_env="set -m\n", parent_fallback=6
+    )
+    assert (tmp_path / "child.ready").read_text() == "ready"
+    # Both synthetic processes have finite fallbacks, including on a failing run.
+    time.sleep(5)
+    assert not (tmp_path / "child.escaped").exists(), result.stdout + result.stderr
     assert result.returncode == 137, result.stdout + result.stderr
     assert status["outcome"] == "timeout_status"
     assert status["termination_observed"] is True

@@ -609,6 +609,9 @@ jobs:
           # escalation while a descendant that ignores TERM still runs.
           "$timeout_command" --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
             bash -o pipefail -c '
+              # BASH_ENV may enable monitor mode; keep the background pipeline
+              # in the process group owned by timeout.
+              set +m
               trap '\''printf "TERM received; awaiting group cleanup\n" > "$3"; while :; do sleep 1; done'\'' TERM
               npx playwright install --with-deps "$1" 2>&1 | tee -a "$2" &
               wait "$!"
