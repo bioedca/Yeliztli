@@ -400,6 +400,19 @@ pipeline and its process group, with a 30-second TERM-to-KILL grace period.
 The supervisor stays alive through escalation so descendants that ignore TERM
 are killed before diagnostics upload. Any nonzero phase exit still fails the gate.
 
+The installer requires GNU `timeout` and checks `gnutimeout`, `gtimeout`, then
+`timeout` for the GNU Coreutils version banner. It records the selected command
+and version in the installation log and fails with `unsupported_timeout` before
+starting installation when GNU is unavailable. This keeps the existing deadline
+and process-group cleanup contract across runner updates. Ubuntu 26.04 uses
+[uutils for most default utilities](https://ubuntu.com/server/docs/reference/other-tools/sudo-rs/)
+(accessed 2026-11-17); the GNU command is supplied by
+[`gnu-coreutils`](https://manpages.ubuntu.com/manpages/resolute/man1/gnutimeout.1.html)
+(accessed 2026-11-17). The controlled synthetic probe in
+[#2691](https://github.com/bioedca/Yeliztli/issues/2691) observed uutils 0.10.0
+returning 137 while a TERM-ignoring child survived. Selecting GNU does not change
+the runner's system-wide utility provider.
+
 Each browser/run attempt retains a `playwright-install-<browser>-<attempt>`
 artifact for seven days, including installer stdout/stderr and JSON outcome,
 exit code, elapsed seconds, configured budget, kill grace and whether the

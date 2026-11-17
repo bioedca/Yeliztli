@@ -587,11 +587,27 @@ jobs:
             write_install_status invalid_budget 2
             exit 2
           fi
+          # Ubuntu 26.04's default timeout is uutils; its KILL escalation can
+          # leave a TERM-ignoring descendant alive (#2691). Require GNU's
+          # process-group behavior without changing the system-wide provider.
+          timeout_command=""
+          for candidate in gnutimeout gtimeout timeout; do
+            if timeout_version=$("$candidate" --version 2>/dev/null) && [[ "$timeout_version" == *"(GNU coreutils)"* ]]; then
+              timeout_command="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$timeout_command" ]]; then
+            echo "::error title=Unsupported timeout implementation::GNU timeout is required for descendant cleanup." | tee -a "$install_log"
+            write_install_status unsupported_timeout 2
+            exit 2
+          fi
+          printf 'Using %s: %s\n' "$timeout_command" "${timeout_version%%$'\n'*}" | tee -a "$install_log"
           write_install_status running null
           set +e
           # Keep the supervisor alive after TERM so timeout cannot cancel KILL
           # escalation while a descendant that ignores TERM still runs.
-          timeout --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
+          "$timeout_command" --kill-after="${PLAYWRIGHT_INSTALL_KILL_GRACE_SECONDS}s" "${PLAYWRIGHT_INSTALL_TIMEOUT_SECONDS}s" \
             bash -o pipefail -c '
               trap '\''printf "TERM received; awaiting group cleanup\n" > "$3"; while :; do sleep 1; done'\'' TERM
               npx playwright install --with-deps "$1" 2>&1 | tee "$2" &

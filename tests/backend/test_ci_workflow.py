@@ -166,7 +166,49 @@ def installer_probe(tmp_path: Path):
     )
     npx.chmod(0o755)
 
-    def run(mode: str, budget: str = "30", browser: str = "webkit", grace: str = "1"):
+    def run(
+        mode: str,
+        budget: str = "30",
+        browser: str = "webkit",
+        grace: str = "1",
+        timeout_provider: str | None = None,
+    ):
+        if timeout_provider is not None:
+            (tools / "timeout").unlink()
+            aliases = ("timeout", "gtimeout", "gnutimeout")
+            for alias in aliases if timeout_provider == "no_gnu" else ("timeout",):
+                tool = tools / alias
+                tool.write_text(
+                    "#!/usr/bin/env python\n"
+                    "import sys\n"
+                    "if sys.argv[1:] == ['--version']:\n"
+                    "    print('timeout (synthetic incompatible implementation)')\n"
+                    "    raise SystemExit(0)\n"
+                    "print('incompatible timeout invoked')\n"
+                    "raise SystemExit(99)\n",
+                    encoding="utf-8",
+                )
+                tool.chmod(0o755)
+            if timeout_provider == "non_gnu_default":
+                for candidate in ("gnutimeout", "gtimeout", "timeout"):
+                    resolved = shutil.which(candidate)
+                    if (
+                        resolved
+                        and "(GNU coreutils)"
+                        in subprocess.run(
+                            [resolved, "--version"],
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                            timeout=5,
+                        ).stdout
+                    ):
+                        (tools / "gnutimeout").symlink_to(resolved)
+                        break
+                else:
+                    pytest.fail(
+                        "GNU timeout is required for the controlled alternate-provider test"
+                    )
         env = {
             **os.environ,
             "PATH": str(tools) + os.pathsep + os.environ["PATH"],
@@ -194,6 +236,25 @@ def installer_probe(tmp_path: Path):
         return result, status, log
 
     return run
+
+
+def test_installer_uses_gnu_when_default_timeout_is_incompatible(installer_probe):
+    result, status, log = installer_probe("success", timeout_provider="non_gnu_default")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert status["outcome"] == "succeeded"
+    assert status["exit_code"] == 0
+    assert "installer stdout" in log and "installer stderr" in log
+    assert "incompatible timeout invoked" not in result.stdout + result.stderr + log
+
+
+def test_installer_fails_closed_without_gnu_timeout(installer_probe):
+    result, status, log = installer_probe("success", timeout_provider="no_gnu")
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert status["outcome"] == "unsupported_timeout"
+    assert status["exit_code"] == 2
+    assert status["termination_observed"] is False
+    assert "GNU timeout is required" in log
+    assert "installer stdout" not in result.stdout + result.stderr + log
 
 
 @pytest.mark.parametrize(
