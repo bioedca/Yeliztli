@@ -1,7 +1,7 @@
 """Performance benchmark tests for the annotation pipeline (P2-29 / T2-24).
 
-Tests that the full annotation engine meets PRD performance targets:
-  - Full 600k SNP annotation: < 2 min (target) / < 5 min (hard limit)
+Checks regression ceilings and reports the separate PRD performance targets:
+  - Full 600k SNP annotation: < 2 min (target) / < 5 min (PRD hard limit)
   - Ingest (raw variant loading): < 30s (target) / < 2 min (hard limit)
 
 These tests use synthetic data with in-memory SQLite databases to benchmark
@@ -15,6 +15,7 @@ Marked ``slow`` so they can be excluded from fast CI runs::
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import time
@@ -50,30 +51,20 @@ from scripts.build_vep_bundle import INDEXES as VEP_BUNDLE_INDEXES
 
 # ── Performance budgets ──────────────────────────────────────────────────
 #
-# The PRD *targets* a full 600 k annotation at < 2 min (ideal) / < 5 min
-# (300 s, "hard limit"). Those figures turned out to be aspirational: the real
-# pipeline annotates 600 k seeded variants in ~22 min on the WSL2 reference box
-# and ~35 min on a 2-core GitHub runner, so 300 s has never been met on any
-# available hardware — the nightly slow-tier has been red on this assertion
-# since the benchmark landed (#76), even after the P4-22 annotation perf pass
-# (#218). Rather than red the nightly forever (or silently bless a number no
-# machine hits), we keep 300 s / 120 s as the printed *target* but hard-assert
-# against realistic ceilings that still trip a gross/pathological regression
-# (e.g. an O(n²) reintroduction) without flaking on normal hardware. The CI
-# runner is the slower, higher-variance axis (shared 2-core, occasional x86
-# emulation) so it gets more headroom — the same "strict on the canonical
-# machine, generous where variance is high" pattern as
-# test_ancestry_e2e.py::test_tier1_under_one_second, keyed on the CI
-# environment instead of the OS. (Closing the 10× gap to the PRD < 2 min
-# target is a pipeline-perf concern, tracked separately — out of scope here.)
+# The PRD's 120 s ideal / 300 s "hard limit" remain printed, informational
+# targets. Regression assertions use separately measured environment budgets,
+# selected by CI rather than OS. Earlier calibrations (#76, #218) recorded
+# ~22 min on the WSL2 reference box and ~35 min on a GitHub runner; those
+# observations predate the fixture/index and parameterized-upsert fixes below.
+# They are history, not the current baseline or a reason to retain old ceilings.
 #
 # 2026-06-18 recalibration (#1062): a generated-artifact-only commit (no annotation-code
 # change) flaked this assertion at 2716 s — 16 s past the old 2700 s ceiling. That
 # ceiling's "< 60-min job timeout" rationale was stale: the slow-tier job actually
-# allows 120 min (nightly.yml `timeout-minutes: 120`), so 45 min was needlessly tight
+# allowed 120 min (nightly.yml `timeout-minutes: 120`), so 45 min was needlessly tight
 # against the documented ~35-40-min runner baseline plus GitHub 2-core / x86-emulation
 # variance. Raised the CI ceiling to 60 min — still orders of magnitude below an O(n²)
-# reintroduction (which would run for hours), and still leaves ~half the 120-min job
+# reintroduction (which would run for hours), and left ~half the 120-min job
 # budget as margin against a genuine hang.
 #
 # 2026-10-20 (#2270): this test had grown to 77 min on CI by 2026-10-13, and on most
@@ -82,20 +73,82 @@ from scripts.build_vep_bundle import INDEXES as VEP_BUNDLE_INDEXES
 # the synthetic VEP table lacked the bundle's (chrom, pos) index, so every
 # coordinate-fallback batch scanned the whole table and the run grew quadratically
 # (60k/120k/240k took 106/320/1023 s locally; about 99 min projected at 600k).
-# With the index it is linear again, 0.85 s per 1k variants locally.
+# At that fix, the indexed fixture measured 0.85 s per 1k variants locally.
 # test_synthetic_vep_bundle_searches_positions_by_index guards that. The module
-# also runs in its own nightly job now (`slow-benchmark`: 75 min of pytest, 90 for
-# the job), so a slow benchmark can never again use up the others' budget. The
-# 60-min ceiling below is unchanged.
+# moved to its own nightly job (initially 75 min of pytest, 90 for the job),
+# isolating the remaining slow tests. That fix retained the 60-min CI ceiling.
+#
+# 2026-11-18 recalibration (#2554), after the indexed fixture and #2609's
+# parameterized upsert: all seven Nov 11-17 nightly calls took 119.99-200.10 s;
+# three serial isolated reference annotation timers took 157.7, 158.0, 156.1 s.
+# The protocol was committed before extracting timings or executing measurements:
+# docs/develop/benchmarks/annotation-budget-2026-11-18-protocol.json. It fixes
+# 1.5x CI / 1.25x reference headroom, adds one reporting quantum and rounds UP
+# to minutes: 360 s CI / 240 s reference. CI uses full test-call time as an
+# annotation upper bound; reference uses annotation-only time, excluding setup.
+# Both ceilings fit every observation and reject twice their group's median.
+# Full source/environment/observation provenance is in the adjacent results JSON
+# and docs/develop/testing.md. Nightly preserves its fixed 15+15 min margins:
+# 21 min pytest / 36 min job. The 10k guard and all correctness assertions remain.
 _ANNOTATION_TARGET_SECONDS = 120.0  # PRD ideal (< 2 min) — informational only
 _ANNOTATION_PRD_HARD_LIMIT_SECONDS = 300.0  # PRD hard limit (< 5 min) — informational only
-_ANNOTATION_HARD_LIMIT_SECONDS = 1800.0  # 30 min — local/reference regression ceiling
-_ANNOTATION_CI_HARD_LIMIT_SECONDS = 3600.0  # 60 min — CI ceiling, < 75-min nightly pytest budget
+_ANNOTATION_HARD_LIMIT_SECONDS = 240.0  # 4 min — measured reference regression ceiling
+_ANNOTATION_CI_HARD_LIMIT_SECONDS = 360.0  # 6 min — measured CI regression ceiling
 
 
 def _running_on_ci() -> bool:
     """True on GitHub Actions and most CI providers (all export ``CI``)."""
     return os.environ.get("CI", "").strip().lower() in {"true", "1"}
+
+
+def _assert_annotation_regression_budget(elapsed: float) -> tuple[float, str]:
+    """Apply the environment's strict ceiling to the actual annotation timer."""
+    if _running_on_ci():
+        limit, where = _ANNOTATION_CI_HARD_LIMIT_SECONDS, "CI runner"
+    else:
+        limit, where = _ANNOTATION_HARD_LIMIT_SECONDS, "reference-machine"
+    assert elapsed < limit, (
+        f"Annotation took {elapsed:.1f}s, exceeds {limit / 60:.0f}-minute {where} hard limit"
+    )
+    return limit, where
+
+
+@pytest.mark.parametrize("ci", ["true", "1", " TrUe "])
+def test_annotation_ci_budget_rejects_twofold_baseline(monkeypatch, ci: str) -> None:
+    """The fixed seven-night calibration's normal maximum fits; 2x median fails."""
+    # Nov 11-17 full-call observations conservatively upper-bound annotation:
+    # max=200.10+0.01; median=191.76+0.01. See the registered #2554 protocol.
+    monkeypatch.setenv("CI", ci)
+    _assert_annotation_regression_budget(200.11)
+    with pytest.raises(AssertionError, match="CI runner hard limit"):
+        _assert_annotation_regression_budget(383.54)
+
+
+@pytest.mark.parametrize("ci", [None, "false", "0", ""])
+def test_annotation_reference_budget_rejects_twofold_baseline(monkeypatch, ci: str | None) -> None:
+    """The three isolated reference observations fit; 2x their median fails."""
+    # Annotation-only observations: 157.7, 158.0, 156.1 s; add the printed
+    # timer's 0.1 s reporting quantum before taking max/median (#2554).
+    if ci is None:
+        monkeypatch.delenv("CI", raising=False)
+    else:
+        monkeypatch.setenv("CI", ci)
+    _assert_annotation_regression_budget(158.1)
+    with pytest.raises(AssertionError, match="reference-machine hard limit"):
+        _assert_annotation_regression_budget(315.6)
+
+
+@pytest.mark.parametrize("ci", [None, "true"])
+def test_annotation_budget_rejects_the_exact_ceiling(monkeypatch, ci: str | None) -> None:
+    if ci is None:
+        monkeypatch.delenv("CI", raising=False)
+    else:
+        monkeypatch.setenv("CI", ci)
+    limit, where = _assert_annotation_regression_budget(0.0)
+    _assert_annotation_regression_budget(math.nextafter(limit, 0.0))
+    for elapsed in (limit, math.nextafter(limit, math.inf)):
+        with pytest.raises(AssertionError, match=where + " hard limit"):
+            _assert_annotation_regression_budget(elapsed)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -332,21 +385,9 @@ def test_annotation_600k_timing(
     assert result.gene_phenotype_matched > 0, "No gene-phenotype matches"
     assert not result.errors, f"Annotation errors: {result.errors}"
 
-    # Regression ceiling (NOT the PRD target — see "Performance budgets"):
-    # the PRD target is 120 s ideal / 300 s hard
-    # (_ANNOTATION_TARGET_SECONDS / _ANNOTATION_PRD_HARD_LIMIT_SECONDS), but no
-    # available hardware meets it (real runs ~22 min local / ~35 min CI), so this
-    # asserts a realistic ceiling (1800 s local / 3600 s CI) that still trips a
-    # gross regression. The ~10× gap to the 120 s/300 s target is deliberate — do
-    # not silence a failure by loosening this without a pipeline-perf pass.
-    # Generous on the higher-variance CI runner, tighter on the reference box.
-    if _running_on_ci():
-        limit, where = _ANNOTATION_CI_HARD_LIMIT_SECONDS, "CI runner"
-    else:
-        limit, where = _ANNOTATION_HARD_LIMIT_SECONDS, "reference-machine"
-    assert elapsed < limit, (
-        f"Annotation took {elapsed:.1f}s, exceeds {limit / 60:.0f}-minute {where} hard limit"
-    )
+    # Apply the calibrated regression ceiling to annotation-only time, after
+    # every correctness assertion above. The PRD targets are printed separately.
+    limit, where = _assert_annotation_regression_budget(elapsed)
 
     # Log performance info
     rate = 600_000 / elapsed if elapsed > 0 else 0

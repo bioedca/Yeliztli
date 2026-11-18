@@ -102,6 +102,61 @@ synthetic outputs, and distinguish implementation cost from resource contention.
 A faster run on another host does not by itself reproduce or explain the original
 failure, and a loaded timing failure is still a failed smoke test.
 
+### 600k annotation regression budgets
+
+The 2026-11-18 calibration for [#2554](https://github.com/bioedca/Yeliztli/issues/2554)
+uses a [protocol committed before timing extraction or reference execution](https://github.com/bioedca/Yeliztli/blob/7138411bb21f2651a82199e547af109fb75099e5/docs/develop/benchmarks/annotation-budget-2026-11-18-protocol.json).
+It fixes seven consecutive successful nightly executions from November 11–17 and
+three serial fresh-process reference executions. Every measured execution passed
+the original ingest/output/matched-source/error assertions. The indexed synthetic
+fixture and parameterized upsert are present in all observations. The
+[results and environment record](benchmarks/annotation-budget-2026-11-18-results.json)
+and [all ten observations](benchmarks/annotation-budget-2026-11-18-measurements.csv)
+retain source SHAs, public CI job links and access dates, versions and sanitized
+timing/resource evidence.
+
+| Environment and metric | Observed range | Conservative maximum / median | Headroom, rounded up to minutes | Strict ceiling |
+| --- | --- | --- | --- | --- |
+| CI: full annotation-test call | 119.99–200.10 s | 200.11 / 191.77 s | `ceil(1.5 × 200.11 / 60) × 60` | **360 s (6 min)** |
+| Reference: annotation-only timer | 156.1–158.0 s | 158.1 / 157.8 s | `ceil(1.25 × 158.1 / 60) × 60` | **240 s (4 min)** |
+
+The conservative values add one reporting quantum: 0.01 s for pytest call
+durations, 0.1 s for the printed annotation timer. CI call time includes sample
+insertion and output checks, so it upper-bounds the narrower annotation timer;
+fixture setup is separate. Reference full-call times were 159.50–161.39 s,
+annotation fixture setup was 15.91 s, and fresh-process wall times were
+181.02–182.94 s. The seven CI observations span Ubuntu 24.04 and 26.04 runner
+images with Python 3.12.16; no image or timing was excluded. Historical points
+remain evidence at their original heads, with identical recorded benchmark input
+objects; they do not substitute for final-head validation.
+
+The reference runs used Python 3.12.3, an exclusive CPU-only allocation, a finite
+32-GiB memory request and 90-minute job cap. Although exclusive allocation
+reserves the whole CPU node, the process was pinned to four distinct physical
+cores verified within it. Both `OMP_NUM_THREADS` and `OPENBLAS_NUM_THREADS` were
+one. Source, packages, affinity, capacity, load and absence of co-scheduled jobs
+were checked around each run; peak process RSS was about 2.1 GiB. All inputs were
+generated in memory. Individual genotype files and binary reference bundles,
+including duplicate tracked paths, were excluded and object-audited. An initial
+privacy preflight stopped before fetching any payload blob or starting a test;
+its failed setup record was retained and the duplicate exclusion corrected before
+the three measurements. Detailed machine/job/path records remain private.
+
+Both new ceilings exceed every conservative observation and are below twice
+their group's median. Fast regression controls accept the observed maxima and
+reject 383.54 s in CI and 315.6 s on the reference path; both old ceilings accepted
+those scenarios. The full 600k test calls that same strict guard after all its
+correctness assertions. The separate informational PRD targets remain 120/300 s,
+and the 10k smoke retains its 30-second guard.
+
+The isolated nightly benchmark keeps the existing fixed overhead margins:
+6 minutes of annotation plus 15 minutes for fixture/reporting gives **21 minutes
+of pytest**, plus 15 minutes for job setup gives **36 minutes for the job**.
+The interrupt signal, 2-minute kill grace and cancelled/failed-job reporter remain
+in place. Passed-test output now includes the annotation timer (`-rP`) for future
+calibration. These are measured regression guards for the documented environments;
+recalibration requires fresh evidence and a declared policy before measurements.
+
 The AncestryDNA real-bundle fixture copies only ClinVar rows alongside the VEP
 bundle. It contains no MONDO/HPO associations, so its unstamped MONDO/HPO warning
 does not indicate lost fixture coverage and must not be silenced with invented

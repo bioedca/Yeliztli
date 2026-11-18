@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "issue": 2554,
+  "registered_at": "2026-11-18T11:36:35.690881+00:00",
+  "registration_phase": "Before timing extraction, reference measurement or threshold selection",
+  "purpose": "Software regression-budget calibration only; no biological or clinical validation",
+  "baseline_head": "2feccbc7289da945c8d1f7e9781a5f1a3335d670",
+  "unchanged_benchmark_inputs": {
+    "tests/backend/test_benchmark.py": "7e566b4d3f5e6a7c6151e3f5236490461cc6c69b",
+    "scripts/benchmark.py": "32a869c41facd96dfc8583ce5126014c2183056f",
+    "scripts/build_vep_bundle.py": "b20f52baf61e1a3456942dc6ce1b565c5b1e60f1",
+    "backend/annotation": "0cb8d498ba029feb029415f1e23a33e9e1f33463",
+    "backend/db": "646dcb44689c536cd22765a92a2ae2f10f98ac64",
+    "pyproject.toml": "586cc3c6e4e056b17568799a750f87b4cd47529c"
+  },
+  "correctness_contract": "Preserve every ingest/output/match/error/index/provenance assertion, the 10k 30-second guard, and the separate informational PRD 120/300-second targets. No real sample, genotype or reference bundle is used.",
+  "historical_ci": {
+    "window_utc": [
+      "2026-11-11",
+      "2026-11-17"
+    ],
+    "selection": "All seven consecutive scheduled successful synthetic benchmark executions in this fixed completed window; no timing-based inclusion/exclusion",
+    "runs": [
+      {
+        "run": 43013550542,
+        "job": 130498873076,
+        "head": "8486042e58d24fff17abc654a42ffbb5e5c7a7f2",
+        "date": "2026-11-11"
+      },
+      {
+        "run": 43214482493,
+        "job": 131170110136,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-12"
+      },
+      {
+        "run": 43419773955,
+        "job": 131866566861,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-13"
+      },
+      {
+        "run": 43588582426,
+        "job": 132428268304,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-14"
+      },
+      {
+        "run": 43710209643,
+        "job": 132799913461,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-15"
+      },
+      {
+        "run": 43865805539,
+        "job": 133293921439,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-16"
+      },
+      {
+        "run": 44085473284,
+        "job": 134046638606,
+        "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+        "date": "2026-11-17"
+      }
+    ],
+    "primary_metric": "pytest --durations full call seconds for test_annotation_600k_timing; conservative upper bound for the narrower annotation timer; fixture setup is separate",
+    "reported_precision_seconds": 0.01,
+    "conservative_rounding_add_seconds": 0.01,
+    "headroom_factor": 1.5,
+    "runner": "Existing GitHub-hosted ubuntu-latest / Python 3.12 workflow; record available actual versions. Historical observations remain bound to their original source heads."
+  },
+  "reference": {
+    "planned_runs": 3,
+    "selection": "Three fresh-process full 600k synthetic module executions, serial, no profiling or warmup exclusion; retain every attempt and stop acceptance on any failure or invalid condition",
+    "baseline_source": "Exact public baseline head, filtered object checkout excluding both held-out individual genotype blobs",
+    "python_minor": "3.12",
+    "resources": {
+      "partition_class": "CPU",
+      "exclusive_cpu_only_node": true,
+      "cpus_per_task_requested": 8,
+      "process_physical_core_affinity": 4,
+      "memory_gib_requested": 32,
+      "time_limit": "01:30:00",
+      "gpu_requested": false,
+      "threads": {
+        "OMP_NUM_THREADS": 1,
+        "OPENBLAS_NUM_THREADS": 1
+      }
+    },
+    "allocation_note": "Exclusive allocation reserves all CPUs on the selected CPU-only node; memory remains the finite 32-GiB request. Record full actual allocation and verify four physical affinity cores belong to it.",
+    "load": "No co-scheduled Slurm jobs on the exclusive allocation; record load, affinity, packages, source, storage, concurrency and peak memory around each run. Use a fresh process and fresh synthetic in-memory fixture each time.",
+    "primary_metric": "Annotation elapsed printed by the unchanged benchmark, captured in passed-test output; also record full call/setup and wall time separately",
+    "reported_precision_seconds": 0.1,
+    "conservative_rounding_add_seconds": 0.1,
+    "headroom_factor": 1.25
+  },
+  "selection_policy": {
+    "rounding_quantum_seconds": 60,
+    "ci_limit": "ceil(1.5 * max(CI call + 0.01) / 60) * 60",
+    "reference_limit": "ceil(1.25 * max(reference annotation + 0.1) / 60) * 60",
+    "acceptance": [
+      "All seven historical benchmark jobs and all three reference executions must be functionally successful, complete and valid under the declared conditions.",
+      "CI limit must be strictly below 3600 seconds; reference limit strictly below 1800 seconds.",
+      "Both limits must strictly exceed every observed conservative upper bound.",
+      "Each new limit must be no greater than twice its group median conservative observation, so a twofold observed-baseline scenario is rejected by the strict less-than guard.",
+      "CI limit must be at least the reference limit.",
+      "No post-hoc sample deletion, threshold loosening, assertion bypass or workflow-timeout substitution. If any condition fails, retain evidence and withhold the new limits."
+    ],
+    "workflow_pytest_minutes": "CI limit / 60 + 15 (preserve existing fixed non-annotation margin)",
+    "workflow_job_minutes": "pytest minutes + 15 (preserve existing fixed setup/cleanup margin)",
+    "kill_grace_minutes": 2
+  },
+  "validation_plan": [
+    "Record a discriminating fast regression against the old limits, then pass it with calibrated limits through the same helper used by the actual 600k test.",
+    "Rerun the complete synthetic benchmark on the committed final head under both applicable budget modes without changing correctness assertions.",
+    "Run full affected backend/static/docs/workflow gates and the exact-head selected review route; main must pass all covering checks after merge."
+  ],
+  "sources": [
+    {
+      "url": "https://github.com/bioedca/Yeliztli/issues/2554",
+      "accessed": "2026-11-18"
+    },
+    {
+      "url": "https://slurm.schedmd.com/sbatch.html#OPT_exclusive",
+      "accessed": "2026-11-18",
+      "scope": "Resource-allocation semantics, verified alongside installed Slurm 25.11.2 help"
+    }
+  ],
+  "tool_fallback": "Context7 monthly quota exceeded; installed CLI help and official Slurm documentation used, with no guessed library ID or account/settings change."
+}
