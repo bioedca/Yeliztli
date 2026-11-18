@@ -2075,6 +2075,82 @@ class TestLAIPolicyQuarantine:
             sample_engine.dispose()
 
 
+class TestPayloadGateSummaryWork:
+    """#2445: the production summary must not repeat Unicode work per pattern."""
+
+    def test_large_synthetic_summary_bounds_unicode_normalization(self, monkeypatch):
+        import backend.analysis.pharmacogenomics as pgx
+        import backend.api.routes.findings as findings_route
+
+        sample_engine = sa.create_engine("sqlite://")
+        count = 128
+        rows = [
+            {
+                "id": index + 1,
+                "module": "synthetic_alpha" if index % 2 == 0 else "synthetic_beta",
+                "category": "synthetic_observation",
+                "evidence_level": 2,
+                "gene_symbol": "SYNTHETIC",
+                "finding_text": f"Synthetic observation {index:06d}: software control.",
+                "conditions": "Synthetic condition label",
+                "detail_json": json.dumps({"labels": ["synthetic", "bounded"]}),
+                "provenance": json.dumps({"source": {"version": "synthetic-v1"}}),
+                "pmid_citations": "[]",
+            }
+            for index in range(count)
+        ]
+        held = {
+            **rows[0],
+            "id": count + 1,
+            "detail_json": json.dumps({"note": "CYP2D6 tamoxifen software hold control"}),
+        }
+        independent_safe = {
+            **rows[0],
+            "id": count + 2,
+            "detail_json": json.dumps(
+                {
+                    "effects": [
+                        {"gene": "CYP2D6", "drug": "codeine"},
+                        {"gene": "CYP2C19", "drug": "tamoxifen"},
+                    ]
+                }
+            ),
+        }
+        assert rows and len(rows) == count
+        try:
+            create_sample_tables(sample_engine)
+            with sample_engine.begin() as conn:
+                conn.execute(findings.insert(), [*rows, held, independent_safe])
+            monkeypatch.setattr(findings_route, "_get_sample_engine", lambda _: sample_engine)
+            monkeypatch.setattr(findings_route, "gated_modules_to_hide", lambda _: set())
+            # Count actual Unicode operations instead of asserting wall time on
+            # shared CI hosts. Leave the real normalizer and predicate running.
+            normalize = pgx.unicodedata.normalize
+            with patch.object(pgx.unicodedata, "normalize", wraps=normalize) as normalizations:
+                response = findings_route.findings_summary(sample_id=1)
+
+            assert response.total_findings == count + 1
+            assert response.withheld is False
+            assert response.high_confidence_findings == []
+            assert len(response.modules) == 2
+            assert {item.module: item.count for item in response.modules} == {
+                "synthetic_alpha": count // 2 + 1,
+                "synthetic_beta": count // 2,
+            }
+            assert {item.module: item.top_finding_text for item in response.modules} == {
+                "synthetic_alpha": rows[0]["finding_text"],
+                "synthetic_beta": rows[1]["finding_text"],
+            }
+            assert [item.model_dump() for item in response.evidence_level_counts] == [
+                {"evidence_level": 2, "count": count + 1}
+            ]
+            # Budget allows ordinary key/category normalization and cold
+            # character metadata; repeated full-text scans exceed it widely.
+            assert normalizations.call_count < count * 100
+        finally:
+            sample_engine.dispose()
+
+
 class TestWithheldPrescribingAlertPresentation:
     """#2019: a retained custom alert cannot bypass generic finding surfaces."""
 

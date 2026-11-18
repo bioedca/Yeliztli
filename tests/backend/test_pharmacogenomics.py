@@ -2513,8 +2513,60 @@ class TestRunPharmaAnnotationCoverage:
         assert coverage & CPIC_BIT == CPIC_BIT
 
 
+def _legacy_strings_mention_held_pair(values: list[str]) -> bool:
+    """Freeze the pre-#2445 predicate from main 2951af43 for differential checks.
+
+    The generic identifier matchers and normalization stay unchanged. Compare
+    the new shared scan against their original composition throughout the full
+    existing adversarial presentation corpus below, including every pinned
+    confusable and independent-record negative control.
+    """
+    from backend.analysis import pharmacogenomics as pgx
+
+    return any(
+        (
+            any(pgx._text_mentions_identifier(item, gene) for item in values)
+            and any(pgx._text_mentions_identifier(item, drug) for item in values)
+        )
+        or any(pgx._text_mentions_identifier_sequence(item, gene, drug) for item in values)
+        for gene, drug in pgx.WITHHELD_PRESCRIBING_ALERT_PAIRS
+    )
+
+
 class TestPatientPresentableFindingPayload:
     """#2019: legacy structured payloads cannot bypass the output hold."""
+
+    @pytest.fixture(autouse=True)
+    def compare_legacy_held_pair_predicate(self, monkeypatch):
+        from backend.analysis import pharmacogenomics as pgx
+
+        scan = pgx._strings_mention_held_pair
+
+        def compare(values):
+            actual = scan(values)
+            assert actual is _legacy_strings_mention_held_pair(values)
+            return actual
+
+        monkeypatch.setattr(pgx, "_strings_mention_held_pair", compare)
+
+    @pytest.mark.parametrize(
+        ("values", "expected"),
+        [
+            ([], False),
+            (["CYP2D6", "tamoxifen"], True),
+            (["tamoxifen", "CYP2D6"], True),
+            (["CYP2", "D6 tamoxifen"], False),
+            (["CYP2D6 tamo", "xifen"], False),
+            (["xCYP2D6", "tamoxifen"], False),
+            (["CYP2D6", "tamoxifenx"], False),
+            (["legacyCYP2D6tamoxifendose"], True),
+            (["CYP2D\u03326", "ta\u0433noxifen"], True),
+        ],
+    )
+    def test_field_scan_preserves_string_edges(self, values, expected):
+        from backend.analysis import pharmacogenomics as pgx
+
+        assert pgx._strings_mention_held_pair(values) is expected
 
     @pytest.mark.parametrize(
         "payload",
