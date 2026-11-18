@@ -572,6 +572,22 @@ npm --prefix frontend run build
 npx playwright test tests/e2e/error-text-contrast.spec.ts
 ```
 
+`tests/e2e/overlay-development-hover.spec.ts` separately checks the populated
+Delete control under Vite's development CSS in both themes. It requires the Vite
+client and injected source stylesheet, checks the actual 10% destructive tint,
+and audits foreground contrast. Run it with
+`npx playwright test tests/e2e/overlay-development-hover.spec.ts` in all three
+browser projects. Keep the production-asset spec above unchanged: passing one
+serving mode does not establish the other.
+
+The development discrepancy in [#2667](https://github.com/bioedca/Yeliztli/issues/2667)
+reproduced on identical public app bytes and native/font inputs with Playwright
+1.58.2 / WebKit 26.0: hover matched but the background stayed transparent. The
+locked 1.64.1 / WebKit 27.2 applied the tint in both themes; both SDKs applied it
+with production assets. This comparison supports retaining the SDK upgrade and
+the development regression, without a global hover-query override or an
+application CSS workaround. It does not identify the first fixed browser version.
+
 The hover background must change when `(hover: hover)` matches, and remain
 unchanged when it does not; Chromium and WebKit must exercise the positive path.
 Headless Firefox can report `hover: none`. This follows [Tailwind's hover media
