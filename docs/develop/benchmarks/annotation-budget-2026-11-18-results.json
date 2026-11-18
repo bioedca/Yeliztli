@@ -1,0 +1,431 @@
+{
+  "schema": 1,
+  "issue": 2554,
+  "accessed": "2026-11-18",
+  "protocol": "annotation-budget-2026-11-18-protocol.json",
+  "protocol_registration_head": "7138411bb21f2651a82199e547af109fb75099e5",
+  "protocol_sha256": "61565121be24c3fe9135962f9b6dda5145089c5a2b0f198be7429d075e480b91",
+  "baseline_source": "2feccbc7289da945c8d1f7e9781a5f1a3335d670",
+  "unchanged_benchmark_inputs": {
+    "tests/backend/test_benchmark.py": "7e566b4d3f5e6a7c6151e3f5236490461cc6c69b",
+    "scripts/benchmark.py": "32a869c41facd96dfc8583ce5126014c2183056f",
+    "scripts/build_vep_bundle.py": "b20f52baf61e1a3456942dc6ce1b565c5b1e60f1",
+    "backend/annotation": "0cb8d498ba029feb029415f1e23a33e9e1f33463",
+    "backend/db": "646dcb44689c536cd22765a92a2ae2f10f98ac64",
+    "pyproject.toml": "586cc3c6e4e056b17568799a750f87b4cd47529c"
+  },
+  "scope": "Software regression calibration on synthetic in-memory inputs only; no scientific validation",
+  "metrics": "CI uses full pytest annotation-test call time (an upper bound); reference uses printed annotation-only time. Setup, call and process wall time remain separate. Conservative values add one reporting quantum.",
+  "ci": [
+    {
+      "date": "2026-11-11",
+      "run": 43013550542,
+      "job": 130498873076,
+      "head": "8486042e58d24fff17abc654a42ffbb5e5c7a7f2",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43013550542/job/130498873076",
+      "accessed": "2026-11-18",
+      "call_seconds": 119.99,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 12.68,
+        "test_ingest_600k_timing": 0.61
+      },
+      "conservative_call_seconds": 120.0,
+      "environment": {
+        "image": "ubuntu-24.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "dc01c9f8ddf8aa74034b00be03a50ab5c16dc943680e3ee45f7e3791ab6cf385",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "119.99s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "12.68s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-12",
+      "run": 43214482493,
+      "job": 131170110136,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43214482493/job/131170110136",
+      "accessed": "2026-11-18",
+      "call_seconds": 195.82,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 20.66,
+        "test_ingest_600k_timing": 0.95
+      },
+      "conservative_call_seconds": 195.83,
+      "environment": {
+        "image": "ubuntu-24.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "9d1cfd366fc79bf3f924e02bb590c1914a35a5f0cb5af82af40acc7bb4b8eae7",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "195.82s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "20.66s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-13",
+      "run": 43419773955,
+      "job": 131866566861,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43419773955/job/131866566861",
+      "accessed": "2026-11-18",
+      "call_seconds": 200.1,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 20.92,
+        "test_ingest_600k_timing": 1.1
+      },
+      "conservative_call_seconds": 200.11,
+      "environment": {
+        "image": "ubuntu-24.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "1aab5ddd6ecde95f5720e49e6a609cbb33a44709c73ac6cee1771e1c43fdbdc2",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "200.10s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "20.92s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-14",
+      "run": 43588582426,
+      "job": 132428268304,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43588582426/job/132428268304",
+      "accessed": "2026-11-18",
+      "call_seconds": 195.3,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 20.61,
+        "test_ingest_600k_timing": 1.0
+      },
+      "conservative_call_seconds": 195.31,
+      "environment": {
+        "image": "ubuntu-26.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "e0e15728c09c72f459fc03106276bf457d20da308ca23e111c39daf29d93c2a9",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "195.30s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "20.61s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-15",
+      "run": 43710209643,
+      "job": 132799913461,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43710209643/job/132799913461",
+      "accessed": "2026-11-18",
+      "call_seconds": 183.02,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 19.92,
+        "test_ingest_600k_timing": 0.89
+      },
+      "conservative_call_seconds": 183.03,
+      "environment": {
+        "image": "ubuntu-26.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "6b733c3882b74f31865531c6265fd851e5184612b039e863822614f433aae642",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "183.02s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "19.92s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "run": 43865805539,
+      "job": 133293921439,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/43865805539/job/133293921439",
+      "accessed": "2026-11-18",
+      "call_seconds": 129.44,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 14.29,
+        "test_ingest_600k_timing": 0.68
+      },
+      "conservative_call_seconds": 129.45,
+      "environment": {
+        "image": "ubuntu-26.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "fcfae752f0306efd7e4f21f41858178224afe670dd2dfc93e8db3101c516deee",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "129.44s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "14.29s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    },
+    {
+      "date": "2026-11-17",
+      "run": 44085473284,
+      "job": 134046638606,
+      "head": "bc7afc3ed1e1c22d4f758bb6304b85e7b7c15dd4",
+      "source_url": "https://github.com/bioedca/Yeliztli/actions/runs/44085473284/job/134046638606",
+      "accessed": "2026-11-18",
+      "call_seconds": 191.76,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 20.21,
+        "test_ingest_600k_timing": 1.02
+      },
+      "conservative_call_seconds": 191.77,
+      "environment": {
+        "image": "ubuntu-26.04",
+        "python": "3.12.16",
+        "pytest": "9.2.0"
+      },
+      "result": "2 passed; no failure/error/skip; benchmark step completed successfully",
+      "captured_job_log_text_sha256": "a1734fab978bf307658702be3efbbb56e0fbff54710f65c6331909d0582e0a9e",
+      "sanitized_log_excerpt": [
+        "tests/backend/test_benchmark.py::test_ingest_600k_timing PASSED          [ 50%]",
+        "tests/backend/test_benchmark.py::test_annotation_600k_timing PASSED      [100%]",
+        "191.76s call     tests/backend/test_benchmark.py::test_annotation_600k_timing",
+        "20.21s setup    tests/backend/test_benchmark.py::test_annotation_600k_timing"
+      ]
+    }
+  ],
+  "reference": [
+    {
+      "run": 1,
+      "source": "2feccbc7289da945c8d1f7e9781a5f1a3335d670",
+      "annotation_seconds": 157.7,
+      "call_seconds": 161.09,
+      "wall_seconds": 182.93831249303184,
+      "max_rss_kib": 2192432,
+      "log_sha256": "9fdfa49a08286e67c191569f2364869b19a27cc38ef65435b4c05a07b57c3a43",
+      "conservative_annotation_seconds": 157.8,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 15.91,
+        "test_ingest_600k_timing": 0.81
+      },
+      "result": "2 passed; zero failure/error/skip",
+      "sanitized_annotation_output": "Annotation benchmark: 157.7s (3,806 var/s), 600,000 rows written, 60 batches",
+      "fresh_process": true,
+      "ci": false,
+      "load_before": [
+        1.22802734375,
+        0.50830078125,
+        0.263671875
+      ],
+      "load_after": [
+        1.384765625,
+        0.9443359375,
+        0.4833984375
+      ],
+      "affinity_physical_cores": 4,
+      "allocation_membership_verified": true,
+      "exclusive_allocation": true,
+      "co_scheduled_jobs": 0,
+      "source_and_packages_unchanged": true
+    },
+    {
+      "run": 2,
+      "source": "2feccbc7289da945c8d1f7e9781a5f1a3335d670",
+      "annotation_seconds": 158.0,
+      "call_seconds": 161.39,
+      "wall_seconds": 182.94400630396558,
+      "max_rss_kib": 2193404,
+      "log_sha256": "9ff054e2f82e6f6f449bd23316265fc99c7e87dfa05a1bca3d979305d5ff9491",
+      "conservative_annotation_seconds": 158.1,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 15.91,
+        "test_ingest_600k_timing": 0.81
+      },
+      "result": "2 passed; zero failure/error/skip",
+      "sanitized_annotation_output": "Annotation benchmark: 158.0s (3,798 var/s), 600,000 rows written, 60 batches",
+      "fresh_process": true,
+      "ci": false,
+      "load_before": [
+        1.384765625,
+        0.9443359375,
+        0.4833984375
+      ],
+      "load_after": [
+        1.3056640625,
+        1.12744140625,
+        0.64892578125
+      ],
+      "affinity_physical_cores": 4,
+      "allocation_membership_verified": true,
+      "exclusive_allocation": true,
+      "co_scheduled_jobs": 0,
+      "source_and_packages_unchanged": true
+    },
+    {
+      "run": 3,
+      "source": "2feccbc7289da945c8d1f7e9781a5f1a3335d670",
+      "annotation_seconds": 156.1,
+      "call_seconds": 159.5,
+      "wall_seconds": 181.01711362897186,
+      "max_rss_kib": 2193264,
+      "log_sha256": "67d73dca3a8c95da9b43361aac02fc5f26f108afceb7bfa4d61d2aa7a1e26daa",
+      "conservative_annotation_seconds": 156.2,
+      "fixture_setup_seconds": {
+        "test_annotation_600k_timing": 15.91,
+        "test_ingest_600k_timing": 0.8
+      },
+      "result": "2 passed; zero failure/error/skip",
+      "sanitized_annotation_output": "Annotation benchmark: 156.1s (3,844 var/s), 600,000 rows written, 60 batches",
+      "fresh_process": true,
+      "ci": false,
+      "load_before": [
+        1.3056640625,
+        1.12744140625,
+        0.64892578125
+      ],
+      "load_after": [
+        1.22412109375,
+        1.1572265625,
+        0.7529296875
+      ],
+      "affinity_physical_cores": 4,
+      "allocation_membership_verified": true,
+      "exclusive_allocation": true,
+      "co_scheduled_jobs": 0,
+      "source_and_packages_unchanged": true
+    }
+  ],
+  "reference_environment": {
+    "os": "Ubuntu 24.04 x86_64",
+    "python": "3.12.3",
+    "resources": {
+      "partition_class": "CPU",
+      "exclusive_cpu_only_node": true,
+      "cpus_per_task_requested": 8,
+      "process_physical_core_affinity": 4,
+      "memory_gib_requested": 32,
+      "time_limit": "01:30:00",
+      "gpu_requested": false,
+      "threads": {
+        "OMP_NUM_THREADS": 1,
+        "OPENBLAS_NUM_THREADS": 1
+      }
+    },
+    "actual_allocation": "Exclusive CPU-only node reserves all logical CPUs; process pinned to four distinct physical cores verified within that allocation. Memory remains the requested32GiB.",
+    "packages": {
+      "alembic": "1.20.1",
+      "annotated-doc": "0.0.7",
+      "annotated-types": "0.8.0",
+      "anyio": "4.16.0",
+      "ast_serialize": "0.13.1",
+      "babel": "2.18.0",
+      "backrefs": "8.3",
+      "bcrypt": "5.0.0",
+      "biopython": "1.88",
+      "certifi": "2026.10.23",
+      "charset-normalizer": "3.5.2",
+      "click": "8.5.1",
+      "colorama": "0.4.6",
+      "coverage": "7.17.3",
+      "fastapi": "0.163.2",
+      "ghp-import": "2.1.0",
+      "greenlet": "3.5.6",
+      "h11": "0.16.0",
+      "httpcore": "1.0.9",
+      "httptools": "0.9.0",
+      "httpx": "0.28.1",
+      "huey": "3.5.4",
+      "idna": "3.20",
+      "iniconfig": "2.3.1",
+      "Jinja2": "3.1.6",
+      "librt": "0.16.0",
+      "Mako": "1.4.3",
+      "Markdown": "3.11.3",
+      "MarkupSafe": "3.0.4",
+      "mergedeep": "1.3.4",
+      "mkdocs": "1.6.1",
+      "mkdocs-get-deps": "0.2.2",
+      "mkdocs-material": "9.8.1",
+      "mkdocs-material-extensions": "1.3.1",
+      "mypy": "2.4.1",
+      "mypy_extensions": "1.2.0",
+      "narwhals": "2.29.0",
+      "numpy": "2.5.5",
+      "nvidia-nccl-cu13": "2.32.6",
+      "opentelemetry-api": "1.45.2",
+      "packaging": "26.3",
+      "paginate": "0.5.7",
+      "pandas": "3.1.1",
+      "pathspec": "1.1.1",
+      "platformdirs": "4.14.7",
+      "playwright": "1.65.2",
+      "plotly": "7.1.0",
+      "pluggy": "1.7.0",
+      "pydantic": "2.14.3",
+      "pydantic-settings": "2.16.3",
+      "pydantic_core": "2.50.4",
+      "Pygments": "2.21.0",
+      "pyliftover": "0.4.1",
+      "pymdown-extensions": "13.1",
+      "pysam": "0.24.1",
+      "pytest": "9.2.0",
+      "pytest-asyncio": "1.5.0",
+      "pytest-cov": "7.1.0",
+      "python-dateutil": "4.0.0",
+      "python-dotenv": "1.2.4",
+      "python-multipart": "0.0.34",
+      "PyYAML": "6.0.3",
+      "pyyaml_env_tag": "1.1",
+      "requests": "2.34.2",
+      "ruff": "0.15.15",
+      "scipy": "1.18.1",
+      "SQLAlchemy": "2.1.9",
+      "starlette": "1.10.0",
+      "structlog": "26.1.0",
+      "typing-inspection": "0.4.5",
+      "typing_extensions": "4.16.0",
+      "tzdata": "2026.6",
+      "urllib3": "2.8.0",
+      "uvicorn": "0.54.0",
+      "uvloop": "0.23.0",
+      "vulture": "2.16",
+      "watchdog": "7.1.0",
+      "watchfiles": "1.3.0",
+      "websockets": "17.4",
+      "xgboost": "3.4.1"
+    },
+    "source_package": "Editable yeliztli at baseline_source",
+    "command": "CI=false OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python -m pytest tests/backend/test_benchmark.py -v --tb=short --color=no -m slow -rP --durations=10",
+    "accounting": "sacct unavailable (accounting storage disabled); terminal controller COMPLETED/0:0, queue absence, exit0, JUnit/PASSED records and complete hashed artifacts independently verified."
+  },
+  "premeasurement_setup": "An initial privacy preflight stopped before checkout/test execution because an excluded reference bundle had a second tracked path. Zero payload blobs were present and zero benchmark executions began. Both aliases were then excluded in a fresh namespace. The failed setup was retained; the registered three measured executions and all statistical/resource rules were unchanged.",
+  "privacy": "Both held-out individual genotype files and all tracked aliases of the two binary reference bundles were absent from the source checkout and Git object store. Machine names, user/path/job identifiers, controller logs and raw environment records remain private.",
+  "decision": {
+    "ci_limit_seconds": 360,
+    "reference_limit_seconds": 240,
+    "ci_conservative_max_seconds": 200.11,
+    "ci_conservative_median_seconds": 191.77,
+    "reference_conservative_max_seconds": 158.1,
+    "reference_conservative_median_seconds": 157.8,
+    "ci_twofold_median_seconds": 383.54,
+    "reference_twofold_median_seconds": 315.6,
+    "nightly_pytest_minutes": 21,
+    "nightly_job_minutes": 36,
+    "kill_grace_minutes": 2,
+    "all_registered_acceptance_conditions_passed": true
+  },
+  "limits": "Historical CI points remain evidence at their original heads, not final-head validation. Only the recorded benchmark input closure is identical. Hosted runner images changed within the fixed window; no observation was excluded. These finite observations support regression guards on the documented environments, not a universal hardware guarantee."
+}

@@ -11,6 +11,7 @@ prints, and the benchmark in a job of its own.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -103,3 +104,21 @@ def test_the_benchmark_runs_alone_and_nothing_slow_is_dropped() -> None:
     assert f"--ignore={_BENCHMARK}" in slow
     assert f"pytest {_BENCHMARK} " in benchmark and "-m slow" in benchmark
     assert Path(__file__).resolve().parents[2].joinpath(_BENCHMARK).is_file()
+
+
+def test_benchmark_timeout_preserves_calibrated_overhead_and_timer_output() -> None:
+    calibration = json.loads(
+        _NIGHTLY.parents[2]
+        .joinpath("docs/develop/benchmarks/annotation-budget-2026-11-18-results.json")
+        .read_text(encoding="utf-8")
+    )["decision"]
+    job = _jobs()["slow-benchmark"]
+    (run,) = _pytest_runs(job)
+    budget = re.search(r"timeout --signal=INT --kill-after=(\d+)m (\d+)m", run)
+    assert budget
+    kill_after, pytest_minutes = (int(value) for value in budget.groups())
+    assert pytest_minutes == calibration["ci_limit_seconds"] / 60 + 15
+    assert job["timeout-minutes"] == pytest_minutes + 15
+    assert kill_after == 2
+    assert f"{pytest_minutes}-minute budget" in run
+    assert "-rP" in run and "--durations=10" in run

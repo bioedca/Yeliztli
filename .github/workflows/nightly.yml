@@ -205,12 +205,14 @@ jobs:
   # other nights, because its synthetic VEP table lacked the bundle's (chrom, pos)
   # index and grew quadratically (#2270; fixed in scripts/benchmark.py). It runs
   # alone anyway, so a slow benchmark can never again use up the budget of the
-  # tests collected after it. Its own CI ceiling is 60 min of annotation
-  # (test_benchmark.py), so 75 min of pytest covers that plus seeding 600k rows.
+  # tests collected after it. The predeclared 2026-11-18 calibration (#2554)
+  # sets a 6-minute CI annotation ceiling (test_benchmark.py). Preserve the
+  # fixed 15-minute fixture/reporting and 15-minute job-setup margins:
+  # 21 minutes of pytest, 36 for the job; the INT/2m kill grace is unchanged.
   slow-benchmark:
     name: Slow-tier benchmark (600k annotation)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 36
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -231,11 +233,11 @@ jobs:
         id: pytest
         run: |
           set +e
-          timeout --signal=INT --kill-after=2m 75m \
-            python -m pytest tests/backend/test_benchmark.py -v --tb=short -m slow --durations=10
+          timeout --signal=INT --kill-after=2m 21m \
+            python -m pytest tests/backend/test_benchmark.py -v --tb=short -m slow -rP --durations=10
           status=$?
           if [ "$status" -eq 124 ]; then
-            echo "::error::The 600k benchmark ran past its 75-minute budget and was interrupted. The traceback above shows where it was."
+            echo "::error::The 600k benchmark ran past its 21-minute budget and was interrupted. The traceback above shows where it was."
           fi
           exit "$status"
 
