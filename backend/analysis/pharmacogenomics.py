@@ -625,8 +625,9 @@ class _RenderedTextHeldPairScanner:
             for event in _rendered_text_normalized_events(source_character):
                 self._state = _advance_rendered_text_state(self._state, event)
 
-    def is_presentable(self) -> bool:
-        """Finalize end-of-text right boundaries and return the rendered verdict."""
+    def held_pair_matches(self) -> tuple[tuple[bool, bool, bool], ...]:
+        """Finalize gene, drug and fused-sequence matches for each held pair."""
+        matches = []
         pattern_offset = 0
         config = _rendered_text_scanner_config()
         for pair_patterns, (gene_count, drug_count) in zip(
@@ -642,13 +643,20 @@ class _RenderedTextHeldPairScanner:
             gene_states = pair_states[:gene_count]
             drug_states = pair_states[gene_count : gene_count + drug_count]
             sequence_states = pair_states[gene_count + drug_count :]
-            if any(found for _active, _pending, found in sequence_states):
-                return False
-            if any(found or pending for _active, pending, found in gene_states) and any(
-                found or pending for _active, pending, found in drug_states
-            ):
-                return False
-        return True
+            matches.append(
+                (
+                    any(bool(found or pending) for _active, pending, found in gene_states),
+                    any(bool(found or pending) for _active, pending, found in drug_states),
+                    any(bool(found) for _active, _pending, found in sequence_states),
+                )
+            )
+        return tuple(matches)
+
+    def is_presentable(self) -> bool:
+        """Finalize end-of-text right boundaries and return the rendered verdict."""
+        return not any(
+            sequence or gene and drug for gene, drug, sequence in self.held_pair_matches()
+        )
 
 
 def is_patient_presentable_rendered_text_chunks(chunks: Iterable[str]) -> bool:
@@ -785,15 +793,26 @@ def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
 
 
 def _strings_mention_held_pair(values: list[str]) -> bool:
-    """Whether a collection of rendered text can form a held pair."""
-    return any(
-        (
-            any(_text_mentions_identifier(item, gene) for item in values)
-            and any(_text_mentions_identifier(item, drug) for item in values)
-        )
-        or any(_text_mentions_identifier_sequence(item, gene, drug) for item in values)
-        for gene, drug in WITHHELD_PRESCRIBING_ALERT_PAIRS
-    )
+    """Scan each field once, then combine matches within this evidence group.
+
+    The existing finite scanner shares bounded character/event metadata, never
+    full finding text. Reset its state for each field: a partial identifier or
+    fused sequence cannot cross field edges. Complete gene and drug matches may
+    meet across fields, exactly as in the original predicate. Callers retain
+    the independent-record boundaries in ``_evidence_has_held_pair``.
+    """
+    group_matches = [(False, False)] * len(_rendered_text_scanner_config().pair_patterns)
+    for value in values:
+        scanner = _RenderedTextHeldPairScanner()
+        scanner.feed(value)
+        for index, (gene, drug, sequence) in enumerate(scanner.held_pair_matches()):
+            previous_gene, previous_drug = group_matches[index]
+            gene = gene or previous_gene
+            drug = drug or previous_drug
+            if sequence or gene and drug:
+                return True
+            group_matches[index] = (gene, drug)
+    return False
 
 
 def _evidence_has_held_pair(evidence: _PrescribingEvidence) -> bool:

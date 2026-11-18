@@ -98,6 +98,37 @@ bundle. It contains no MONDO/HPO associations, so its unstamped MONDO/HPO warnin
 does not indicate lost fixture coverage and must not be silenced with invented
 installation provenance.
 
+### Findings payload filtering
+
+The payload gate scans each individual string once with the same finite matcher
+used for rendered text. It combines complete gene/drug matches within the
+existing evidence group, while partial identifiers and fused sequences cannot
+cross field edges. Independent complete records retain their own boundaries.
+Only bounded character/event/state metadata is cached; finding text and payloads
+are not cached globally. Unicode normalization, pinned confusables, strict JSON
+parsing, opt-in gates and the withheld-versus-empty response contract are unchanged.
+
+The presentation corpus in `test_pharmacogenomics.py` compares every group scan
+against the original generic-matcher composition, including all pinned confusables
+and safe-record controls. The production-summary regression checks exact counts,
+top text and both filter outcomes, with a Unicode-operation budget rather than a
+wall-clock threshold.
+
+Run a bounded synthetic comparison in a finite CPU allocation:
+
+```bash
+python scripts/benchmark_payload_gate.py --rows 10000 --repeats 3
+```
+
+The script alternates legacy and optimized predicate lanes serially on the same
+synthetic database and asserts identical complete summary bodies. Record the exact
+head, environment, allocation/affinity and resource state with its JSON output.
+Its input/summary hashes support comparisons without sample data. The separate
+32-row residual profile is diagnostic, excluded from acceptance timings. This
+measures software behavior and performance, not scientific accuracy; summary row
+loading and aggregation remain linear, with their separate design tracked in
+[#2358](https://github.com/bioedca/Yeliztli/issues/2358).
+
 ### Ancestry inference timing
 
 Keep the existing ancestry guards unchanged: `test_projection_under_2_seconds`
