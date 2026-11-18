@@ -526,7 +526,7 @@ function AssignIndividualControl({
           }
           onChange={(e) => handleSelect(e.target.value)}
           disabled={isPending}
-          className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+          className="scheme-light dark:scheme-dark rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           data-testid={`assign-individual-select-${sampleId}`}
         >
           <option value="unassigned">Unassigned</option>

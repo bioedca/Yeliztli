@@ -618,6 +618,30 @@ npm --prefix frontend run build
 npx playwright test tests/e2e/required-badge-contrast.spec.ts
 ```
 
+### Native select contrast
+
+`tests/e2e/individual-select-contrast.spec.ts` covers the populated Settings
+Individual selector in all three browser projects. Native WebKit can paint a
+light field while its computed CSS background is dark, so an Axe contrast pass
+alone can miss unreadable selected text. The spec decodes the actual control
+screenshot in the browser, measures its dominant opaque interior fill against
+the solid CSS foreground, and requires visible label paint. The interior must
+have a measurable dominant fill; empty or ambiguous captures cannot pass.
+The ratio uses the [WCAG relative luminance definition](https://www.w3.org/TR/WCAG22/#dfn-relative-luminance)
+(accessed 2026-11-18).
+
+Keep the contrast target enabled, opaque, visible, and populated. Test the
+disabled pending state separately: the spec defers link and unlink responses,
+checks their methods, payloads, response bodies, and resulting selection, then
+checks the enabled label again. It also covers app preferences opposite to the
+OS preference and live system-theme changes without reloading. Build production
+assets before running it:
+
+```bash
+npm --prefix frontend run build
+npx playwright test tests/e2e/individual-select-contrast.spec.ts
+```
+
 ## Test conventions
 
 The suite follows specific assertion standards (assert real values, not just non-null;
