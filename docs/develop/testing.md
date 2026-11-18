@@ -577,6 +577,22 @@ do not add exclusions to hide an error-color regression. The separate primary
 button color decision remains tracked in
 [#2525](https://github.com/bioedca/Yeliztli/issues/2525).
 
+### Informational badge contrast
+
+`tests/e2e/required-badge-contrast.spec.ts` checks the Required label on a
+downloaded database card while another synthetic download is in progress. It
+serves the production bundle and verifies both themes in all browser projects.
+The informational label remains eligible for contrast checking while sibling
+controls are disabled; their inactive-control exception does not exempt it.
+See [WCAG 2.2 contrast minimum](https://www.w3.org/TR/WCAG22/#contrast-minimum)
+(accessed 2026-11-18). Keep the target visible and populated, reject incomplete
+audits, and require a non-empty contrast pass rather than excluding the badge.
+
+```bash
+npm --prefix frontend run build
+npx playwright test tests/e2e/required-badge-contrast.spec.ts
+```
+
 ## Test conventions
 
 The suite follows specific assertion standards (assert real values, not just non-null;
