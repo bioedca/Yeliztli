@@ -524,6 +524,40 @@ overlays must be checked in the browser's effective loader environment: the WPE
 wrapper replaces the parent's `LD_LIBRARY_PATH`. A successful parent-process
 library probe alone does not establish a working child runtime.
 
+Visual runtime parity also requires complete SDK font/tool provisioning. The
+pinned SDK's
+[Ubuntu 24.04 dependency lists](https://github.com/microsoft/playwright/blob/v1.64.1/packages/playwright-core/src/server/registry/nativeDeps.ts)
+include a shared `tools` list containing fonts, Fontconfig, FreeType and Xvfb,
+alongside the browser-specific libraries (accessed 2026-11-18). Preserve the
+complete list for the installed SDK, OS and architecture, including transitive
+dependencies. CI's `--with-deps` installation follows the
+[official setup](https://playwright.dev/docs/ci) (accessed 2026-11-18);
+extracting only shared libraries does not reproduce it.
+
+For a private runtime, keep provisioning scoped to the job rather than changing
+host packages, font settings or browser sandbox settings. Register the SDK fonts
+where the browser can discover and read them, and retain this evidence:
+
+- Record the source SHA, actual SDK/browser versions, target OS/architecture,
+  native and font/tool package versions, and hashes of extracted archives and
+  font files.
+- Record the page's font-family stack and the resolved family, style and file
+  for its requested fonts and fallbacks in the browser's effective environment.
+  A font directory's existence or a parent-process probe is insufficient.
+- Run the existing visual checks in every affected browser and theme with
+  unchanged goldens, assertions and tolerances, zero retries, and recorded
+  browser exits. Preserve expected/actual/diff images and failed attempts before
+  considering a baseline refresh. A passing lifecycle subset does not establish
+  full visual-runtime equivalence.
+
+The [font comparison recorded in #2676](https://github.com/bioedca/Yeliztli/issues/2676),
+performed during [#2675](https://github.com/bioedca/Yeliztli/pull/2675), illustrates
+this distinction: eight unchanged Chromium visual checks failed
+with SDKs 1.58.2 and 1.64.1 when the overlay omitted SDK tool fonts. Registering
+those fonts privately made all eight pass on both SDKs with zero retries and no
+golden or tolerance changes. This identifies that harness mismatch; it does not
+explain the historical WebKit closure in #2672.
+
 The two historical 1.58.2 runs in [#2672](https://github.com/bioedca/Yeliztli/issues/2672)
 each passed 38 cases and failed a different WebKit case before application
 assertions. Neither is a pass. `TargetClosedError` alone does not identify a
