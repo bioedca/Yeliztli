@@ -28,8 +28,10 @@ from unittest.mock import patch
 
 import pytest
 import sqlalchemy as sa
+from _downloads import wait_for_downloads
 from fastapi.testclient import TestClient
 
+from backend.api.routes import databases as database_routes
 from backend.api.routes.databases import _active_sessions
 from backend.config import Settings
 from backend.db.connection import reset_registry
@@ -415,32 +417,105 @@ class TestResumeEndpoint:
         engine.dispose()
 
         with patch.dict(DATABASES, {"lai_bundle": patched}):
-            resp = db_client.post("/api/databases/resume", json={"db_name": "lai_bundle"})
-            assert resp.status_code == 202
-            body = resp.json()
-            assert body["session_id"].startswith("dbdl-")
-            assert len(body["downloads"]) == 1
-            assert body["downloads"][0]["db_name"] == "lai_bundle"
-            job_id = body["downloads"][0]["job_id"]
+            try:
+                resp = db_client.post("/api/databases/resume", json={"db_name": "lai_bundle"})
+                assert resp.status_code == 202
+                body = resp.json()
+                assert body["session_id"].startswith("dbdl-")
+                assert len(body["downloads"]) == 1
+                assert body["downloads"][0]["db_name"] == "lai_bundle"
+                job_id = body["downloads"][0]["job_id"]
 
-            # Poll the background job to completion (download finishes fast).
-            poll_engine = _ref_engine(settings)
-            final_status = None
-            for _ in range(80):  # up to ~8s
-                with poll_engine.connect() as conn:
-                    row = conn.execute(
-                        sa.select(jobs.c.status).where(jobs.c.job_id == job_id)
-                    ).fetchone()
-                if row and row.status in ("complete", "failed"):
-                    final_status = row.status
-                    break
-                time.sleep(0.1)
-            poll_engine.dispose()
+                # Poll the background job to completion (download finishes fast).
+                poll_engine = _ref_engine(settings)
+                final_status = None
+                for _ in range(80):  # up to ~8s
+                    with poll_engine.connect() as conn:
+                        row = conn.execute(
+                            sa.select(jobs.c.status).where(jobs.c.job_id == job_id)
+                        ).fetchone()
+                    if row and row.status in ("complete", "failed"):
+                        final_status = row.status
+                        break
+                    time.sleep(0.1)
+                poll_engine.dispose()
+            finally:
+                # Persisted completion precedes worker exit. Keep its registry
+                # patch alive through the join, including assertion failures.
+                wait_for_downloads()
 
         assert final_status == "complete"
         final_dest = settings.data_dir / patched.filename
         assert final_dest.exists()
         assert final_dest.read_bytes() == TEST_DATA
+
+    @pytest.mark.parametrize("fail_assertion", [False, True], ids=["success", "assertion-failure"])
+    def test_resume_test_joins_delayed_worker(
+        self,
+        db_client: TestClient,
+        settings: Settings,
+        range_server: HTTPServer,
+        fail_assertion: bool,
+    ):
+        """A complete job is not a joined worker, even when an assertion fails."""
+        completed = threading.Event()
+        release = threading.Event()
+        exited = threading.Event()
+        worker_patch_urls: list[str] = []
+        joins: list[bool] = []
+        execute_download = database_routes._execute_download
+        join_downloads = wait_for_downloads
+        post = db_client.post
+        url = server_url(range_server, "lai_bundle.tar.gz")
+
+        def delayed_download(**kwargs):
+            execute_download(**kwargs)
+            # The real Range download has persisted its terminal job status,
+            # but _run_download and its executor future have not returned.
+            completed.set()
+            released = release.wait(timeout=10)
+            worker_patch_urls.append(DATABASES["lai_bundle"].url)
+            exited.set()
+            assert released, "resume test never joined its delayed download"
+
+        def checked_join():
+            assert completed.wait(timeout=5), "download never reached completion"
+            assert not exited.is_set(), "worker was not held through job completion"
+            release.set()
+            join_downloads()
+            assert exited.is_set()
+            assert database_routes._download_executor is None
+            joins.append(True)
+
+        def failing_json():
+            raise AssertionError("injected resume response assertion")
+
+        def checked_post(*args, **kwargs):
+            response = post(*args, **kwargs)
+            assert response.status_code == 202
+            assert completed.wait(timeout=5), "download never reached completion"
+            if fail_assertion:
+                response.json = failing_json
+            return response
+
+        with (
+            patch.object(database_routes, "_execute_download", new=delayed_download),
+            patch(f"{__name__}.wait_for_downloads", new=checked_join),
+            patch.object(db_client, "post", new=checked_post),
+        ):
+            try:
+                if fail_assertion:
+                    with pytest.raises(AssertionError, match="injected resume response assertion"):
+                        self.test_resume_completes_from_partial(db_client, settings, range_server)
+                else:
+                    self.test_resume_completes_from_partial(db_client, settings, range_server)
+                assert joins == [True], "resume test returned without joining its worker"
+                assert worker_patch_urls == [url], "registry patch ended before worker exit"
+            finally:
+                # A regression must fail cleanly rather than leave the held
+                # worker in this test's global teardown guard or the next test.
+                release.set()
+                join_downloads()
 
 
 # ═══════════════════════════════════════════════════════════════════════

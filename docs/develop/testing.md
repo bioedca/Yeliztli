@@ -26,6 +26,15 @@ from `PATH`; a run with those skips is limited validation, not complete backend
 coverage. Linux and macOS backend CI jobs require `java -version` to succeed
 before pytest, so the real-Java cases execute there.
 
+Tests that start database downloads must call `tests/backend/_downloads.py`'s
+`wait_for_downloads()` in a `finally` block while their registry, settings,
+client and loopback-server fixtures are still active. A persisted `complete`
+job status precedes worker exit and cannot substitute for joining the executor.
+The autouse leaked-download guard checks this ownership contract after fixture
+teardown. The resume test's delayed-worker regression exercises a real synthetic
+HTTP Range download and checks cleanup on success and an injected assertion
+failure; it uses events rather than additional sleeps.
+
 LAI calibration planning tests isolate only the external `java -version` probe
 with an explicitly synthetic identity. They still compute the production
 Python/package/lock fingerprint and exercise its drift checks, input hashes and
