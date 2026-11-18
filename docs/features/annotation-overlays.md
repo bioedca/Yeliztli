@@ -24,7 +24,7 @@ The overlay engine is built into Yeliztli. You do not need to install the extern
 
 1. Select a sample from the sample selector.
 2. Open **Annotation Overlays** from the sidebar or command palette.
-3. Upload a plain-text BED or VCF file.
+3. Upload a plain-text BED or VCF file, or a gzipped VCF (`.vcf.gz`).
 4. Review the detected format, record count, column names, and parse warnings.
 5. Save the overlay with a name and optional description.
 6. Click **Apply** for the selected sample.
@@ -50,12 +50,12 @@ coordinate correction.
 
 | Requirement | Details |
 |-------------|---------|
-| File type | Plain-text `.bed` or `.vcf`. Gzipped content is not decompressed by the current upload path. |
+| File type | The upload page accepts plain-text `.bed` and `.vcf`, plus gzip-compressed `.vcf.gz`. Gzip content is decompressed before parsing. |
 | Genome build | GRCh37/hg19 coordinates. Yeliztli's live annotation pipeline is GRCh37-based, and overlays are matched directly by chromosome and position. |
-| Size limit | 5 MiB per uploaded file. |
-| Record limit | 50,000 valid BED regions or VCF records. |
+| Size limit | 5 MiB per uploaded file. Gzip content must also expand to at most 5 MiB. |
+| Record limit | 50,000 valid BED regions or VCF ALT entries. Each ALT in a multi-ALT VCF record counts separately. |
 | Chromosomes | `chr` prefixes are accepted and normalized away. `M` is normalized to `MT`. |
-| Encoding | UTF-8 text. |
+| Encoding | UTF-8 text, after decompression for gzip files. |
 
 Yeliztli does not lift over overlay files. If a BED or VCF is in GRCh38, T2T, or
 another coordinate system, it may match nothing or match the wrong locus.
@@ -92,13 +92,25 @@ VCF overlays use INFO fields as overlay annotation columns:
 - records match by exact chromosome and POS
 - when the sample has annotated REF/ALT alleles, matching is allele-aware by
   chromosome, POS, REF, and ALT
-- if only raw variants are available for the sample, VCF matching falls back to
-  position-only matching because REF/ALT are not available
+- if only raw variants are available, or an annotated row lacks REF or ALT, that
+  row uses position-only matching because usable REF/ALT are not available
 
-For multi-ALT VCF records, Yeliztli can match any listed ALT allele, but INFO values
-are displayed as parsed from the record. If your INFO field uses allele-indexed
-comma-separated values, split or normalize the VCF to one ALT per record before
-uploading when allele-specific display matters.
+For multi-ALT VCF records, Yeliztli creates one entry per listed ALT allele. For
+allele-aware matches, INFO values declared in the `##INFO` header as `Number=A`
+are selected by the matching ALT's index. For `Number=R`, the reference value is
+skipped and the matching ALT's value is selected. This projection requires the
+value count to match the declared number of alleles: one value per ALT for
+`Number=A`, or one for REF followed by one per ALT for `Number=R`. Other INFO
+values, including lists with a mismatched count, are kept as parsed.
+
+For example, with `REF=C`, `ALT=G,T`, `AF=0.1,0.2` declared as `Number=A`, and
+`AD=7,3,9` declared as `Number=R`, an allele-aware C/G match displays `AF=0.1` and
+`AD=3`; a C/T match displays `AF=0.2` and `AD=9`. These fields do not require
+splitting the VCF into one ALT per record before upload.
+
+Position-only fallback cannot select an ALT for the sample row. It retains the
+original, unprojected INFO values, so the same example displays `AF=0.1,0.2` and
+`AD=7,3,9`. Those lists should not be read as values specific to the sample's ALT.
 
 ## Limits And Interpretation
 
