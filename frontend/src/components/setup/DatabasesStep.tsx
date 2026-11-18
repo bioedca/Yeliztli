@@ -632,7 +632,10 @@ export default function DatabasesStep({ onNext, onBack }: DatabasesStepProps) {
                         </span>
                       )}
                       {!bundledIncluded && !isManual && db.required && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        <span
+                          data-testid={`db-required-badge-${db.name}`}
+                          className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                        >
                           Required
                         </span>
                       )}
