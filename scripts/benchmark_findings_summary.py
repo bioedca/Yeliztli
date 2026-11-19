@@ -15,7 +15,7 @@ import pstats
 import sys
 import time
 from collections import Counter
-from contextlib import nullcontext
+from contextlib import nullcontext, redirect_stdout
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -35,6 +35,28 @@ SHAPES = ("low", "dense", "wide", "empty", "held_only", "response_refused")
 def dataset(shape: str, count: int) -> tuple[list[dict], list[dict]]:
     if shape == "empty":
         return [], []
+    if shape == "response_refused":
+        # Same two visible records as the production aggregate-refusal regression.
+        common = {"module": "fitness", "evidence_level": 4, "created_at": datetime(2020, 1, 1)}
+        pair = [
+            dict(
+                common,
+                id=1,
+                category="pathway_summary",
+                gene_symbol="CYP2D6",
+                drug=None,
+                finding_text="Safe source row one",
+            ),
+            dict(
+                common,
+                id=2,
+                category="legacy_note",
+                gene_symbol=None,
+                drug="tamoxifen",
+                finding_text="Safe source row two",
+            ),
+        ]
+        return pair, pair
     corpus = _synthetic_rows(count)
     safe = corpus[:-2]
     held = corpus[-2]
@@ -42,9 +64,11 @@ def dataset(shape: str, count: int) -> tuple[list[dict], list[dict]]:
     for index, row in enumerate(safe):
         row["module"] = f"synthetic_{index % 17:02d}"
         if shape == "dense":
-            row["evidence_level"] = 4 if index % 2 == 0 else 2
+            if index % 2 == 0:
+                row["evidence_level"] = 4 if index < 10 else 3
         if shape == "wide":
-            row["evidence_level"] = 3 if index % 100 == 0 else 2
+            if index % 100 == 0:
+                row["evidence_level"] = 4 if index < 500 else 3
             row["detail_json"] = json.dumps(
                 {
                     "sections": [
@@ -58,6 +82,8 @@ def dataset(shape: str, count: int) -> tuple[list[dict], list[dict]]:
             )
     # Keep one real payload-gate exclusion and one safe group-boundary control.
     # The unacknowledged module also exercises the persisted disclosure gate.
+    held["module"] = "first_synthetic_control"
+    held["evidence_level"] = 4
     boundary["module"] = safe[0]["module"]
     boundary["finding_text"] = "Independent synthetic boundary control."
     hidden = {**safe[0], "id": count + 3, "module": "apoe", "evidence_level": 4}
@@ -133,6 +159,9 @@ def check_body(body: dict, safe: list[dict], refused: bool) -> None:
             or card["module"] != source["module"]
         ):
             raise ValueError("Unexpected card rank or content")
+    strongest = [row for row in eligible if row["evidence_level"] == 4]
+    if len(strongest) == 5 and [card["id"] for card in cards] != [row["id"] for row in strongest]:
+        raise ValueError("The fifth visible card must survive the higher-ranked excluded row")
 
 
 def profile_components(profile: cProfile.Profile) -> dict:
@@ -165,12 +194,7 @@ def measure(shape: str, count: int, profile: bool) -> dict:
             with engine.begin() as conn:
                 conn.execute(findings.insert(), rows)
         refused = shape == "response_refused"
-        force_refusal = (
-            patch.object(route, "is_patient_presentable_response_payload", return_value=False)
-            if refused
-            else nullcontext()
-        )
-        with patch.object(route, "_get_sample_engine", return_value=engine), force_refusal:
+        with patch.object(route, "_get_sample_engine", return_value=engine):
             profiler = cProfile.Profile() if profile else None
             with profiler if profiler is not None else nullcontext():
                 started = time.perf_counter()
@@ -202,9 +226,12 @@ def main() -> None:
     parser.add_argument("--shape", choices=SHAPES, required=True)
     parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
-    if not 2 <= args.rows <= 20000:
-        parser.error("Choose 2 to 20000 rows.")
-    print(json.dumps(measure(args.shape, args.rows, args.profile), sort_keys=True))
+    if not 2 <= args.rows <= 311468:
+        parser.error("Choose 2 to 311468 synthetic observations before controls.")
+    # The real final-refusal case logs a diagnostic. Reserve stdout for the result.
+    with redirect_stdout(sys.stderr):
+        result = measure(args.shape, args.rows, args.profile)
+    print(json.dumps(result, sort_keys=True))
 
 
 if __name__ == "__main__":

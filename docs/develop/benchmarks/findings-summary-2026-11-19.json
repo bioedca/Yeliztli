@@ -7,7 +7,7 @@
     "baseline": "5dd6e8a46f25438132926e086f733c26d5c4cd0d7c85c721941b3daba7ecb61d",
     "bounded": "2f9fced5ad2d76aa467e40a53f237d2ab39912b97a67a49f91ac34126b9a3d85"
   },
-  "benchmark_script_sha256": "ced76910b1736338940dae2c43878b4b751c3640975d2fdf0fb8ce60e40be622",
+  "benchmark_script_sha256": "28e288b1209743e775cf6686db8fcd4799c74525c6eca04d054824eac89e8ec5",
   "patch_sha256": "06a0cdd1f5f50bf9e7ba9b5a8b53b84eba088480bddee57935c76a93c7bce7db",
   "environment": {
     "python": "3.12.3",
@@ -36,9 +36,10 @@
       "typing_extensions==4.16.0"
     ],
     "storage": "in-memory SQLite",
-    "allocation": "CPU only, 8 CPUs requested, 32 GiB, 25-minute limit per job",
+    "allocation": "CPU only, eight CPUs and 32 GiB requested. The historical rerun had a 25-minute limit. The revised comparison, including the reported cardinality, had a 50-minute limit.",
     "affinity": "The observed comparison step had wider affinity than the requested allocation. No other compute allocation was reported during the spot check.",
-    "verification": "Serial dependency, controller completion with zero exit, empty queue and checksum-verified output for both completed jobs. Accounting storage was disabled. The initial offline bootstrap stopped before measurement and was replaced."
+    "verification": "The historical rerun and revised comparison ran serially. The controller reported completion and zero exit for both. The jobs left the queue and their output checksums verified. Slurm accounting storage was disabled. The initial bootstrap lacking ensurepip exited before measurement. The two successful runs used the pinned offline pip bootstrap.",
+    "sqlite_runtime": "3.45.1"
   },
   "protocol": {
     "timed_orders": [
@@ -61,7 +62,9 @@
     ],
     "storage_and_timing": "Fresh in-memory database and process per shape/lane/repeat. Timing covers the summary handler, excluding fixture creation, setup, external serialization and assertions. Profiled cumulative times overlap.",
     "response_sha256": "UTF-8 JSON with sorted keys and compact separators from the complete model_dump(mode=\"json\"). The historical two-module baseline uses its original encoding.",
-    "synthetic_only": true
+    "synthetic_only": true,
+    "reported_cardinality": "311468 ordinary dense observations plus three controls. Three serial paired repeats in alternating order without profiling. The source issue supplied only the cardinality; the synthetic evidence distribution is constructed.",
+    "small_controls": "Two real records that are visible individually reach card conversion before the final aggregate refusal. In card-bearing workloads, a payload-excluded four-star row sorts ahead of all five visible four-star cards."
   },
   "two_module_baseline": {
     "held_rows": 1,
@@ -92,87 +95,87 @@
   },
   "shapes": {
     "dense": {
-      "body_sha256": "6a2aa6eafbe469d6ad6fc7abd6347f92e1c30515d9d1528a9cb9a724a2bc3a46",
+      "body_sha256": "b11449caad65fca4fc5bb11e353a949c58a676dae38eb88437e5f1a00fc5f674",
       "cards": 5,
       "lanes": {
         "baseline": {
-          "median_seconds": 5.146663143008482,
+          "median_seconds": 5.230087739008013,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.033660954,
-              "self_seconds": 2.8610000000000002e-05
+              "cumulative_seconds": 0.035028642,
+              "self_seconds": 2.8420000000000002e-05
             },
             "_is_patient_presentable_row": {
               "calls": 10002,
-              "cumulative_seconds": 12.977156598,
-              "self_seconds": 0.023956454000000002
+              "cumulative_seconds": 12.763648190000001,
+              "self_seconds": 0.023332620000000002
             },
             "_row_to_response": {
               "calls": 5000,
-              "cumulative_seconds": 0.22650662500000002,
-              "self_seconds": 0.11644795100000001
+              "cumulative_seconds": 0.22743622700000002,
+              "self_seconds": 0.117657914
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.041079426,
-              "self_seconds": 0.007639101000000001
+              "cumulative_seconds": 0.04101234,
+              "self_seconds": 0.008275179
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 13.374559521,
-              "self_seconds": 0.048704927
+              "cumulative_seconds": 13.160130243000001,
+              "self_seconds": 0.046658549
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.040434779000000004,
-              "self_seconds": 3.09e-06
+              "cumulative_seconds": 0.039577016,
+              "self_seconds": 4.06e-06
             }
           },
           "seconds": [
-            5.201916613965295,
-            5.146663143008482,
-            5.133228606951889
+            5.251710326003376,
+            5.186086147034075,
+            5.230087739008013
           ]
         },
         "bounded": {
-          "median_seconds": 5.030102776014246,
+          "median_seconds": 5.0122172429692,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.033229755,
-              "self_seconds": 2.8480000000000002e-05
+              "cumulative_seconds": 0.032088962,
+              "self_seconds": 2.7570000000000002e-05
             },
             "_is_patient_presentable_row": {
               "calls": 10002,
-              "cumulative_seconds": 12.784924575000002,
-              "self_seconds": 0.023440621000000002
+              "cumulative_seconds": 12.813670105,
+              "self_seconds": 0.024747915000000002
             },
             "_row_to_response": {
               "calls": 5,
-              "cumulative_seconds": 0.00026393900000000004,
-              "self_seconds": 0.00016146900000000002
+              "cumulative_seconds": 0.00023581,
+              "self_seconds": 0.00014187000000000002
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.038648365000000004,
-              "self_seconds": 0.007536612000000001
+              "cumulative_seconds": 0.039342196,
+              "self_seconds": 0.0076095220000000005
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 12.935922532000001,
-              "self_seconds": 0.034537521
+              "cumulative_seconds": 12.964283684000002,
+              "self_seconds": 0.03360479
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.037529219,
-              "self_seconds": 2.51e-06
+              "cumulative_seconds": 0.038758998,
+              "self_seconds": 2.3e-06
             }
           },
           "seconds": [
-            5.030102776014246,
-            5.024247843015473,
-            5.059432012028992
+            4.984398760017939,
+            5.026709210011177,
+            5.0122172429692
           ]
         }
       },
@@ -186,12 +189,12 @@
       "cards": 0,
       "lanes": {
         "baseline": {
-          "median_seconds": 0.00491853104904294,
+          "median_seconds": 0.004982341954018921,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.005362990000000001,
-              "self_seconds": 2.705e-05
+              "cumulative_seconds": 0.0053132990000000005,
+              "self_seconds": 2.707e-05
             },
             "_is_patient_presentable_row": {
               "calls": 0,
@@ -205,33 +208,33 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 7.77e-06,
-              "self_seconds": 2.42e-06
+              "cumulative_seconds": 7.48e-06,
+              "self_seconds": 1.9e-06
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.009125006,
-              "self_seconds": 4.5360000000000006e-05
+              "cumulative_seconds": 0.009023967,
+              "self_seconds": 3.821e-05
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.001802264,
-              "self_seconds": 1.37e-06
+              "cumulative_seconds": 0.001771074,
+              "self_seconds": 1.1600000000000001e-06
             }
           },
           "seconds": [
-            0.00491853104904294,
-            0.005229321017395705,
-            0.004909762006718665
+            0.004892852040939033,
+            0.0050716010155156255,
+            0.004982341954018921
           ]
         },
         "bounded": {
-          "median_seconds": 0.005116081039886922,
+          "median_seconds": 0.004966611973941326,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.00538545,
-              "self_seconds": 3.754e-05
+              "cumulative_seconds": 0.00540471,
+              "self_seconds": 2.718e-05
             },
             "_is_patient_presentable_row": {
               "calls": 0,
@@ -245,24 +248,24 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 7.450000000000001e-06,
-              "self_seconds": 1.7500000000000002e-06
+              "cumulative_seconds": 8.34e-06,
+              "self_seconds": 2.69e-06
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.009191136,
-              "self_seconds": 4.343e-05
+              "cumulative_seconds": 0.009142856000000001,
+              "self_seconds": 4.495e-05
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.001818273,
-              "self_seconds": 1.2000000000000002e-06
+              "cumulative_seconds": 0.001776023,
+              "self_seconds": 1.23e-06
             }
           },
           "seconds": [
-            0.004957070981618017,
-            0.005290960019920021,
-            0.005116081039886922
+            0.0048427730216644704,
+            0.005194140947423875,
+            0.004966611973941326
           ]
         }
       },
@@ -276,17 +279,17 @@
       "cards": 0,
       "lanes": {
         "baseline": {
-          "median_seconds": 0.005236820026766509,
+          "median_seconds": 0.0053239609696902335,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.00510004,
-              "self_seconds": 2.546e-05
+              "cumulative_seconds": 0.005245329,
+              "self_seconds": 2.6960000000000003e-05
             },
             "_is_patient_presentable_row": {
               "calls": 1,
-              "cumulative_seconds": 0.0020934020000000003,
-              "self_seconds": 6.09e-06
+              "cumulative_seconds": 0.002073052,
+              "self_seconds": 6.52e-06
             },
             "_row_to_response": {
               "calls": 0,
@@ -295,38 +298,38 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 2.285e-05,
-              "self_seconds": 9.280000000000001e-06
+              "cumulative_seconds": 2.1910000000000002e-05,
+              "self_seconds": 7.39e-06
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.009880473,
-              "self_seconds": 4.0260000000000004e-05
+              "cumulative_seconds": 0.009998193,
+              "self_seconds": 4.3400000000000005e-05
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.000813297,
-              "self_seconds": 1.15e-06
+              "cumulative_seconds": 0.000818307,
+              "self_seconds": 1.48e-06
             }
           },
           "seconds": [
-            0.005182870023418218,
-            0.005236820026766509,
-            0.0052593310247175395
+            0.005328110011760145,
+            0.005306950013618916,
+            0.0053239609696902335
           ]
         },
         "bounded": {
-          "median_seconds": 0.005222090985625982,
+          "median_seconds": 0.00532508100150153,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.00525922,
-              "self_seconds": 2.642e-05
+              "cumulative_seconds": 0.005240772,
+              "self_seconds": 2.9370000000000002e-05
             },
             "_is_patient_presentable_row": {
               "calls": 1,
-              "cumulative_seconds": 0.0020780620000000003,
-              "self_seconds": 6.110000000000001e-06
+              "cumulative_seconds": 0.0020694420000000003,
+              "self_seconds": 6.640000000000001e-06
             },
             "_row_to_response": {
               "calls": 0,
@@ -335,24 +338,24 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 2.3290000000000002e-05,
-              "self_seconds": 9.19e-06
+              "cumulative_seconds": 2.142e-05,
+              "self_seconds": 7.6e-06
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.010018313000000001,
-              "self_seconds": 4.148e-05
+              "cumulative_seconds": 0.010002644,
+              "self_seconds": 4.2600000000000005e-05
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.000813537,
-              "self_seconds": 1.2900000000000001e-06
+              "cumulative_seconds": 0.000819667,
+              "self_seconds": 1.0700000000000001e-06
             }
           },
           "seconds": [
-            0.005202191008720547,
-            0.005222090985625982,
-            0.005372198997065425
+            0.005383640993386507,
+            0.005319621006492525,
+            0.00532508100150153
           ]
         }
       },
@@ -366,17 +369,17 @@
       "cards": 0,
       "lanes": {
         "baseline": {
-          "median_seconds": 5.034354663977865,
+          "median_seconds": 4.9989748210064135,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.033784993,
-              "self_seconds": 2.9500000000000002e-05
+              "cumulative_seconds": 0.034296604,
+              "self_seconds": 3.112e-05
             },
             "_is_patient_presentable_row": {
               "calls": 10002,
-              "cumulative_seconds": 12.815247723,
-              "self_seconds": 0.024557288
+              "cumulative_seconds": 12.819279556000001,
+              "self_seconds": 0.023602564000000003
             },
             "_row_to_response": {
               "calls": 0,
@@ -385,38 +388,38 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.039022793,
-              "self_seconds": 0.007425962
+              "cumulative_seconds": 0.040212623,
+              "self_seconds": 0.00815674
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 12.952472065,
-              "self_seconds": 0.03855883
+              "cumulative_seconds": 12.957406957000002,
+              "self_seconds": 0.038203312
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.019287278,
-              "self_seconds": 2.8900000000000003e-06
+              "cumulative_seconds": 0.018808102,
+              "self_seconds": 2.65e-06
             }
           },
           "seconds": [
-            5.034354663977865,
-            4.966506158991251,
-            5.0625845130416565
+            4.9989748210064135,
+            4.957036534964573,
+            5.051921371952631
           ]
         },
         "bounded": {
-          "median_seconds": 5.037990813027136,
+          "median_seconds": 5.0170855179894716,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.034898089,
-              "self_seconds": 2.6810000000000003e-05
+              "cumulative_seconds": 0.033477267000000005,
+              "self_seconds": 3.061e-05
             },
             "_is_patient_presentable_row": {
               "calls": 10002,
-              "cumulative_seconds": 12.925970487,
-              "self_seconds": 0.024034056
+              "cumulative_seconds": 12.780027852,
+              "self_seconds": 0.023379473
             },
             "_row_to_response": {
               "calls": 0,
@@ -425,24 +428,24 @@
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.040287049000000005,
-              "self_seconds": 0.007433662000000001
+              "cumulative_seconds": 0.040156473000000005,
+              "self_seconds": 0.007747801
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 13.066755662,
-              "self_seconds": 0.03571983
+              "cumulative_seconds": 12.923465617000002,
+              "self_seconds": 0.037994865
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.019068828,
-              "self_seconds": 3.0700000000000003e-06
+              "cumulative_seconds": 0.020396726,
+              "self_seconds": 7.5e-06
             }
           },
           "seconds": [
-            5.059457997966092,
-            5.037990813027136,
-            4.953636301041115
+            4.980942355003208,
+            5.048567712015938,
+            5.0170855179894716
           ]
         }
       },
@@ -456,173 +459,173 @@
       "cards": 0,
       "lanes": {
         "baseline": {
-          "median_seconds": 0.010496529983356595,
+          "median_seconds": 0.006580255983863026,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.0051795,
-              "self_seconds": 2.667e-05
+              "cumulative_seconds": 0.00522254,
+              "self_seconds": 2.6719000000000003e-05
             },
             "_is_patient_presentable_row": {
-              "calls": 10,
-              "cumulative_seconds": 0.015889840000000002,
-              "self_seconds": 3.213e-05
+              "calls": 2,
+              "cumulative_seconds": 0.0019936330000000003,
+              "self_seconds": 1.01e-05
             },
             "_row_to_response": {
-              "calls": 0,
-              "cumulative_seconds": 0.0,
-              "self_seconds": 0.0
+              "calls": 2,
+              "cumulative_seconds": 7.433e-05,
+              "self_seconds": 6.155e-05
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 5.572e-05,
-              "self_seconds": 1.4370000000000001e-05
+              "cumulative_seconds": 2.7600000000000003e-05,
+              "self_seconds": 1.126e-05
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.023293253,
-              "self_seconds": 0.0001874
+              "cumulative_seconds": 0.012841733000000001,
+              "self_seconds": 7.794e-05
             },
             "is_patient_presentable_response_payload": {
-              "calls": 0,
-              "cumulative_seconds": 0.0,
-              "self_seconds": 0.0
+              "calls": 1,
+              "cumulative_seconds": 0.0035980770000000003,
+              "self_seconds": 9.309e-06
             }
           },
           "seconds": [
-            0.010520101001020521,
-            0.010496529983356595,
-            0.010457281023263931
+            0.006580255983863026,
+            0.006638375984039158,
+            0.006408926041331142
           ]
         },
         "bounded": {
-          "median_seconds": 0.01056799100479111,
+          "median_seconds": 0.006527405988890678,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.005415799000000001,
-              "self_seconds": 2.809e-05
+              "cumulative_seconds": 0.005315220000000001,
+              "self_seconds": 2.9890000000000004e-05
             },
             "_is_patient_presentable_row": {
-              "calls": 10,
-              "cumulative_seconds": 0.016188359,
-              "self_seconds": 3.1088000000000005e-05
+              "calls": 2,
+              "cumulative_seconds": 0.001983342,
+              "self_seconds": 8.95e-06
             },
             "_row_to_response": {
-              "calls": 0,
-              "cumulative_seconds": 0.0,
-              "self_seconds": 0.0
+              "calls": 2,
+              "cumulative_seconds": 7.523000000000001e-05,
+              "self_seconds": 5.9680000000000005e-05
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 5.36e-05,
-              "self_seconds": 1.692e-05
+              "cumulative_seconds": 2.5600000000000002e-05,
+              "self_seconds": 9.03e-06
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 0.023812871000000003,
-              "self_seconds": 0.000182119
+              "cumulative_seconds": 0.012901793,
+              "self_seconds": 8.7e-05
             },
             "is_patient_presentable_response_payload": {
-              "calls": 0,
-              "cumulative_seconds": 0.0,
-              "self_seconds": 0.0
+              "calls": 1,
+              "cumulative_seconds": 0.0035900270000000004,
+              "self_seconds": 1.075e-05
             }
           },
           "seconds": [
-            0.010756739997304976,
-            0.010567869991064072,
-            0.01056799100479111
+            0.006527405988890678,
+            0.00637142697814852,
+            0.006538485991768539
           ]
         }
       },
       "modules": 0,
-      "rows": 11,
+      "rows": 2,
       "visible": 0,
       "withheld": true
     },
     "wide": {
-      "body_sha256": "a403b5fa58fc97e41ea4fbf45859230c2f6b150e6720c9c7393cc663cc5c9518",
+      "body_sha256": "9e219b9efe61d3c885e230a9b46df9dd74fd30364980a1b4015a2d3130268cf0",
       "cards": 5,
       "lanes": {
         "baseline": {
-          "median_seconds": 4.31036956096068,
+          "median_seconds": 4.273224313976243,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.017470865000000002,
-              "self_seconds": 2.741e-05
+              "cumulative_seconds": 0.016083280000000002,
+              "self_seconds": 2.748e-05
             },
             "_is_patient_presentable_row": {
               "calls": 2002,
-              "cumulative_seconds": 8.544370964,
-              "self_seconds": 0.005652276
+              "cumulative_seconds": 8.637396648000001,
+              "self_seconds": 0.005397939
             },
             "_row_to_response": {
               "calls": 20,
-              "cumulative_seconds": 0.000879697,
-              "self_seconds": 0.000512898
+              "cumulative_seconds": 0.0008796670000000001,
+              "self_seconds": 0.0005012980000000001
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.01052466,
-              "self_seconds": 0.001528744
+              "cumulative_seconds": 0.011324029000000001,
+              "self_seconds": 0.0015926540000000002
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 8.645936473,
-              "self_seconds": 0.008117928
+              "cumulative_seconds": 8.739372233000001,
+              "self_seconds": 0.007789439
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.06129901,
-              "self_seconds": 2.6300000000000002e-06
+              "cumulative_seconds": 0.06284807,
+              "self_seconds": 2.59e-06
             }
           },
           "seconds": [
-            4.31036956096068,
-            4.323928994999733,
-            4.212453507003374
+            4.273224313976243,
+            4.327479679021053,
+            4.217827524989843
           ]
         },
         "bounded": {
-          "median_seconds": 4.242606409010477,
+          "median_seconds": 4.343647460977081,
           "profile": {
             "_execute_clauseelement": {
               "calls": 4,
-              "cumulative_seconds": 0.01608747,
-              "self_seconds": 2.695e-05
+              "cumulative_seconds": 0.016102151000000002,
+              "self_seconds": 2.6940000000000003e-05
             },
             "_is_patient_presentable_row": {
               "calls": 2002,
-              "cumulative_seconds": 8.529506253000001,
-              "self_seconds": 0.005636557
+              "cumulative_seconds": 8.582335171,
+              "self_seconds": 0.005508207
             },
             "_row_to_response": {
               "calls": 5,
-              "cumulative_seconds": 0.00025932900000000004,
-              "self_seconds": 0.00014647
+              "cumulative_seconds": 0.000259479,
+              "self_seconds": 0.00014755
             },
             "fetchall": {
               "calls": 1,
-              "cumulative_seconds": 0.010827019,
-              "self_seconds": 0.001521744
+              "cumulative_seconds": 0.010591751,
+              "self_seconds": 0.001542484
             },
             "findings_summary": {
               "calls": 1,
-              "cumulative_seconds": 8.628165961,
-              "self_seconds": 0.007090801000000001
+              "cumulative_seconds": 8.681861556000001,
+              "self_seconds": 0.006995976
             },
             "is_patient_presentable_response_payload": {
               "calls": 1,
-              "cumulative_seconds": 0.061354029000000004,
-              "self_seconds": 2.8000000000000003e-06
+              "cumulative_seconds": 0.062539202,
+              "self_seconds": 2.65e-06
             }
           },
           "seconds": [
-            4.224154513969552,
-            4.242606409010477,
-            4.256448501022533
+            4.269452058011666,
+            4.343647460977081,
+            4.372666957962792
           ]
         }
       },
@@ -631,5 +634,33 @@
       "visible": 2001,
       "withheld": false
     }
+  },
+  "source_manifest_sha256": "131a1d931614069879f34f9c45a2dd21fe04ded77fe9eb59a857b7c1cda47034",
+  "reported_cardinality": {
+    "body_sha256": "602ebaf19d08b133d8a9419a13437a9f899716262d26168f0e5dc907dd6bad83",
+    "cards": 5,
+    "lanes": {
+      "baseline": {
+        "median_seconds": 161.35337979200995,
+        "seconds": [
+          163.2133167940192,
+          161.25071357004344,
+          161.35337979200995
+        ]
+      },
+      "bounded": {
+        "median_seconds": 154.6807822069968,
+        "seconds": [
+          153.19174448400736,
+          158.1402763260412,
+          154.6807822069968
+        ]
+      }
+    },
+    "modules": 17,
+    "rows": 311471,
+    "shape": "dense",
+    "visible": 311469,
+    "withheld": false
   }
 }
