@@ -49,6 +49,12 @@ it calls the logger for a result. A result-dependent occurrence cannot
 become an independent operational failure just by using an exception API.
 The zero/one/many test covers the producer and the existing test covers
 the safe representation of a failure that actually occurred.
+Preserve the existing response-refusal audit as a separate approved event.
+A refused response emits one `patient_response_payload_withheld` event
+with its reviewed operation context. A presentable response emits none.
+This records the disposition of the request. Holding that disposition
+fixed, the number of contributing results and internal checks must not
+change the audit. Preserve the product response's own `withheld` status.
 For both native and standard-library calls, exercise an ordinary held
 record as well as a held exception. Inspect every new
 database row from the isolated operation and both console streams. Require
@@ -86,6 +92,11 @@ only the safe form of application events, or propagation must stop before
 reaching it. Keep other applications' logging configuration intact. Direct
 output by independently launched tools and historical service logs are
 outside this policy. Document those boundaries in operator guidance.
+For processes shipped by the application, only the approved diagnostic
+channel may reach the operator console. Contain unclassified writes to
+stdout or stderr by in-process dependencies as well as log records.
+Discard those bytes without persisting them. A genuine operational failure
+can still produce its separately classified diagnostic.
 Keep the existing routing to sinks. A console-only framework event stays
 console-only. A safe fallback changes the content of a routed event without
 creating a new reason to retain it in the database.
@@ -131,6 +142,10 @@ data directory and task queue. If the operator cannot establish which
 processes have access, the new policy is not yet active. A rollback uses
 an isolated compatible environment and requires its own explicit policy
 decision before it can serve operator logs again.
+Close or reload open Log Explorer sessions during cutover and clear their
+cached rows, totals and filters before displaying the new revision. A
+client that cannot establish the current revision must reopen the Explorer.
+Previously exported information has its own retention lifecycle.
 
 ## Synthetic acceptance cases
 
@@ -150,14 +165,14 @@ and captured console output.
    trusted interface and require “Operation failed” with its approved
    component. With a valid reason and an out-of-range optional retry count,
    require the approved explanation at both sinks and no count.
-2. Put a synthetic opaque sentinel in free text, a formatting argument,
-   nested metadata, path, chained exception and diagnostic object. Assert it
-   is absent from stored message and JSON, console, explorer search and
-   counts. Verify stable reason and component still reach both sinks.
-   Use an unapproved argument whose formatting methods record calls.
-   Require zero formatting calls and the expected static fallback in
-   every routed sink. Repeat with an exception whose string conversion
-   records calls, including when it is chained to another exception.
+2. With safely inspectable, nonrestricted primitive text, put an unapproved
+   test value in the message, nested metadata and path. Require the approved
+   fallback reason and component at both sinks, and no test value in stored
+   fields, the console, Explorer search or counts. Separately supply an
+   opaque argument whose formatting methods record calls. When safe
+   inspection cannot exclude restricted context, require exactly the neutral
+   marker with zero formatting calls and no reason or component derived
+   from the input. Repeat with an opaque exception, including in a chain.
    Exercise native and standard-library records. Also put an opaque test
    value in a supplied logger name. Inspect all database columns, including
    the component, and both streams. An Explorer component filter for the
@@ -167,13 +182,20 @@ and captured console output.
    results. Hold public inputs and retry count fixed. Compare emitted event
    counts and approved content across the database, captured console and
    Explorer filters, totals and pages. An allowed template cannot override
-   suppression. A separate normal event remains discoverable.
+   suppression. A separate normal event remains discoverable. For the
+   response audit, run the real presentable and refused request fixtures.
+   Verify their distinct response statuses and zero versus one neutral
+   audit event. A refusal involving several held results has the same
+   approved audit as a refusal involving one.
 4. Verify repeated configuration produces one event, worker-only bootstrap
    uses the same policy, and a restored legacy row cannot be exposed by a
    search match or count. Preserve existing noncreation behavior when the
    database was removed. Exercise a harmless failing task in the shipped
    worker process with the consumer handler enabled. Capture its complete
    console and verify the safe category also reaches the expected sink.
+   Have a test dependency write benign distinctive bytes directly to the
+   worker's stderr. They must appear in neither captured service output
+   nor the database, while the approved task diagnostic remains visible.
    Repeat with an additional standard-library handler observing application
    events. Confirm each permitted diagnostic appears the intended number
    of times and failures in logging itself preserve the same content rule.
@@ -197,7 +219,9 @@ and captured console output.
    cutover with that reader still running. No client may reach it once the
    new policy becomes active. The new reader returns only eligible entries
    and their counts. Restoring the fixture or restarting an old process
-   must not reopen the old presentation path. Queue a harmless synthetic
+   must not reopen the old presentation path. Warm an Explorer tab before
+   cutover and verify its old rows and totals are cleared before the new
+   session displays its first results. Queue a harmless synthetic
    task and attempt to restart an old worker under the managed service.
    Require the task to remain unconsumed and no task output to be emitted
    until a compatible worker starts. Then require one completed task and
