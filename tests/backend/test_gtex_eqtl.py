@@ -216,6 +216,18 @@ def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
     return tar_path
 
 
+def _create_legacy_gtex_table(engine: sa.Engine) -> None:
+    # Fixed pre-#2425 schema and indexes at ff034676; keep independent of current metadata.
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE TABLE gtex_eqtl (id INTEGER NOT NULL PRIMARY KEY, rsid TEXT NOT NULL, "
+            "gene_id TEXT NOT NULL, tissue TEXT NOT NULL, chrom TEXT, pos INTEGER, "
+            "pval_nominal FLOAT, slope FLOAT)"
+        )
+        conn.exec_driver_sql("CREATE INDEX idx_gtex_eqtl_rsid ON gtex_eqtl (rsid)")
+        conn.exec_driver_sql("CREATE INDEX idx_gtex_eqtl_gene ON gtex_eqtl (gene_id)")
+
+
 def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -234,10 +246,12 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
             ("rs2222", "ENSG002", "Liver", "2", 100, 3e-8, -0.22),
             ("rs769952832", "ENSG001", "Liver", "1", 64764, 1e-12, 0.45),
         ]
-        gtex_eqtl.create(installed)  # Legacy installs contain only the association table.
+        _create_legacy_gtex_table(installed)
         with installed.begin() as conn:
-            conn.execute(
-                gtex_eqtl.insert(), [dict(zip(columns, row, strict=True)) for row in historical]
+            conn.exec_driver_sql(
+                "INSERT INTO gtex_eqtl (rsid, gene_id, tissue, chrom, pos, pval_nominal, slope) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                historical,
             )
 
         def associations() -> list[tuple]:
@@ -402,12 +416,7 @@ class TestGeneNames:
 
     def test_db_built_before_gene_names_returns_none(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        with engine.begin() as conn:
-            conn.exec_driver_sql(
-                "CREATE TABLE gtex_eqtl (id INTEGER PRIMARY KEY, rsid TEXT NOT NULL, "
-                "gene_id TEXT NOT NULL, tissue TEXT NOT NULL, chrom TEXT, pos INTEGER, "
-                "pval_nominal FLOAT, slope FLOAT)"
-            )
+        _create_legacy_gtex_table(engine)
         assert lookup_gene_names(["ENSG001"], engine) == {}
 
 
