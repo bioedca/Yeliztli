@@ -165,4 +165,5 @@ nav:
       - LAI coverage calibration: maintainer/lai-coverage-calibration.md
       - Genome Browser reference bundle: maintainer/genome-browser-reference-bundle.md
       - App release process: maintainer/release-process.md
+      - Sample storage compatibility: maintainer/sample-storage-compatibility.md
   - Attribution: attribution.md
