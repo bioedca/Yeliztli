@@ -114,7 +114,7 @@ dependency. Reject publication if an input token changed during scoring,
 including a dosage replacement that leaves the annotated table untouched.
 Record reference artifacts and supporting results actually used by the
 producer. For PRS calibration this includes the installed `gnomad_af.db`
-used for imputed-only loci, its absence when unavailable, the score weights,
+when it supplies a frequency or its absence affects calibration, the score weights,
 and the relevant ancestry and monogenic findings. Record a verified version
 of each artifact that changes on content replacement, including committed
 database updates, even if its upstream label is unchanged. A trusted
@@ -321,7 +321,9 @@ disclosure change. Commit the invalidation and a durable notification with
 the input switch so a worker crash cannot strand an old view. Revalidate on
 mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
-require revalidation before showing cached results. On mismatch discard
+require revalidation before showing cached results. Close the gap between
+a GET and subscription by replaying changes since the generation returned
+by the GET, or rechecking it after the subscription is live. On mismatch discard
 cached patient output, including an old withheld state, and fetch under the
 new generation. Discard late responses from the old one. A refetch that
 continues displaying old data does not protect this boundary.
@@ -624,8 +626,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   unknown-ancestry fallback and the fixture's inferred ancestry. Assert the
   exact old values before upgrade,
   withholding while pending, and the exact ancestry-specific values after
-  repair and reopen. A fully called `hom_ref` control must produce no
-  carrier finding. Keep the fixture and expected text tied to the same
+  repair and reopen. Use the ABCG2 `hom_ref` control (`GG` at rs2231142)
+  and require no ABCG2 finding. For an empty panel, also set rs13129697
+  to the shipped non-risk `GG` fixture. Its GRCh37 reference allele is T,
+  so an all-reference sample is a different control. Tie the expected text to the same
   reviewed panel revision. Pass the retained and corrected gout values
   through the production diff path. Expect one changed finding with the
   reviewed odds-ratio change and zero additions or removals for that identity.
@@ -651,8 +655,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
   mean from 1.4 to 2.2. These values describe the fixture. Require
-  `snps_used_imputed > 0` before changing an input and zero in a typed-only
-  control.
+  `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
+  can be typed while a typed locus lacks an allele needed for calibration.
+  The scorer can consult imputed alleles and the standalone frequency store
+  for that locus. Track those actual dependencies even when
+  `snps_used_imputed == 0`. Verify the changed calibration in that case.
+  Complete typed alleles and their own population frequency give an
+  unchanged-value control.
   Replace imputed dosages between scoring and publication without changing
   the annotated token. Reject the old publication and match a fresh run on
   the replacement dosages. In a separate case record the published
@@ -689,6 +698,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   showing the old guidance, shows the pending state, and then receives only
   the eligible current response. Include an open background tab returning
   to focus, a delayed older response, and loss of the notification channel.
+  On mount and reconnect, commit a correction between the first GET and
+  subscription establishment. Without another navigation, verify the view
+  discards the earlier generation and displays the eligible result.
 - Generate diffs with the production snapshot, comparison and persistence
   paths. Open an undismissed legacy diff and its new-format equivalent,
   each containing a stale added prescribing alert and one entry whose
