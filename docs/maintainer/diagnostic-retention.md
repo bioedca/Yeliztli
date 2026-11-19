@@ -9,21 +9,25 @@ Explorer. Product job-status records, API error responses and support-file
 contents have separate contracts and require their own review. The same
 rules apply to the API and worker in development. `make dev` also runs a
 frontend development server. Its combined terminal transcript is outside
-this guarantee. For a support report, capture the API or worker's approved
-output separately, before it is combined with other developer tools.
+this guarantee. Once cutover is verified, capture approved API or worker
+diagnostics separately. Local retention grants no permission to share a
+transcript. For a support request, reproduce with synthetic inputs and
+review the minimum necessary excerpt before sharing it, including on
+installations still running the current release.
 
 ## What an operator sees
 
 For a storage operation that could not acquire a lock, an approved event can
 render **“The database is busy. Retry the operation.”** Alongside it, expose
 the severity, stable component and operation, a bounded retry count and an
-approved error category. If the application has no reviewed explanatory
-template, a generic **“Operation failed”** event with a known component and
-error category still gives the operator a place to start. Suppress unknown
-fields independently so a valid diagnostic remains useful.
+approved error category. Use **“Operation failed”** with approved context
+only when the application knows the operation failed. For other unclassified
+events use **“Application diagnostic”**, which asserts no outcome. Free text
+and log severity alone cannot establish an operation's outcome. Suppress
+unknown fields independently so a valid diagnostic remains useful.
 Each template declares required and optional fields. An invalid required
-reason selects the generic failure template. Drop an invalid optional
-retry count while preserving the valid explanation and safe fields.
+reason on a known failure selects the generic failure template. Drop an
+invalid optional retry count while preserving the explanation and safe fields.
 
 | Input | Proposed database and default-console behavior |
 | --- | --- |
@@ -178,14 +182,19 @@ as a positive control.
 
 ### Event identity, fields and exceptions
 
+Ordinary fallback fixtures have safely inspectable, nonrestricted inputs.
+The restricted and opaque fixtures exercise the higher-priority neutral
+marker. The known-failure fixtures establish the outcome in the application
+operation independently of the log message.
+
 | Synthetic input | Required observation |
 | --- | --- |
-| Two approved failures and an unknown exception | Each approved failure has its distinct explanation and exact allowed fields. The unknown failure has a nonempty static fallback. |
+| Two approved failures, a known failure with an unknown exception class, and an unclassified informational event | Each approved failure has its distinct explanation and exact allowed fields. The unknown failure gets “Operation failed”. The unclassified event gets “Application diagnostic” and implies no failure. |
 | Registered event ID and valid fields through the typed producer, then through an ordinary record | The producer gets its template. The ordinary record on the same route gets the fallback. A console-only third-party message reaches only its console. |
 | Independent registered failure with extra fields, supplied directly or through bound request context | For benign unapproved extras, retain the approved explanation and fields and drop the extra keys and values. For a synthetic restricted extra, emit only the neutral diagnostic. Exercise both inputs through each context source independently. |
 | Invalid required reason, then a valid reason with an out-of-range optional count | The first gets “Operation failed” and the approved component. The second preserves its explanation and drops the count. |
 | Ordinary exception logged with a fixed message and distinct harmless markers in the exception text, raising file and source line | Both exception paths keep the approved category and exactly the reviewed frame identifiers, if any. All three markers are absent. |
-| Inspectable, nonrestricted primitive text in a free-form message, nested metadata and a path | The fallback contains the approved reason and component. Searching or filtering for the test value returns zero rows and a zero total. |
+| Free-form primitive text in a message, nested metadata and a path during a known failure | The fallback contains the independently approved reason and component. Searching or filtering for the test value returns zero rows and a zero total. |
 | Opaque arguments, logger names and exceptions with observable formatting methods | When restricted content cannot be excluded, emit only the neutral marker, with zero formatting calls. No reason or component comes from the input. An Explorer component filter still finds the approved positive control. |
 | A restricted ordinary record, a held exception, a cause/context chain and a nested exception group with a benign outer message and one held member | Each independently occurring operational event gets exactly one neutral diagnostic on its configured route. No member text is rendered. Exercise each exception shape independently. |
 
@@ -225,8 +234,10 @@ short-circuit as soon as they know the final disposition.
   Separately exercise a worker task that collects a helper's output and
   reports a failure. Use a synthetic helper that emits a marker and exits
   unsuccessfully. Require the task's failure outcome and approved category.
-  Neither forwarded nor inherited output may expose the marker in the
-  worker console, new log rows or Explorer.
+  In another worker run, have a helper write distinct markers to inherited
+  stdout and stderr. Confirm it executed from a separate fixture signal.
+  Across both runs, require every marker to be absent from the worker's
+  console streams, new log rows and Explorer.
 - Attach an observing standard-library handler. Inspect what reaches it
   before formatting. Require zero delivery or solely the approved record,
   including arguments, exception state and extras. Verify repeated
