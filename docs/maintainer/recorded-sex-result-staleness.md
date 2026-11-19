@@ -90,11 +90,43 @@ The identity edit commits without writing any sample database. The shared
 read check detects later inference changes, relinking and override removal
 even if no edit event was delivered. At rerun, capture the inputs used and
 a run generation. Protect replacement from a superseded writer. If identity
-changes while scoring, a result for the old context must never be served as
-current. Across the two databases, verify current eligibility again at read
-time. Clear only this sample's matching, successfully completed reason.
+changes while scoring, readers must withhold results for the previous context.
+Clear only this sample's matching, successfully completed reason.
 Reference release and interpretation-revision prompts in [#2705](https://github.com/bioedca/Yeliztli/issues/2705)
 have separate causes and can continue to apply.
+
+### Ordering a profile correction and a result read
+
+Give each sample a monotonic context revision in the reference database and
+record the revision observed when a run starts. Increment it in the same
+transaction as a recorded-sex or membership change for every affected sample.
+Inference changes must participate too. Before replacing inference inputs in
+the sample database, mark the reference-side context as updating under a
+new revision. Readers withhold affected output until the replacement and
+the resolved context are published. Recover an interrupted update by
+reconciling its identity and revision before making the sample available.
+
+Use a short cross-process publication guard shared by context writers and
+all readers presenting dependent results. A reader captures the context and
+revision, then builds its response or spools its export outside that guard.
+Immediately before committing the immutable response for delivery, take the
+guard and verify that every participating sample still has the captured
+revision, the eligible completion generation and no update in progress.
+If anything changed, discard the prepared result and retry from a fresh
+snapshot or return the rerun state. The final check and commitment must
+occur together while a profile correction cannot commit. The writer takes
+the same guard when committing its revision change. Analysis publication
+also takes it and verifies that the job still owns the intended generation.
+For multi-sample results this ordering covers the complete membership set.
+
+This defines when a result becomes current for a request. A correction
+that commits first prevents publication of the earlier result. Bytes a
+response already committed for delivery may arrive later. Render reports
+to a private temporary artifact, validate before publishing its handle,
+and guard a later download of a live cached artifact in the same way. Keep
+slow rendering and network transfer outside the guard. A changed revision
+forces fresh evaluation even if the resolved value has changed back. An
+unchanged dependency set can still validate an existing completed result.
 
 ## Implementation acceptance
 
@@ -116,6 +148,12 @@ before and after a rerun. Assert actual text, values, totals and identifiers.
    Change context while one run is in flight and finish two workers out of
    order. Check atomic replacement, no duplicates, preservation of competing
    staleness reasons and independence of other samples.
+5. Pause a reader after eligibility evaluation but before response commitment.
+   Commit the profile correction in a different worker and release the reader.
+   The old text, count and score must be absent. Repeat with a prepared report,
+   an export awaiting its first byte and an individual's membership change.
+   Exercise the opposite order to verify that an already committed response
+   does not prevent a correction or hold a lock during network transfer.
 
 Maintainer approval of the withholding boundary, legacy handling and rerun
 semantics releases [#2508](https://github.com/bioedca/Yeliztli/issues/2508)
