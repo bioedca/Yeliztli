@@ -81,6 +81,10 @@ outside this policy. Document those boundaries in operator guidance.
 Keep the existing routing to sinks. A console-only framework event stays
 console-only. A safe fallback changes the content of a routed event without
 creating a new reason to retain it in the database.
+Cover the entire lifetime of each shipped process. A startup failure before
+normal logging is configured still needs a static operator explanation and
+a nonzero exit. An error in the fallback itself must not print the rejected
+input or formatted traceback.
 
 Register trusted producers, event IDs, approved templates, field validators
 and ownership in application code. Route approved events through their
@@ -142,6 +146,9 @@ and captured console output.
    nested metadata, path, chained exception and diagnostic object. Assert it
    is absent from stored message and JSON, console, explorer search and
    counts. Verify stable reason and component still reach both sinks.
+   Use an unapproved argument whose formatting methods record calls.
+   Require zero formatting calls and the expected static fallback in
+   every routed sink. Repeat for native and standard-library records.
 3. Run the same operation with zero, one and several synthetic restricted
    results. Hold public inputs and retry count fixed. Compare emitted event
    counts and approved content across the database, captured console and
@@ -157,10 +164,16 @@ and captured console output.
    events. Confirm each permitted diagnostic appears the intended number
    of times and failures in logging itself preserve the same content rule.
    Start the shipped API server as a process as well. Exercise an ordinary
-   Log Explorer search with a synthetic query value and a benign failed
-   request. Capture complete stdout and stderr. Verify the approved
-   operation and status are useful and the unapproved query value is
-   absent from both console streams and durable diagnostics.
+   Log Explorer search with a synthetic query value for access logging.
+   Separately inject a harmless application exception in an isolated test
+   process so the server's error handler runs. Use distinct test values and
+   verify the approved access status and error category both appear at
+   their intended sinks. Capture complete stdout and stderr and check that
+   neither unapproved value appears there or in durable diagnostics.
+   Finally, inject a synthetic initialization failure in each shipped
+   entrypoint before normal logging starts. Require a nonzero exit and the
+   approved startup explanation, without the test input or local path in
+   either console stream.
 5. Start with an old reader and writer and a synthetic historical row. Test
    cutover with that reader still running. No client may reach it once the
    new policy becomes active. The new reader returns only eligible entries
