@@ -228,9 +228,24 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         reference_metadata.create_all(ref)
         annotation_state.create(sample)
         lookup = _write(tmp_path, "lookup.txt", _LOOKUP)
-        pairs = _write(tmp_path, "pairs.txt", _SIGNIF)
-        load_gtex_eqtl(pairs, load_variant_rsid_lookup(lookup), "Liver", installed)
-        gtex_mod.gtex_genes.drop(installed)  # Actual pre-gene-name schema.
+        # Seed the legacy association values independently of the loader under test.
+        columns = ("rsid", "gene_id", "tissue", "chrom", "pos", "pval_nominal", "slope")
+        historical = [
+            ("rs2222", "ENSG002", "Liver", "2", 100, 3e-8, -0.22),
+            ("rs769952832", "ENSG001", "Liver", "1", 64764, 1e-12, 0.45),
+        ]
+        gtex_eqtl.create(installed)  # Legacy installs contain only the association table.
+        with installed.begin() as conn:
+            conn.execute(
+                gtex_eqtl.insert(), [dict(zip(columns, row, strict=True)) for row in historical]
+            )
+
+        def associations() -> list[tuple]:
+            rows = lookup_eqtls_by_rsids(["rs2222", "rs769952832"], installed)
+            return sorted(
+                tuple(row[col] for col in columns) for hits in rows.values() for row in hits
+            )
+
         gtex_mod.record_gtex_eqtl_version(ref, version="v8")
         snapshot = read_current_reference_versions(ref)
         assert snapshot["gtex_eqtl"] == "v8"
@@ -240,12 +255,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
                     key=REFERENCE_VERSION_SNAPSHOT_KEY, value=json.dumps(snapshot)
                 )
             )
-        rsids = ["rs769952832", "rs2222"]
-        original = lookup_eqtls_by_rsids(rsids, installed)
-        assert {rsid: [row["gene_id"] for row in rows] for rsid, rows in original.items()} == {
-            "rs769952832": ["ENSG001"],
-            "rs2222": ["ENSG002"],
-        }
+        assert associations() == historical
         assert lookup_gene_names(["ENSG001", "ENSG002"], installed) == {}
         assert find_stale_reference_versions(sample, ref) == []
 
@@ -255,7 +265,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         )
         run_standalone_build(DATABASES["gtex_eqtl"], settings, ref, download_and_load_gtex_eqtl)
 
-        assert lookup_eqtls_by_rsids(rsids, installed) == original
+        assert associations() == historical
         assert lookup_gene_names(["ENSG001", "ENSG002", "ENSG999"], installed) == {
             "ENSG001": "GENEA",
             "ENSG002": "GENEB",
