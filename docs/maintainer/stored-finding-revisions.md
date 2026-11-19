@@ -44,7 +44,11 @@ coverage bit written to annotated variants. Publish the desired CPIC bit
 for the affected scope with its alerts and leave other coverage bits intact.
 Before repair, every variant reader must mask a CPIC contribution whose
 eligibility is unknown. Apply the same rule to filters and counts as to a
-displayed badge. The SQL console and SQL export must use the same eligible
+displayed badge. Return a per-source pending mask alongside verified
+coverage. A pending source supplies neither a positive nor a negative
+answer. Keep unrelated verified sources visible and label the unresolved
+source as pending. Show “no sources covered” only when absence is known for
+all relevant sources. The SQL console and SQL export must use the same eligible
 coverage values for selection and filtering, or refuse an access that would
 expose the unprojected mask. A raw column in a SQL expression is still a
 reader of that value. Track a wording projection separately so the original
@@ -53,6 +57,16 @@ verified storage identity scopes every correction, including after restore or
 replacement. The registry's existing CYP2C9/phenytoin prompt validates that
 identity and a file fingerprint before publication; a fingerprint alone cannot
 identify the inputs or analysis revision.
+
+Give each installed copy of a sample a fresh identity on restore or
+replacement, even when its registry ID, content hash, path and creation
+time are preserved. The registry publishes which copy is active. Bind
+writers, links, reminders and dismissals to that identity before comparing
+revisions. Fence the old copy as part of the switch and reconcile work from
+the restored copy when both stores agree on its identity. Within one copy
+use an ordered, sample-local publication counter for conditional writes.
+The existing annotated-variants generation is a UUID equality token for a
+table swap. Never use it to order publications.
 
 Bind producer completion and coverage contributions to the annotated-variants
 generation actually used. The full annotation path replaces that table
@@ -314,6 +328,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   list, detail and coverage filters must suppress its pending CPIC bit and
   retain unrelated source bits. After retry verify the bit is cleared for
   that marker and set for the newly assessed control.
+  Pair the pending marker with a verified covered marker and a genuinely
+  uncovered one. Positive and negative filters and their counts must each
+  return only their own verified control. The pending marker appears in
+  neither. Verify the unfiltered API and the Variant Explorer tooltip
+  distinguish its pending state from confirmed absence, including when it
+  has no other covered source.
   Check the pending and unaffected coverage values through both the SQL
   console and SQL export, including filtering and counts. If a path cannot
   project the mask, verify that it refuses the unprojected value and still
@@ -358,6 +378,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Race two publishers for the same central key in opposite generation order.
   The older one must neither replace nor retract the newer reminder, even
   after retry or when the newer reminder has already been dismissed.
+  Restore an older backup keeping the same registry metadata and a lower
+  local counter. Its new copy identity must permit a legitimate reminder
+  and reject late writes, reads and dismissals for the retired copy.
 
 ### Panel wording, membership and rollback
 
@@ -388,6 +411,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   supported by two panels. Drop that panel's contribution to both, interrupt
   publication and retry. Check stored contributions and variant API masks.
   Only the shared marker retains GWAS coverage after repair.
+  Repeat through full reannotation, including the actual variant table
+  swap and all module runners. Verify exact masks and producer receipts
+  after the swap, after interruption and after full completion, including
+  a marker whose sole current GWAS contribution comes from a panel.
 
 ### Ancestry-first reanalysis
 
@@ -409,7 +436,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   their withholding after upgrade, and their exact expected values after
   repair and reopen. In APOL1, exercise the shipped caveat and indeterminate
   disclosure separately with an eligible synthetic ancestry input and an
-  input outside the gate. In cancer PRS and traits PRS, check each producer's
+  input outside the gate. Add an ancestry-eligible, fully called `hom_ref`
+  APOL1 non-carrier. Verify its completed result is empty after repair and
+  reopen, including the absence of an indeterminate finding.
+  In cancer PRS and traits PRS, check each producer's
   ancestry caveat and, for a score with calibration support, its calibration
   method and fractions. In nutrigenomics, choose an LCT fixture whose
   ancestry-conditional caveat changes and another whose result stays current.
