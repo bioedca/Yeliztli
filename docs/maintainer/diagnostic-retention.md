@@ -19,6 +19,9 @@ approved error category. If the application has no reviewed explanatory
 template, a generic **“Operation failed”** event with a known component and
 error category still gives the operator a place to start. Suppress unknown
 fields independently so a valid diagnostic remains useful.
+Each template declares required and optional fields. An invalid required
+reason selects the generic failure template. Drop an invalid optional
+retry count while preserving the valid explanation and safe fields.
 
 | Input | Proposed database and default-console behavior |
 | --- | --- |
@@ -39,6 +42,9 @@ it calls the logger for a result. A result-dependent occurrence cannot
 become an independent operational failure just by using an exception API.
 The zero/one/many test covers the producer and the existing test covers
 the safe representation of a failure that actually occurred.
+For both native and standard-library exception calls, inspect every new
+database row from the isolated operation and both console streams. Require
+the single expected neutral record and only the approved console diagnostic.
 
 Choose a **structured allowlist plus reviewed templates**. Trying to remove
 recognizable sensitive patterns from arbitrary text cannot establish that
@@ -72,6 +78,9 @@ only the safe form of application events, or propagation must stop before
 reaching it. Keep other applications' logging configuration intact. Direct
 output by independently launched tools and historical service logs are
 outside this policy. Document those boundaries in operator guidance.
+Keep the existing routing to sinks. A console-only framework event stays
+console-only. A safe fallback changes the content of a routed event without
+creating a new reason to retain it in the database.
 
 Register trusted producers, event IDs, approved templates, field validators
 and ownership in application code. Route approved events through their
@@ -102,6 +111,15 @@ period needs its own authorized decision. Update the user-facing privacy
 documentation when implementation ships so it states exactly which output
 paths the application controls.
 
+Manual launches require an operator cutover. Stop all old API and worker
+processes, including independently started ones. Disable their restart
+commands and point the supported manual launch commands at the verified
+release before resuming service. Keep older releases away from the active
+data directory and task queue. If the operator cannot establish which
+processes have access, the new policy is not yet active. A rollback uses
+an isolated compatible environment and requires its own explicit policy
+decision before it can serve operator logs again.
+
 ## Synthetic acceptance cases
 
 Exercise native structured logging and standard-library logging through the
@@ -112,9 +130,14 @@ and captured console output.
    Assert exact helpful messages and allowed fields for the known cases.
    Require a nonempty generic event for the unknown case.
    Send the same registered event ID and valid fields through its authorized
-   interface and through an ordinary third-party record. Require the approved
-   template only for the authorized event and the safe fallback for the other
-   in both the database and the console.
+   interface and an ordinary record on the existing database-and-console
+   application route. Require the approved template for the former and
+   the safe fallback for the latter at both sinks. A console-only
+   third-party record gets the fallback on its console and produces no
+   database entry. Send an out-of-catalog required reason through the
+   trusted interface and require “Operation failed” with its approved
+   component. With a valid reason and an out-of-range optional retry count,
+   require the approved explanation at both sinks and no count.
 2. Put a synthetic opaque sentinel in free text, a formatting argument,
    nested metadata, path, chained exception and diagnostic object. Assert it
    is absent from stored message and JSON, console, explorer search and
@@ -147,6 +170,9 @@ and captured console output.
    Require the task to remain unconsumed and no task output to be emitted
    until a compatible worker starts. Then require one completed task and
    only its approved diagnostic.
+   Exercise the manual cutover separately with the API and worker launched
+   directly. Verify only the replacement processes can serve the active
+   data directory and consume its queued synthetic task.
 
 Approval is requested for the common content policy, the safe-template
 exception and the treatment of historical rows before #2459 changes logging.
