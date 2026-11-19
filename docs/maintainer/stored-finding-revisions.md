@@ -10,7 +10,7 @@ whose interpretation can have changed and offer a scoped rerun.
 
 | Work item | Trigger | Proposed handling |
 | --- | --- | --- |
-| #2304, corrected prescribing text | Source wording changes for the same complete, uniquely identifiable guidance key | Project approved wording and citations together into the recommendation field and finding text. Require unchanged phenotype, activity score, partner-gene and population applicability, severity and action. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
+| #2304, corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel Intermediate Metabolizer correction changes the action by indication. Withhold that old recommendation until the scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
 | #2454, changed CPIC interpretation or callable allele | Updated interpretation can change the call, caveat, action, membership or whether a result exists | Withhold affected PGx output and prompt once per affected sample and analysis, listing safe reasons. A schema migration's return value or the presence of an old finding cannot establish who was affected. Reconcile even on installs that already received the reference migration. |
 | #2435, seven pathway panels | Panel changes in allergy, sleep, skin, fitness, nutrigenomics, methylation or traits | Project only when the exact dependency, category, membership and rendered template still match. Refresh citations and embedded SNP detail consistently. Preserve independently authored notes and customized text. A moved SNP, newly eligible finding or changed pathway aggregate requires rerunning the affected panel. |
 | #2413, changed analysis order | Historical cancer, APOL1, gout, nutrigenomics and traits runs may predate the ancestry-first order | Use an analysis revision and its input dependencies. Recompute ancestry before its affected consumers. If ancestry still cannot produce a usable result, let those modules report their normal unknown state. An unchanged reference bundle cannot certify the run order. |
@@ -22,6 +22,13 @@ revisions, dependencies, applicability predicate and migration tests. The
 analysis owner controls its producer revision. Preserve the real upstream
 release in reference provenance. A repository edit cannot manufacture a new
 CPIC, panel-source or VEP release.
+
+During rollout, inventory the shipped CYP2B6/efavirenz, CYP2D6/tamoxifen
+and TPMT repairs alongside the existing phenytoin path. Classify each from
+its released old and new records and test its actual sample-side effect
+before enabling projection. For panels, match the genotype used in scoring
+after module-specific normalization and verify the stored template and
+citations. An ambiguous match goes to the panel rerun.
 
 ## Durable state and recovery
 
@@ -59,6 +66,14 @@ documented unknown input. A failed or unfinished prerequisite supplies no
 completion proof. Keep dependent results stale until a successful run can
 establish the required input and outcome.
 
+When a legacy finding carries customized text, preserve the original text and
+its sample, producer and historical finding identity in a local record outside
+the replaceable result set. Commit that preservation before or atomically
+with replacement. This allows a person with access to the sample to recover
+their words even if the rerun yields zero rows. Only reattach a note to a
+current result when its identity is unambiguous. Keep historical clinical
+wording out of current findings, summaries and exports.
+
 Use **scoped automatic recomputation** only for bounded, deterministic repairs
 with verified inputs, an idempotent transaction and a tested failure path. The
 legacy rare-variant repair in #2606 provides one precedent. Expensive jobs,
@@ -82,27 +97,62 @@ Raw variant annotation and source assertions retain their own provenance and
 access rules. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
+The updates banner reads a separate saved diff. Preserve the original
+`last_finding_diff_json` for audit. At `GET /api/updates/finding-changes`,
+check the recorded revision of each added, removed and changed entry,
+including its before/after values. Project only a verified wording change
+and withhold entries with unsafe or unverifiable text. Apply disclosure
+checks to the final display, recalculate each bucket count from its visible
+entries and return `available=false` when none remain. A later rerun cannot
+make obsolete text in an older snapshot eligible.
+
 For the four implementation issues, use the actual scoring, persistence,
 upgrade and read paths with synthetic controls:
 
-- Score an old clopidogrel fixture, change only approved wording and verify
-  the returned text, detail and citations in the drug view, summary, card and
-  report. Introduce a missing key and an applicability change; both must leave
-  the old guidance withheld.
-- Add a callable marker to an already-migrated reference fixture. Cover a
-  previously stored result, an empty completed result, a proven unaffected
-  sample and a fully called `hom_ref` non-carrier. Assert both the withheld
-  and recovered values. Run startup twice and acknowledge the reminder.
+- Score and store the released legacy clopidogrel Intermediate Metabolizer
+  fixture before upgrading the reference. Verify that its old guidance is
+  withheld after upgrade and that the scoped rerun returns the shipped
+  indication-specific text in the drug view, summary, card and report. In a
+  separate synthetic wording-only update, assert the projected text, detail
+  and citations on the same surfaces. A missing key or applicability change
+  must withhold the old guidance.
+- Take the DPYD `rs115232898` reference migration through both a fresh
+  upgrade and an install that already has the target allele. Seed synthetic
+  raw inputs for an affected stored result, an empty completed result, a
+  sample whose inputs exclude the marker and a fully called `hom_ref`
+  control. Assert the old and corrected calls, the eligible findings, and
+  exactly which sample receives a reminder across two startups, dismissal
+  and successful rerun. A current run stays current on either install.
+  Verify the caveat as well as the call before classifying an input as
+  unaffected. A missing or uncalled marker cannot establish non-carriage.
 - Exercise each of the seven panel readers with a wording-only change and a
   change that moves category, eliminates a row, introduces a row or changes
   the pathway aggregate. Cover missing or ambiguous keys and custom wording.
-  Assert identifiers, counts, text and citations on both sides of each filter.
+  Assert identifiers, counts, text and citations on both sides of each filter,
+  including a fully called non-carrier for a carriage-gated finding.
+  Remove a customized finding in a successful rerun. Recover its exact
+  original text from the historical record and verify that no current finding
+  or report presents it, including after another rerun.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
   sample with the same registry ID. A stale result must never be presented as
   current through a secondary surface.
+- Open an undismissed saved diff containing a stale added prescribing alert
+  and one eligible entry. Verify the banner API returns only the eligible
+  text and exact bucket counts, and that rendering the banner cannot reveal
+  the old text. Cover stale before/after values, an all-withheld diff, and
+  a repeated read after a successful rerun.
+- Use the same module selection and `include_all=true` on
+  `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
+  synthetic carried rsIDs, one selected only by a stale finding and one by a
+  current finding, plus a selected `hom_ref` control. Before repair require
+  an observation count of one and exactly the current rsID in the delivered
+  Observations. Rerun with a current finding for the formerly stale rsID.
+  Require a count of two and the exact pair of carried rsIDs in the bundle.
 
-Maintainer approval is requested for the limited wording projection, the
-default withholding and rerun behavior, and the completion criteria above.
-The four linked implementation issues retain their own regression obligations.
+This document records a proposal. The four linked implementation issues
+require a maintainer decision on the limited wording projection, default
+withholding and rerun behavior, and completion criteria above before they
+change stored or presented results. Record that decision with the proposal
+and link it from those issues.
