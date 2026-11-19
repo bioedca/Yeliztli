@@ -75,10 +75,19 @@ follow-up in [#2632](https://github.com/bioedca/Yeliztli/issues/2632).
 | Only the CYP2D6 `*4` marker is typed | Assert **Insufficient** confidence and zero prescribing alerts. This exercises the earlier sparse-coverage exit. |
 | CYP2D6 `hom_ref` at all six defining SNVs, all three defining indels unassayed, copy number unknown | No positive variant-carrier finding. Keep the copy-number caveat and withhold a normal-only drug action. In a separate positive control, supply the supported deletion token at rs35742686 and assert the observed `*3` signal survives. |
 | NUDT15 with a heterozygous rs116855232 plus a heterozygous indel token | Show the provisional observation and phase/sequence limitation. Withhold incompatible thiopurine guidance, including with TPMT intermediate, without losing the independently observed TPMT result. |
+| Resolved TPMT intermediate, only the NUDT15 rs116855232 heterozygote typed | Assert the carrier observation and **Insufficient** confidence for NUDT15. Retain its uncertainty before generating single-gene alerts. Withhold conflicting TPMT-only and compound actions for each affected drug. Pair with the absent-partner case below using the same otherwise applicable source context, so the partner evidence is the only difference. |
 | Resolved TPMT intermediate and NUDT15 absent or insufficient, with no specific competing NUDT15 result | Use a source-verified TPMT-only row only when its regimen and indication conditions apply. Name the unavailable partner and assert zero NUDT15 or compound alerts. Include a missing condition or unreviewed row as a negative control with zero drug actions. Exercise the reciprocal known-NUDT15/absent-TPMT case and the both-unavailable case (zero actions). |
 | NUDT15 `hom_ref` at assayed SNVs with an untyped indel | Keep the provisional gene result visible. Assert no positive carrier finding and zero NUDT15-directed normal-dose actions for mercaptopurine, azathioprine and thioguanine. Distinguish this result from a genuinely resolved reference control. |
-| Resolved synthetic single- and joint-gene controls | Return the exact positive reviewed drug row for its full key and preserve its qualifications. For future data capable of ruling out competing classes, distinguish an established common action from conflicting, unrepresented and no-recommendation states. |
+| Resolved synthetic single- and joint-gene controls | For a future input that resolves the genotype and supplies every required clinical qualifier, assert the exact positive reviewed row for its full key. Compare it to conflicting, unrepresented and no-recommendation states. On current genotype-only input, assert that a source row requiring an unknown starting regimen is withheld even for a fully resolved genotype. |
 | Tamoxifen or an unrelated drug | Verify zero tamoxifen guidance through all consumers and positive unchanged guidance for an unrelated, eligible control. |
+
+The current alert generator receives gene results and a reference database.
+It has no indication or starting-regimen input. In particular, a resolved
+TPMT intermediate result with no usable NUDT15 partner cannot yield a
+regimen-specific mercaptopurine instruction on that input. The positive
+otherwise-applicable regimen control above describes a future fixture. A
+positive control available today is the observed carrier on the gene card,
+alongside an unrelated eligible drug. This proposal adds no clinical intake.
 
 Exercise the production caller, alert generation and storage, the PGx API,
 medication-safety report, generic findings and exports. Check complete bodies
@@ -89,6 +98,8 @@ to settle delivery to existing installs.
 
 **Decision requested.** Clinical and product maintainers should record whether
 they accept option C for each of the seven pairs, the whole-action equivalence
-rule, and the resulting loss of drug cards on unresolved array calls. Record
+rule, and withholding when either the array call or the required clinical
+context is unresolved. This can remove a regimen-dependent drug action
+even when one gene is fully resolved. Record
 any exception by drug and source before implementing or changing existing
 results.

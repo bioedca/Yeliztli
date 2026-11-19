@@ -1,0 +1,37 @@
+{
+  "accessed_utc": "2026-11-19",
+  "scope": "Factual projections of the cited passages for source comparison. No dose values or patient records.",
+  "sources": [
+    {
+      "pmid": "41979467",
+      "doi": "10.1002/cpt.70291",
+      "url": "https://files.cpicpgx.org/data/guideline/publication/ondansetron/2026/41979467.pdf",
+      "pdf_sha256": "06848e7f1066782daa74e5da4d921175bffdef24bef45ce86c19750c4ac3c895",
+      "locator": "Table 2, PDF page 4, ondansetron scope",
+      "cyp2d6_rows": {
+        "ultrarapid": "Alternative drug branch",
+        "normal": "Usual starting-dose branch",
+        "intermediate": "No recommendation",
+        "poor": "No recommendation",
+        "indeterminate": "No recommendation"
+      }
+    },
+    {
+      "pmid": "41618934",
+      "doi": "10.1002/cpt.70209",
+      "url": "https://files.cpicpgx.org/data/guideline/publication/thiopurines/2026/41618934.pdf",
+      "pdf_sha256": "be9865c0b899b2baf9846072cbc0940f96280c760aab10d2f7f1e2e724b16f32",
+      "passages": [
+        {
+          "locator": "Other considerations, PDF page 10",
+          "fact": "When only one of TPMT and NUDT15 has a result, guidance based on that gene can be used with a caveat about the unavailable partner."
+        },
+        {
+          "locator": "Table 2, PDF page 6, mercaptopurine intermediate-metabolizer row",
+          "fact": "Application depends on the usual starting regimen. The table distinguishes a standard start from one that is already reduced."
+        }
+      ],
+      "editorial_note": "Read with the Table 1 correction, PMID 42050374."
+    }
+  ]
+}

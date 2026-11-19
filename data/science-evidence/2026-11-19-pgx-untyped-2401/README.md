@@ -34,6 +34,14 @@ The proposed conflict rule addresses positive but ambiguous information
 from the other gene. The single-gene rule has its own acceptance control.
 [PMID:41618934](https://pmc.ncbi.nlm.nih.gov/articles/PMC12997511/) (accessed 2026-11-19).
 
+The [two CPIC table and section extracts](raw/cpic-guideline-facts.json)
+retain the source facts used for the ondansetron eligibility comparison
+and the thiopurine single-gene caveat, together with PDF page locators
+and SHA-256 digests. Table 2 of the thiopurine guideline conditions the
+mercaptopurine intermediate branch on the starting regimen. The extracts
+record bibliographic metadata and factual summaries only. The original
+articles remain subject to their publishers' terms.
+
 - `data/science-evidence/2026-11-19-pgx-untyped-2401/raw/pubmed.json`
   retains selected public fields from NCBI ESummary and linked editorial
   notices from EFetch. Both used the comma-separated `id` list in the file,
