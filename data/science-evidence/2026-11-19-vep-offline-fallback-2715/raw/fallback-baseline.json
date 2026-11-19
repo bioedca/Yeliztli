@@ -92,6 +92,62 @@
             }
           ]
         }
+      },
+      "clinvar_reference_homozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "T",
+          "alt": "C",
+          "zygosity": "hom_ref",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [],
+          "all_positions": [
+            {
+              "ref": "T",
+              "alt": "C",
+              "gt": "0/0"
+            }
+          ]
+        }
+      },
+      "clinvar_heterozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "T",
+          "alt": "C",
+          "zygosity": "het",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "ref": "T",
+              "alt": "C",
+              "gt": "0/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "ref": "T",
+              "alt": "C",
+              "gt": "0/1"
+            }
+          ]
+        }
       }
     }
   }

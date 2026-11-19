@@ -25,6 +25,7 @@
       "alt": "C",
       "transcript_id": "ENST00000311124",
       "strand": "-",
+      "consequence": "missense_variant",
       "hgvs_coding": "c.80A>G",
       "hgvs_protein": "p.His27Arg"
     },

@@ -137,7 +137,10 @@
             "cds_end": 80,
             "hgvsc": "ENST00000311124.4:c.80A>G",
             "cds_start": 80,
-            "protein_start": 27
+            "protein_start": 27,
+            "consequence_terms": [
+              "missense_variant"
+            ]
           }
         ]
       }

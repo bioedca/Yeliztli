@@ -23,6 +23,7 @@ def check_sentinel(conn):
     (transcript,) = location["transcript_consequences"]
     ref, alt = location["allele_string"].split("/")
     tx_id, _version = transcript["transcript_id"].rsplit(".", 1)
+    (consequence,) = transcript["consequence_terms"]
     expected = (
         location["seq_region_name"],
         location["start"],
@@ -30,6 +31,7 @@ def check_sentinel(conn):
         alt,
         tx_id,
         {1: "+", -1: "-"}[transcript["strand"]],
+        consequence,
         transcript["hgvsc"].split(":", 1)[1],
         transcript["hgvsp"].split(":", 1)[1],
     )
@@ -40,6 +42,7 @@ def check_sentinel(conn):
         "alt",
         "transcript_id",
         "strand",
+        "consequence",
         "hgvs_coding",
         "hgvs_protein",
     )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -54,6 +55,7 @@ def measure(directory: Path) -> dict:
     from backend.db.tables import (
         annotated_variants,
         annotation_state,
+        clinvar_variants,
         database_versions,
         jobs,
         raw_variants,
@@ -101,11 +103,41 @@ def measure(directory: Path) -> dict:
         with patch.object(connection, "_registry", registry), TestClient(app) as client:
             from backend.tasks.huey_tasks import create_annotation_job, run_annotation_task
 
-            # Both calls are manufactured from the public worked example. The
-            # archived GRCh37 reference base is T. No person's data is an input.
-            for sample_id, (label, call) in enumerate(
-                [("heterozygous", ref + alt), ("reference_homozygous", "TT")], start=1
+            # The later controls add only public site identity from a repository
+            # fixture. Every sample is manufactured, and the earlier controls
+            # complete before this shared reference gains its ClinVar row.
+            fixture_path = Path("tests/fixtures/seed_csvs/clinvar_seed.csv")
+            with fixture_path.open(newline="") as handle:
+                (site,) = [row for row in csv.DictReader(handle) if row["rsid"] == EXAMPLE]
+            if (site["chrom"], int(site["pos"]), site["ref"], site["alt"]) != (
+                "21",
+                46957794,
+                "T",
+                "C",
             ):
+                raise ValueError("The historical ClinVar control fixture has changed")
+            reference_call = site["ref"] * 2
+            for sample_id, (label, call) in enumerate(
+                [
+                    ("heterozygous", ref + alt),
+                    ("reference_homozygous", reference_call),
+                    ("clinvar_reference_homozygous", reference_call),
+                    ("clinvar_heterozygous", ref + alt),
+                ],
+                start=1,
+            ):
+                if label == "clinvar_reference_homozygous":
+                    with reference.begin() as conn:
+                        conn.execute(
+                            clinvar_variants.insert().values(
+                                rsid=EXAMPLE,
+                                chrom=site["chrom"],
+                                pos=int(site["pos"]),
+                                ref=site["ref"],
+                                alt=site["alt"],
+                                review_stars=int(site["review_stars"]),
+                            )
+                        )
                 relative_path = f"samples/sample_{sample_id}.db"
                 with reference.begin() as conn:
                     conn.execute(
