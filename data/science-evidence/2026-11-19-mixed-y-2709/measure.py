@@ -44,16 +44,26 @@ def parser_outputs(marker, mixed):
         ("v5", "# build 37\n" + "# synthetic header\n" * 14),
     ]:
         for genotype in (mixed, marker["allele"], marker["allele"] * 2, "--"):
-            # Arbitrary parser-only position. No build-36 coordinate is used for scoring.
+            # The build-36 probe tests spelling only, with an arbitrary synthetic location.
+            marker_id, position = (
+                ("synthetic_build36_marker", 7_000_000)
+                if version == "v3"
+                else (marker["rsid"], marker["pos"])
+            )
             stream = io.StringIO(
                 header
                 + "# rsid\tchromosome\tposition\tgenotype\n"
-                + f"synthetic_parser_marker\tY\t1000000\t{genotype}\n"
+                + f"{marker_id}\tY\t{position}\t{genotype}\n"
             )
             parsed = parse_23andme(stream)
             assert parsed.version == version
             [row] = parsed.variants
-            results[f"23andMe {version} Y {genotype}"] = [row.chrom, row.genotype]
+            results[f"23andMe {version} Y {genotype}"] = [
+                row.rsid,
+                row.chrom,
+                row.pos,
+                row.genotype,
+            ]
     for chrom, a1, a2 in [
         ("24", *mixed),
         ("25", *mixed),
@@ -66,7 +76,7 @@ def parser_outputs(marker, mixed):
             f"{marker['rsid']}\t{chrom}\t{marker['pos']}\t{a1}\t{a2}\n"
         )
         [row] = parse_ancestrydna(stream).variants
-        results[f"AncestryDNA {chrom} {a1}/{a2}"] = [row.chrom, row.genotype]
+        results[f"AncestryDNA {chrom} {a1}/{a2}"] = [row.rsid, row.chrom, row.pos, row.genotype]
     return results
 
 
@@ -92,6 +102,14 @@ def run_case(bundle, rows, table):
         engine.dispose()
 
 
+def measure_sources(bundle, rows):
+    raw = run_case(bundle, rows, raw_variants)
+    annotated = run_case(bundle, rows, annotated_variants)
+    if raw != annotated:
+        raise ValueError(f"Source-table results differ: {raw!r}, {annotated!r}")
+    return raw
+
+
 def main():
     structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(50))
     nodes = json.loads(SOURCES.read_text())["nodes"]
@@ -113,6 +131,12 @@ def main():
         if marker_id == "rs9786153":
             # The issue's AA control is a non-derived base. The source identifies T as ancestral.
             calls.update(issue_control_AA="AA", issue_mixed_AC="AC")
+        if marker_id == "rs2032599":
+            # Both A and T are in the bundle source's GRCh37 allele set. Neither is derived.
+            observed = sorted(set(marker["ncbi_grch37_y_alleles"]) - {derived})
+            if observed != ["A", "T"]:
+                raise ValueError("The B mixed-without-derived control needs re-evaluation.")
+            calls["mixed_without_derived"] = "".join(observed)
         witness = {"target": target, "node": node_name, "marker": marker_id, "controls": {}}
         original = path_rows(nodes, target)
         assert sum(r["rsid"] == marker_id for r in original) == 1
@@ -122,9 +146,7 @@ def main():
                 for r in original
                 if r["rsid"] != marker_id or call is not None
             ]
-            raw = run_case(bundle, rows, raw_variants)
-            assert run_case(bundle, rows, annotated_variants) == raw
-            witness["controls"][label] = raw
+            witness["controls"][label] = measure_sources(bundle, rows)
         measurements.append(witness)
     marker = next(m for m in nodes["R1b1a1a"]["markers"] if m["rsid"] == "rs9786153")
     source_checks = {}
@@ -133,9 +155,7 @@ def main():
         changed = [
             {**r, "chrom": chrom, "pos": pos} if r["rsid"] == marker["rsid"] else r for r in rows
         ]
-        raw = run_case(bundle, changed, raw_variants)
-        assert run_case(bundle, changed, annotated_variants) == raw
-        source_checks[f"{chrom}:{pos}"] = raw
+        source_checks[f"{chrom}:{pos}"] = measure_sources(bundle, changed)
     print(
         json.dumps(
             {

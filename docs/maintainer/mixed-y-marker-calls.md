@@ -1,6 +1,6 @@
 # Mixed calls at Y lineage markers
 
-For #2472, treat a call containing two different bases at an eligible Y defining marker as **missing evidence for that marker**. Preserve the imported value. Count a pure derived base once, whether the export spells it once or twice. A pure, established ancestral base still supplies conflicting evidence. This is a proposal for maintainer decision under [#2709](https://github.com/bioedca/Yeliztli/issues/2709).
+For #2472, a mixed call at an eligible Y marker should contribute zero derived votes. I propose treating a mixed call that includes the defining base as **missing evidence for that marker**. If both reported bases exclude the defining base, keep the existing conflict. Preserve the imported value. Count a pure derived base once, whether the export spells it once or twice. A pure, established ancestral base still supplies conflicting evidence. This is a proposal for maintainer decision under [#2709](https://github.com/bioedca/Yeliztli/issues/2709).
 
 ## What the supported exports document
 
@@ -23,11 +23,14 @@ Today the assignment query looks up Y marker IDs across the entire selected tabl
 
 The columns below show the named terminal, matched/total defining markers on the returned path, and the software's confidence score. This score is a path coverage fraction. It gives no probability that a paternal lineage is correct. Each row perturbs one marker on an otherwise derived synthetic path.
 
-| Marker changed to mixed | Current output | Treat mixed as missing (proposed) | Treat mixed as conflict |
+| Marker changed to mixed | Current output | Treat every mixed call as missing | Treat every mixed call as conflict |
 | --- | --- | --- | --- |
 | Sole R1b1a1a terminal marker, rs9786153 | R1b1a1a, 20/20, 1.0 | R1b1a, 19/19, 1.0 | R1b1a, 19/19, 1.0 |
 | One of two R1b1a markers, rs7893073 | R1b1a1a, 20/20, 1.0 | R1b1a1a, 19/20, 0.95 | R1b1, 17/17, 1.0 |
-| Audited B marker on a path to B2, rs2032599 | B2, 3/3, 1.0 | B2, 2/3, 0.6667 | Y-Adam, 0/0, 0.0 |
+| Audited B marker on a path to B2, rs2032599, mixed with derived C | B2, 3/3, 1.0 | B2, 2/3, 0.6667 | Y-Adam, 0/0, 0.0 |
+| Same B marker, mixed A/T, neither base is derived | Y-Adam, 0/0, 0.0 | B2, 2/3, 0.6667 | Y-Adam, 0/0, 0.0 |
+
+The recommended rule follows the missing column for the first three rows and the conflict column for the last. The bundle source lists A, C and T at the B marker. Treating A/T as missing would release a previously blocked assignment to B2. Retaining its conflict avoids that change. This decision uses the two letters only to exclude positive support for C. It does not assert which base is ancestral in the sample.
 
 Measured on the unchanged production path. The missing column uses an actual absent row and a no-call, which agreed. The conflict column uses the known pure ancestral comparator to measure the existing conflict branch. These two columns predict what a new mixed-call classification would do. They do not measure new production code. A surviving descendant can retain its name while its support fraction falls. A withheld leaf can leave a shorter path with a score of 1.0.
 
@@ -37,8 +40,8 @@ Peng et al. excluded Y sites with heterozygous calls when constructing a tree fr
 
 ## Acceptance after the decision
 
-1. Pin the three witnesses, their pure single/doubled derived, pure ancestral, mixed, absent and no-call controls, and both raw and populated annotated sources. Assert terminal name, matched count, denominator and confidence, including the B2 and internal-marker cases where the options differ.
+1. Pin both kinds of mixed call across the three witnesses, their pure single/doubled derived, pure ancestral, mixed, absent and no-call controls, and both raw and populated annotated sources. Assert terminal name, matched count, denominator and confidence, including the B2 and internal-marker cases where the options differ.
 2. Parse synthetic inputs from both vendors before scoring. Include a lowercase/reversed mixed spelling, an Ancestry partial no-call, an X/PAR row and a build-36 case that goes through the actual supported lift-over path. Keep a non-XY eligibility control and the existing mixed-mtDNA and generic heterozygous-match tests.
 3. Scope the behavior to ordinary A/C/G/T spellings at eligible defining SNPs. An indel, invalid spelling or ambiguous merge sentinel must never earn a derived vote by string containment. Keep unsupported formats and causes unclassified. Revisit source-specific exceptions only with public manufacturer evidence and a test that distinguishes the exception.
 
-The reproduction script, source revisions, full control outputs and query record are in `data/science-evidence/2026-11-19-mixed-y-2709/`. The maintainer decision is whether an ambiguous marker may be bypassed when independent descendant evidence exists, and whether either supported vendor needs a documented exception.
+The reproduction script, source revisions, full control outputs and query record are in `data/science-evidence/2026-11-19-mixed-y-2709/`. The maintainer decision is whether bypass should apply to all mixed calls, to mixed calls that include the defining base, or to none. The reviewed evidence supplies no vendor-specific exception.

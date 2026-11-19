@@ -23,8 +23,9 @@ Manufacturer content is copyright to its respective owner. Only the listed short
 Run these commands from the repository root after installing development dependencies.
 
 ```sh
+mkdir -p output
 python data/science-evidence/2026-11-19-mixed-y-2709/measure.py > output/mixed-y-replay.json
 cmp data/science-evidence/2026-11-19-mixed-y-2709/raw/synthetic-measurements.json output/mixed-y-replay.json
 ```
 
-The script creates an in-memory schema for each case and uses the shipped bundle and `assign_haplogroups`. Twenty input perturbations and three misplaced-identifier controls run against both raw and annotated sources (46 assignments). Seventeen separate parser controls cover the four supported export versions. No real genotype inputs, imputation, network access or cluster jobs are needed. Sign-off on the scoring choice and any vendor exceptions is still required before #2472 changes production behavior.
+The script creates an in-memory schema for each case and uses the shipped bundle and `assign_haplogroups`. Twenty-one input perturbations and three misplaced-identifier controls run against both raw and annotated sources (48 assignments). Seventeen separate parser controls cover the four supported export versions. The v4 and v5 parser controls use the actual GRCh37 terminal locus. The v3 parser-only control uses a synthetic identifier and position. The B-marker controls include a mixed pair made entirely from known non-derived bases. No real genotype inputs, imputation, network access or cluster jobs are needed. Sign-off on the scoring choice and any vendor exceptions is still required before #2472 changes production behavior.

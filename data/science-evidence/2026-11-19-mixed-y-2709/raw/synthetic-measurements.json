@@ -140,77 +140,117 @@
           2,
           3,
           0.6667
+        ],
+        "mixed_without_derived": [
+          "Y-Adam",
+          0,
+          0,
+          0.0
         ]
       }
     }
   ],
   "parser_controls": {
     "23andMe v3 Y CT": [
+      "synthetic_build36_marker",
       "Y",
+      7000000,
       "CT"
     ],
     "23andMe v3 Y C": [
+      "synthetic_build36_marker",
       "Y",
+      7000000,
       "C"
     ],
     "23andMe v3 Y CC": [
+      "synthetic_build36_marker",
       "Y",
+      7000000,
       "CC"
     ],
     "23andMe v3 Y --": [
+      "synthetic_build36_marker",
       "Y",
+      7000000,
       "--"
     ],
     "23andMe v4 Y CT": [
+      "rs9786153",
       "Y",
+      22739367,
       "CT"
     ],
     "23andMe v4 Y C": [
+      "rs9786153",
       "Y",
+      22739367,
       "C"
     ],
     "23andMe v4 Y CC": [
+      "rs9786153",
       "Y",
+      22739367,
       "CC"
     ],
     "23andMe v4 Y --": [
+      "rs9786153",
       "Y",
+      22739367,
       "--"
     ],
     "23andMe v5 Y CT": [
+      "rs9786153",
       "Y",
+      22739367,
       "CT"
     ],
     "23andMe v5 Y C": [
+      "rs9786153",
       "Y",
+      22739367,
       "C"
     ],
     "23andMe v5 Y CC": [
+      "rs9786153",
       "Y",
+      22739367,
       "CC"
     ],
     "23andMe v5 Y --": [
+      "rs9786153",
       "Y",
+      22739367,
       "--"
     ],
     "AncestryDNA 24 C/T": [
+      "rs9786153",
       "Y",
+      22739367,
       "CT"
     ],
     "AncestryDNA 25 C/T": [
+      "rs9786153",
       "X",
+      22739367,
       "CT"
     ],
     "AncestryDNA 24 C/C": [
+      "rs9786153",
       "Y",
+      22739367,
       "CC"
     ],
     "AncestryDNA 24 C/0": [
+      "rs9786153",
       "Y",
+      22739367,
       "--"
     ],
     "AncestryDNA 24 0/0": [
+      "rs9786153",
       "Y",
+      22739367,
       "--"
     ]
   },
