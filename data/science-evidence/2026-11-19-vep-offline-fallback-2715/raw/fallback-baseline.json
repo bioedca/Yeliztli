@@ -178,5 +178,27 @@
         }
       }
     }
+  },
+  "wheel_member_count": 313,
+  "wheel_member_roots": [
+    "backend",
+    "yeliztli-0.2.0.dist-info"
+  ],
+  "wheel_frontend_dist_members": 0,
+  "installed_wheel_http": {
+    "package_loaded_from_isolated_target": true,
+    "get_root_status": 404,
+    "get_api_health_status": 200
+  },
+  "backup_preflight": {
+    "source": "synthetic sample SQLite with explicit annotation_state stamp",
+    "sample_version": "v1.0.0",
+    "archive_vep_members_tested": [
+      false,
+      true
+    ],
+    "structurally_valid": true,
+    "installed_v4.0.0": "bundle_version_mismatch (backup_below_installed)",
+    "installed_v1.0.0": "accepted by major-version comparison"
   }
 }

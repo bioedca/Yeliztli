@@ -33,7 +33,7 @@ python -m pip wheel --no-deps . --wheel-dir output/wheel-probe
 python -m zipfile -l output/wheel-probe/yeliztli-0.2.0-py3-none-any.whl
 ```
 
-For the historical inventory, open the Git copy with SQLite URI options `mode=ro&immutable=1` and run the following query. Count actual nonempty annotations, including both coding and protein fields. The whole-file SHA-256 binds these counts to the retained baseline. The wheel inventory should include `backend/` and has no member named `vep_bundle.db`.
+For the historical inventory, open the Git copy with SQLite URI options `mode=ro&immutable=1` and run the following query. Count actual nonempty annotations, including both coding and protein fields. The whole-file SHA-256 binds these counts to the retained baseline. The wheel contained 313 members under `backend/` and `yeliztli-0.2.0.dist-info/`. It contained no built frontend and no member named `vep_bundle.db`. Installing the wheel with `pip install --no-index --no-deps --target` into a temporary directory outside the checkout, using the existing project dependencies and checking the imported backend path, gave HTTP 404 on `/` and 200 on `/api/health` through the ASGI application with outbound connections disabled. The backup check exercised the structure, stored-version inspection and major-version comparison functions using two tar archives with a synthetic v1-stamped SQLite sample, one with the historical VEP file and one without it. Both passed the structural check, passed the matching-major comparison, and returned `backup_below_installed` against v4. This measures the normal restore preflight. Raw-only recovery is proposed implementation work.
 
 ```sql
 SELECT count(*), count(DISTINCT rsid),
