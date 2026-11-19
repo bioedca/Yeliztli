@@ -193,6 +193,103 @@ measures software behavior and performance, not scientific accuracy; summary row
 loading and aggregation remain linear, with their separate design tracked in
 [#2358](https://github.com/bioedca/Yeliztli/issues/2358).
 
+### Findings summary after the shared-gate optimization
+
+Select bounded conversion for the five displayed cards and keep the full per-request
+disclosure and liveness checks. On the card-dense synthetic workload this removed
+4,995 unused conversions and reduced the median from 5.147 s to 5.030 s. Sparse
+summaries still spend nearly all their time checking rows. Accept that residual
+cost for now. A larger latency improvement needs evidence on the shared row gate
+or a separately validated cache design. This decision covers the strategy for
+[#2358](https://github.com/bioedca/Yeliztli/issues/2358).
+
+#### Measurements on 2026-11-19
+
+The historical two-module benchmark from #2696 reproduced on main
+`7be123f382be44cc3c0936d2787038886b6488f7`. All 50 public Python source files
+used for that comparison matched the reviewed #2696 head byte for byte. For 10,002
+synthetic records, both predicate implementations produced the same full response
+with 10,001 visible rows, two modules and zero cards. Three serial repeats gave
+94.617 s for the older predicate and 4.938 s for the merged predicate (19.16×).
+The earlier report measured 96.496 s and 4.926 s on its allocation.
+[Historical measurements](https://github.com/bioedca/Yeliztli/issues/2358#issuecomment-6965867752)
+
+The following comparisons use the merged predicate on both sides. The prototype
+changes only which eligible rows are converted to cards, after every row has
+passed through the applicable checks. Each nonempty performance fixture includes
+one row excluded by its payload, one excluded by opt-in state, and one visible
+structured-record boundary control.
+
+| Synthetic workload | Stored / visible | Cards returned | Conversions, current → bounded | Median seconds, current → bounded |
+| --- | ---: | ---: | ---: | ---: |
+| 17 modules, low evidence only | 10,003 / 10,001 | 0 | 0 → 0 | 5.034 → 5.038 |
+| 17 modules, half the ordinary rows have high evidence | 10,003 / 10,001 | 5 | 5,000 → 5 | 5.147 → 5.030 |
+| 17 modules, eight nested text sections per ordinary row | 2,003 / 2,001 | 5 | 20 → 5 | 4.310 → 4.243 |
+
+Each shape has three serial, alternating unprofiled repeats per lane and one
+separate profile per lane. All eight complete response digests agreed within
+each shape. The wide-row timing ranges overlap. On the card-dense baseline,
+the profile attributed 12.977 s cumulatively to 10,002 row checks, 0.041 s to
+fetching rows, 0.227 s to card conversion and 0.049 s to the handler's own
+bookkeeping and aggregation. In the prototype the five conversions took under
+0.001 s in the profile. These times include profiler overhead and nested work.
+The in-memory fixture excludes disk, HTTP, real-sample workloads and warm-cache
+hits. CPU binding was requested, but the observed comparison process had wider
+affinity than the eight-CPU allocation. Use the conversion count as the portable
+performance assertion. [Measurements, digests and environment](benchmarks/findings-summary-2026-11-19.json)
+
+#### Acceptance and alternatives
+
+- Keep module opt-ins, SQL eligibility, structured-payload checks and current
+  cross-module link eligibility ahead of counts, maxima, previews and card
+  selection. Preserve final aggregate validation after the response is assembled.
+  Reuse the existing evidence and module ordering, including current tie behavior.
+- Compare the entire ordered model, including corrected preview text, returned
+  card content, per-level counts, and the withheld flag. The empty database and the
+  two individually excluded rows both produced zero and `withheld=false`.
+  The forced final refusal produced zero and `withheld=true`. The existing
+  two-row cross-record fixture also produced that exact five-field response with
+  the real final gate in both lanes. Cover Dashboard, All Findings and Report
+  Builder, including their distinct withheld and empty views. Report Builder still
+  waits for summary data to create its module selections.
+- Retain the full projection. The gate examines the row's string fields, structured
+  detail, provenance and citations. A narrower projection needs a field-by-field
+  equivalence argument that also covers legacy/future fields, refreshed previews
+  and live links. The measured fetch time gives it little upside on these shapes.
+- Defer a persisted visibility flag or shared summary cache. Either would need
+  per-sample identity and monotonic invalidation for consent changes, policy/code
+  changes, reference or panel replacements, cross-module link changes, in-place
+  finding updates, reanalysis, deletion/replacement, and sex-dependent sample
+  context. Every writer and worker must observe those changes. Cache publication
+  needs one consistent snapshot and version checks across concurrent mutations.
+  On missing or uncertain version evidence, recompute with the full gate.
+- At measurement time [PR #2688](https://github.com/bioedca/Yeliztli/pull/2688)
+  was open at `6064683ef527a03d86d84cf610809e88ff607052`. It combines a
+  bounded card pass with an in-process summary cache. The comparison here
+  isolates the card pass. Recheck the PR and main before implementing #2358.
+  If the card change has landed, verify it in place. If the cache has landed,
+  establish fresh cold/warm measurements and exercise each invalidation event
+  before adopting its results.
+
+#### Reproducing the comparison
+
+Use the measured main revision in two isolated source trees. Copy
+`scripts/benchmark_findings_summary.py` from this decision into each tree.
+Apply the [bounded conversion patch](benchmarks/findings-summary-2026-11-19.patch)
+to the second tree only. The results file pins both route hashes and the driver
+hash. In a finite compute allocation run the historical command above once, then
+run the following command in each tree, using the row counts in the table
+before the three control rows (`10000`, `10000`, `2000`).
+
+```bash
+python scripts/benchmark_findings_summary.py --shape dense --rows 10000
+```
+
+Use `low`, `dense` and `wide` for the throughput cases. Use `--rows 8` for
+`empty`, `held_only` and `response_refused`. Alternate lane order across three
+repeats. Then add `--profile` for one diagnostic call per lane and shape.
+Require the full response SHA-256 to agree across all eight calls to each shape.
+
 ### Ancestry inference timing
 
 Keep the existing ancestry guards unchanged: `test_projection_under_2_seconds`
