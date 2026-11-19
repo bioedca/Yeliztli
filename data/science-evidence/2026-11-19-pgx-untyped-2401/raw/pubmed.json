@@ -1,0 +1,89 @@
+{
+  "accessed_utc": "2026-11-19",
+  "source": "NCBI PubMed ESummary (v2 JSON) and EFetch (PubmedArticle XML)",
+  "params": {
+    "db": "pubmed",
+    "id": "33387367,33462347,37669183,38372405,41979467,41618934,42050374,32873882,36057977"
+  },
+  "retained_fields": "Selected public bibliographic values from ESummary and correction, concern and retraction links from MedlineCitation/CommentsCorrectionsList. Abstracts and personal fields are excluded.",
+  "records": [
+    {
+      "uid": "33387367",
+      "title": "Clinical Pharmacogenetics Implementation Consortium Guideline for CYP2D6, OPRM1, and COMT Genotypes and Select Opioid Therapy.",
+      "pubdate": "2021 Oct",
+      "doi": "10.1002/cpt.2149",
+      "linked_notices": []
+    },
+    {
+      "uid": "33462347",
+      "title": "Cyrius: accurate CYP2D6 genotyping using whole-genome sequencing data.",
+      "pubdate": "2021 Apr",
+      "doi": "10.1038/s41397-020-00205-5",
+      "linked_notices": [
+        {
+          "RefType": "ErratumIn",
+          "PMID": "36171418"
+        }
+      ]
+    },
+    {
+      "uid": "37669183",
+      "title": "PharmVar Tutorial on CYP2D6 Structural Variation Testing and Recommendations on Reporting.",
+      "pubdate": "2023 Dec",
+      "doi": "10.1002/cpt.3044",
+      "linked_notices": []
+    },
+    {
+      "uid": "38372405",
+      "title": "Prevalence of CYP2D6 structural variation in large retrospective study.",
+      "pubdate": "2024 Jun 1",
+      "doi": "10.1097/FPC.0000000000000525",
+      "linked_notices": []
+    },
+    {
+      "uid": "41979467",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2D6 Genotype and Use of 5-HT(3) Receptor Antagonists: 2026 Update.",
+      "pubdate": "2026 Aug",
+      "doi": "10.1002/cpt.70291",
+      "linked_notices": []
+    },
+    {
+      "uid": "41618934",
+      "title": "Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Thiopurine Dosing Based on TPMT and NUDT15 Genotypes: 2025 Update.",
+      "pubdate": "2026 Apr",
+      "doi": "10.1002/cpt.70209",
+      "linked_notices": [
+        {
+          "RefType": "ErratumIn",
+          "PMID": "42050374"
+        }
+      ]
+    },
+    {
+      "uid": "42050374",
+      "title": "Correction to \"Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Thiopurine Dosing Based on TPMT and NUDT15 Genotypes: 2025 Update\".",
+      "pubdate": "2026 Jun",
+      "doi": "10.1002/cpt.70298",
+      "linked_notices": [
+        {
+          "RefType": "ErratumFor",
+          "PMID": "41618934"
+        }
+      ]
+    },
+    {
+      "uid": "32873882",
+      "title": "Determination of NUDT15 variants by targeted sequencing can identify compound heterozygosity in pediatric acute lymphoblastic leukemia patients.",
+      "pubdate": "2020 Sep 1",
+      "doi": "10.1038/s41598-020-71468-y",
+      "linked_notices": []
+    },
+    {
+      "uid": "36057977",
+      "title": "Long-read HiFi sequencing of NUDT15: Phased full-gene haplotyping and pharmacogenomic allele discovery.",
+      "pubdate": "2022 Nov",
+      "doi": "10.1002/humu.24457",
+      "linked_notices": []
+    }
+  ]
+}
