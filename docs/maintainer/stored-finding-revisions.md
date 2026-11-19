@@ -88,12 +88,14 @@ reattach an independently presentable note to a current result when its
 identity is unambiguous and its content is still appropriate. A match on
 gene, drug and phenotype alone cannot approve copied prescribing advice.
 
-Install this preservation step before any earlier migration can delete the
-source row. Both normal upgrade and backup restore can take a pre-v21 sample
-through the CYP2C9/phenytoin cleanup. Capture independently authored content
-under the protected history policy before that cleanup on either path.
-If an earlier install already deleted it and no original backup is available,
-report that the historical text is unavailable.
+On normal upgrade and backup restore, inventory the old schema before any
+migration deletes **or rewrites** an affected finding. Preserve its original
+text, structured detail and provenance, including a missing provenance value,
+under the protected history policy. This must precede the pre-v21 phenytoin
+deletion and the TPMT and CYP2B6/efavirenz in-place updates in v22 and v23.
+An install whose earlier migration already deleted text or cleared provenance
+can identify a gap. Recover an original only from a verified source such as
+the prior backup. A new run's provenance cannot fill that gap.
 
 The transaction must cover every producer the write actually changes. The
 methylation writer currently migrates historical MTHFR nutrigenomics rows
@@ -155,6 +157,13 @@ cached patient output, including an old withheld state, and fetch under the
 new generation. Discard late responses from the old one. A refetch that
 continues displaying old data does not protect this boundary.
 
+Finding links and card requests must identify the verified sample, result
+generation and finding. A SQLite integer row ID alone can name a different
+row after replacement. Require that identity on direct SVG, variant-card and
+other by-ID reads, including copied links. Return the ordinary unavailable
+response when the generation changed or a legacy link cannot prove its
+identity. Current listings supply fresh links.
+
 The updates banner reads a separate saved diff. Preserve the original
 `last_finding_diff_json` under its existing audit and retention rules. When
 producing a new diff, capture each prior finding's producer, input and
@@ -176,6 +185,14 @@ cause separately from upstream release deltas. When a producer changed and
 the source releases did not, the banner can say “Analysis updated.” Attribute
 changes to an upstream release only when that attribution is established.
 
+Give each published diff an immutable identity independent of its reminder.
+The Updates page discovers undismissed, eligible diffs for authorized samples
+even after the last repair reason clears. Recheck eligibility before
+advertising a sample or its count. Accept a dismissal only for the sample
+and exact diff the user saw, atomically comparing its identity with the
+current stored diff. A late or repeated request about an old diff leaves its
+replacement visible. Dismissing a diff has no effect on a reanalysis reason.
+
 For the four implementation issues, use the actual scoring, persistence,
 upgrade and read paths with synthetic controls:
 
@@ -195,9 +212,11 @@ upgrade and read paths with synthetic controls:
   Keep a custom note containing superseded guidance on the same finding
   identity through that run. Verify the new canonical recommendation is
   eligible while the historical note remains outside all current results.
-  Upgrade and restore pre-v21 fixtures with a customized phenytoin row. Check
-  retention before deletion, continued withholding, and a second open. Use
-  an already-migrated fixture to verify that missing text stays unavailable.
+  Upgrade and restore fixtures from before each legacy repair. Verify the
+  original phenytoin, TPMT and CYP2B6/efavirenz text, detail and provenance
+  in protected history after deletion or in-place update and a second open.
+  Check continued withholding. On an already-migrated fixture verify that
+  unavailable text and provenance remain explicitly unknown.
 - Take the DPYD `rs115232898` reference migration through both a fresh
   upgrade and an install that already has the target allele. Seed synthetic
   raw inputs for an affected stored result, an empty completed result, a
@@ -218,7 +237,10 @@ upgrade and read paths with synthetic controls:
   the correction, request each ID and verify its expected SVG content.
   After the correction, require the ordinary unavailable response for that
   same affected ID and a rendered SVG for the eligible control. After repair,
-  verify the card for the new current result reflects the actual rerun.
+  verify the card for the new current result reflects the actual rerun. Force
+  reuse of the old integer ID for a different eligible result. The old SVG
+  link and variant-card request must remain unavailable while newly issued
+  identifiers return only their matching result.
   Query the PGx evidence overlay with an affected and an unaffected alert.
   Check the exact remaining identities, statuses and source associations,
   then verify the corrected alert after repair.
@@ -267,6 +289,10 @@ upgrade and read paths with synthetic controls:
   against a completed empty run and a producer with no verified prior run.
   Only the completed empty baseline should yield an addition, regardless of
   other producers' findings. Check the reverse transition to an empty run.
+  Open the actual Updates page after the last pending reason clears. Show the
+  undismissed eligible diff, replace it with a later one, then deliver the
+  delayed dismissal for the first. Only dismissal of the displayed
+  replacement should remove it. Include an all-withheld control on the page.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
