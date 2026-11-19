@@ -161,6 +161,7 @@ nav:
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
       - Bundle build & release: bundle-release-runbook.md
       - External inputs strategy: external-inputs-strategy.md
+      - Application diagnostic retention: maintainer/diagnostic-retention.md
       - LAI bundle: maintainer/lai-bundle.md
       - LAI coverage calibration: maintainer/lai-coverage-calibration.md
       - Genome Browser reference bundle: maintainer/genome-browser-reference-bundle.md
