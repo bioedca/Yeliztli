@@ -97,6 +97,15 @@ def compare(release):
             WHERE l.rsid=r.rsid
               AND ((l.ref=r.ref AND l.alt=r.alt) OR (l.ref=r.alt AND l.alt=r.ref))
         """).fetchone()[0]
+        alias_candidates = conn.execute("""
+            SELECT count(*) FROM old.vep_annotations l
+            WHERE NOT EXISTS (SELECT 1 FROM main.vep_annotations m WHERE m.rsid=l.rsid)
+              AND EXISTS (
+                SELECT 1 FROM full_release.vep_annotations r
+                WHERE r.chrom=l.chrom AND r.pos=l.pos AND r.rsid!=l.rsid
+                  AND ((r.ref=l.ref AND r.alt=l.alt) OR (r.ref=l.alt AND r.alt=l.ref))
+              )
+        """).fetchone()[0]
         pages = conn.execute("PRAGMA main.page_count").fetchone()[0]
         page_bytes = conn.execute("PRAGMA main.page_size").fetchone()[0]
         return {
@@ -105,6 +114,10 @@ def compare(release):
             "sites_matching_rsid": rsid_only,
             "sites_matching_rsid_and_position": covered,
             "sites_without_matching_rsid_and_position": total - covered,
+            "alternate_id_candidates_among_unmatched_sites": alias_candidates,
+            "unmatched_without_coordinate_and_allele_candidate": total
+            - covered
+            - alias_candidates,
             "sites_with_exact_unordered_allele_pair": resolved,
             "release_rows_at_matching_sites": rows,
             "release_rows_with_protein_name": proteins,

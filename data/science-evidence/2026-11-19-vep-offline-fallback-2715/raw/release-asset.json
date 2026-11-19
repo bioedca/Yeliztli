@@ -32,6 +32,8 @@
     "sites_matching_rsid": 101959,
     "sites_matching_rsid_and_position": 101958,
     "sites_without_matching_rsid_and_position": 296,
+    "alternate_id_candidates_among_unmatched_sites": 10,
+    "unmatched_without_coordinate_and_allele_candidate": 286,
     "sites_with_exact_unordered_allele_pair": 101958,
     "release_rows_at_matching_sites": 169315,
     "release_rows_with_protein_name": 4319,

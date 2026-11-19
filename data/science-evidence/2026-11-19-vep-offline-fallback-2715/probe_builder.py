@@ -76,7 +76,14 @@ def probe_genotype_input(folder: Path) -> list[dict]:
         records = [
             line.split("\t") for line in dest.read_text().splitlines() if not line.startswith("#")
         ]
-        assert len(records) == 1 and records[0][:3] == ["1", "2", "rsSynthetic"]
+        if (
+            len(records) != 1
+            or len(records[0]) != 8
+            or records[0][:3] != ["1", "2", "rsSynthetic"]
+        ):
+            raise ValueError(
+                "Historical vendor input must produce exactly the expected synthetic site"
+            )
         results.append({"synthetic_input": call, "ref": records[0][3], "alt": records[0][4]})
     return results
 
