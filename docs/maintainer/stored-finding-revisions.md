@@ -110,18 +110,22 @@ writers, links, reminders and dismissals to that identity before comparing
 revisions. On replacement, retire the superseded copy as part of the switch.
 On a side-by-side restore, the importer assigns a distinct ID and path on
 collision. Keep both copies active and fence writes by each copy's own
-identity. Before publishing any sample or shared reference, durably
-record one restore operation with a retry key established before upload,
-the archive digest, target installation and reference publication ID. In
-the same registry transaction, reserve each copy's identity, numeric
-sample ID and destination path. Enforce ID and path uniqueness in the
+identity. Issue the restore retry key before upload. Give each request
+private staging from its first byte. Seal the completed archive and use
+that immutable input for hashing, validation and publication. In one
+registry transaction, bind the retry key to the archive digest, target
+installation and reference publication ID, and reserve each copy's
+identity, numeric sample ID and destination path. Only the operation
+holding that reservation may publish. A retry of the same operation
+returns its durable outcome or resumes its unfinished work. Each request
+releases only its own staging. Enforce ID and path uniqueness in the
 registry across reserved and published copies. Every insertion into
 `samples` honors it, including ingest, sample merges and restore. A merge
 using a unique filename still needs its own numeric ID. Keep reserved
 copies unavailable until publication. A retry reuses only its own
 reservations. An intentional second import gets a new operation ID, even
-for the same archive. Reject a
-retry whose archive or target has changed. Reconcile the imported copy
+for the same archive. Reject a retry whose archive or target has changed.
+Reconcile the imported copy
 when both stores agree on its identity. Within one copy, use an ordered,
 sample-local publication counter for conditional writes.
 The existing annotated-variants generation is a UUID equality token for a
@@ -378,6 +382,16 @@ only after verifying one complete set and durably recording its outcome
 and replayable notice. Reconcile each dependent sample by publication ID
 and copy identity. A retry cannot duplicate a notice, publish a score
 made from mixed revisions or clear an independent reason.
+Backup creation participates in the same protocol. Capture a consistent
+snapshot of the selected registry entries, sample copies and reference
+publication. Use committed database snapshots, including committed journal
+contents. Pin immutable revisions or hold read leases across capture.
+Record the publication, copy identities, generations and each archived
+member's digest in the manifest. If any selected input escapes the pinned
+snapshot, discard the incomplete archive and retry. On restore, verify
+each member against the manifest before publication. Admit legacy archives
+through the supported migration path. Keep results with missing provenance
+pending until their components and dependent samples are verified.
 
 Revalidate on mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
@@ -721,8 +735,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration'`.
   Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
-  mean from 1.4 to 2.2. These values describe the fixture. Require
-  `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
+  mean from 1.4 to 2.2. These values describe the fixture. The scoring
+  receipt must survive application shutdown. In a fresh process
+  the changed input must reopen stale. With unchanged inputs the stored
+  result and its fixture percentile must reopen current before any rerun.
+  Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
   can be typed while a typed locus lacks an allele needed for calibration.
   The scorer can consult imputed alleles and the standalone frequency store
   for that locus. Track those actual dependencies even when
@@ -779,6 +796,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   its score pending throughout recovery. Exercise both completion and
   rollback, comparing each with scoring against the corresponding complete
   reference set. An unrelated producer remains available.
+  Check two independent restore operations using different synthetic
+  archives. Each must publish exactly the contents identified by its own
+  digest and release only its own resources. Capture a backup across a
+  reference publication and restore it into an empty installation. Its
+  verified weights and frequencies must both come from a single published
+  set, and its recalculation must match that set's control.
   Verify the content revision, one logical change per affected sample,
   the absence of the old percentile while pending, and agreement with a
   fresh run after repair. An unrelated sample keeps its current values.

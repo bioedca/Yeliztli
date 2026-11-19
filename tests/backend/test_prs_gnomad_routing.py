@@ -10,6 +10,7 @@ import importlib
 import io
 import json
 import math
+import multiprocessing
 import sqlite3
 import tarfile
 from contextlib import closing
@@ -453,34 +454,79 @@ def _update_second_frequency(env: _Environment) -> None:
         frequencies.commit()
 
 
+def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
+    from backend.api.routes import metabolic
+    from backend.db.connection import get_registry, reset_registry
+
+    registry = get_registry()
+    assert registry.settings.data_dir == data_dir
+    app = FastAPI()
+    app.include_router(metabolic.router, prefix="/api")
+    try:
+        with TestClient(app) as client:
+            sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+            reopened = _Environment(client, registry, sample, registry.reference_engine, "match")
+            response = client.get("/api/analysis/metabolic/prs?sample_id=1")
+            assert response.status_code == 200, response.text
+            stored = response.json()
+            state = stored["scoring_state"]
+            assert state == expected_state, (
+                f"Reopened state {state!r}, expected {expected_state!r}"
+            )
+            if expected_state == "current":
+                assert stored["total"] == 1
+                (item,) = stored["items"]
+                assert item["pgs_id"] == "PGS005198"
+                assert item["percentile"] == 95.42
+            return _run_positional_bmi(reopened)
+    finally:
+        reset_registry()
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
-    ("typed_alleles", "expected_imputed"),
+    ("typed_alleles", "expected_imputed", "frequency_changed"),
     [
-        pytest.param(None, 1, id="imputed-dosage"),
-        pytest.param(("A", None), 0, id="typed-dosage-incomplete-alleles"),
+        pytest.param(None, 1, True, id="imputed-dosage"),
+        pytest.param(("A", None), 0, True, id="typed-dosage-incomplete-alleles"),
+        pytest.param(None, 1, False, id="unchanged-frequency"),
     ],
 )
-def test_positional_bmi_reopens_stale_after_frequency_update(
+def test_positional_bmi_reopens_with_durable_scoring_state(
     positional_bmi: _Environment,
     typed_alleles: tuple[str, str | None] | None,
     expected_imputed: int,
+    frequency_changed: bool,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if typed_alleles is not None:
         _add_typed_second_locus(positional_bmi, typed_alleles)
+    assert _route_state(positional_bmi, "metabolic") == "never"
     original = _run_positional_bmi(positional_bmi)
-    _update_second_frequency(positional_bmi)
-    assert _route_state(positional_bmi, "metabolic") == "stale"
-    repaired = _run_positional_bmi(positional_bmi)
+    data_dir = positional_bmi.registry.settings.data_dir
+    positional_bmi.client.close()
+    positional_bmi.registry.dispose_all()
+    positional_bmi.sample.dispose()
+    positional_bmi.reference.dispose()
+    if frequency_changed:
+        _update_second_frequency(positional_bmi)
+    expected_state = "stale" if frequency_changed else "current"
+    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(data_dir))
+    with multiprocessing.get_context("spawn").Pool(1) as pool:
+        repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
+            timeout=60
+        )
     for run in (original, repaired):
         assert run["calibrated"] is True
         assert run["stored_score"] == 3.0
         assert run["snps_used_imputed"] == expected_imputed
         assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
-    assert repaired["calibration_reference_mean"] == pytest.approx(2.2)
+    assert repaired["calibration_reference_mean"] == pytest.approx(
+        2.2 if frequency_changed else 1.4
+    )
     assert original["percentile"] == 95.42
-    assert repaired["percentile"] == 80.05
+    assert repaired["percentile"] == (80.05 if frequency_changed else 95.42)
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
