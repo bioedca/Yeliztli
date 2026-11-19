@@ -150,6 +150,7 @@ nav:
       - Development setup: develop/development-setup.md
       - Project structure: develop/project-structure.md
       - Testing: develop/testing.md
+      - Primary control contrast proposal: develop/primary-control-contrast.md
       - Contributing: develop/contributing.md
       - Labels & triage: develop/labels-and-triage.md
       - Issue claim heartbeats: develop/issue-claims.md
