@@ -6,9 +6,11 @@ inputs or analysis results. Apply one content policy before writing an
 operator log entry to `log_entries` or rendering the shipped API and
 worker consoles. The database scope includes presentation through the Log
 Explorer. Product job-status records, API error responses and support-file
-contents have separate contracts and require their own review. Normal
-developer output can be captured by a service manager or included in a
-support report, so the same content rules apply there.
+contents have separate contracts and require their own review. The same
+rules apply to the API and worker in development. `make dev` also runs a
+frontend development server. Its combined terminal transcript is outside
+this guarantee. For a support report, capture the API or worker's approved
+output separately, before it is combined with other developer tools.
 
 ## What an operator sees
 
@@ -113,11 +115,12 @@ Register trusted producers, event IDs, approved templates, field validators
 and ownership in application code. Route approved events through their
 registered producer's typed interface. Treat a claimed producer field,
 logger name or event ID on an ordinary record as untrusted input.
-A free-form third-party message equal to
-template text is still a free-form message. For standard-library call sites,
-migrate useful operator messages to fixed templates with explicitly typed
-arguments. Messages already formatted before the bridge need the fallback
-unless carried through a trusted structured producer. Names and basenames
+A free-form third-party message equal to template text is still a free-form
+message. At application-owned call sites, pass typed arguments or the
+exception itself to the approved interface. Do not format an object to
+prepare a diagnostic. This preserves the caller's normal recovery even
+when formatting that object could raise. Already-rendered third-party
+messages take the fallback. Names and basenames
 from untrusted paths are not generic “safe” strings. If an operator needs to
 know the storage area, supply a reviewed category such as “application cache.”
 
@@ -181,6 +184,10 @@ as a positive control.
 | Opaque arguments, logger names and exceptions with observable formatting methods | When restricted content cannot be excluded, emit only the neutral marker, with zero formatting calls. No reason or component comes from the input. An Explorer component filter still finds the approved positive control. |
 | A restricted ordinary record, a held exception, a cause/context chain and a nested exception group with a benign outer message and one held member | Each independently occurring operational event gets exactly one neutral diagnostic on its configured route. No member text is rendered. Exercise each exception shape independently. |
 
+Exercise an actual application producer with a synthetic failure whose
+formatting method records calls and raises. Require zero calls, the
+expected safe diagnostic and the producer's normal recovery outcome.
+
 ### Restricted results and request audits
 
 Run one operation with zero, one and several restricted results, holding
@@ -198,6 +205,9 @@ approved operation context, whether one or several items were withheld.
 Repeat with synthetic restricted context bound to the request. Require
 the same response and one identical audit on its route, with no extra
 marker or inherited fields.
+Exercise the cancer PRS list route with a synthetic response that it
+checks more than once before refusal. Observe at least two failed checks,
+the final withheld response and exactly one request audit.
 
 ### Process output and routing
 
