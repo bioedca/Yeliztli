@@ -109,10 +109,13 @@ On a side-by-side restore, the importer assigns a distinct ID and path on
 collision. Keep both copies active and fence writes by each copy's own
 identity. Before publishing any sample or shared reference, durably
 record one restore operation with a retry key established before upload,
-the archive digest, target installation,
-the planned copy IDs and paths, and the reference publication ID. Keep
-partially registered copies unavailable. Retrying that operation reuses
-its allocations and reconciles completed steps. An intentional second
+the archive digest, target installation and reference publication ID. In
+the same registry transaction, reserve each copy's identity, numeric
+sample ID and destination path. Ingest and restore must use the same
+allocator and honor those reservations. Keep reserved copies unavailable
+until publication. A retry verifies ownership of each reservation and
+reuses it. It must never overwrite a destination owned by another copy.
+An intentional second
 import gets a new operation ID, even for the same archive. Reject a
 retry whose archive or target has changed. Reconcile the imported copy
 when both stores agree on its identity. Within one copy, use an ordered,
@@ -139,13 +142,16 @@ ancestry and monogenic findings, and each applicable frequency lookup.
 Record a verified revision of the installed `gnomad_af.db` even if no
 matching allele row or usable population frequency was found. If the
 store was missing, record that distinct state. A new match can change a
-previously uncalibrated score while the sample stays identical. Record a
-verified version of each artifact that changes on content replacement, including committed
-database updates, even if its upstream label is unchanged. A trusted
-publication or content revision must distinguish different scoring inputs
-even when filesystem metadata agrees. Use the existing
-scoring fingerprint inputs as an inventory and compare the inputs before
-publishing and when reopening a completed score.
+previously uncalibrated score while the sample stays identical.
+For a typed contribution, calibration may read frequencies copied into
+`annotated_variants`. Track the reference content used to populate those
+fields. After a source update, verify the copied values against the target
+allele and population or refresh them through annotation before scoring.
+Keep the affected score pending until its inputs and annotation generation
+agree. Apply this rule through intermediate results as well as direct
+lookups. Use the existing scoring fingerprints to inventory dependencies.
+Compare their verified content revisions before publication and on reopen,
+including committed changes under the same upstream label or file metadata.
 
 | Evidence at open or upgrade | Reader and repair behavior |
 | --- | --- |
@@ -716,14 +722,23 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   The scorer can consult imputed alleles and the standalone frequency store
   for that locus. Track those actual dependencies even when
   `snps_used_imputed == 0`. Verify the changed calibration in that case.
-  With typed dosage, keep the genotype, weights and frequency fixed and
-  remove the matching imputed allele pair. Both typed fixtures retain the
-  synthetic raw score of 3.0. Only the incomplete-alleles fixture loses
+  With typed dosage 1.0 and a distinct imputed dosage of 0.25, keep the
+  genotype, weights and frequency fixed and remove the matching imputed
+  allele pair. Both typed fixtures retain the synthetic raw score of 3.0.
+  Only the incomplete-alleles fixture loses
   calibration and withholds its quantitative score. Complete typed alleles
   with their own frequency retain the 95.42 fixture percentile. Separately
   begin with an installed store whose lookup misses. Add the matching row
   in that database without altering the sample. Verify the old uncalibrated
   finding becomes stale and the rerun supplies the fixture percentile.
+  Also populate both typed loci through the production annotation engine.
+  After a source frequency changes, a scorer-only rerun can declare the
+  old copied frequency current. In the synthetic fixture this returned
+  95.42, while fresh annotation followed by scoring returned 80.05 at
+  the same raw score. The repair must match fresh annotation and scoring.
+  Keep an unchanged-source control and inspect the stored annotation and
+  GET response after reopening. The current behavior is tracked in
+  [#2746](https://github.com/bioedca/Yeliztli/issues/2746).
   Replace imputed dosages between scoring and publication without changing
   the annotated token. Reject the old publication and match a fresh run on
   the replacement dosages. In a separate case record the published
@@ -745,9 +760,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   once after it and before registry completion, and once partway through
   notifying dependent samples. Keep the existing view open through the
   interruption and reconnection, then separately test a newly opened view.
-  Interrupt also after sample registration and before the reference
-  switch. Retry the same restore operation twice. It must complete with
-  one imported copy and one logical reference publication. Initiate a
+  Interrupt after the plan reserves its destinations, then ingest a
+  different synthetic sample before retry. The upload must receive a
+  different ID and path and keep its contents. Also interrupt after
+  sample registration and before the reference switch. Retry the same
+  restore operation twice. It must reuse the reserved ID and path and
+  finish with one imported copy and one logical reference publication.
+  Initiate a
   second intentional import of the same fixture and require a distinct
   copy without changing the first one's association.
   Verify the content revision, one logical change per affected sample,
