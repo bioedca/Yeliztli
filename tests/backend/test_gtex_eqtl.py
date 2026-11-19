@@ -284,12 +284,9 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         run_standalone_build(DATABASES["gtex_eqtl"], settings, ref, download_and_load_gtex_eqtl)
 
         assert associations() == historical
-        assert lookup_gene_names(
-            ["ENSG001.4", "ENSG002.1", "ENSG001.5", "ENSG002", "ENSG999"], installed
-        ) == {
-            "ENSG001.4": "GENEA",
-            "ENSG002.1": "GENEB",
-        }
+        assert lookup_gene_names(["ENSG001.4"], installed) == {"ENSG001.4": "GENEA"}
+        assert lookup_gene_names(["ENSG002.1"], installed) == {"ENSG002.1": "GENEB"}
+        assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
         assert read_current_reference_versions(ref) == snapshot
         assert find_stale_reference_versions(sample, ref) == []
 
