@@ -4,5 +4,11 @@
   "source_sha256": "bfd78218fa51b2675279e54dc997fc8bd78e4f49f481ecfb8acc7b23faf895f6",
   "doi": "10.1038/ncomms14238",
   "scope": "Manufacturer-affiliated research methods, not a consumer export manifest",
-  "reported_array_family": "Illumina Human OmniExpress"
+  "reported_array_family": "Illumina Human OmniExpress",
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "notice": "Copyright 2017 The Authors. Third-party materials may have separate credit lines.",
+    "permissions_record": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5309710/",
+    "terms": "https://creativecommons.org/licenses/by/4.0/"
+  }
 }
