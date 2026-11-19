@@ -58,6 +58,12 @@ replacement. The registry's existing CYP2C9/phenytoin prompt validates that
 identity and a file fingerprint before publication; a fingerprint alone cannot
 identify the inputs or analysis revision.
 
+Keep the existing processed/unannotated distinction separate from a single
+source's coverage. The `annotation_coverage:notnull` view includes a
+processed row with mask zero and a processed row with verified VEP and
+pending CPIC. The `:null` view still identifies unannotated rows. Exclude
+a pending source from that source's positive and negative predicates only.
+
 Give each installed copy of a sample a fresh identity on restore or
 replacement, even when its registry ID, content hash, path and creation
 time are preserved. The registry publishes which copy is active. Bind
@@ -75,6 +81,11 @@ invalidate dependent receipts when the staging table goes live. Carry a
 contribution forward only with proof that its inputs, output and disclosure
 still match. A process that stops after the swap leaves dependent results
 pending until their generation has been verified.
+Record the entire set of generation tokens the producer used. For cancer
+and traits PRS that can include both annotated calls and imputed dosages.
+Capture the imputed-variants token even when an imputation lookup returned
+no rows. Reject publication if an input token changed during scoring,
+including a dosage replacement that leaves the annotated table untouched.
 
 | Evidence at open or upgrade | Reader and repair behavior |
 | --- | --- |
@@ -101,8 +112,9 @@ write, recheck the local reason and identity. Conditionally retract only a
 reminder from the obsolete generation if a rerun, replacement or dismissal
 won the race. On interruption reconcile both sides, including a central
 reminder whose local reason has cleared. Check eligibility again when
-serving reminders. Bind a dismissal to the verified sample identity, displayed
-revision and exact set of reasons. Apply it only if all still match. If a
+serving reminders. Bind a dismissal to the verified sample identity,
+displayed publication counter, target revision and exact set of reasons.
+Apply it only if all still match. If a
 different reason or revision arrived while the tab was open, return the new
 state for review and leave it visible. Dismissal never makes a finding current.
 Deduplicate the user-facing action when several reasons share a rerun. Existing
@@ -236,10 +248,14 @@ reminder only according to its own state. A completed repair must retain
 the comparison across a crash, and retries must not replace a newer diff
 or recreate a dismissed one. Persist the appropriate side for an addition or
 removal and both sides for a change in a versioned diff. Include each
-producer's completion record on **both** sides, including an explicitly empty
-result. Compare membership only across two verified completions for that
-producer. With an unknown baseline, a current result may be shown on its
-own but cannot be described as newly added or removed. Within a matched
+producer's completion status on **both** sides. Distinguish a verified
+nonempty or empty run from an unknown legacy completion. Compare membership
+only across two verified completions for that producer. With an unknown
+baseline, do not infer additions or removals. A verified stored legacy row
+can still establish a change to one matched finding if its identity and old
+field value are independently proven and its current replacement comes from
+a verified completion. Keep the prior run status unknown and omit the change
+when the old value or match is ambiguous. Within a matched
 identity, compare the correction-specific fields declared by its owner,
 including the reviewed prescribing action and the gout model's structured
 odds ratio, as well as the existing structured meaning fields. A changed prescribing action can require a notice with the
@@ -334,6 +350,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   neither. Verify the unfiltered API and the Variant Explorer tooltip
   distinguish its pending state from confirmed absence, including when it
   has no other covered source.
+  Separately verify `annotation_coverage:notnull` and `:null` counts using
+  a processed zero-mask row, a processed mixed verified/pending row and a
+  never-annotated row.
   Check the pending and unaffected coverage values through both the SQL
   console and SQL export, including filtering and counts. If a path cannot
   project the mask, verify that it refuses the unprojected value and still
@@ -350,6 +369,14 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the superseded alert and confirm the new conservative basis, score-specific
   guidance and citations after repair. A fully assayed `hom_ref` control
   stays current. Neither of the earlier revisions can clear this correction.
+  Register DPYD's earlier inclusion in the conservative prescribing policy
+  as a separate revision of gene applicability. With the new allele-table
+  content already installed, isolate an older untyped defining marker and
+  one observed non-reference allele. Hold the direct call and Partial
+  confidence constant. Verify the previously stored alert is withheld and
+  the eligible rerun uses the reviewed conservative basis. Current coverage,
+  the confidence floor and later homozygote enumeration cannot certify this
+  policy revision. Include a fully assayed unaffected control.
   Separately restore a DPYD reference with phenotype-only rows and a newly
   added nullable activity-score column. Use two shipped score-specific rows
   within the same phenotype band that map to different guidance. A scorer
@@ -375,6 +402,8 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   preserve an independent live reason and honor dismissal.
   Delay dismissal of the original reminder until a different correction
   occupies its place. Verify that the new correction stays visible.
+  Also clear and recreate the same reason and target under a new publication
+  counter. A delayed dismissal from the first occurrence must not hide it.
   Race two publishers for the same central key in opposite generation order.
   The older one must neither replace nor retract the newer reminder, even
   after retry or when the newer reminder has already been dismissed.
@@ -441,7 +470,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   reopen, including the absence of an indeterminate finding.
   In cancer PRS and traits PRS, check each producer's
   ancestry caveat and, for a score with calibration support, its calibration
-  method and fractions. In nutrigenomics, choose an LCT fixture whose
+  method and fractions. Replace imputed dosages between scoring and
+  publication without changing the annotated token. The old result cannot
+  become current. Retry and match a fresh run on the replacement dosages.
+  In nutrigenomics, choose an LCT fixture whose
   ancestry-conditional caveat changes and another whose result stays current.
   Compare with the same inputs scored in the supported ancestry-first order.
 
@@ -469,6 +501,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   against a completed empty run and a producer with no verified prior run.
   Only the completed empty baseline should yield an addition, regardless of
   other producers' findings. Check the reverse transition to an empty run.
+  With no legacy receipt, test a proven old clopidogrel action or gout
+  estimate on a matched row and an ambiguous legacy value. Only the
+  independently proven field change may produce a notice.
   Open the actual Updates page after the last pending reason clears. Show the
   undismissed eligible diff, replace it with a later one, then deliver the
   delayed dismissal for the first. Only dismissal of the displayed
