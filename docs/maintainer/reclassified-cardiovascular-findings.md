@@ -30,7 +30,7 @@ identifies a variant–condition aggregate and SCV identifies an individual
 submission. A ClinVar label may be paired with a specific condition only
 when the actual record, accession and scope establish that association.
 The existing flat fields can be displayed as source evidence without
-recovering a submitter-specific interpretation. [ClinVar data model](https://www.ncbi.nlm.nih.gov/clinvar/docs/data_model/)
+recovering a submitter-specific interpretation. [ClinVar data model](https://www.ncbi.nlm.nih.gov/clinvar/docs/data_model/) (accessed 2026-11-19).
 
 ## Decision and data contract
 
@@ -109,5 +109,6 @@ report must use the current state.
 
 **Decision requested.** Record approval of the neutral headline, separate
 source assertion and gene-specific references, and the interim handling of
-old rows before implementing this user-facing change. The [evidence packet](https://github.com/bioedca/Yeliztli/tree/main/data/science-evidence/2026-11-19-fh-presentation-2412)
-maps the existing rules to their sources and sets out their limits.
+old rows before implementing this user-facing change. The public source
+snapshot maps the existing rules to their studies and sets out their limits.
+[Evidence packet for #2412](https://github.com/bioedca/Yeliztli/blob/705d1ffc72801ba490389bcbde4dc6326cfea819/data/science-evidence/2026-11-19-fh-presentation-2412/README.md)
