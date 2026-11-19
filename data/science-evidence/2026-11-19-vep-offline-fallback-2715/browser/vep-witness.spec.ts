@@ -1,19 +1,25 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { bypassSetup, mockFreshSampleState, waitForReactHydration } from '../../../../tests/e2e/helpers'
+import { bypassSetup, waitForReactHydration } from '../../../../tests/e2e/helpers'
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https?:\/\/(?!127\.0\.0\.1:42716(?:\/|$))/, route => route.abort())
   await bypassSetup(page)
-  await mockFreshSampleState(page)
   await page.route(/\/api\/(samples|individuals|watches)(?:\?|$)/, route => route.fulfill({json: []}))
   await page.route('**/api/annotation/active/1', route => route.fulfill({status: 404}))
+  const freshness = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.pathname === '/api/variants/count' && url.searchParams.get('sample_id') === '1'
+  })
   const result = page.waitForResponse(response => {
     const url = new URL(response.url())
     return url.pathname === '/api/variants/rs1051266' && url.searchParams.get('sample_id') === '1'
   })
   await page.goto('/variants/rs1051266?sample_id=1')
   await waitForReactHydration(page)
+  const count = await freshness
+  expect(count.status()).toBe(200)
+  expect((await count.json()).total).toBe(1)
   const response = await result
   expect(response.status()).toBe(200)
   expect((await response.json()).hgvs_protein).toBe('p.Arg27His')

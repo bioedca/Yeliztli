@@ -24,6 +24,7 @@
       "ref": "T",
       "alt": "C",
       "transcript_id": "ENST00000311124",
+      "gene_symbol": "SLC19A1",
       "strand": "-",
       "consequence": "missense_variant",
       "hgvs_coding": "c.80A>G",

@@ -23,6 +23,15 @@ def check_sentinel(conn):
     (transcript,) = location["transcript_consequences"]
     ref, alt = location["allele_string"].split("/")
     tx_id, _version = transcript["transcript_id"].rsplit(".", 1)
+    parent = sources["grch37_sentinel"]["/lookup/id/" + tx_id]["selected_fields"]
+    gene = sources["grch37_sentinel"]["/lookup/id/" + parent["Parent"]]["selected_fields"]
+    if (
+        f"{parent['id']}.{parent['version']}" != transcript["transcript_id"]
+        or gene["id"] != transcript["gene_id"]
+        or gene["assembly_name"] != location["assembly_name"]
+        or gene["object_type"] != "Gene"
+    ):
+        raise ValueError("Source transcript and parent gene identity do not agree")
     (consequence,) = transcript["consequence_terms"]
     expected = (
         location["seq_region_name"],
@@ -30,6 +39,7 @@ def check_sentinel(conn):
         ref,
         alt,
         tx_id,
+        gene["display_name"],
         {1: "+", -1: "-"}[transcript["strand"]],
         consequence,
         transcript["hgvsc"].split(":", 1)[1],
@@ -41,6 +51,7 @@ def check_sentinel(conn):
         "ref",
         "alt",
         "transcript_id",
+        "gene_symbol",
         "strand",
         "consequence",
         "hgvs_coding",

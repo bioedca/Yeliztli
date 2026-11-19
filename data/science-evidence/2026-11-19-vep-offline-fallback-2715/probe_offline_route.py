@@ -245,17 +245,34 @@ def measure(directory: Path) -> dict:
         with reference.connect() as conn:
             after_workers = conn.scalar(version_query)
         blocked_before_install = _vep_bundle_blocks_ancestrydna(reference, path)[0]
-        if not install_committed_bundle(bundle, settings):
-            raise ValueError("Explicit fallback installation failed")
-        with reference.begin() as conn:
-            install_stamp = conn.scalar(version_query)
+        # The explicit-install control must not stamp the web server's data directory.
+        with tempfile.TemporaryDirectory() as separate:
+            explicit_settings = Settings(data_dir=Path(separate))
+            explicit = DBRegistry(explicit_settings)
+            try:
+                explicit_ref = explicit.reference_engine
+                reference_metadata.create_all(explicit_ref)
+                get_database_status(bundle, explicit_settings)
+                installed = explicit_settings.vep_bundle_db_path
+                if hashlib.sha256(installed.read_bytes()).hexdigest() != EXPECTED_SHA:
+                    raise ValueError("Unexpected explicit-install control artifact")
+                if not install_committed_bundle(bundle, explicit_settings):
+                    raise ValueError("Explicit fallback installation failed")
+                with explicit_ref.connect() as conn:
+                    install_stamp = conn.scalar(version_query)
+                explicit_blocked = _vep_bundle_blocks_ancestrydna(explicit_ref, installed)[0]
+            finally:
+                explicit.dispose_all()
+        with reference.connect() as conn:
+            if conn.scalar(version_query) is not None:
+                raise ValueError("The status-only installation was stamped before browser startup")
         observation = {
             "status_stamp": status_stamp,
             "effective_after_status": effective,
             "registry_stamp_after_workers": after_workers,
             "ancestrydna_gate_before_explicit_install": blocked_before_install,
             "install_stamp": install_stamp,
-            "ancestrydna_ingest_blocked": _vep_bundle_blocks_ancestrydna(reference, path)[0],
+            "ancestrydna_ingest_blocked": explicit_blocked,
             "bundle_transcript": transcript,
             "bundle_protein": protein,
             "synthetic_controls": controls,
