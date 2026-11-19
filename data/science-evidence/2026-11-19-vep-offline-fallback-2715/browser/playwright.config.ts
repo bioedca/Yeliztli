@@ -16,6 +16,7 @@ export default defineConfig({
   webServer: [
     {
       command: `python ${packet}/browser/serve_probe.py`,
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       cwd: root,
       url: 'http://127.0.0.1:42715/witness-health',
       reuseExistingServer: false,

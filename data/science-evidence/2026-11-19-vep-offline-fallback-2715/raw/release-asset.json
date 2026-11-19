@@ -48,7 +48,7 @@
         "input": {
           "chrom": "9",
           "pos": 108274509,
-          "synthetic_genotype": "TC"
+          "synthetic_genotype": "CT"
         },
         "lookup_vep_by_rsids": {
           "matched_by": "rsid",
@@ -70,7 +70,7 @@
         "input": {
           "chrom": "9",
           "pos": 108274510,
-          "synthetic_genotype": "TC"
+          "synthetic_genotype": "CT"
         },
         "lookup_vep_by_rsids": {
           "matched_by": "rsid",

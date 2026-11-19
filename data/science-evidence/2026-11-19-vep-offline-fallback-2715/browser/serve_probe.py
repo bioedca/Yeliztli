@@ -3,12 +3,14 @@
 import os
 import runpy
 import tempfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import patch
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory() as temporary:
+    directory = tempfile.TemporaryDirectory(prefix="yeliztli-vep-witness-")
+    with directory as temporary:
         os.environ["YELIZTLI_DATA_DIR"] = temporary
         os.environ["YELIZTLI_MANIFEST_PATH"] = str(Path("bundles/manifest.json").resolve())
 
@@ -23,7 +25,16 @@ def main() -> None:
         with patch("socket.socket.connect", side_effect=OSError("Offline reproduction")):
             runpy.run_path(str(probe))["measure"](Path(temporary))
 
-        app = FastAPI()
+        @asynccontextmanager
+        async def lifespan(_app: FastAPI):
+            try:
+                yield
+            finally:
+                # Uvicorn re-raises its termination signal after ASGI shutdown.
+                get_registry().dispose_all()
+                directory.cleanup()
+
+        app = FastAPI(lifespan=lifespan)
         app.include_router(variants_router, prefix="/api")
         app.include_router(detail_router, prefix="/api")
 
