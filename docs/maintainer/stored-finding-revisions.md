@@ -66,10 +66,11 @@ failure or disconnect. A request that fails the check returns the
 upgrade response before any download begins.
 The legacy tooltip treats both zero and null as confirmed absence. Test a
 legacy client and a current client on the same pending-only and mixed rows.
-Before activating this protocol on an existing installation, close the old
-application windows and browser tabs, then reopen them on the current
-client. An already-open legacy tab can keep a cached finding indefinitely
-without making a request. Treat this as a coordinated upgrade prerequisite.
+Before activation, retire every old browser session that can restore an
+application page, including inactive tabs and back/forward history. Start
+the new client in a fresh browsing context using the
+[diagnostic retention cutover](diagnostic-retention.md). Keep the cutover
+pending until the operator can verify that retired sessions cannot resume.
 Retire old backend processes and their launch configuration as well. The
 supported launcher or an external storage boundary must keep an older
 reader or writer away from lifecycle-managed samples, including after a
@@ -114,9 +115,11 @@ the original numeric ID, content hash, source path and creation time.
 Bind the new identity to its verified physical file in the registry. Bind
 writers, links, reminders and dismissals to that identity before comparing
 revisions. On replacement, atomically repoint the registry and retire the
-superseded copy. Fence old operations, drain handles and dispose of its
-cached engines before retiring its storage. Never reuse a live or cached
-path for the replacement.
+superseded copy. Commit a replayable retirement notice for the old identity
+in that registry transaction. An open view of the retired copy clears its
+results and requires a fresh selection. Fence old operations, drain handles
+and dispose of its cached engines before retiring its storage. Never reuse
+a live or cached path for the replacement.
 On a side-by-side restore, the importer assigns a distinct ID and path on
 collision. Keep both copies active and fence writes by each copy's own
 identity. Issue the restore retry key before upload. Give each request
@@ -680,10 +683,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   logical switch. Give the two copies different synthetic findings. A new
   request must read only the replacement, and the retired handle must
   never publish a result or return one for the replacement.
+  Keep a drug page open for the retired copy. It must clear its findings
+  and require a new selection, including after a missed notice and reconnect.
   Separately import that backup alongside its original using the real
   collision-handling path. Verify each registry entry opens its own
   findings and links, accepts its own writes and maintains its own
-  reminders. Clearing a reason in one copy must leave the other intact.
+  reminders. The original open page keeps its verified selection. Clearing
+  a reason in one copy must leave the other intact.
 
 ### Panel wording, membership and rollback
 
@@ -867,9 +873,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   After the empty rerun, reopen Report Builder with a fresh selection.
   Select the completed module alone and through “Select all”. Its own
   preflight shows verified absence. A hidden completion stays out of both.
-- Warm the shipped legacy client on the drug and coverage pages before
-  upgrading the backend. Retire those tabs before activating the correction.
-  Reopen on the current client and verify pending results on both pages.
+- Warm the shipped legacy client on the drug and coverage pages and
+  navigate one tab away before upgrading. Complete the fresh-context
+  cutover and verify Back or session restoration cannot reopen either
+  legacy result. Open both pages in the current client and verify pending
+  results.
   An old-format request after activation receives the upgrade requirement.
   Also restore the old backend and launcher against the synthetic deployment.
   Verify they cannot open its upgraded sample or consume queued work. An
