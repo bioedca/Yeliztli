@@ -8,6 +8,7 @@ the context-only badge (never ACMG evidence).
 from __future__ import annotations
 
 import gzip
+import json
 import tarfile
 from pathlib import Path
 
@@ -29,7 +30,16 @@ from backend.annotation.gtex_eqtl import (
     lookup_gene_names,
     parse_variant_id,
 )
-from backend.db.tables import database_versions, reference_metadata
+from backend.config import Settings
+from backend.db.connection import DBRegistry
+from backend.db.database_registry import DATABASES
+from backend.db.standalone import run_standalone_build
+from backend.db.tables import annotation_state, database_versions, reference_metadata
+from backend.services.staleness import (
+    REFERENCE_VERSION_SNAPSHOT_KEY,
+    find_stale_reference_versions,
+    read_current_reference_versions,
+)
 
 # GTEx WGS lookup table (variant_id → rsID). Last variant has no rsID ('.').
 _LOOKUP = (
@@ -204,6 +214,67 @@ def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
         for f in members:
             tf.add(f, arcname=f"GTEx_Analysis_v8_eQTL/{f.name}")
     return tar_path
+
+
+def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = Settings(data_dir=tmp_path)
+    registry = DBRegistry(settings)
+    sample = sa.create_engine(f"sqlite:///{tmp_path}/synthetic-sample.db")
+    try:
+        installed = registry.gtex_eqtl_engine
+        ref = registry.reference_engine
+        reference_metadata.create_all(ref)
+        annotation_state.create(sample)
+        lookup = _write(tmp_path, "lookup.txt", _LOOKUP)
+        pairs = _write(tmp_path, "pairs.txt", _SIGNIF)
+        load_gtex_eqtl(pairs, load_variant_rsid_lookup(lookup), "Liver", installed)
+        gtex_mod.gtex_genes.drop(installed)  # Actual pre-gene-name schema.
+        gtex_mod.record_gtex_eqtl_version(ref, version="v8")
+        snapshot = read_current_reference_versions(ref)
+        assert snapshot["gtex_eqtl"] == "v8"
+        with sample.begin() as conn:
+            conn.execute(
+                annotation_state.insert().values(
+                    key=REFERENCE_VERSION_SNAPSHOT_KEY, value=json.dumps(snapshot)
+                )
+            )
+        rsids = ["rs769952832", "rs2222"]
+        original = lookup_eqtls_by_rsids(rsids, installed)
+        assert {rsid: [row["gene_id"] for row in rows] for rsid, rows in original.items()} == {
+            "rs769952832": ["ENSG001"],
+            "rs2222": ["ENSG002"],
+        }
+        assert lookup_gene_names(["ENSG001", "ENSG002"], installed) == {}
+        assert find_stale_reference_versions(sample, ref) == []
+
+        archive = _make_eqtl_tar(tmp_path, {"Liver": _SIGNIF})
+        monkeypatch.setattr(
+            gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
+        )
+        run_standalone_build(DATABASES["gtex_eqtl"], settings, ref, download_and_load_gtex_eqtl)
+
+        assert lookup_eqtls_by_rsids(rsids, installed) == original
+        assert lookup_gene_names(["ENSG001", "ENSG002", "ENSG999"], installed) == {
+            "ENSG001": "GENEA",
+            "ENSG002": "GENEB",
+        }
+        assert read_current_reference_versions(ref) == snapshot
+        assert find_stale_reference_versions(sample, ref) == []
+
+        # A changed source identity must still produce the normal re-annotation signal.
+        gtex_mod.record_gtex_eqtl_version(ref, version="synthetic-other-release")
+        assert find_stale_reference_versions(sample, ref) == [
+            {
+                "db_name": "gtex_eqtl",
+                "recorded_version": "v8",
+                "current_version": "synthetic-other-release",
+            }
+        ]
+    finally:
+        sample.dispose()
+        registry.dispose_all()
 
 
 class TestLoadDir:
