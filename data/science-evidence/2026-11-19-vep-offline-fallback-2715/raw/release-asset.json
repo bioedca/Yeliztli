@@ -45,24 +45,44 @@
     "rsid": "rs11431378",
     "measurements": {
       "legacy": {
-        "chrom": "9",
-        "pos": 108274509,
-        "v4_lookup": {
+        "input": {
+          "chrom": "9",
+          "pos": 108274509,
+          "synthetic_genotype": "TC"
+        },
+        "lookup_vep_by_rsids": {
           "matched_by": "rsid",
           "allele_unambiguous": false,
-          "returned_pos": 108274510,
+          "chrom": "9",
+          "pos": 108274510,
+          "ref": "T",
+          "alt": "C",
+          "hgvs_coding": "c.896-578T>C"
+        },
+        "engine_adapter": {
+          "allele_identity": null,
           "gene_symbol": "FSD1L",
           "consequence": "intron_variant",
           "hgvs_coding": "c.896-578T>C"
         }
       },
       "v4": {
-        "chrom": "9",
-        "pos": 108274510,
-        "v4_lookup": {
+        "input": {
+          "chrom": "9",
+          "pos": 108274510,
+          "synthetic_genotype": "TC"
+        },
+        "lookup_vep_by_rsids": {
           "matched_by": "rsid",
           "allele_unambiguous": true,
-          "returned_pos": 108274510,
+          "chrom": "9",
+          "pos": 108274510,
+          "ref": "T",
+          "alt": "C",
+          "hgvs_coding": "c.896-578T>C"
+        },
+        "engine_adapter": {
+          "allele_identity": "[\"9\",108274510,\"T\",\"C\"]",
           "gene_symbol": "FSD1L",
           "consequence": "intron_variant",
           "hgvs_coding": "c.896-578T>C"
