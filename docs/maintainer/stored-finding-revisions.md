@@ -324,10 +324,13 @@ Populate the Report Builder picker and its “Select all” action from
 eligible findings and independently disclosable pending analyses. A
 pending-only module remains selectable with zero eligible findings. Never
 expose a hidden module through the picker or its totals.
-An unscoped FHIR export also uses findings for disclosure. When a gated
-module names an rsID, only an independently eligible, visible finding may
-justify including it under the shared-membership exception. Apply this rule
-to both calls even when `modules` is omitted.
+Unscoped FHIR export follows the same disclosure rule as its preflight.
+Include a carried variant only when its eligibility is established. A
+pending or legacy analysis can change membership even when its stored
+finding set is empty. Use its verified candidate set to withhold possible
+gated members. If the scope is unknown, withhold every unresolved member.
+An independently eligible and visible finding may still justify including
+that variant. Keep the same rule for counts and delivery.
 For the caller's authorized selection, return whether reanalysis could
 change the eligible observations. Explain that incomplete state in the
 preflight and in the delivered `DiagnosticReport.conclusion` alongside
@@ -735,10 +738,19 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration'`.
   Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
-  mean from 1.4 to 2.2. These values describe the fixture. The scoring
-  receipt must survive application shutdown. In a fresh process
+  mean from 1.4 to 2.0. Its reference variance changed from 0.90 to 0.96
+  and its percentile from 95.42 to 84.63. These values describe the fixture.
+  The scoring receipt must survive application shutdown. In a fresh process
   the changed input must reopen stale. With unchanged inputs the stored
   result and its fixture percentile must reopen current before any rerun.
+  The executable unchanged case uses SQLite's rollback journal. Also
+  exercise a score recorded with committed frequency updates still in a
+  write-ahead log (WAL). Checkpoint those pages and close the last writer
+  without changing the values. The proposed content revision must survive
+  that shutdown. In a synthetic checkpoint the existing file-and-WAL
+  fingerprint conservatively reported stale, and recalculation returned
+  the same 95.42 percentile. A genuine change to a
+  committed frequency must invalidate the result in either journal mode.
   Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
   can be typed while a typed locus lacks an allele needed for calibration.
   The scorer can consult imputed alleles and the standalone frequency store
@@ -891,6 +903,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Require only the separate rsID and a count of one. When the visible
   finding becomes current and independently eligible, require both rsIDs
   and a count of two.
+  Include a completed empty legacy set with unresolved membership. Exercise
+  a possible gated member, one independently visible member and one proven
+  outside the affected scope. Both preflight and delivery must preserve
+  only independently established eligibility before and after repair.
 
 This document records a proposal. The four linked implementation issues
 require a maintainer decision on the limited wording projection, default

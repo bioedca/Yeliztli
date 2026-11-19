@@ -445,42 +445,48 @@ def _run_positional_bmi(env: _Environment) -> dict:
     return {**result, "stored_score": stored_score}
 
 
-def _update_second_frequency(env: _Environment) -> None:
+def _update_second_frequency(env: _Environment, value: float) -> None:
     with closing(sqlite3.connect(env.registry.settings.gnomad_db_path)) as frequencies:
         updated = frequencies.execute(
-            "UPDATE gnomad_af SET af_eur = 0.7 WHERE chrom = '1' AND pos = 999"
+            "UPDATE gnomad_af SET af_eur = ? WHERE chrom = '1' AND pos = 999", (value,)
         )
         assert updated.rowcount == 1
         frequencies.commit()
 
 
 def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
-    from backend.api.routes import metabolic
-    from backend.db.connection import get_registry, reset_registry
+    from _isolated_data_home import isolate_data_home
 
-    registry = get_registry()
-    assert registry.settings.data_dir == data_dir
-    app = FastAPI()
-    app.include_router(metabolic.router, prefix="/api")
-    try:
-        with TestClient(app) as client:
-            sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
-            reopened = _Environment(client, registry, sample, registry.reference_engine, "match")
-            response = client.get("/api/analysis/metabolic/prs?sample_id=1")
-            assert response.status_code == 200, response.text
-            stored = response.json()
-            state = stored["scoring_state"]
-            assert state == expected_state, (
-                f"Reopened state {state!r}, expected {expected_state!r}"
-            )
-            if expected_state == "current":
-                assert stored["total"] == 1
-                (item,) = stored["items"]
-                assert item["pgs_id"] == "PGS005198"
-                assert item["percentile"] == 95.42
-            return _run_positional_bmi(reopened)
-    finally:
-        reset_registry()
+    with pytest.MonkeyPatch.context() as isolated:
+        isolate_data_home(isolated, data_dir)
+        from backend.api.routes import metabolic
+        from backend.db.connection import get_registry, reset_registry
+
+        registry = get_registry()
+        assert registry.settings.data_dir == data_dir
+        app = FastAPI()
+        app.include_router(metabolic.router, prefix="/api")
+        try:
+            with TestClient(app) as client:
+                sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+                reopened = _Environment(
+                    client, registry, sample, registry.reference_engine, "match"
+                )
+                response = client.get("/api/analysis/metabolic/prs?sample_id=1")
+                assert response.status_code == 200, response.text
+                stored = response.json()
+                state = stored["scoring_state"]
+                assert state == expected_state, (
+                    f"Reopened state {state!r}, expected {expected_state!r}"
+                )
+                if expected_state == "current":
+                    assert stored["total"] == 1
+                    (item,) = stored["items"]
+                    assert item["pgs_id"] == "PGS005198"
+                    assert item["percentile"] == 95.42
+                return _run_positional_bmi(reopened)
+        finally:
+            reset_registry()
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
@@ -497,7 +503,6 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     typed_alleles: tuple[str, str | None] | None,
     expected_imputed: int,
     frequency_changed: bool,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if typed_alleles is not None:
         _add_typed_second_locus(positional_bmi, typed_alleles)
@@ -509,9 +514,8 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     positional_bmi.sample.dispose()
     positional_bmi.reference.dispose()
     if frequency_changed:
-        _update_second_frequency(positional_bmi)
+        _update_second_frequency(positional_bmi, 0.6)
     expected_state = "stale" if frequency_changed else "current"
-    monkeypatch.setenv("YELIZTLI_DATA_DIR", str(data_dir))
     with multiprocessing.get_context("spawn").Pool(1) as pool:
         repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
             timeout=60
@@ -520,13 +524,16 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
         assert run["calibrated"] is True
         assert run["stored_score"] == 3.0
         assert run["snps_used_imputed"] == expected_imputed
-        assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
+    assert original["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
+    assert repaired["calibration_reference_std"] == pytest.approx(
+        math.sqrt(0.96 if frequency_changed else 0.9)
+    )
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
     assert repaired["calibration_reference_mean"] == pytest.approx(
-        2.2 if frequency_changed else 1.4
+        2.0 if frequency_changed else 1.4
     )
     assert original["percentile"] == 95.42
-    assert repaired["percentile"] == (80.05 if frequency_changed else 95.42)
+    assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
@@ -588,7 +595,7 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
 
     check_annotation(0.3)
     original = _run_positional_bmi(env)
-    _update_second_frequency(env)
+    _update_second_frequency(env, 0.7)
     assert _route_state(env, "metabolic") == "stale"
     check_annotation(0.7)
     refreshed = _run_positional_bmi(env)
