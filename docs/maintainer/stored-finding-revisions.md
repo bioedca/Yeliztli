@@ -44,7 +44,7 @@ identify the inputs or analysis revision.
 | Evidence at open or upgrade | Reader and repair behavior |
 | --- | --- |
 | Proven current or provably outside the correction scope | Serve current output under existing disclosure rules. Repeated startup creates no prompt. |
-| Legacy run or empty history with no dependable revision | Do not infer currentness from zero rows, dates or an upgraded reference DB. If prior execution or affectedness cannot be excluded, withhold the affected scope with “Reanalysis needed to verify these results.” If a trustworthy marker proves no run occurred, use the ordinary first-run action. |
+| Legacy run or empty history with no dependable revision | Withhold the affected scope with “Reanalysis needed to verify these results” only when a prior run is possible **and** its inputs could be affected. Proven unaffected inputs need no correction prompt, even with unknown history. A trustworthy marker proving no run occurred leads to the ordinary first-run action. Zero rows, dates and an upgraded reference DB cannot establish currentness. |
 | Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values, original notes and the old analysis revision. Keep inseparable custom clinical guidance in protected history until a separate content review approves it. A rerun may publish a new canonical finding without publishing the historical note. |
 | Interpretation, membership or dependency change | Suppress stale affected results before counting, deduplicating and choosing a top finding. Surface a generic rerun reason through authorized readers. Unaffected results stay visible. |
 | Installed reference content is missing, duplicated or otherwise unverifiable | Keep affected output withheld and identify the local reference component needing repair. A successful scorer exit or an empty row set cannot resolve this state. Verify the installed correction's required content and applicability before rerunning and clearing it. |
@@ -60,8 +60,10 @@ write, recheck the local reason and identity. Conditionally retract only a
 reminder from the obsolete generation if a rerun, replacement or dismissal
 won the race. On interruption reconcile both sides, including a central
 reminder whose local reason has cleared. Check eligibility again when
-serving reminders. Dismissal hides that reminder for that revision. It never restores
-a stale finding or acknowledges a different sample, revision or correction.
+serving reminders. Bind a dismissal to the verified sample identity, displayed
+revision and exact set of reasons. Apply it only if all still match. If a
+different reason or revision arrived while the tab was open, return the new
+state for review and leave it visible. Dismissal never makes a finding current.
 Deduplicate the user-facing action when several reasons share a rerun. Existing
 prompt schema constraints and API enums need a coordinated migration for a new
 reason. The existing major-version 423 gate remains a prerequisite when it
@@ -102,7 +104,10 @@ Assign methylation ownership of the standalone SNP findings for the three
 identifiers in that migration. Nutrigenomics still owns its pathway-level
 interpretation, supporting SNP detail and citations. Persist the applicable
 recommendation and its own PMID list per SNP in the nutrigenomics pathway
-detail, populated by that run's scorer. Read those fields from the pathway
+detail only when that run's existing called, non-Standard finding predicate
+would have published them. A Standard SNP may have text in the source panel
+and still return a null recommendation and empty per-SNP PMID list.
+Preserve the independently computed pathway-level citations. Read the fields from the pathway
 detail even when there is no standalone nutrigenomics row. Missing legacy
 detail requires reconciliation before display. Its writer must honor
 the same ownership rule on every later run. For an old sample needing both
@@ -132,8 +137,12 @@ An unscoped FHIR export also uses findings for disclosure. When a gated
 module names an rsID, only an independently eligible, visible finding may
 justify including it under the shared-membership exception. Apply this rule
 to both calls even when `modules` is omitted.
-Raw variant annotation and source assertions retain their own provenance and
-access rules. A stale-state reason must respect opt-in gates and avoid
+Patient-independent raw annotations and reference assertions retain their own
+provenance and access rules. Every response derived from a sample finding
+inherits its eligibility before any join, count or lookup. In particular,
+`GET /api/analysis/pgx-guidelines` joins prescribing alerts to external
+sources. Filter the sample side first, including alerts for which no
+supporting source is available. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
 Cache identity must include the verified sample identity and its published
@@ -205,13 +214,19 @@ upgrade and read paths with synthetic controls:
   changes the assessment from Insufficient to Partial and emits an alert.
   Check an unaffected caller control and verify that repairing DPYD content
   alone cannot clear a pending caller revision.
-  Request the direct finding SVG for an affected stored record and an
-  eligible control that supports a card. Require the ordinary unavailable
-  response for the stale record and a rendered SVG for the eligible one.
-  After repair, verify the current card reflects the actual rerun.
+  Generate both SVG markers through the production annotation path. Before
+  the correction, request each ID and verify its expected SVG content.
+  After the correction, require the ordinary unavailable response for that
+  same affected ID and a rendered SVG for the eligible control. After repair,
+  verify the card for the new current result reflects the actual rerun.
+  Query the PGx evidence overlay with an affected and an unaffected alert.
+  Check the exact remaining identities, statuses and source associations,
+  then verify the corrected alert after repair.
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
+  Delay dismissal of the original reminder until a different correction
+  occupies its place. Verify that the new correction stays visible.
 - Exercise each of the seven panel readers with a wording-only change and a
   change that moves category, eliminates a row, introduces a row or changes
   the pathway aggregate. Cover missing or ambiguous keys and custom wording.
@@ -227,7 +242,9 @@ upgrade and read paths with synthetic controls:
   writers in each order and repeat the scoped runs. Require identical SNP
   ownership, pathway summaries, supporting detail, citations and counts.
   At the nutrigenomics pathway API, verify the exact scorer recommendation
-  and a nonempty expected PMID list for the seeded shared SNP in each order.
+  and a nonempty expected PMID list for the called non-Standard shared SNP
+  in each order. A fully called `hom_ref` fixture scored as Standard must
+  return a null recommendation and an empty per-SNP PMID list in both orders.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
