@@ -86,6 +86,14 @@ and traits PRS that can include both annotated calls and imputed dosages.
 Capture the imputed-variants token even when an imputation lookup returned
 no rows. Reject publication if an input token changed during scoring,
 including a dosage replacement that leaves the annotated table untouched.
+Record reference artifacts and supporting results actually used by the
+producer. For PRS calibration this includes the installed `gnomad_af.db`
+used for imputed-only loci, its absence when unavailable, the score weights,
+and the relevant ancestry and monogenic findings. Record a verified version
+of each artifact that changes on content replacement, including committed
+database updates, even if its upstream label is unchanged. Use the existing
+scoring fingerprint inputs as an inventory and compare the inputs before
+publishing and when reopening a completed score.
 
 | Evidence at open or upgrade | Reader and repair behavior |
 | --- | --- |
@@ -187,6 +195,14 @@ the same ownership rule on every later run. For an old sample needing both
 panels, repair them together, or keep the affected scope pending until both
 can publish consistently.
 
+A user can run nutrigenomics alone. If its current pathway qualifies a shared
+SNP and methylation has no eligible completed result, publish the eligible
+nutrigenomics pathway and membership and mark the standalone finding as
+awaiting its owning analysis. Offer the methylation action on affected
+surfaces subject to disclosure. It contributes no standalone count or card
+until an eligible methylation run produces it. A successful methylation run
+that produces none resolves this pending state to a verified absence.
+
 Use **scoped automatic recomputation** only for bounded, deterministic repairs
 with verified inputs, an idempotent transaction and a tested failure path. The
 legacy rare-variant repair in #2606 provides one precedent. Expensive jobs,
@@ -287,6 +303,13 @@ after newly eligible entries become visible must leave the current view
 undismissed even when the stored diff ID is unchanged. A repeated request about an old diff leaves its
 replacement visible. Dismissing a diff has no effect on a reanalysis reason.
 
+Honor an existing legacy snapshot-wide dismissal for that immutable
+historical snapshot only. Preserve its original flag in history and retire
+the banner without inventing per-entry acknowledgments for it. Newly
+published corrections and diffs start with independent identities and
+remain eligible to appear. This one-time migration preserves the previous
+user action even when its historical visible subset is unknowable.
+
 ## Acceptance cases for the four implementation issues
 
 Use the actual scoring, persistence, upgrade and read paths with synthetic controls.
@@ -297,6 +320,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Metabolizer fixtures before upgrading the reference. Verify each old
   recommendation is withheld after upgrade and that each scoped rerun returns
   its own shipped text in the drug view, summary, card and report. Include an
+  explicit `reanalysis_needed` state on the drug API and panel when a
+  prior callable finding is withheld. Show the action to update guidance.
+  An actually unassessed control follows its existing `not_assessed` path.
+  Assert both API states and displayed explanations before the rerun. Include an
   unaffected Normal Metabolizer control. Run full reannotation using a different
   reference snapshot and producing no presentable alerts. Verify the retained
   audit-only CYP2D6/tamoxifen row keeps its original provenance and stays
@@ -418,6 +445,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the pathway aggregate. Cover missing or ambiguous keys and custom wording.
   Assert identifiers, counts, text and citations on both sides of each filter,
   including a fully called non-carrier for a carriage-gated finding.
+  In fitness, use the two shipped `rs1815739` genotype keys that both score
+  Standard and have different effect summaries. Persist a synthetic sample
+  for each, correct only one genotype's wording, and assert exact returned
+  pathway-detail text for both from their normalized genotype keys.
   Remove a customized finding in a successful rerun. Recover its exact
   original note through authorized history and verify that the ordinary SQL
   console, SQL export, reports and current findings cannot return its archived
@@ -427,6 +458,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   retry, including a control outside the migrated set. Run both real panel
   writers in each order and repeat the scoped runs. Require identical SNP
   ownership, pathway summaries, supporting detail, citations and counts.
+  Inspect a nutrigenomics-only run before invoking methylation. Require the
+  eligible pathway and membership plus the explicit standalone pending
+  state. After methylation runs, check the exact standalone set, including
+  an owning producer that completes without a finding.
   At the nutrigenomics pathway API, verify the exact scorer recommendation
   and a nonempty expected PMID list for the called non-Standard shared SNP
   in each order. A fully called `hom_ref` fixture scored as Standard must
@@ -473,6 +508,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   method and fractions. Replace imputed dosages between scoring and
   publication without changing the annotated token. The old result cannot
   become current. Retry and match a fresh run on the replacement dosages.
+  On an imputed-only PRS fixture, replace the frequency artifact at its
+  existing path while both sample tokens and the upstream label stay fixed.
+  Compare the recalibrated result with a fresh run. Also remove and restore
+  the store and check its documented unavailable outcome and recovery.
   In nutrigenomics, choose an LCT fixture whose
   ancestry-conditional caveat changes and another whose result stays current.
   Compare with the same inputs scored in the supported ancestry-first order.
@@ -512,6 +551,8 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   from the older view. Require the new entry to stay visible. Include an
   all-withheld control on the page. Also dismiss the visible entry *before*
   disclosure changes. Only the newly eligible entry should then appear.
+  Migrate an already-dismissed legacy diff across two opens. Its banner stays
+  retired, and the next eligible correction is still shown and dismissible.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
