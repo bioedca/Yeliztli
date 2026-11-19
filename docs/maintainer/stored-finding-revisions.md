@@ -23,6 +23,14 @@ analysis owner controls its producer revision. Preserve the real upstream
 release in reference provenance. A repository edit cannot manufacture a new
 CPIC, panel-source or VEP release.
 
+A correction may explicitly supersede earlier corrections for the same
+scope. The owner records which obligations the successor satisfies and
+tests the direct upgrade. Verify that the installed successor and completed
+rerun satisfy every covered obligation before retiring the older reasons.
+An unrelated reason, an uncovered part of an older scope or an unverified
+successor stays pending. Dates, version order and a shared drug name alone
+cannot establish supersession. Reject cyclic or contradictory declarations.
+
 During rollout, inventory the shipped CYP2B6/efavirenz, CYP2D6/tamoxifen
 and TPMT repairs alongside the existing phenytoin path. Classify each from
 its released old and new records and test its actual sample-side effect
@@ -256,6 +264,11 @@ summary selection. Use the same projection on module list/detail, All
 Findings, pathway or drug detail, variant cards, direct finding SVGs, Individuals, global summary,
 report preview, HTML/PDF and finding-based export. Scope FHIR selections
 derived from finding membership consistently in both preflight and delivery.
+Carry completeness separately from surviving rows into the HTML preview
+and the generated PDF. If a selected, disclosable analysis is pending,
+include a generic notice in the document itself and qualify its totals,
+even when that analysis contributes no section. Apply the same disclosure
+decision to the notice, counts, ordering and section titles.
 An unscoped FHIR export also uses findings for disclosure. When a gated
 module names an rsID, only an independently eligible, visible finding may
 justify including it under the shared-membership exception. Apply this rule
@@ -282,6 +295,9 @@ verdict, show “Reanalysis needed” and keep the eligible effects visible.
 With pending assessments, label aggregate counts as confirmed so far and
 mark the report incomplete. Apply the same rule when no eligible effect
 remains. Preserve permanent clinical holds throughout.
+Eligibility follows each effect's full dependency set, including partner
+genes used to choose between standalone and joint advice. A row for a
+different gene of the same drug can still depend on the unresolved call.
 
 Negotiate the lifecycle capability on every response whose meaning depends
 on pending results. Send the upgrade requirement, without a legacy verdict,
@@ -415,6 +431,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   after upgrade and restore and remains absent from patient-facing output.
   Check continued withholding. On an already-migrated fixture verify that
   unavailable text and provenance remain explicitly unknown.
+  Use the two shipped TPMT/thioguanine Poor Metabolizer revisions
+  (`38b6ccea` and `54de582d`) to compare a direct upgrade across both
+  with a staged upgrade. After a verified run at the successor, both
+  yield the same current recommendation and no obsolete reminder. An
+  unrelated correction stays pending, including after a restart.
 
 ### PGx interpretation, reminders and coverage
 
@@ -509,6 +530,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the drug is flagged once and coverage remains incomplete. A fully
   assessed routine control stays routine. Rerunning the affected pair
   restores the verdict and counts derived from the completed results.
+  Exercise the shipped joint TPMT/NUDT15 scorer with a stored standalone
+  NUDT15 Intermediate alert. While the unresolved TPMT call could replace
+  that advice, withhold the standalone recommendation across drug detail,
+  the medication report and exports. With both fixture calls Intermediate
+  and one verified joint guideline, require exactly the joint alert for
+  that drug and no standalone advice after repair. An effect whose
+  dependencies are independently current remains visible throughout.
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
@@ -627,6 +655,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
 
 ### Browser caches, change notices and exports
 
+- Generate a report with a selected pending-only PGx module and a current
+  module, and another with both pending and current findings within PGx.
+  Inspect the actual preview HTML and generated PDF text. Require the
+  incomplete notice and current findings in each. Compare with a verified
+  empty PGx run and a reason hidden by disclosure. Neither adds a pending
+  notice, a section or a count that could disclose withheld membership.
 - Warm the shipped legacy client on the drug and coverage pages before
   upgrading the backend. Retire those tabs before activating the correction.
   Reopen on the current client and verify pending results on both pages.
