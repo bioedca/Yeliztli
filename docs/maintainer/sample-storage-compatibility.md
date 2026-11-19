@@ -25,8 +25,13 @@ it. A contradiction blocks access.
 | Individual file is a symbolic link, has multiple hard links, or more than one sample claims one physical file | Withhold affected opens pending explicit repair. Allow moving an operator-verified copy into ordinary storage or restoring from a known backup. Require a unique registration and a fresh identity check before use. |
 | Missing row, missing file, wrong file type, outside-root target, or unprovable legacy identity | Leave database and registry intact. Preserve the existing missing-sample/file 404. Use a distinct, stable “sample storage needs repair” conflict for a known but unverifiable registration. Background work records a safe failure category. |
 
-Require a verified backup before an operator repairs old storage. Provide a
-read-only migration preview with counts by disposition. Never auto-copy,
+Require a recoverable SQLite snapshot before an operator repairs old storage.
+Use a consistent online backup or stop all writers and preserve the database
+and its associated journal files together. Verify the restored snapshot and
+its sample identity before changing the registration. A copy of the main
+database file alone can omit committed changes held in the write-ahead log.
+Keep the original files and registration until the checked replacement commits.
+Provide a read-only migration preview with counts by disposition. Never auto-copy,
 rename, delete or follow an ambiguous file during application startup. An
 interrupted registry-only normalization can be retried against the original
 row and verified again. A failed migration leaves the previously recorded
