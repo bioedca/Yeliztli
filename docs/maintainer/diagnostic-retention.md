@@ -32,7 +32,14 @@ retry count while preserving the valid explanation and safe fields.
 | Withheld or restricted analysis | Suppress individual result events at both sinks. If an operator needs confirmation that an operation ran, its trusted producer may emit one neutral event per operation under the same rule for zero, one or many restricted results. Apply that rule to retries, severities and summary fields as well as message text. |
 | Legacy and independently managed output | Keep an explicit new presentation-policy revision. Query only eligible rows before filtering, counting or pagination. Never relabel old serialized text as newly verified. Existing database rows, backups and service logs have their own retention lifecycle. |
 
-Keep the existing standalone exception contract. One independently
+Apply the rules in order. Suppress result-dependent events at their
+producer. For every remaining routed record, apply the existing
+restricted-content rule before catalog lookup, template rendering or
+generic fallback, regardless of level or whether it carries an exception.
+Classify only safe primitive inputs and trusted context. Avoid executing
+methods on caller-supplied objects or exceptions. If safe inspection
+cannot establish that restricted context is absent, use the stricter
+neutral form. An ordinary held record or one independently
 occurring operational failure whose diagnostic is restricted produces one
 `clinical_guidance_withheld` record containing only its approved neutral
 marker, with the current policy revision. Keep
@@ -42,7 +49,8 @@ it calls the logger for a result. A result-dependent occurrence cannot
 become an independent operational failure just by using an exception API.
 The zero/one/many test covers the producer and the existing test covers
 the safe representation of a failure that actually occurred.
-For both native and standard-library exception calls, inspect every new
+For both native and standard-library calls, exercise an ordinary held
+record as well as a held exception. Inspect every new
 database row from the isolated operation and both console streams. Require
 the single expected neutral record and only the approved console diagnostic.
 
@@ -148,7 +156,13 @@ and captured console output.
    counts. Verify stable reason and component still reach both sinks.
    Use an unapproved argument whose formatting methods record calls.
    Require zero formatting calls and the expected static fallback in
-   every routed sink. Repeat for native and standard-library records.
+   every routed sink. Repeat with an exception whose string conversion
+   records calls, including when it is chained to another exception.
+   Exercise native and standard-library records. Also put an opaque test
+   value in a supplied logger name. Inspect all database columns, including
+   the component, and both streams. An Explorer component filter for the
+   test value returns zero rows and a zero total, while a registered
+   component still returns its approved event.
 3. Run the same operation with zero, one and several synthetic restricted
    results. Hold public inputs and retry count fixed. Compare emitted event
    counts and approved content across the database, captured console and
@@ -170,6 +184,11 @@ and captured console output.
    verify the approved access status and error category both appear at
    their intended sinks. Capture complete stdout and stderr and check that
    neither unapproved value appears there or in durable diagnostics.
+   Exercise the supported developer reload launch as well. Use an isolated
+   fixture directory, trigger one reload, and send a request after the new
+   child starts. Check the supervisor and both children together for the
+   expected safe lifecycle and request diagnostics. The synthetic watched
+   path and changed filename stay out of both console streams.
    Finally, inject a synthetic initialization failure in each shipped
    entrypoint before normal logging starts. Require a nonzero exit and the
    approved startup explanation, without the test input or local path in
