@@ -74,6 +74,11 @@ with separate references and queue. Preserve the upgraded installation for
 recovery. Keep the backup out of patient-facing reads and exports until its
 eligibility can be verified. Opening an upgraded sample in place with an
 older release is unsafe.
+Before the new worker consumes queued jobs, drain old work under its
+original verified installation or retire it. A job submitted for a sample
+must carry its copy identity from enqueue through execution and publication.
+A job with an unverified identity cannot resolve a current copy by numeric
+ID or path. Offer a new run for the explicitly selected current copy.
 In the SQL console and SQL export, expose a nullable
 predicate for each source. It returns true for verified coverage, false for
 verified absence and SQL NULL for pending or unassessed coverage. Expose
@@ -102,9 +107,16 @@ writers, links, reminders and dismissals to that identity before comparing
 revisions. On replacement, retire the superseded copy as part of the switch.
 On a side-by-side restore, the importer assigns a distinct ID and path on
 collision. Keep both copies active and fence writes by each copy's own
-identity. Reconcile the imported copy when both stores agree on its identity.
-Within one copy
-use an ordered, sample-local publication counter for conditional writes.
+identity. Before publishing any sample or shared reference, durably
+record one restore operation with a retry key established before upload,
+the archive digest, target installation,
+the planned copy IDs and paths, and the reference publication ID. Keep
+partially registered copies unavailable. Retrying that operation reuses
+its allocations and reconciles completed steps. An intentional second
+import gets a new operation ID, even for the same archive. Reject a
+retry whose archive or target has changed. Reconcile the imported copy
+when both stores agree on its identity. Within one copy, use an ordered,
+sample-local publication counter for conditional writes.
 The existing annotated-variants generation is a UUID equality token for a
 table swap. Never use it to order publications.
 
@@ -281,6 +293,14 @@ summary selection. Use the same projection on module list/detail, All
 Findings, pathway or drug detail, variant cards, direct finding SVGs, Individuals, global summary,
 report preview, HTML/PDF and finding-based export. Scope FHIR selections
 derived from finding membership consistently in both preflight and delivery.
+Bind the picker or preflight, preview and final delivery to the selected
+sample-copy identity, result generation and selection. Require those
+values on FHIR and PDF requests. Recheck authorization and eligibility
+against a stable snapshot before delivering bytes. A replacement or
+generation change returns a conflict without artifact bytes and requires
+a fresh selection or preflight. Bind any retrievable report to that same
+identity and recheck it on download. An older
+request unable to identify its copy must not return a report.
 Carry completeness separately from surviving rows into the HTML preview
 and the generated PDF. If a selected, disclosable analysis is pending,
 include a generic notice in the document itself and qualify its totals,
@@ -486,6 +506,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   control. Assert the old and corrected calls, the eligible findings, and
   exactly which sample receives a reminder across two startups, dismissal
   and successful rerun. A current run stays current on either install.
+  Separately keep the target allele and dosing rows installed while
+  omitting only the shipped `c.557A>G/c.557A>G` mapping from
+  `cpic_diplotypes`. Require the affected correction to stay pending
+  across restart and an attempted run. Verify the allele, diplotype
+  mapping and guideline independently, restore the mapping, then run the
+  ordinary scorer and check its stored and presented correction before
+  clearing the reason. An intact reference is the comparison case.
   Verify the caveat as well as the call before classifying an input as
   unaffected. A missing or uncalled marker cannot establish non-carriage.
   Separate the allele-table correction from the shared PGx confidence
@@ -718,7 +745,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   once after it and before registry completion, and once partway through
   notifying dependent samples. Keep the existing view open through the
   interruption and reconnection, then separately test a newly opened view.
-  Retry each recovery.
+  Interrupt also after sample registration and before the reference
+  switch. Retry the same restore operation twice. It must complete with
+  one imported copy and one logical reference publication. Initiate a
+  second intentional import of the same fixture and require a distinct
+  copy without changing the first one's association.
   Verify the content revision, one logical change per affected sample,
   the absence of the old percentile while pending, and agreement with a
   fresh run after repair. An unrelated sample keeps its current values.
@@ -741,6 +772,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Verify they cannot open its upgraded sample or consume queued work. An
   isolated compatible backup must open under the old release without
   changing the upgraded sample's receipts, pending state or retained rows.
+  Start the new worker with a pre-upgrade task lacking a verified copy
+  identity still queued. Require no execution against either sample and
+  no changes to their findings or receipts. A newly submitted, identified
+  task runs once against the selected copy.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
@@ -786,6 +821,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   an observation count of one and exactly the current rsID in the delivered
   Observations. Rerun with a current finding for the formerly stale rsID.
   Require a count of two and the exact pair of carried rsIDs in the bundle.
+  For both FHIR and PDF, preflight or preview one synthetic copy, then
+  replace it before delivery. The stale selection must return no report
+  or observations from either copy. Repeat the selection on the new
+  copy and verify a complete result containing only its expected data.
   With one disclosable pending-only selection and a separate verified empty
   selection, require zero observations in each. Only the pending selection
   reports incompleteness in both preflight and the delivered report. A gated
