@@ -47,6 +47,7 @@ identify the inputs or analysis revision.
 | Legacy run or empty history with no dependable revision | Do not infer currentness from zero rows, dates or an upgraded reference DB. If prior execution or affectedness cannot be excluded, withhold the affected scope with “Reanalysis needed to verify these results.” If a trustworthy marker proves no run occurred, use the ordinary first-run action. |
 | Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values and the old analysis revision. Keep unrelated and user-authored text intact. If a custom field could contain stale clinical guidance and cannot be separated safely, retain it in storage and request review or rerun before patient presentation. |
 | Interpretation, membership or dependency change | Suppress stale affected results before counting, deduplicating and choosing a top finding. Surface a generic rerun reason through authorized readers. Unaffected results stay visible. |
+| Installed reference content is missing, duplicated or otherwise unverifiable | Keep affected output withheld and identify the local reference component needing repair. A successful scorer exit or an empty row set cannot resolve this state. Verify the installed correction's required content and applicability before rerunning and clearing it. |
 | Storage unavailable, failed job or interrupted replacement | Preserve the prior completed state and pending reasons. Never mark an analysis current because a prompt was emitted or a run was queued. Reconcile and retry without duplicating rows or losing an independent reason. |
 | Successful rerun at the target revisions, including zero results | Atomically replace the producer's replaceable results and completion record. Retain audit-only rows under their existing disclosure rules, including withdrawn prescribing alerts. Clear only matching reasons for this sample and run generation. A repeated rerun gives the same visible set. Another correction remains pending. |
 
@@ -54,7 +55,12 @@ Keep authoritative pending state in the sample database. Publish central UI
 reminders idempotently using sample identity, producer, correction and target
 revision. Retry an interrupted cross-database publication on the next valid
 open. Check the current local state and ownership before publishing or
-retracting. Dismissal hides that reminder for that revision. It never restores
+retracting. Bind publication to the observed generation. After the central
+write, recheck the local reason and identity. Conditionally retract only a
+reminder from the obsolete generation if a rerun, replacement or dismissal
+won the race. On interruption reconcile both sides, including a central
+reminder whose local reason has cleared. Check eligibility again when
+serving reminders. Dismissal hides that reminder for that revision. It never restores
 a stale finding or acknowledges a different sample, revision or correction.
 Deduplicate the user-facing action when several reasons share a rerun. Existing
 prompt schema constraints and API enums need a coordinated migration for a new
@@ -69,7 +75,10 @@ establish the required input and outcome.
 When a legacy finding carries customized text, preserve the original text and
 its sample, producer and historical finding identity in a local record outside
 the replaceable result set. Commit that preservation before or atomically
-with replacement. Recover a note only through an authorized history view
+with replacement. Stamp the newly computed rows with their run's actual
+provenance. A retained row or archived note keeps its original provenance
+even when the full reannotation job stamps findings from the new run.
+Recover a note only through an authorized history view
 that applies the sample's disclosure rules and identifies the prior result.
 Place the archive under the same protections used for audit-only content,
 including direct SQL query and export controls from its first write. Only
@@ -100,6 +109,10 @@ summary selection. Use the same projection on module list/detail, All
 Findings, pathway or drug detail, variant cards, Individuals, global summary,
 report preview, HTML/PDF and finding-based export. Scope FHIR selections
 derived from finding membership consistently in both preflight and delivery.
+An unscoped FHIR export also uses findings for disclosure. When a gated
+module names an rsID, only an independently eligible, visible finding may
+justify including it under the shared-membership exception. Apply this rule
+to both calls even when `modules` is omitted.
 Raw variant annotation and source assertions retain their own provenance and
 access rules. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
@@ -116,7 +129,10 @@ can independently be proved eligible. Project only a verified wording change
 and withhold entries with unsafe or unverifiable text. Apply disclosure
 checks to the final display, recalculate each bucket count from its visible
 entries and return `available=false` when none remain. A later rerun cannot
-make obsolete text in an older snapshot eligible.
+make obsolete text in an older snapshot eligible. Record the actual correction
+cause separately from upstream release deltas. When a producer changed and
+the source releases did not, the banner can say “Analysis updated.” Attribute
+changes to an upstream release only when that attribution is established.
 
 For the four implementation issues, use the actual scoring, persistence,
 upgrade and read paths with synthetic controls:
@@ -125,12 +141,15 @@ upgrade and read paths with synthetic controls:
   Metabolizer fixtures before upgrading the reference. Verify each old
   recommendation is withheld after upgrade and that each scoped rerun returns
   its own shipped text in the drug view, summary, card and report. Include an
-  unchanged Normal Metabolizer control and a run producing no presentable
-  alerts. Its pre-existing audit-only CYP2D6/tamoxifen row must survive and
-  remain withheld. In a separate synthetic wording-only update, assert the
-  projected text, detail
-  and citations on the same surfaces. A missing key or applicability change
-  must withhold the old guidance.
+  unaffected Normal Metabolizer control. Run full reannotation using a different
+  reference snapshot and producing no presentable alerts. Verify the retained
+  audit-only CYP2D6/tamoxifen row keeps its original provenance and stays
+  withheld. In a separate synthetic wording-only update, assert projected
+  text, detail and citations on the same surfaces. A missing legacy key or
+  an applicability change requires reanalysis. A missing or duplicated
+  *installed* reference row keeps the correction pending even if scoring
+  finishes. Repair the reference and verify that only a subsequent run using
+  the verified content clears that reason.
 - Take the DPYD `rs115232898` reference migration through both a fresh
   upgrade and an install that already has the target allele. Seed synthetic
   raw inputs for an affected stored result, an empty completed result, a
@@ -140,6 +159,9 @@ upgrade and read paths with synthetic controls:
   and successful rerun. A current run stays current on either install.
   Verify the caveat as well as the call before classifying an input as
   unaffected. A missing or uncalled marker cannot establish non-carriage.
+  Delay central publication until after the rerun clears the sample's
+  reason. The late publisher and a restart must leave no obsolete reminder,
+  preserve an independent live reason and honor dismissal.
 - Exercise each of the seven panel readers with a wording-only change and a
   change that moves category, eliminates a row, introduces a row or changes
   the pathway aggregate. Cover missing or ambiguous keys and custom wording.
@@ -163,7 +185,9 @@ upgrade and read paths with synthetic controls:
   eligibility can be proved. Verify the banner API returns only the eligible
   text and exact bucket counts, and that rendering the banner cannot reveal
   the old text. Cover stale before/after values, an all-withheld diff, and
-  a repeated read after a successful rerun.
+  a repeated read after a successful rerun. With unchanged reference releases
+  and a new analysis order, verify the banner attributes the visible change
+  to the analysis or uses neutral wording.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
@@ -171,6 +195,11 @@ upgrade and read paths with synthetic controls:
   an observation count of one and exactly the current rsID in the delivered
   Observations. Rerun with a current finding for the formerly stale rsID.
   Require a count of two and the exact pair of carried rsIDs in the bundle.
+  Repeat both calls without a module selection, using an rsID named by a
+  gated finding and a stale visible finding, plus a separate eligible rsID.
+  Require only the separate rsID and a count of one. When the visible
+  finding becomes current and independently eligible, require both rsIDs
+  and a count of two.
 
 This document records a proposal. The four linked implementation issues
 require a maintainer decision on the limited wording projection, default
