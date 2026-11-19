@@ -1,0 +1,51 @@
+{
+  "accessed_utc": "2026-11-19",
+  "source": {
+    "archive_sha256": "35036a85eb79db22bec068ef69caba68f8ba9cdd1b1eef0e3f901b259e3b49af",
+    "archive_size_bytes": 70101883,
+    "csv_member": "GSA-24v3-0_A1.csv",
+    "csv_sha256": "b8b38edce48b0a1afbd5dd725db19545590efc7fa63d1a5015cd3fed36604c1c",
+    "csv_size_bytes": 284228929,
+    "url": "https://www.illumina.com/content/dam/illumina-support/documents/downloads/productfiles/global-screening-array-24/v3-0/GSA-24v3-0-A1-manifest-file-csv.zip"
+  },
+  "build": "GRCh37",
+  "assay_rows_examined": 654027,
+  "matches": [
+    {
+      "IlmnID": "rs112766203-138_T_F_2279636189",
+      "Name": "rs112766203",
+      "Chr": "1",
+      "MapInfo": "97770835",
+      "GenomeBuild": "37",
+      "RefStrand": "+",
+      "IlmnStrand": "TOP",
+      "AddressA_ID": "0060632538",
+      "AddressB_ID": "",
+      "SNP": "[A/G]"
+    },
+    {
+      "IlmnID": "ilmnseq_rs146356975_F2BT-138_T_R_2609646621",
+      "Name": "rs146356975",
+      "Chr": "1",
+      "MapInfo": "98060705",
+      "GenomeBuild": "37",
+      "RefStrand": "-",
+      "IlmnStrand": "TOP",
+      "AddressA_ID": "0009806521",
+      "AddressB_ID": "0048614975",
+      "SNP": "[A/G]"
+    },
+    {
+      "IlmnID": "rs186169810-138_T_F_2304765371",
+      "Name": "rs186169810",
+      "Chr": "1",
+      "MapInfo": "98039341",
+      "GenomeBuild": "37",
+      "RefStrand": "+",
+      "IlmnStrand": "TOP",
+      "AddressA_ID": "0051783560",
+      "AddressB_ID": "",
+      "SNP": "[A/C]"
+    }
+  ]
+}

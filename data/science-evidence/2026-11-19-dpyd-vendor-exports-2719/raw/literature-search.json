@@ -1,0 +1,46 @@
+{
+  "accessed_utc": "2026-11-19",
+  "query_file": "../queries.json",
+  "consensus": {
+    "status": "success",
+    "returned": 20,
+    "scope": "Ranked search results and fetched record metadata. No manufacturer-authenticated marker and allele inventory for the four named raw-download versions was identified in these records.",
+    "screened_dois": [
+      "DOI:10.1200/jco.2026.44.2_suppl.814",
+      "DOI:10.1038/nature15393",
+      "DOI:10.1136/bmj.n214",
+      "DOI:10.3390/genes17091082",
+      "DOI:10.1373/clinchem.2010.158220",
+      "DOI:10.3390/genes17070741",
+      "DOI:10.1016/j.csbj.2021.06.040",
+      "DOI:10.1111/cts.13805",
+      "DOI:10.1101/352732",
+      "DOI:10.1038/s41431-021-00917-7",
+      "DOI:10.1371/journal.pone.0245178",
+      "DOI:10.1186/s12864-017-3658-x",
+      "DOI:10.1093/nar/gkp552",
+      "DOI:10.3389/fgene.2021.736390",
+      "DOI:10.1111/ahg.12389",
+      "DOI:10.64898/2026.05.18.726085",
+      "DOI:10.1002/cpt.2921",
+      "DOI:10.1093/nar/gkw967",
+      "DOI:10.3389/fphar.2024.1349203",
+      "DOI:10.1534/g3.113.007161"
+    ]
+  },
+  "scite": {
+    "status": "success",
+    "offset": 0,
+    "limit": 10,
+    "total": 1,
+    "returned": 1,
+    "screened": [
+      {
+        "doi": "DOI:10.1002/cpt.3757",
+        "title": "Abstracts",
+        "full_text": "restricted"
+      }
+    ],
+    "scope": "Metadata only. The returned record had no accessible full-text excerpts. The search cannot exclude relevant information within that publication."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=gds&term=%2823andMe%5BTitle%5D+OR+AncestryDNA%5BTitle%5D%29+AND+gpl%5BEntry+Type%5D&retmode=json&retmax=40",
+  "accessed_utc": "2026-11-19",
+  "source_sha256": "b613011f5a40f81eb3f014d3673b7864c4ad857aee6d032decaa22afbb134ee3",
+  "query": "(23andMe[Title] OR AncestryDNA[Title]) AND gpl[Entry Type]",
+  "count": "0",
+  "idlist": [],
+  "warnings": {
+    "phrasesignored": [],
+    "quotedphrasesnotfound": [],
+    "outputmessages": [
+      "No items found."
+    ]
+  }
+}
