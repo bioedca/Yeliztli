@@ -160,6 +160,7 @@ nav:
       - maintainer/index.md
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
       - DPYD vendor export coverage: maintainer/dpyd-vendor-export-coverage.md
+      - MONDO/HPO storage policy: maintainer/mondo-hpo-storage-policy.md
       - Bundle build & release: bundle-release-runbook.md
       - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
