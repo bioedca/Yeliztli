@@ -40,7 +40,10 @@ coverage bit written to annotated variants. Publish the desired CPIC bit
 for the affected scope with its alerts and leave other coverage bits intact.
 Before repair, every variant reader must mask a CPIC contribution whose
 eligibility is unknown. Apply the same rule to filters and counts as to a
-displayed badge. Track a wording projection separately so the original
+displayed badge. The SQL console and SQL export must use the same eligible
+coverage values for selection and filtering, or refuse an access that would
+expose the unprojected mask. A raw column in a SQL expression is still a
+reader of that value. Track a wording projection separately so the original
 analysis remains auditable. The sample's
 verified storage identity scopes every correction, including after restore or
 replacement. The registry's existing CYP2C9/phenytoin prompt validates that
@@ -125,7 +128,12 @@ bit alone does not identify a contributor. Reconcile the contributing inputs
 before showing it when its only possible support is uncertain.
 Assign methylation ownership of the standalone SNP findings for the three
 identifiers in that migration. Nutrigenomics still owns its pathway-level
-interpretation, supporting SNP detail and citations. Persist the applicable
+interpretation, supporting SNP detail and citations. Track each module's
+eligible rsID membership independently of standalone row ownership. When
+the same SNP qualifies in both modules, retain both membership records with
+their own producer revisions and gates. A scoped FHIR export can then
+include it for either eligible module without creating a second standalone
+finding or duplicate Observation. Persist the applicable
 recommendation and its own PMID list per SNP in the nutrigenomics pathway
 detail only when that run's existing called, non-Standard finding predicate
 would have published them. A Standard SNP may have text in the source panel
@@ -202,8 +210,9 @@ producer's completion record on **both** sides, including an explicitly empty
 result. Compare membership only across two verified completions for that
 producer. With an unknown baseline, a current result may be shown on its
 own but cannot be described as newly added or removed. Within a matched
-identity, compare a reviewed action change as well as the existing structured
-meaning fields. A changed prescribing action can require a notice with the
+identity, compare the correction-specific fields declared by its owner,
+including the reviewed prescribing action and the gout model's structured
+odds ratio, as well as the existing structured meaning fields. A changed prescribing action can require a notice with the
 same drug, phenotype and evidence level. Keep the old advice in protected
 history and present a safe explanation linked to eligible current guidance.
 A punctuation-only projection does not constitute a new prescribing action. At
@@ -223,7 +232,11 @@ The Updates page discovers undismissed, eligible diffs for authorized samples
 even after the last repair reason clears. Recheck eligibility before
 advertising a sample or its count. Accept a dismissal only for the sample
 and exact diff the user saw. Atomically compare both its identity and the
-displayed eligibility revision, including disclosure state. A late request
+displayed eligibility revision, including disclosure state. Persist an
+acknowledgment for each entry and presentation revision actually shown.
+Do not acknowledge a hidden entry or reveal its existence in the response.
+A later disclosure or content change can surface newly eligible or revised
+entries without reviving unchanged ones already acknowledged. A late request
 after newly eligible entries become visible must leave the current view
 undismissed even when the stored diff ID is unchanged. A repeated request about an old diff leaves its
 replacement visible. Dismissing a diff has no effect on a reanalysis reason.
@@ -280,6 +293,18 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   list, detail and coverage filters must suppress its pending CPIC bit and
   retain unrelated source bits. After retry verify the bit is cleared for
   that marker and set for the newly assessed control.
+  Check the pending and unaffected coverage values through both the SQL
+  console and SQL export, including filtering and counts. If a path cannot
+  project the mask, verify that it refuses the unprojected value and still
+  allows independently eligible data.
+  Independently register the conservative diplotype selection change shipped
+  in [#2643](https://github.com/bioedca/Yeliztli/pull/2643). An old alert
+  can have a current allele table, direct call and Partial confidence while
+  retaining a superseded prescribing basis. Exercise the four policy genes
+  from the existing #2453 regressions. Preserve the observed call, withhold
+  the superseded alert and confirm the new conservative basis, score-specific
+  guidance and citations after repair. A fully assayed `hom_ref` control
+  stays current. Neither of the earlier revisions can clear this correction.
   Generate both SVG markers through the production annotation path. Before
   the correction, request each ID and verify its expected SVG content.
   Once the correction advances the generation, both old links must expire.
@@ -316,6 +341,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   and a nonempty expected PMID list for the called non-Standard shared SNP
   in each order. A fully called `hom_ref` fixture scored as Standard must
   return a null recommendation and an empty per-SNP PMID list in both orders.
+  With the shared carried SNP eligible in both modules, require the same
+  Observation in nutrigenomics-only and methylation-only FHIR delivery,
+  with matching preflight counts. Selecting both returns it once. Withhold
+  only the nutrigenomics membership and verify methylation's independently
+  eligible membership still works. Repeat after the opposite rerun order.
   Seed one GWAS bit supported only by the panel being repaired and another
   supported by two panels. Drop that panel's contribution to both, interrupt
   publication and retry. Check stored contributions and variant API masks.
@@ -331,7 +361,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   withholding while pending, and the exact ancestry-specific values after
   repair and reopen. A fully called `hom_ref` control must produce no
   carrier finding. Keep the fixture and expected text tied to the same
-  reviewed panel revision.
+  reviewed panel revision. Pass the retained and corrected gout values
+  through the production diff path. Expect one changed finding with the
+  reviewed odds-ratio change and zero additions or removals for that identity.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
@@ -360,7 +392,8 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   replacement should remove it. With the same diff ID, change disclosure
   so that an additional entry becomes visible, then deliver a dismissal
   from the older view. Require the new entry to stay visible. Include an
-  all-withheld control on the page.
+  all-withheld control on the page. Also dismiss the visible entry *before*
+  disclosure changes. Only the newly eligible entry should then appear.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
