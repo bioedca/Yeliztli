@@ -159,6 +159,7 @@ nav:
   - Maintainer:
       - maintainer/index.md
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
+      - Partial CYP2D6 and NUDT15 calls (proposal): maintainer/partial-pgx-calls.md
       - Bundle build & release: bundle-release-runbook.md
       - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
