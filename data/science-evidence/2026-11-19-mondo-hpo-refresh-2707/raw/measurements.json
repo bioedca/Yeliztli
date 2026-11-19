@@ -1,0 +1,1332 @@
+[
+  {
+    "release": "2025-09-17",
+    "cases": {
+      "intact": {
+        "matched": 10283,
+        "unmatched": 4109,
+        "exact_xrefs": 108064,
+        "namespaces": {
+          "OMIM": {
+            "matched": 8718,
+            "unmatched": 420
+          },
+          "Orphanet": {
+            "matched": 1565,
+            "unmatched": 3689
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1565,
+        "unmatched": 12827,
+        "exact_xrefs": 98153,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 9138
+          },
+          "Orphanet": {
+            "matched": 1565,
+            "unmatched": 3689
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 8718,
+        "unmatched": 5674,
+        "exact_xrefs": 98428,
+        "namespaces": {
+          "OMIM": {
+            "matched": 8718,
+            "unmatched": 420
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5254
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 9527,
+        "unmatched": 4865,
+        "exact_xrefs": 103241,
+        "namespaces": {
+          "OMIM": {
+            "matched": 8718,
+            "unmatched": 420
+          },
+          "Orphanet": {
+            "matched": 809,
+            "unmatched": 4445
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 7683,
+        "unmatched": 6709,
+        "exact_xrefs": 80715,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6494,
+            "unmatched": 2644
+          },
+          "Orphanet": {
+            "matched": 1189,
+            "unmatched": 4065
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 9057,
+        "unmatched": 5335,
+        "exact_xrefs": 97314,
+        "namespaces": {
+          "OMIM": {
+            "matched": 7627,
+            "unmatched": 1511
+          },
+          "Orphanet": {
+            "matched": 1430,
+            "unmatched": 3824
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2025-11-18",
+    "cases": {
+      "intact": {
+        "matched": 7979,
+        "unmatched": 5591,
+        "exact_xrefs": 108499,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6493,
+            "unmatched": 1823
+          },
+          "Orphanet": {
+            "matched": 1486,
+            "unmatched": 3768
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1486,
+        "unmatched": 12084,
+        "exact_xrefs": 98587,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 8316
+          },
+          "Orphanet": {
+            "matched": 1486,
+            "unmatched": 3768
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6493,
+        "unmatched": 7077,
+        "exact_xrefs": 98861,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6493,
+            "unmatched": 1823
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5254
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7236,
+        "unmatched": 6334,
+        "exact_xrefs": 103675,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6493,
+            "unmatched": 1823
+          },
+          "Orphanet": {
+            "matched": 743,
+            "unmatched": 4511
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5912,
+        "unmatched": 7658,
+        "exact_xrefs": 81058,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4797,
+            "unmatched": 3519
+          },
+          "Orphanet": {
+            "matched": 1115,
+            "unmatched": 4139
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7189,
+        "unmatched": 6381,
+        "exact_xrefs": 97711,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5837,
+            "unmatched": 2479
+          },
+          "Orphanet": {
+            "matched": 1352,
+            "unmatched": 3902
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2025-12-20",
+    "cases": {
+      "intact": {
+        "matched": 8014,
+        "unmatched": 4401,
+        "exact_xrefs": 108620,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6509,
+            "unmatched": 652
+          },
+          "Orphanet": {
+            "matched": 1505,
+            "unmatched": 3749
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1505,
+        "unmatched": 10910,
+        "exact_xrefs": 98660,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7161
+          },
+          "Orphanet": {
+            "matched": 1505,
+            "unmatched": 3749
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6509,
+        "unmatched": 5906,
+        "exact_xrefs": 98982,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6509,
+            "unmatched": 652
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5254
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7264,
+        "unmatched": 5151,
+        "exact_xrefs": 103796,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6509,
+            "unmatched": 652
+          },
+          "Orphanet": {
+            "matched": 755,
+            "unmatched": 4499
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5937,
+        "unmatched": 6478,
+        "exact_xrefs": 81137,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4806,
+            "unmatched": 2355
+          },
+          "Orphanet": {
+            "matched": 1131,
+            "unmatched": 4123
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7219,
+        "unmatched": 5196,
+        "exact_xrefs": 97813,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5852,
+            "unmatched": 1309
+          },
+          "Orphanet": {
+            "matched": 1367,
+            "unmatched": 3887
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-01-11",
+    "cases": {
+      "intact": {
+        "matched": 8064,
+        "unmatched": 4426,
+        "exact_xrefs": 108770,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6544,
+            "unmatched": 660
+          },
+          "Orphanet": {
+            "matched": 1520,
+            "unmatched": 3766
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1520,
+        "unmatched": 10970,
+        "exact_xrefs": 98811,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7204
+          },
+          "Orphanet": {
+            "matched": 1520,
+            "unmatched": 3766
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6544,
+        "unmatched": 5946,
+        "exact_xrefs": 99132,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6544,
+            "unmatched": 660
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5286
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7308,
+        "unmatched": 5182,
+        "exact_xrefs": 103946,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6544,
+            "unmatched": 660
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4522
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5976,
+        "unmatched": 6514,
+        "exact_xrefs": 81251,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4834,
+            "unmatched": 2370
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4144
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7260,
+        "unmatched": 5230,
+        "exact_xrefs": 97953,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5882,
+            "unmatched": 1322
+          },
+          "Orphanet": {
+            "matched": 1378,
+            "unmatched": 3908
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-02-08",
+    "cases": {
+      "intact": {
+        "matched": 8070,
+        "unmatched": 4420,
+        "exact_xrefs": 108768,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 656
+          },
+          "Orphanet": {
+            "matched": 1522,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1522,
+        "unmatched": 10968,
+        "exact_xrefs": 98809,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7204
+          },
+          "Orphanet": {
+            "matched": 1522,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6548,
+        "unmatched": 5942,
+        "exact_xrefs": 99130,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 656
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5286
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7313,
+        "unmatched": 5177,
+        "exact_xrefs": 103944,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 656
+          },
+          "Orphanet": {
+            "matched": 765,
+            "unmatched": 4521
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5981,
+        "unmatched": 6509,
+        "exact_xrefs": 81250,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4837,
+            "unmatched": 2367
+          },
+          "Orphanet": {
+            "matched": 1144,
+            "unmatched": 4142
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7265,
+        "unmatched": 5225,
+        "exact_xrefs": 97952,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5885,
+            "unmatched": 1319
+          },
+          "Orphanet": {
+            "matched": 1380,
+            "unmatched": 3906
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-03-04",
+    "cases": {
+      "intact": {
+        "matched": 8071,
+        "unmatched": 4556,
+        "exact_xrefs": 108983,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 1523,
+            "unmatched": 3763
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1523,
+        "unmatched": 11104,
+        "exact_xrefs": 98959,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7341
+          },
+          "Orphanet": {
+            "matched": 1523,
+            "unmatched": 3763
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6548,
+        "unmatched": 6079,
+        "exact_xrefs": 99207,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5286
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7312,
+        "unmatched": 5315,
+        "exact_xrefs": 104081,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4522
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5977,
+        "unmatched": 6650,
+        "exact_xrefs": 81411,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4834,
+            "unmatched": 2507
+          },
+          "Orphanet": {
+            "matched": 1143,
+            "unmatched": 4143
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7261,
+        "unmatched": 5366,
+        "exact_xrefs": 98145,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5882,
+            "unmatched": 1459
+          },
+          "Orphanet": {
+            "matched": 1379,
+            "unmatched": 3907
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-04-14",
+    "cases": {
+      "intact": {
+        "matched": 8069,
+        "unmatched": 4558,
+        "exact_xrefs": 109245,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3765
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1521,
+        "unmatched": 11106,
+        "exact_xrefs": 99209,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7341
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3765
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6548,
+        "unmatched": 6079,
+        "exact_xrefs": 99459,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5286
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7312,
+        "unmatched": 5315,
+        "exact_xrefs": 104335,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6548,
+            "unmatched": 793
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4522
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 5977,
+        "unmatched": 6650,
+        "exact_xrefs": 81613,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4835,
+            "unmatched": 2506
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4144
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7259,
+        "unmatched": 5368,
+        "exact_xrefs": 98385,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5882,
+            "unmatched": 1459
+          },
+          "Orphanet": {
+            "matched": 1377,
+            "unmatched": 3909
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-05-09",
+    "cases": {
+      "intact": {
+        "matched": 8170,
+        "unmatched": 4457,
+        "exact_xrefs": 109307,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6649,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3765
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1521,
+        "unmatched": 11106,
+        "exact_xrefs": 99262,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7341
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3765
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6649,
+        "unmatched": 5978,
+        "exact_xrefs": 99521,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6649,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5286
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7413,
+        "unmatched": 5214,
+        "exact_xrefs": 104398,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6649,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4522
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6047,
+        "unmatched": 6580,
+        "exact_xrefs": 81659,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4905,
+            "unmatched": 2436
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4144
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7347,
+        "unmatched": 5280,
+        "exact_xrefs": 98441,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5970,
+            "unmatched": 1371
+          },
+          "Orphanet": {
+            "matched": 1377,
+            "unmatched": 3909
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-06-08",
+    "cases": {
+      "intact": {
+        "matched": 8197,
+        "unmatched": 4457,
+        "exact_xrefs": 109303,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6676,
+            "unmatched": 693
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1521,
+        "unmatched": 11133,
+        "exact_xrefs": 99258,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7369
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6676,
+        "unmatched": 5978,
+        "exact_xrefs": 99518,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6676,
+            "unmatched": 693
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5285
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7440,
+        "unmatched": 5214,
+        "exact_xrefs": 104395,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6676,
+            "unmatched": 693
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4521
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6064,
+        "unmatched": 6590,
+        "exact_xrefs": 81657,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4922,
+            "unmatched": 2447
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4143
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7371,
+        "unmatched": 5283,
+        "exact_xrefs": 98438,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5994,
+            "unmatched": 1375
+          },
+          "Orphanet": {
+            "matched": 1377,
+            "unmatched": 3908
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-07-14",
+    "cases": {
+      "intact": {
+        "matched": 8198,
+        "unmatched": 4456,
+        "exact_xrefs": 109306,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1521,
+        "unmatched": 11133,
+        "exact_xrefs": 99261,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7369
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6677,
+        "unmatched": 5977,
+        "exact_xrefs": 99521,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5285
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7441,
+        "unmatched": 5213,
+        "exact_xrefs": 104398,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4521
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6066,
+        "unmatched": 6588,
+        "exact_xrefs": 81659,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4924,
+            "unmatched": 2445
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4143
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7373,
+        "unmatched": 5281,
+        "exact_xrefs": 98441,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5996,
+            "unmatched": 1373
+          },
+          "Orphanet": {
+            "matched": 1377,
+            "unmatched": 3908
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-08-20",
+    "cases": {
+      "intact": {
+        "matched": 8198,
+        "unmatched": 4456,
+        "exact_xrefs": 109618,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1521,
+        "unmatched": 11133,
+        "exact_xrefs": 99573,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7369
+          },
+          "Orphanet": {
+            "matched": 1521,
+            "unmatched": 3764
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6677,
+        "unmatched": 5977,
+        "exact_xrefs": 99833,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5285
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7441,
+        "unmatched": 5213,
+        "exact_xrefs": 104710,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 692
+          },
+          "Orphanet": {
+            "matched": 764,
+            "unmatched": 4521
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6066,
+        "unmatched": 6588,
+        "exact_xrefs": 81878,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4924,
+            "unmatched": 2445
+          },
+          "Orphanet": {
+            "matched": 1142,
+            "unmatched": 4143
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7373,
+        "unmatched": 5281,
+        "exact_xrefs": 98716,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5996,
+            "unmatched": 1373
+          },
+          "Orphanet": {
+            "matched": 1377,
+            "unmatched": 3908
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-09-04",
+    "cases": {
+      "intact": {
+        "matched": 8219,
+        "unmatched": 4453,
+        "exact_xrefs": 109626,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 695
+          },
+          "Orphanet": {
+            "matched": 1542,
+            "unmatched": 3758
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1542,
+        "unmatched": 11130,
+        "exact_xrefs": 99581,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7372
+          },
+          "Orphanet": {
+            "matched": 1542,
+            "unmatched": 3758
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6677,
+        "unmatched": 5995,
+        "exact_xrefs": 99841,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 695
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5300
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7457,
+        "unmatched": 5215,
+        "exact_xrefs": 104718,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6677,
+            "unmatched": 695
+          },
+          "Orphanet": {
+            "matched": 780,
+            "unmatched": 4520
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6083,
+        "unmatched": 6589,
+        "exact_xrefs": 81886,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4923,
+            "unmatched": 2449
+          },
+          "Orphanet": {
+            "matched": 1160,
+            "unmatched": 4140
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7394,
+        "unmatched": 5278,
+        "exact_xrefs": 98724,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5998,
+            "unmatched": 1374
+          },
+          "Orphanet": {
+            "matched": 1396,
+            "unmatched": 3904
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-10-07",
+    "cases": {
+      "intact": {
+        "matched": 8214,
+        "unmatched": 4458,
+        "exact_xrefs": 109712,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6671,
+            "unmatched": 701
+          },
+          "Orphanet": {
+            "matched": 1543,
+            "unmatched": 3757
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 1543,
+        "unmatched": 11129,
+        "exact_xrefs": 99666,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7372
+          },
+          "Orphanet": {
+            "matched": 1543,
+            "unmatched": 3757
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6671,
+        "unmatched": 6001,
+        "exact_xrefs": 99926,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6671,
+            "unmatched": 701
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5300
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 7451,
+        "unmatched": 5221,
+        "exact_xrefs": 104805,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6671,
+            "unmatched": 701
+          },
+          "Orphanet": {
+            "matched": 780,
+            "unmatched": 4520
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 6078,
+        "unmatched": 6594,
+        "exact_xrefs": 81954,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4918,
+            "unmatched": 2454
+          },
+          "Orphanet": {
+            "matched": 1160,
+            "unmatched": 4140
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 7390,
+        "unmatched": 5282,
+        "exact_xrefs": 98804,
+        "namespaces": {
+          "OMIM": {
+            "matched": 5993,
+            "unmatched": 1379
+          },
+          "Orphanet": {
+            "matched": 1397,
+            "unmatched": 3903
+          }
+        }
+      }
+    }
+  },
+  {
+    "release": "2026-11-11",
+    "cases": {
+      "intact": {
+        "matched": 11127,
+        "unmatched": 1545,
+        "exact_xrefs": 109646,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6719,
+            "unmatched": 653
+          },
+          "Orphanet": {
+            "matched": 4408,
+            "unmatched": 892
+          }
+        }
+      },
+      "omit_omim": {
+        "matched": 4408,
+        "unmatched": 8264,
+        "exact_xrefs": 99601,
+        "namespaces": {
+          "OMIM": {
+            "matched": 0,
+            "unmatched": 7372
+          },
+          "Orphanet": {
+            "matched": 4408,
+            "unmatched": 892
+          }
+        }
+      },
+      "omit_orphanet": {
+        "matched": 6719,
+        "unmatched": 5953,
+        "exact_xrefs": 99924,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6719,
+            "unmatched": 653
+          },
+          "Orphanet": {
+            "matched": 0,
+            "unmatched": 5300
+          }
+        }
+      },
+      "half_orphanet": {
+        "matched": 8977,
+        "unmatched": 3695,
+        "exact_xrefs": 104776,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6719,
+            "unmatched": 653
+          },
+          "Orphanet": {
+            "matched": 2258,
+            "unmatched": 3042
+          }
+        }
+      },
+      "retain_75pct": {
+        "matched": 8192,
+        "unmatched": 4480,
+        "exact_xrefs": 81899,
+        "namespaces": {
+          "OMIM": {
+            "matched": 4939,
+            "unmatched": 2433
+          },
+          "Orphanet": {
+            "matched": 3253,
+            "unmatched": 2047
+          }
+        }
+      },
+      "retain_90pct": {
+        "matched": 9987,
+        "unmatched": 2685,
+        "exact_xrefs": 98744,
+        "namespaces": {
+          "OMIM": {
+            "matched": 6021,
+            "unmatched": 1351
+          },
+          "Orphanet": {
+            "matched": 3966,
+            "unmatched": 1334
+          }
+        }
+      }
+    }
+  }
+]

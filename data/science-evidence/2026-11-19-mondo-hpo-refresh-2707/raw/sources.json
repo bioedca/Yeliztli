@@ -1,0 +1,416 @@
+{
+  "accessed_utc": "2026-11-19",
+  "kg_catalog": "https://api.monarchinitiative.org/v3/api/releases",
+  "catalog_interval": [
+    "2025-09-17",
+    "2025-11-18",
+    "2025-12-05",
+    "2025-12-20",
+    "2026-01-11",
+    "2026-02-08",
+    "2026-03-04",
+    "2026-04-07",
+    "2026-04-14",
+    "2026-05-01",
+    "2026-05-09",
+    "2026-06-08",
+    "2026-07-14",
+    "2026-08-20",
+    "2026-09-02",
+    "2026-09-04",
+    "2026-10-07",
+    "2026-11-11"
+  ],
+  "selection": "Last dated KG release in each available calendar month in the interval; newest non-prerelease HPO and MONDO tag published by that UTC day end.",
+  "calibration_end": "2026-06-30",
+  "holdout_start": "2026-07-01",
+  "synthetic_seed": 2707,
+  "selection_sources": {
+    "hpo": "https://api.github.com/repos/obophenotype/human-phenotype-ontology/releases?per_page=40",
+    "mondo": "https://api.github.com/repos/monarch-initiative/mondo/releases?per_page=40"
+  },
+  "snapshots": [
+    {
+      "release": "2025-09-17",
+      "kg": "kg-2025-09-17",
+      "hpo": "hpo-v2025-09-01",
+      "mondo": "mondo-v2025-09-02"
+    },
+    {
+      "release": "2025-11-18",
+      "kg": "kg-2025-11-18",
+      "hpo": "hpo-v2025-10-22",
+      "mondo": "mondo-v2025-11-04"
+    },
+    {
+      "release": "2025-12-20",
+      "kg": "kg-2025-12-20",
+      "hpo": "hpo-v2025-11-24",
+      "mondo": "mondo-v2025-12-02"
+    },
+    {
+      "release": "2026-01-11",
+      "kg": "kg-2026-01-11",
+      "hpo": "hpo-v2026-01-08",
+      "mondo": "mondo-v2026-01-06"
+    },
+    {
+      "release": "2026-02-08",
+      "kg": "kg-2026-02-08",
+      "hpo": "hpo-v2026-01-08",
+      "mondo": "mondo-v2026-02-03"
+    },
+    {
+      "release": "2026-03-04",
+      "kg": "kg-2026-03-04",
+      "hpo": "hpo-v2026-02-16",
+      "mondo": "mondo-v2026-03-03"
+    },
+    {
+      "release": "2026-04-14",
+      "kg": "kg-2026-04-14",
+      "hpo": "hpo-v2026-02-16",
+      "mondo": "mondo-v2026-04-07"
+    },
+    {
+      "release": "2026-05-09",
+      "kg": "kg-2026-05-09",
+      "hpo": "hpo-v2026-02-16",
+      "mondo": "mondo-v2026-05-05"
+    },
+    {
+      "release": "2026-06-08",
+      "kg": "kg-2026-06-08",
+      "hpo": "hpo-v2026-06-06",
+      "mondo": "mondo-v2026-06-02"
+    },
+    {
+      "release": "2026-07-14",
+      "kg": "kg-2026-07-14",
+      "hpo": "hpo-v2026-06-23",
+      "mondo": "mondo-v2026-07-06"
+    },
+    {
+      "release": "2026-08-20",
+      "kg": "kg-2026-08-20",
+      "hpo": "hpo-v2026-06-23",
+      "mondo": "mondo-v2026-08-04"
+    },
+    {
+      "release": "2026-09-04",
+      "kg": "kg-2026-09-04",
+      "hpo": "hpo-v2026-09-01",
+      "mondo": "mondo-v2026-09-01"
+    },
+    {
+      "release": "2026-10-07",
+      "kg": "kg-2026-10-07",
+      "hpo": "hpo-v2026-09-01",
+      "mondo": "mondo-v2026-10-06"
+    },
+    {
+      "release": "2026-11-11",
+      "kg": "kg-2026-11-11",
+      "hpo": "hpo-v2026-09-01",
+      "mondo": "mondo-v2026-11-03"
+    }
+  ],
+  "files": {
+    "kg-2025-09-17": {
+      "resource": "kg",
+      "version": "2025-09-17",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2025-09-17/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2025-09-17",
+      "sha256": "95367dde6875fb2bc458e410ab8fa59ffa9070367572ef048d7cde72bb4521e5",
+      "bytes": 221943
+    },
+    "hpo-v2025-09-01": {
+      "resource": "hpo",
+      "version": "v2025-09-01",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2025-09-01/genes_to_phenotype.txt",
+      "published": "2025-09-02T16:56:19Z",
+      "declared_sha256": "89b5cf8f59ef736926d31371ce7b23f2fa10f5bb948f6250a896ad6aac638c1c",
+      "sha256": "89b5cf8f59ef736926d31371ce7b23f2fa10f5bb948f6250a896ad6aac638c1c",
+      "bytes": 24100644
+    },
+    "mondo-v2025-09-02": {
+      "resource": "mondo",
+      "version": "v2025-09-02",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2025-09-02/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2025-09-02T22:38:10Z",
+      "sha256": "9782a2dc50d28c53da97af8de78d06f024390aa4e2728c5678abc2d983071270",
+      "bytes": 12791252
+    },
+    "kg-2025-11-18": {
+      "resource": "kg",
+      "version": "2025-11-18",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2025-11-18/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2025-11-18",
+      "sha256": "3cfbb1144519e82ca5c156caa5905fc8e237552eea5f5ac362e83547a4ff9f0b",
+      "bytes": 173184
+    },
+    "hpo-v2025-10-22": {
+      "resource": "hpo",
+      "version": "v2025-10-22",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2025-10-22/genes_to_phenotype.txt",
+      "published": "2025-10-22T17:02:31Z",
+      "declared_sha256": "5592d20500cda03521be9f9a4260b575c6525fa2e97eb63ef598b7ccd7aadfe0",
+      "sha256": "5592d20500cda03521be9f9a4260b575c6525fa2e97eb63ef598b7ccd7aadfe0",
+      "bytes": 22652331
+    },
+    "mondo-v2025-11-04": {
+      "resource": "mondo",
+      "version": "v2025-11-04",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2025-11-04/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2025-11-04T19:21:40Z",
+      "sha256": "d9dd755a25aaecea6e7fdd0ea5ac16721991756b30abc482c2e855943acf9929",
+      "bytes": 12839072
+    },
+    "kg-2025-12-20": {
+      "resource": "kg",
+      "version": "2025-12-20",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2025-12-20/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2025-12-20",
+      "sha256": "7b5206400c4377178eddd20863b0414d7fd5a5f26b2886e4ffddd1fe3c2c97f7",
+      "bytes": 188021
+    },
+    "hpo-v2025-11-24": {
+      "resource": "hpo",
+      "version": "v2025-11-24",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2025-11-24/genes_to_phenotype.txt",
+      "published": "2025-11-25T08:36:02Z",
+      "declared_sha256": "7a7e2fd7b279df61b2b1ed6772d402f9c6e7b3791e95012ea0e110356df641fd",
+      "sha256": "7a7e2fd7b279df61b2b1ed6772d402f9c6e7b3791e95012ea0e110356df641fd",
+      "bytes": 19986023
+    },
+    "mondo-v2025-12-02": {
+      "resource": "mondo",
+      "version": "v2025-12-02",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2025-12-02/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2025-12-02T15:23:01Z",
+      "sha256": "3526aad45247c904e5e4fa6177945c5983f430bcda8c904c302e83394b2ff6b8",
+      "bytes": 12858577
+    },
+    "kg-2026-01-11": {
+      "resource": "kg",
+      "version": "2026-01-11",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-01-11/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-01-11",
+      "sha256": "679aa40540a1f65db259f5e72aed0dc2a0d2df2677cf28acaae1d9ee01b0b0c8",
+      "bytes": 155427
+    },
+    "hpo-v2026-01-08": {
+      "resource": "hpo",
+      "version": "v2026-01-08",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-01-08/genes_to_phenotype.txt",
+      "published": "2026-01-08T18:07:04Z",
+      "declared_sha256": "e913c803a3b1f3cd511ba4b63281bd3c1e91573e8abab8fa92b2f0fbeb940888",
+      "sha256": "e913c803a3b1f3cd511ba4b63281bd3c1e91573e8abab8fa92b2f0fbeb940888",
+      "bytes": 20125120
+    },
+    "mondo-v2026-01-06": {
+      "resource": "mondo",
+      "version": "v2026-01-06",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-01-06/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-01-06T17:57:22Z",
+      "sha256": "908b6929c70d2f7488efcb1bbfb8a3095b2e75396454d4cdab44acab47bb3092",
+      "bytes": 12875543
+    },
+    "kg-2026-02-08": {
+      "resource": "kg",
+      "version": "2026-02-08",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-02-08/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-02-08",
+      "sha256": "d8b5ae1c61edbb88c6ff5f46d46ccd3dae0c89543f1d23ee94cacd7bbe0a8824",
+      "bytes": 155481
+    },
+    "mondo-v2026-02-03": {
+      "resource": "mondo",
+      "version": "v2026-02-03",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-02-03/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-02-03T21:55:13Z",
+      "sha256": "eb7a0735c8adafe2ec7612514c4a9fa258e9c0cbf2a3aed43621d540ba67e896",
+      "bytes": 12875070
+    },
+    "kg-2026-03-04": {
+      "resource": "kg",
+      "version": "2026-03-04",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-03-04/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-03-04",
+      "sha256": "d160b32e3f7137d16d67fe35aa2a17f4158cbb89e0ea72b08ade034cede1a770",
+      "bytes": 155445
+    },
+    "hpo-v2026-02-16": {
+      "resource": "hpo",
+      "version": "v2026-02-16",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-02-16/genes_to_phenotype.txt",
+      "published": "2026-02-16T17:30:31Z",
+      "declared_sha256": "25d3e5a40203cbb4cc027747c70fcb5431bcfb26283479608a97f3d810285c7d",
+      "sha256": "25d3e5a40203cbb4cc027747c70fcb5431bcfb26283479608a97f3d810285c7d",
+      "bytes": 20533481
+    },
+    "mondo-v2026-03-03": {
+      "resource": "mondo",
+      "version": "v2026-03-03",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-03-03/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-03-03T20:01:43Z",
+      "sha256": "ede916bea6fc203524a28ae4b303d79edd9afa2929b765a1c247433176310adf",
+      "bytes": 13037502
+    },
+    "kg-2026-04-14": {
+      "resource": "kg",
+      "version": "2026-04-14",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-04-14/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-04-14",
+      "sha256": "9e8a29caf1c9ac456d806fb01dc5ba1009bd106ed98075d21e03a4f8f2c9d18a",
+      "bytes": 194035
+    },
+    "mondo-v2026-04-07": {
+      "resource": "mondo",
+      "version": "v2026-04-07",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-04-07/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-04-07T18:43:19Z",
+      "sha256": "3f31bcc5276bd9d7b475abc91b9830dd014ca535ace31caabaa9f315bea87997",
+      "bytes": 13068495
+    },
+    "kg-2026-05-09": {
+      "resource": "kg",
+      "version": "2026-05-09",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-05-09/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-05-09",
+      "sha256": "d2f147fbd1bc5ecaca40bd1bbb09de1f73ce95ea2f8b08cd0c5707f4e243f852",
+      "bytes": 161687
+    },
+    "mondo-v2026-05-05": {
+      "resource": "mondo",
+      "version": "v2026-05-05",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-05-05/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-05-05T14:12:52Z",
+      "sha256": "6cb3da30bb9cbedb75e55b741c0481cbcd5239de086994bbd1a882c3a1785ade",
+      "bytes": 13075672
+    },
+    "kg-2026-06-08": {
+      "resource": "kg",
+      "version": "2026-06-08",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-06-08/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-06-08",
+      "sha256": "3a86aa18d87c45102fcb77f555444efbbea958a2494a9db7afa374b5f460e4af",
+      "bytes": 183578
+    },
+    "hpo-v2026-06-06": {
+      "resource": "hpo",
+      "version": "v2026-06-06",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-06-06/genes_to_phenotype.txt",
+      "published": "2026-06-08T05:38:59Z",
+      "declared_sha256": "857cd3c28ce46b3fa5cb65f38a88ed8e4ee3c8c9c92463066ce7e7e3aa9b8ed4",
+      "sha256": "857cd3c28ce46b3fa5cb65f38a88ed8e4ee3c8c9c92463066ce7e7e3aa9b8ed4",
+      "bytes": 20679214
+    },
+    "mondo-v2026-06-02": {
+      "resource": "mondo",
+      "version": "v2026-06-02",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-06-02/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-06-02T17:04:52Z",
+      "sha256": "9574e2fc0eaa6a3669f663257516592abdbedac745d1bda6e92aba74ac3123c8",
+      "bytes": 13075150
+    },
+    "kg-2026-07-14": {
+      "resource": "kg",
+      "version": "2026-07-14",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-07-14/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-07-14",
+      "sha256": "8a57c65a851f6812150a03eba3a2b41fd9a6b1afa33bae8a37bfe7edcde5e618",
+      "bytes": 183547
+    },
+    "hpo-v2026-06-23": {
+      "resource": "hpo",
+      "version": "v2026-06-23",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-06-23/genes_to_phenotype.txt",
+      "published": "2026-06-23T12:08:40Z",
+      "declared_sha256": "26cb7ee00c73b5777f6e5ad43323c941e1fcef1d191592f332d7929f3ea1ab3f",
+      "sha256": "26cb7ee00c73b5777f6e5ad43323c941e1fcef1d191592f332d7929f3ea1ab3f",
+      "bytes": 20732778
+    },
+    "mondo-v2026-07-06": {
+      "resource": "mondo",
+      "version": "v2026-07-06",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-07-06/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-07-07T13:18:17Z",
+      "sha256": "627e62b1677159b82a9d01083e0243a1c7717c6892551fa687abf9288e25e1ae",
+      "bytes": 13075785
+    },
+    "kg-2026-08-20": {
+      "resource": "kg",
+      "version": "2026-08-20",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-08-20/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-08-20",
+      "sha256": "54d0115d580bf2aed0a20e39c79d7ac4fa0a3e888f87a4878e34b7f5f52e76f8",
+      "bytes": 183320
+    },
+    "mondo-v2026-08-04": {
+      "resource": "mondo",
+      "version": "v2026-08-04",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-08-04/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-08-04T18:57:33Z",
+      "sha256": "701a4c0278a79b173297dfc35331afe443ce7d5f0ec358b5f1328ee08fb8e4d6",
+      "bytes": 13111988
+    },
+    "kg-2026-09-04": {
+      "resource": "kg",
+      "version": "2026-09-04",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-09-04/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-09-04",
+      "sha256": "da2d53bbf5ef3c367cc26129f20c19dd7d505b705c1e9be68a063ed4e3ee102a",
+      "bytes": 183609
+    },
+    "hpo-v2026-09-01": {
+      "resource": "hpo",
+      "version": "v2026-09-01",
+      "url": "https://github.com/obophenotype/human-phenotype-ontology/releases/download/v2026-09-01/genes_to_phenotype.txt",
+      "published": "2026-09-03T06:08:39Z",
+      "declared_sha256": "507a17bff9c49e6329fbd88b1f91734fa7e9fdea5c06304044c0892eb6ab248c",
+      "sha256": "507a17bff9c49e6329fbd88b1f91734fa7e9fdea5c06304044c0892eb6ab248c",
+      "bytes": 20821704
+    },
+    "mondo-v2026-09-01": {
+      "resource": "mondo",
+      "version": "v2026-09-01",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-09-01/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-09-01T17:41:30Z",
+      "sha256": "317ac4bf93be1deff4406b4d7d18bb730ead3c4f5c7c814f75d24be7f6ef302f",
+      "bytes": 13113756
+    },
+    "kg-2026-10-07": {
+      "resource": "kg",
+      "version": "2026-10-07",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-10-07/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-10-07",
+      "sha256": "1f35f77eca54025fff45a472ff4e22f2761c42e820698e7faea04d33065c0dc0",
+      "bytes": 183321
+    },
+    "mondo-v2026-10-06": {
+      "resource": "mondo",
+      "version": "v2026-10-06",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-10-06/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-10-06T19:55:40Z",
+      "sha256": "ec15afdb32fab3d3cb679d357e25ef4fb38b5e2c468ff4ac5456da10e2f6c80b",
+      "bytes": 13124886
+    },
+    "kg-2026-11-11": {
+      "resource": "kg",
+      "version": "2026-11-11",
+      "url": "https://data.monarchinitiative.org/monarch-kg/2026-11-11/tsv/gene_associations/gene_disease.9606.tsv.gz",
+      "published": "2026-11-11",
+      "sha256": "04df60a64886379d692db77651c0fc715272527ce5e14ef1ee9ad7c5573bf833",
+      "bytes": 395672
+    },
+    "mondo-v2026-11-03": {
+      "resource": "mondo",
+      "version": "v2026-11-03",
+      "url": "https://raw.githubusercontent.com/monarch-initiative/mondo/v2026-11-03/src/ontology/mappings/mondo.sssom.tsv",
+      "published": "2026-11-03T18:16:04Z",
+      "sha256": "0a9e732f7f8c8f9c6a67c2493370b794fedf073b2056c000dd1ec1ce44cf25f0",
+      "bytes": 13129302
+    }
+  }
+}

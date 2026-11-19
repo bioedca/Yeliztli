@@ -1,0 +1,163 @@
+{
+  "accessed": "2026-11-19",
+  "tagged_license_records": [
+    {
+      "resource": "hpo-v2025-09-01",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2025-09-01/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2025-09-02",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2025-09-02/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2025-10-22",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2025-10-22/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2025-11-04",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2025-11-04/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2025-11-24",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2025-11-24/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2025-12-02",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2025-12-02/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2026-01-08",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2026-01-08/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2026-01-06",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-01-06/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-02-03",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-02-03/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2026-02-16",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2026-02-16/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2026-03-03",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-03-03/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-04-07",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-04-07/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-05-05",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-05-05/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2026-06-06",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2026-06-06/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2026-06-02",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-06-02/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2026-06-23",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2026-06-23/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2026-07-06",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-07-06/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-08-04",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-08-04/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "hpo-v2026-09-01",
+      "license_url": "https://github.com/obophenotype/human-phenotype-ontology/blob/v2026-09-01/LICENSE.md",
+      "license_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+      "repo_spdx": "NOASSERTION"
+    },
+    {
+      "resource": "mondo-v2026-09-01",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-09-01/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-10-06",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-10-06/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    },
+    {
+      "resource": "mondo-v2026-11-03",
+      "license_url": "https://github.com/monarch-initiative/mondo/blob/v2026-11-03/LICENSE",
+      "license_blob_sha1": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "repo_spdx": "CC-BY-4.0",
+      "mapping_header_license": "https://w3id.org/sssom/license/unspecified"
+    }
+  ],
+  "project_pages": [
+    {
+      "url": "https://human-phenotype-ontology.github.io/license.html",
+      "response_bytes": 8351,
+      "sha256": "d63799ff8d381891114b22e78c8164f198a9642f9ed0ca8b53bc73238c318b39"
+    },
+    {
+      "url": "https://monarch-app.monarchinitiative.org/Licensing/",
+      "response_bytes": 39981,
+      "sha256": "8dc21c802db1f6f86d37bc0e58d993f132a89c018909356c1198a626a883ac09"
+    }
+  ]
+}

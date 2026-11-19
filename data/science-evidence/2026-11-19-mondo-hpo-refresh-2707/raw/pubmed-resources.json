@@ -1,0 +1,51 @@
+{
+  "accessed": "2026-11-19",
+  "query": {
+    "count": "3",
+    "retmax": "3",
+    "retstart": "0",
+    "idlist": [
+      "41052288",
+      "38000386",
+      "37953324"
+    ],
+    "translationset": [],
+    "querytranslation": "\"10.1093/genetics/iyaf215\"[Publisher ID] OR \"10.1093/nar/gkad1005\"[Publisher ID] OR \"10.1093/nar/gkad1082\"[Publisher ID]"
+  },
+  "efetch_xml_sha256": "4afa57d399b8b6d5ec90832f7551c05ab20dfc6aadcb98b7b8ab6160629c5dae",
+  "records": [
+    {
+      "pmid": "41052288",
+      "doi": "10.1093/genetics/iyaf215",
+      "title": "Mondo: integrating disease terminology across communities.",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't",
+        "Research Support, N.I.H., Intramural",
+        "Research Support, U.S. Gov't, Non-P.H.S."
+      ],
+      "linked_notices": []
+    },
+    {
+      "pmid": "38000386",
+      "doi": "10.1093/nar/gkad1082",
+      "title": "The Monarch Initiative in 2024: an analytic platform integrating phenotypes, genes\u00a0and diseases across species.",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural"
+      ],
+      "linked_notices": []
+    },
+    {
+      "pmid": "37953324",
+      "doi": "10.1093/nar/gkad1005",
+      "title": "The Human Phenotype Ontology in 2024: phenotypes around the world.",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural"
+      ],
+      "linked_notices": []
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "calibration_largest_intact_drop": {
+    "prior": "2025-09-17",
+    "candidate": "2025-11-18",
+    "exact_pp": "8823765/697498",
+    "rounded_pp": 12.6506
+  },
+  "tolerance_pp": 13,
+  "groups": {
+    "calibration": {
+      "intact": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          -5.9791,
+          12.6506
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "omit_omim": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          46.6131,
+          60.4988
+        ],
+        "refused": {
+          "absolute": 36,
+          "absolute_and_drop": 36,
+          "with_namespace_guard": 36
+        }
+      },
+      "omit_orphanet": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          6.0408,
+          23.6012
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 8,
+          "with_namespace_guard": 36
+        }
+      },
+      "half_orphanet": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          0.0032,
+          18.1259
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 3,
+          "with_namespace_guard": 3
+        }
+      },
+      "retain_75pct": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          10.8772,
+          27.8827
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 29,
+          "with_namespace_guard": 29
+        }
+      },
+      "retain_90pct": {
+        "comparisons": 36,
+        "drop_range_pp": [
+          0.5485,
+          18.4723
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 8,
+          "with_namespace_guard": 8
+        }
+      }
+    },
+    "holdout_all_earlier": {
+      "intact": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          -29.0089,
+          6.6636
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "omit_omim": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          24.0135,
+          59.4295
+        ],
+        "refused": {
+          "absolute": 55,
+          "absolute_and_drop": 55,
+          "with_namespace_guard": 55
+        }
+      },
+      "omit_orphanet": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          5.7764,
+          18.8058
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 5,
+          "with_namespace_guard": 55
+        }
+      },
+      "half_orphanet": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          -12.0424,
+          12.6505
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "retain_75pct": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          -5.8476,
+          23.512
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 38,
+          "with_namespace_guard": 38
+        }
+      },
+      "retain_90pct": {
+        "comparisons": 55,
+        "drop_range_pp": [
+          -20.0127,
+          13.1833
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 4,
+          "with_namespace_guard": 4
+        }
+      }
+    },
+    "holdout_adjacent": {
+      "intact": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          -22.9877,
+          0.0395
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "omit_omim": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          30.0347,
+          52.7659
+        ],
+        "refused": {
+          "absolute": 5,
+          "absolute_and_drop": 5,
+          "with_namespace_guard": 5
+        }
+      },
+      "omit_orphanet": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          11.7977,
+          12.2159
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 5
+        }
+      },
+      "half_orphanet": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          -6.0211,
+          6.0606
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "retain_75pct": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          0.1736,
+          16.8955
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 4,
+          "with_namespace_guard": 4
+        }
+      },
+      "retain_90pct": {
+        "comparisons": 5,
+        "drop_range_pp": [
+          -13.9915,
+          6.542
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      }
+    },
+    "same_release": {
+      "intact": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          0.0,
+          0.0
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      },
+      "omit_omim": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          47.8482,
+          60.5753
+        ],
+        "refused": {
+          "absolute": 14,
+          "absolute_and_drop": 14,
+          "with_namespace_guard": 14
+        }
+      },
+      "omit_orphanet": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          10.8741,
+          34.7854
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 1,
+          "with_namespace_guard": 14
+        }
+      },
+      "half_orphanet": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          5.2529,
+          16.9665
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 1,
+          "with_namespace_guard": 1
+        }
+      },
+      "retain_75pct": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          15.2321,
+          23.1613
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 14,
+          "with_namespace_guard": 14
+        }
+      },
+      "retain_90pct": {
+        "comparisons": 14,
+        "drop_range_pp": [
+          5.8217,
+          8.9962
+        ],
+        "refused": {
+          "absolute": 0,
+          "absolute_and_drop": 0,
+          "with_namespace_guard": 0
+        }
+      }
+    }
+  }
+}
