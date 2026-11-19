@@ -116,8 +116,13 @@ that immutable input for hashing, validation and publication. In one
 registry transaction, bind the retry key to the archive digest, target
 installation and reference publication ID, and reserve each copy's
 identity, numeric sample ID and destination path. Only the operation
-holding that reservation may publish. A retry of the same operation
-returns its durable outcome or resumes its unfinished work. Each request
+holding that reservation may publish. Allow one active publisher for the
+operation, including across restarts. An overlapping retry observes or
+waits for that publisher. A successor must exclude the predecessor before
+any file switch, registry commit or cleanup. Check the active ownership
+at the switch itself, holding the lock through durable recording of that
+step. A completed step is never republished over the live sample. A retry
+returns the durable outcome or resumes only unfinished work. Each request
 releases only its own staging. Enforce ID and path uniqueness in the
 registry across reserved and published copies. Every insertion into
 `samples` honors it, including ingest, sample merges and restore. A merge
@@ -810,8 +815,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   reference set. An unrelated producer remains available.
   Check two independent restore operations using different synthetic
   archives. Each must publish exactly the contents identified by its own
-  digest and release only its own resources. Capture a backup across a
-  reference publication and restore it into an empty installation. Its
+  digest and release only its own resources. During a same-key retry,
+  delay the first publisher and let a successor recover.
+  Write a new analysis to the published copy and then resume the older
+  attempt. The new result, copy identity and completed operation must
+  survive, with just one publication. Capture a backup across a reference
+  publication and restore it into an empty installation. The backup's
   verified weights and frequencies must both come from a single published
   set, and its recalculation must match that set's control.
   Verify the content revision, one logical change per affected sample,
