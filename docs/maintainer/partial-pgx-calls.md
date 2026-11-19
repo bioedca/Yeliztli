@@ -16,7 +16,7 @@ application cannot establish their equivalence.
 | CYP2D6 / tramadol | Make an independent decision for tramadol. Its poor and ultrarapid rows both say to avoid use, for different reasons. Treat the reason and monitoring/follow-up as part of the result. |
 | CYP2D6 / ondansetron | A lower-activity substitution would miss the ultrarapid branch. CPIC Table 2 gives no recommendation for intermediate and poor metabolizers. The two shipped rows instead direct label dosing. Withhold those actions pending the independent reference repair in [#2720](https://github.com/bioedca/Yeliztli/issues/2720). |
 | CYP2D6 / tamoxifen | The existing pair-level evidence hold takes precedence for every call, including a fully resolved one. Retain its audit-only reference rows. |
-| NUDT15 / mercaptopurine, azathioprine and thioguanine | Evaluate each drug against the joint TPMT/NUDT15 result and applicable guideline context. An unresolved NUDT15 indel or phase that can change a single- or compound-intermediate result must also suppress a contradictory TPMT-only or compound recommendation for that drug. Other drugs and the observed TPMT gene result keep their own disposition. |
+| NUDT15 / mercaptopurine, azathioprine and thioguanine | Evaluate each drug against the joint TPMT/NUDT15 result and applicable guideline context. If observed NUDT15 variation supports competing actions, withhold contradictory single-gene and compound recommendations for that drug. If only one gene yields a usable result, preserve CPIC's single-gene path and explicitly identify the unavailable partner. |
 
 The table describes Yeliztli's seven drug pairs at the audited revision. The
 underlying CPIC documents cover known genotypes. They supply no validation
@@ -71,9 +71,11 @@ follow-up in [#2632](https://github.com/bioedca/Yeliztli/issues/2632).
 
 | Input | Required observation |
 | --- | --- |
-| CYP2D6 carrier with *4 observed and *3 untyped | Preserve the observed signal and confidence. Withhold codeine and tramadol when the compatible intermediate and poor branches disagree. A sparse call already classified insufficient still emits zero prescribing alerts. |
-| CYP2D6 `hom_ref` at every assayed SNV, copy number unknown | No positive variant-carrier finding. Keep the copy-number caveat. Do not infer normal copy number or a normal-only drug action. |
+| CYP2D6 carrier with *4 observed, other five defining SNVs reference and the three defining indels unassayed | Use the synthetic *4 heterozygote in `test_cyp2d6_alert_carries_cnv_caveat`. Assert the direct *1/*4 result and **Partial** confidence before testing suppression. Baseline emits guidance; the proposal withholds codeine and tramadol because the untyped *3 can change their action. |
+| Only the CYP2D6 *4 marker is typed | Assert **Insufficient** confidence and zero prescribing alerts. This exercises the earlier sparse-coverage exit. |
+| CYP2D6 `hom_ref` at all six defining SNVs, all three defining indels unassayed, copy number unknown | No positive variant-carrier finding. Keep the copy-number caveat and withhold a normal-only drug action. In a separate positive control, supply the supported deletion token at rs35742686 and assert the observed *3 signal survives. |
 | NUDT15 with a heterozygous rs116855232 plus a heterozygous indel token | Show the provisional observation and phase/sequence limitation. Withhold incompatible thiopurine guidance, including with TPMT intermediate, without losing the independently observed TPMT result. |
+| Resolved TPMT intermediate and NUDT15 absent or insufficient, with no specific competing NUDT15 result | Preserve the TPMT-only rows for each applicable drug, name the unavailable partner, and assert zero NUDT15 or compound alerts. Exercise the reciprocal known-NUDT15/absent-TPMT case and the both-unavailable case (zero actions). |
 | NUDT15 `hom_ref` at assayed SNVs with an untyped indel | No positive carrier finding and no assertion that the unassayed locus is reference. Distinguish this state from a genuinely resolved reference control. |
 | Resolved synthetic single- and joint-gene controls | Return the exact positive reviewed drug row for its full key and preserve its qualifications. For future data capable of ruling out competing classes, distinguish an established common action from conflicting, unrepresented and no-recommendation states. |
 | Tamoxifen or an unrelated drug | Verify zero tamoxifen guidance through all consumers and positive unchanged guidance for an unrelated, eligible control. |

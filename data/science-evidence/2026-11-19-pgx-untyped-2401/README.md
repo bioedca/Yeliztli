@@ -17,6 +17,23 @@ lowest possible activity. No dose is proposed.
 
 ## Source records and retrieval
 
+- The defining PharmVar record names `NUDT15*3.002`, lists legacy label
+  `*2` and is active. The former core `NUDT15*2` record is inactive.
+  `data/science-evidence/2026-11-19-pgx-untyped-2401/raw/pharmvar-nudt15-names.json`
+  retains selected identity fields from both records at registry version
+  6.2.29. The gene lookup used `/api/genes/search/findGeneBySymbol?symbol=NUDT15`
+  followed by `/api/genes/22812/haplotypes`. The retained fields are factual
+  identifiers and status values. No grant to redistribute the full database
+  is assumed. [PharmVar:PV03044](https://www.pharmvar.org/api/haplotypes/3044)
+  (accessed 2026-11-19), [PharmVar:PV01598](https://www.pharmvar.org/api/haplotypes/1598)
+  (accessed 2026-11-19).
+
+The thiopurine guideline's “Other considerations” section permits using the
+available gene with a caveat if only one of the two genes yielded a result.
+The proposed conflict rule addresses positive but ambiguous information
+from the other gene. The single-gene rule has its own acceptance control.
+[PMID:41618934](https://pmc.ncbi.nlm.nih.gov/articles/PMC12997511/) (accessed 2026-11-19).
+
 - `data/science-evidence/2026-11-19-pgx-untyped-2401/raw/pubmed.json`
   retains selected public fields from NCBI ESummary and linked editorial
   notices from EFetch. Both used the comma-separated `id` list in the file,

@@ -1,0 +1,29 @@
+{
+  "accessed_utc": "2026-11-19",
+  "version": "6.2.29",
+  "version_url": "https://www.pharmvar.org/api/versions/6.2.29",
+  "records": [
+    {
+      "url": "https://www.pharmvar.org/api/haplotypes/1598",
+      "fields": {
+        "label": "NUDT15*2",
+        "pvId": "PV01598",
+        "majorAllele": null,
+        "minorAllele": null,
+        "legacyLabel": null,
+        "activeInd": false
+      }
+    },
+    {
+      "url": "https://www.pharmvar.org/api/haplotypes/3044",
+      "fields": {
+        "label": "NUDT15*3.002",
+        "pvId": "PV03044",
+        "majorAllele": null,
+        "minorAllele": null,
+        "legacyLabel": "*2",
+        "activeInd": true
+      }
+    }
+  ]
+}
