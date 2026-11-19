@@ -32,9 +32,8 @@ from backend.annotation.gtex_eqtl import (
 from backend.config import Settings
 from backend.db.connection import DBRegistry
 from backend.db.database_registry import DATABASES
-from backend.db.standalone import run_standalone_build
-from backend.db.tables import database_versions, reference_metadata, samples
-from backend.db.update_manager import get_active_prompts, run_precheck_all_samples
+from backend.db.tables import database_versions, jobs, reference_metadata, samples
+from backend.db.update_manager import get_active_prompts
 from backend.services.staleness import (
     find_stale_reference_versions,
     read_current_reference_versions,
@@ -230,9 +229,13 @@ def _create_legacy_gtex_table(engine: sa.Engine) -> None:
         conn.exec_driver_sql("CREATE INDEX idx_gtex_eqtl_gene ON gtex_eqtl (gene_id)")
 
 
-@pytest.mark.parametrize("recorded_version", ["v8", None], ids=["recorded-v8", "unstamped"])
+@pytest.mark.parametrize(
+    ("recorded_version", "worker"),
+    [("v8", "update"), (None, "update"), (None, "setup")],
+    ids=["recorded-v8", "unstamped", "unstamped-setup"],
+)
 def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recorded_version: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recorded_version: str | None, worker: str
 ) -> None:
     settings = Settings(data_dir=tmp_path)
     registry = DBRegistry(settings)
@@ -299,7 +302,6 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         assert associations() == historical
         assert lookup_gene_names(["ENSG001.4", "ENSG002.1"], installed) == {}
         assert find_stale_reference_versions(sample, ref) == []
-        assert run_precheck_all_samples(registry, db_name="gtex_eqtl", db_version="v8") == []
         assert get_active_prompts(ref) == []
 
         pairs = _SIGNIF.replace("ENSG001\t", "ENSG001.4\t").replace("ENSG002\t", "ENSG002.1\t")
@@ -308,7 +310,26 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         monkeypatch.setattr(
             gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
         )
-        run_standalone_build(DATABASES["gtex_eqtl"], settings, ref, download_and_load_gtex_eqtl)
+        monkeypatch.setattr("backend.db.connection.get_registry", lambda: registry)
+        if worker == "update":
+            from backend.tasks.huey_tasks import (
+                create_database_update_job,
+                run_database_update_task,
+            )
+
+            job_id = create_database_update_job("gtex_eqtl")
+            run_database_update_task.call_local(job_id, "gtex_eqtl")
+        else:
+            from backend.api.routes.databases import _create_job_record, _run_build
+
+            job_id = "synthetic-setup-build"
+            _create_job_record(ref, job_id, "gtex_eqtl")
+            _run_build(
+                db_info=DATABASES["gtex_eqtl"], job_id=job_id, engine=ref, settings=settings
+            )
+        with ref.connect() as conn:
+            job = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).one()
+            assert job.status == "complete", job.error
 
         assert associations() == historical
         assert lookup_gene_names(["ENSG001.4"], installed) == {"ENSG001.4": "GENEA"}
@@ -316,18 +337,20 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
         assert read_current_reference_versions(ref) == {"gtex_eqtl": "v8", "vep_bundle": "v1.0.0"}
         assert read_recorded_reference_versions(sample) == snapshot
-        results = run_precheck_all_samples(registry, db_name="gtex_eqtl", db_version="v8")
+        changes = (
+            [{"db_name": "gtex_eqtl", "recorded_version": None, "current_version": "v8"}]
+            if recorded_version is None
+            else []
+        )
+        assert find_stale_reference_versions(sample, ref) == changes
         prompts = get_active_prompts(ref)
-        if recorded_version is None:
-            changes = [{"db_name": "gtex_eqtl", "recorded_version": None, "current_version": "v8"}]
-            assert len(results) == len(prompts) == 1
-            assert results[0].sample_id == prompts[0]["sample_id"] == 1
+        if changes and worker == "update":
+            assert len(prompts) == 1
+            assert prompts[0]["sample_id"] == 1
             assert prompts[0]["prompt_type"] == "version_staleness"
-            assert results[0].stale_databases == prompts[0]["stale_databases"] == changes
+            assert prompts[0]["stale_databases"] == changes
         else:
-            assert results == []
             assert prompts == []
-            assert find_stale_reference_versions(sample, ref) == []
 
         # A changed source identity must still produce the normal re-annotation signal.
         gtex_mod.record_gtex_eqtl_version(ref, version="synthetic-other-release")
