@@ -84,11 +84,24 @@ Place the archive under the same protections used for audit-only content,
 including direct SQL query and export controls from its first write. Only
 reattach a note to a current result when its identity is unambiguous.
 
+Install this preservation step before any earlier migration can delete the
+source row. Both normal upgrade and backup restore can take a pre-v21 sample
+through the CYP2C9/phenytoin cleanup. Capture independently authored content
+under the protected history policy before that cleanup on either path.
+If an earlier install already deleted it and no original backup is available,
+report that the historical text is unavailable.
+
 The transaction must cover every producer the write actually changes. The
 methylation writer currently migrates historical MTHFR nutrigenomics rows
 before replacing its own results. Put any affected rows for both panels,
 customized text and completion state in one transaction for the scoped
 repair. A failure restores the prior state for both panels.
+Assign methylation ownership of the standalone SNP findings for the three
+identifiers in that migration. Nutrigenomics still owns its pathway-level
+interpretation, supporting SNP detail and citations. Its writer must honor
+the same ownership rule on every later run. For an old sample needing both
+panels, repair them together, or keep the affected scope pending until both
+can publish consistently.
 
 Use **scoped automatic recomputation** only for bounded, deterministic repairs
 with verified inputs, an idempotent transaction and a tested failure path. The
@@ -117,12 +130,26 @@ Raw variant annotation and source assertions retain their own provenance and
 access rules. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
+Cache identity must include the verified sample identity and its published
+result generation. Expose that generation to open clients when a correction
+is registered, results are replaced, or disclosure changes. Revalidate on
+mount, navigation, focus and reconnect. While a view is open, a change
+notification invalidates its prior generation. If notifications disconnect,
+require revalidation before showing cached results. On mismatch discard
+cached patient output, including an old withheld state, and fetch under the
+new generation. Discard late responses from the old one. A refetch that
+continues displaying old data does not protect this boundary.
+
 The updates banner reads a separate saved diff. Preserve the original
 `last_finding_diff_json` under its existing audit and retention rules. When
 producing a new diff, capture each prior finding's producer, input and
 presentation revisions before replacement and its successor's revisions
 from the completed run. Persist the appropriate side for an addition or
-removal and both sides for a change in a versioned diff. At
+removal and both sides for a change in a versioned diff. Include each
+producer's completion record on **both** sides, including an explicitly empty
+result. Compare membership only across two verified completions for that
+producer. With an unknown baseline, a current result may be shown on its
+own but cannot be described as newly added or removed. At
 `GET /api/updates/finding-changes`, check this evidence for every displayed
 value. Legacy diffs have no per-entry revision. Only present entries that
 can independently be proved eligible. Project only a verified wording change
@@ -150,6 +177,9 @@ upgrade and read paths with synthetic controls:
   *installed* reference row keeps the correction pending even if scoring
   finishes. Repair the reference and verify that only a subsequent run using
   the verified content clears that reason.
+  Upgrade and restore pre-v21 fixtures with a customized phenytoin row. Check
+  retention before deletion, continued withholding, and a second open. Use
+  an already-migrated fixture to verify that missing text stays unavailable.
 - Take the DPYD `rs115232898` reference migration through both a fresh
   upgrade and an install that already has the target allele. Seed synthetic
   raw inputs for an affected stored result, an empty completed result, a
@@ -173,12 +203,19 @@ upgrade and read paths with synthetic controls:
   payload, including after another rerun. With the real methylation writer,
   interrupt the repair after legacy MTHFR migration and before replacement.
   Verify both panels, original notes and completion records on failure and
-  retry, including a control outside the migrated set.
+  retry, including a control outside the migrated set. Run both real panel
+  writers in each order and repeat the scoped runs. Require identical SNP
+  ownership, pathway summaries, supporting detail, citations and counts.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
   sample with the same registry ID. A stale result must never be presented as
   current through a secondary surface.
+- Warm the drug and summary views in two tabs. Apply the correction and run
+  the repair from one tab. Without reloading, verify that the other stops
+  showing the old guidance, shows the pending state, and then receives only
+  the eligible current response. Include an open background tab returning
+  to focus, a delayed older response, and loss of the notification channel.
 - Generate diffs with the production snapshot, comparison and persistence
   paths. Open an undismissed legacy diff and its new-format equivalent,
   each containing a stale added prescribing alert and one entry whose
@@ -187,7 +224,10 @@ upgrade and read paths with synthetic controls:
   the old text. Cover stale before/after values, an all-withheld diff, and
   a repeated read after a successful rerun. With unchanged reference releases
   and a new analysis order, verify the banner attributes the visible change
-  to the analysis or uses neutral wording.
+  to the analysis or uses neutral wording. Compare the same new finding
+  against a completed empty run and a producer with no verified prior run.
+  Only the completed empty baseline should yield an addition, regardless of
+  other producers' findings. Check the reverse transition to an empty run.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
