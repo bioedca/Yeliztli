@@ -80,7 +80,9 @@
         "Research Support, Non-U.S. Gov't"
       ],
       "linked_notices": []
-    }
+    },
+    "sanitized_xml": "raw/pubmed-27268795-metadata.xml",
+    "efetch_response_sha256": "027b30fbc9ad838a0b1bb8cc168b371ee2edf450ae039ff92dea405c545ceb8c"
   },
   "crossref": {
     "request": "https://api.crossref.org/works/10.1186/s13059-016-0974-4",

@@ -177,7 +177,9 @@
           ]
         }
       }
-    }
+    },
+    "registry_stamp_after_workers": null,
+    "ancestrydna_gate_before_explicit_install": true
   },
   "wheel_member_count": 313,
   "wheel_member_roots": [

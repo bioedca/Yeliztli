@@ -127,10 +127,6 @@ def measure(directory: Path) -> dict:
         with reference.connect() as conn:
             status_stamp = conn.scalar(version_query)
         effective = resolve_effective_vep_bundle_version(reference, path)
-        if not install_committed_bundle(bundle, settings):
-            raise ValueError("Explicit fallback installation failed")
-        with reference.begin() as conn:
-            install_stamp = conn.scalar(version_query)
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro&immutable=1", uri=True)) as conn:
             chrom, pos, ref, alt, transcript, protein = conn.execute(
                 "SELECT chrom,pos,ref,alt,transcript_id,hgvs_protein "
@@ -245,9 +241,19 @@ def measure(directory: Path) -> dict:
                     "absent_status": absent.status_code,
                     "exports": exports,
                 }
+        # All worker, HTTP and VCF observations above use the status-only copy.
+        with reference.connect() as conn:
+            after_workers = conn.scalar(version_query)
+        blocked_before_install = _vep_bundle_blocks_ancestrydna(reference, path)[0]
+        if not install_committed_bundle(bundle, settings):
+            raise ValueError("Explicit fallback installation failed")
+        with reference.begin() as conn:
+            install_stamp = conn.scalar(version_query)
         observation = {
             "status_stamp": status_stamp,
             "effective_after_status": effective,
+            "registry_stamp_after_workers": after_workers,
+            "ancestrydna_gate_before_explicit_install": blocked_before_install,
             "install_stamp": install_stamp,
             "ancestrydna_ingest_blocked": _vep_bundle_blocks_ancestrydna(reference, path)[0],
             "bundle_transcript": transcript,
