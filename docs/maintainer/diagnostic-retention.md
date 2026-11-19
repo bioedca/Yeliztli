@@ -99,10 +99,11 @@ reaching it. Keep other applications' logging configuration intact. Direct
 output by independently launched tools and historical service logs are
 outside this policy. Document those boundaries in operator guidance.
 For processes shipped by the application, only the approved diagnostic
-channel may reach the operator console. Contain unclassified writes to
-stdout or stderr by in-process dependencies as well as log records.
-Discard those bytes without persisting them. A genuine operational failure
-can still produce its separately classified diagnostic.
+channel may reach the operator console. This includes log records, direct
+stdout or stderr writes and output inherited or forwarded from helpers
+launched by the API or worker. Discard unclassified diagnostic bytes
+without persisting them. A genuine operational failure can still produce
+its separately classified diagnostic.
 Keep the existing routing to sinks. A console-only framework event stays
 console-only. A safe fallback changes the content of a routed event without
 creating a new reason to retain it in the database.
@@ -202,12 +203,14 @@ response status. A presentable detail response with an eligible item and one
 or several omitted items returns that eligible item and produces zero refusal
 audits. A refused request produces one neutral refusal audit with exactly its
 approved operation context, whether one or several items were withheld.
-Repeat with synthetic restricted context bound to the request. Require
-the same response and one identical audit on its route, with no extra
-marker or inherited fields.
-Exercise the cancer PRS list route with a synthetic response that it
-checks more than once before refusal. Observe at least two failed checks,
-the final withheld response and exactly one request audit.
+Repeat both fixtures with synthetic restricted request context. The
+presentable case still produces zero refusal audits. The refused case
+still produces exactly one with the same approved fields and no extra
+marker. On the real cancer PRS list route, assert the final withheld
+response and its single audit. In a separate controlled case, run the
+same response check twice within one request and finalize it once.
+Require two refused checks and one audit. Production routes may
+short-circuit as soon as they know the final disposition.
 
 ### Process output and routing
 
@@ -228,6 +231,10 @@ the final withheld response and exactly one request audit.
   trigger one reload and send a request to the new child. Check the
   supervisor and both children for safe lifecycle and request output.
   The fixture's watched path and filename remain private.
+- Exercise the API's report-generation path with a synthetic child that
+  emits distinct harmless markers to stdout and stderr. Verify the child
+  ran and the expected report outcome was delivered. Neither marker may
+  reach the API console or durable diagnostics.
 - Cause a synthetic failure before normal logging starts in each shipped
   entrypoint. Require a nonzero exit and the approved startup explanation.
   Apply the same output assertions to initialization and shutdown.
