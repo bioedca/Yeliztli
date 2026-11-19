@@ -255,6 +255,10 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
             )
 
         def associations() -> list[tuple]:
+            with installed.connect() as conn:
+                assert conn.scalar(sa.select(sa.func.count()).select_from(gtex_eqtl)) == len(
+                    historical
+                )
             rows = lookup_eqtls_by_rsids(["rs2222", "rs769952832"], installed)
             return sorted(
                 tuple(row[col] for col in columns) for hits in rows.values() for row in hits
