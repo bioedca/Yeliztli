@@ -88,10 +88,13 @@ a pending source from that source's positive and negative predicates only.
 
 Give each installed copy of a sample a fresh identity on restore or
 replacement, even when its registry ID, content hash, path and creation
-time are preserved. The registry publishes which copy is active. Bind
+time are preserved. The registry identifies each installed copy. Bind
 writers, links, reminders and dismissals to that identity before comparing
-revisions. Fence the old copy as part of the switch and reconcile work from
-the restored copy when both stores agree on its identity. Within one copy
+revisions. On replacement, retire the superseded copy as part of the switch.
+On a side-by-side restore, the importer assigns a distinct ID and path on
+collision. Keep both copies active and fence writes by each copy's own
+identity. Reconcile the imported copy when both stores agree on its identity.
+Within one copy
 use an ordered, sample-local publication counter for conditional writes.
 The existing annotated-variants generation is a UUID equality token for a
 table swap. Never use it to order publications.
@@ -114,7 +117,9 @@ producer. For PRS calibration this includes the installed `gnomad_af.db`
 used for imputed-only loci, its absence when unavailable, the score weights,
 and the relevant ancestry and monogenic findings. Record a verified version
 of each artifact that changes on content replacement, including committed
-database updates, even if its upstream label is unchanged. Use the existing
+database updates, even if its upstream label is unchanged. A trusted
+publication or content revision must distinguish different scoring inputs
+even when filesystem metadata agrees. Use the existing
 scoring fingerprint inputs as an inventory and compare the inputs before
 publishing and when reopening a completed score.
 
@@ -269,6 +274,10 @@ and the generated PDF. If a selected, disclosable analysis is pending,
 include a generic notice in the document itself and qualify its totals,
 even when that analysis contributes no section. Apply the same disclosure
 decision to the notice, counts, ordering and section titles.
+Populate the Report Builder picker and its “Select all” action from
+eligible findings and independently disclosable pending analyses. A
+pending-only module remains selectable with zero eligible findings. Never
+expose a hidden module through the picker or its totals.
 An unscoped FHIR export also uses findings for disclosure. When a gated
 module names an rsID, only an independently eligible, visible finding may
 justify including it under the shared-membership exception. Apply this rule
@@ -557,6 +566,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Restore an older backup keeping the same registry metadata and a lower
   local counter. Its new copy identity must permit a legitimate reminder
   and reject late writes, reads and dismissals for the retired copy.
+  Separately import that backup alongside its original using the real
+  collision-handling path. Verify each registry entry opens its own
+  findings and links, accepts its own writes and maintains its own
+  reminders. Clearing a reason in one copy must leave the other intact.
 
 ### Panel wording, membership and rollback
 
@@ -646,8 +659,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   calibration, then change a frequency used by that contribution while
   keeping both sample tokens and the upstream label fixed. Exercise both
   file replacement at the same path and a committed update to the same
-  database file. For a manual repair, reopen the Metabolic page and verify
-  the old percentile is withheld and no run starts on mount or refocus.
+  database file. Include a restoration fixture with equal filesystem
+  identity metadata for two different committed contents and an unchanged
+  control. Require a new content revision and stale state only for changed
+  inputs. Before manual repair, inspect the GET for the affected score.
+  It must report reanalysis needed and omit the obsolete percentile. Reopen
+  the Metabolic page and verify that no run starts on mount or refocus.
   Choose reanalysis, observe one run request, then compare the displayed
   recalibration with a fresh run and require the expected changed value.
   Also remove and restore the store and check its documented unavailable
@@ -655,8 +672,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
 
 ### Browser caches, change notices and exports
 
-- Generate a report with a selected pending-only PGx module and a current
-  module, and another with both pending and current findings within PGx.
+- Starting in Report Builder, select a pending-only PGx module and a current
+  module using the picker, then repeat with “Select all”. Generate the
+  selected reports, including scoped FHIR. Repeat with both pending and
+  current findings within PGx.
   Inspect the actual preview HTML and generated PDF text. Require the
   incomplete notice and current findings in each. Compare with a verified
   empty PGx run and a reason hidden by disclosure. Neither adds a pending
