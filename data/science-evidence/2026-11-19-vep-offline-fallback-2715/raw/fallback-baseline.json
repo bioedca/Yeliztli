@@ -46,15 +46,23 @@
         "exports": {
           "carried": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "C",
               "alt": "T",
+              "format": "GT",
               "gt": "0/1"
             }
           ],
           "all_positions": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "C",
               "alt": "T",
+              "format": "GT",
               "gt": "0/1"
             }
           ]
@@ -79,15 +87,23 @@
         "exports": {
           "carried": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "C",
               "alt": "T",
+              "format": "GT",
               "gt": "1/1"
             }
           ],
           "all_positions": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "C",
               "alt": "T",
+              "format": "GT",
               "gt": "1/1"
             }
           ]
@@ -111,8 +127,12 @@
           "carried": [],
           "all_positions": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "T",
               "alt": "C",
+              "format": "GT",
               "gt": "0/0"
             }
           ]
@@ -135,15 +155,23 @@
         "exports": {
           "carried": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "T",
               "alt": "C",
+              "format": "GT",
               "gt": "0/1"
             }
           ],
           "all_positions": [
             {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
               "ref": "T",
               "alt": "C",
+              "format": "GT",
               "gt": "0/1"
             }
           ]

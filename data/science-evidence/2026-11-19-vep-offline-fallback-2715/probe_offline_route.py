@@ -34,6 +34,47 @@ def require_local_ipc() -> None:
         ) from error
 
 
+def vcf_observation(text: str, expected_chrom: str, expected_pos: int) -> list[dict]:
+    """Read the one-sample export and bind the genotype to its declared locus and FORMAT."""
+    lines = text.splitlines()
+    gt_declarations = [line for line in lines if line.startswith("##FORMAT=<ID=GT,")]
+    headers = [i for i, line in enumerate(lines) if line.startswith("#CHROM\t")]
+    if (
+        len(gt_declarations) != 1
+        or not gt_declarations[0].startswith("##FORMAT=<ID=GT,Number=1,Type=String,")
+        or len(headers) != 1
+    ):
+        raise ValueError("Expected a single VCF header and GT declaration")
+    header = lines[headers[0]].split("\t")
+    columns = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
+    if (
+        header[:-1] != columns
+        or not header[-1]
+        or any(not line.startswith("##") for line in lines[: headers[0]])
+    ):
+        raise ValueError("Expected one sample and the standard VCF columns")
+    records = []
+    for line in lines[headers[0] + 1 :]:
+        row = line.split("\t")
+        if len(row) != 10 or row[:3] != [expected_chrom, str(expected_pos), EXAMPLE]:
+            raise ValueError("Unexpected exported locus or VCF record")
+        keys, values = row[8].split(":"), row[9].split(":")
+        if keys.count("GT") != 1 or len(set(keys)) != len(keys) or len(keys) != len(values):
+            raise ValueError("Missing or ambiguous sample genotype in VCF FORMAT")
+        records.append(
+            {
+                "chrom": row[0],
+                "pos": int(row[1]),
+                "rsid": row[2],
+                "ref": row[3],
+                "alt": row[4],
+                "format": row[8],
+                "gt": values[keys.index("GT")],
+            }
+        )
+    return records
+
+
 def measure(directory: Path) -> dict:
     require_local_ipc()
     # Import the app only after the caller sets the isolated data directory.
@@ -192,14 +233,7 @@ def measure(directory: Path) -> dict:
                         json={**payload, "include_all_positions": all_positions},
                     )
                     resp.raise_for_status()
-                    rows = [
-                        line.split("\t")
-                        for line in resp.text.splitlines()
-                        if not line.startswith("#")
-                    ]
-                    if any(len(row) != 10 or row[2] != EXAMPLE for row in rows):
-                        raise ValueError("Unexpected VCF records")
-                    exports[field] = [{"ref": row[3], "alt": row[4], "gt": row[9]} for row in rows]
+                    exports[field] = vcf_observation(resp.text, site["chrom"], int(site["pos"]))
                 controls[label] = {
                     "job_state": job_state,
                     "sample_annotation_stamp": stamp,
