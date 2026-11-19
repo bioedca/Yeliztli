@@ -142,14 +142,15 @@ data directory and task queue. If the operator cannot establish which
 processes have access, the new policy is not yet active. A rollback uses
 an isolated compatible environment and requires its own explicit policy
 decision before it can serve operator logs again.
-Before reopening the Explorer, close or fully reload every running copy
-of the old application, including tabs on other pages. The operator must
-verify the replacement client is loaded. Navigating within an old copy
-does not complete the upgrade. If any old copy cannot be retired, keep
-the Explorer closed and the cutover pending. The replacement client
-discards old rows, totals and filter selections and accepts responses
-only for the verified current revision, including after a delayed reply.
-Previously exported information has its own retention lifecycle.
+Before reopening the Explorer, retire the old browser sessions used for
+the application, including inactive tabs, cached queries and restorable
+history documents. Start the replacement in a fresh browsing context
+with no history or session state from the old application. Keep retired
+sessions out of service. If the operator cannot verify this transition,
+keep the Explorer closed and the cutover pending. The new client accepts
+responses only for the verified current revision, including after a
+delayed reply. Previously exported information has its own retention
+lifecycle.
 
 ## Synthetic acceptance cases
 
@@ -169,7 +170,7 @@ as a positive control.
 | --- | --- |
 | Two approved failures and an unknown exception | Each approved failure has its distinct explanation and exact allowed fields. The unknown failure has a nonempty static fallback. |
 | Registered event ID and valid fields through the typed producer, then through an ordinary record | The producer gets its template. The ordinary record on the same route gets the fallback. A console-only third-party message reaches only its console. |
-| Valid registered event with extra fields supplied directly and through bound request context | Its approved explanation and fields survive. Neither the extra keys nor their values reach any destination. Repeat with each context source in isolation. |
+| Independent registered failure with extra fields, supplied directly or through bound request context | For benign unapproved extras, retain the approved explanation and fields and drop the extra keys and values. For a synthetic restricted extra, emit only the neutral diagnostic. Exercise both inputs through each context source independently. |
 | Invalid required reason, then a valid reason with an out-of-range optional count | The first gets “Operation failed” and the approved component. The second preserves its explanation and drops the count. |
 | Ordinary exception logged with a fixed message and distinct harmless markers in the exception text, raising file and source line | Both exception paths keep the approved category and exactly the reviewed frame identifiers, if any. All three markers are absent. |
 | Inspectable, nonrestricted primitive text in a free-form message, nested metadata and a path | The fallback contains the approved reason and component. Searching or filtering for the test value returns zero rows and a zero total. |
@@ -220,11 +221,11 @@ approved operation context, whether one or several items were withheld.
   sides of search, filters, totals and pagination. Restoring an older
   backup or restarting an old reader must never re-expose the old row.
 - Warm two filtered Explorer views in the old application. Leave one
-  visible and navigate away from the other. Require cutover to stay
-  pending until both copies close or fully reload the replacement app.
-  Inspect first paint, each loading state, return navigation and a delayed
-  reply from the prior revision. Only eligible rows and totals may appear
-  once the new revision is serving.
+  visible and navigate away from the other, including to a different
+  document. Require cutover to stay pending while either old document is
+  restorable. In the new session, check first paint, loading states, Back
+  navigation and a delayed reply from the prior revision. No navigation
+  can restore an old document. Only eligible rows and totals may appear.
 - Queue a harmless task and attempt to start an old worker through the
   managed service. The task stays queued without task output until a
   compatible worker runs it once and emits its approved diagnostic.
