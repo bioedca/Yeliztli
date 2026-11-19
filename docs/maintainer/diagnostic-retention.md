@@ -30,10 +30,12 @@ reason on a known failure selects the generic failure template. Drop an
 invalid optional retry count while preserving the explanation and safe fields.
 
 Give documented operator warnings their own reviewed templates. The
-network-bind warning must still tell the operator that other machines can
-reach the service without credentials. Recommend loopback-only access
-or enabling authentication and setting a password. The static text needs
-no configured address or credentials. [Network configuration](../install/configuration.md)
+network-bind warning must still tell the operator that anyone who can
+reach the listening port can use the service without credentials.
+External reachability depends on how the service is published. Recommend
+loopback-only access or enabling authentication and setting a password.
+The static text needs no configured address or credentials.
+[Network configuration](../install/configuration.md)
 
 | Input | Proposed database and default-console behavior |
 | --- | --- |
@@ -123,8 +125,11 @@ a nonzero exit. An error in the fallback itself must not print the rejected
 input or formatted traceback.
 
 Register trusted producers, event IDs, approved templates, field validators
-and ownership in application code. Route approved events through their
-registered producer's typed interface. Treat a claimed producer field,
+and ownership in application code. Declare the allowed source of each
+field before merging context. For example, only the producer can supply
+its retry count. A same-name value in request context cannot invent a
+missing count or replace the producer's count. Route approved events
+through their registered producer's typed interface. Treat a claimed producer field,
 logger name or event ID on an ordinary record as untrusted input.
 A free-form third-party message equal to template text is still a free-form
 message. At application-owned call sites, pass typed arguments or the
@@ -199,6 +204,7 @@ operation independently of the log message.
 | Registered event ID and valid fields through the typed producer, then through an ordinary record | The producer gets its template. The ordinary record on the same route gets the fallback. A console-only third-party message reaches only its console. |
 | Independent registered failure with extra fields, supplied directly or through bound request context | For benign unapproved extras, retain the approved explanation and fields and drop the extra keys and values. For a synthetic restricted extra, emit only the neutral diagnostic. Exercise both inputs through each context source independently. |
 | Invalid required reason, then a valid reason with an out-of-range optional count | The first gets “Operation failed” and the approved component. The second preserves its explanation and drops the count. |
+| Valid operational event with a bounded retry count supplied only in request context, then with a different count supplied by its producer | The first omits the count. The second retains only the producer's count. Both keep their approved explanation. |
 | Ordinary exception logged with a fixed message and distinct harmless markers in the exception text, raising file and source line | Both exception paths keep the approved category and exactly the reviewed frame identifiers, if any. All three markers are absent. |
 | Free-form primitive text in a message, nested metadata and a path during a known failure | The fallback contains the independently approved reason and component. Searching or filtering for the test value returns zero rows and a zero total. |
 | Opaque arguments, logger names and exceptions with observable formatting methods | When restricted content cannot be excluded, emit only the neutral marker, with zero formatting calls. No reason or component comes from the input. An Explorer component filter still finds the approved positive control. |
@@ -273,12 +279,17 @@ short-circuit as soon as they know the final disposition.
 
 - Begin with a row written and displayed by the pre-cutover release
   (presentation revision 2) using a harmless unique exception marker.
+  Give its message a separate unique searchable value. On that release,
+  require the message search and component filter to return the old row
+  with the expected total and expose the fixture marker in its detail.
   With that old reader still running, keep the Explorer closed until only
   verified replacements can serve it. Write a new-revision control.
   The old row must remain unchanged in the database and absent from
-  Explorer search, filters, totals and pages. Verify the control remains
-  visible. Repeat after restoring the old database and writing a new
-  control. Restarting an old reader must never re-expose the old row.
+  Explorer search, filters, totals and pages. Repeat the exact queries that
+  matched before cutover and verify the expected IDs and totals. Verify
+  the control remains visible. Repeat after restoring the old database
+  and writing a new control. Restarting an old reader must never re-expose
+  the old row.
 - Warm two filtered Explorer views in the old application. Leave one
   visible and navigate away from the other, including to a different
   document. Require cutover to stay pending while either old document is
