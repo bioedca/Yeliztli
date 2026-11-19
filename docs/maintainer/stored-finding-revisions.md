@@ -10,10 +10,10 @@ whose interpretation can have changed and offer a scoped rerun.
 
 | Work item | Trigger | Proposed handling |
 | --- | --- | --- |
-| #2304, corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel repair addresses the Intermediate and Poor Metabolizer records independently. Withhold both superseded recommendations until a scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
-| #2454, changed CPIC interpretation or callable allele | Updated interpretation can change the call, caveat, action, membership or whether a result exists | Withhold affected PGx output and prompt once per affected sample and analysis, listing safe reasons. A schema migration's return value or the presence of an old finding cannot establish who was affected. Reconcile even on installs that already received the reference migration. |
-| #2435, seven pathway panels | Panel changes in allergy, sleep, skin, fitness, nutrigenomics, methylation or traits | Project only when the exact dependency, category, membership and rendered template still match. Refresh citations and embedded SNP detail consistently. Preserve independently authored notes and customized text. A moved SNP, newly eligible finding or changed pathway aggregate requires rerunning the affected panel. |
-| #2413, changed analysis order | Historical cancer, APOL1, gout, nutrigenomics and traits runs may predate the ancestry-first order | Use an analysis revision and its input dependencies. Recompute ancestry before its affected consumers. If ancestry still cannot produce a usable result, let those modules report their normal unknown state. An unchanged reference bundle cannot certify the run order. |
+| [#2304](https://github.com/bioedca/Yeliztli/issues/2304), corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel repair addresses the Intermediate and Poor Metabolizer records independently. Withhold both superseded recommendations until a scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
+| [#2454](https://github.com/bioedca/Yeliztli/issues/2454), changed CPIC interpretation or callable allele | Updated interpretation can change the call, caveat, action, membership or whether a result exists | Withhold affected PGx output and prompt once per affected sample and analysis, listing safe reasons. A schema migration's return value or the presence of an old finding cannot establish who was affected. Reconcile even on installs that already received the reference migration. |
+| [#2435](https://github.com/bioedca/Yeliztli/issues/2435), seven pathway panels | Panel changes in allergy, sleep, skin, fitness, nutrigenomics, methylation or traits | Project only when the exact dependency, category, membership and rendered template still match. Refresh citations and embedded SNP detail consistently. Preserve independently authored notes and customized text. A moved SNP, newly eligible finding or changed pathway aggregate requires rerunning the affected panel. |
+| [#2413](https://github.com/bioedca/Yeliztli/issues/2413), changed analysis order | Historical cancer, APOL1, gout, nutrigenomics and traits runs may predate the ancestry-first order | Use an analysis revision and its input dependencies. Recompute ancestry before its affected consumers. If ancestry still cannot produce a usable result, let those modules report their normal unknown state. An unchanged reference bundle cannot certify the run order. |
 
 A clinician-reviewed action or scope change always uses the interpretation
 path, even when the database diff appears to change just a sentence. Content
@@ -34,7 +34,11 @@ citations. An ambiguous match goes to the panel rerun.
 
 Record successful completion for each sample and affected producer, even for
 zero results. Keep the input and producer revisions and a local generation.
-Write the completion record atomically with its finding set. Track a wording
+Write the completion record atomically with its finding set and every
+patient-visible value derived by that run. In PGx this includes the CPIC
+coverage bit written to annotated variants. Publish the desired CPIC bit
+for the affected scope with its alerts and leave other coverage bits intact.
+Track a wording
 projection separately so the original analysis remains auditable. The sample's
 verified storage identity scopes every correction, including after restore or
 replacement. The registry's existing CYP2C9/phenytoin prompt validates that
@@ -50,6 +54,8 @@ identify the inputs or analysis revision.
 | Installed reference content is missing, duplicated or otherwise unverifiable | Keep affected output withheld and identify the local reference component needing repair. A successful scorer exit or an empty row set cannot resolve this state. Verify the installed correction's required content and applicability before rerunning and clearing it. |
 | Storage unavailable, failed job or interrupted replacement | Preserve the prior completed state and pending reasons. Never mark an analysis current because a prompt was emitted or a run was queued. Reconcile and retry without duplicating rows or losing an independent reason. |
 | Successful rerun at the target revisions, including zero results | Atomically replace the producer's replaceable results and completion record. Retain audit-only rows under their existing disclosure rules, including withdrawn prescribing alerts. Clear only matching reasons for this sample and run generation. A repeated rerun gives the same visible set. Another correction remains pending. |
+
+### Reminders and prerequisites
 
 Keep authoritative pending state in the sample database. Publish central UI
 reminders idempotently using sample identity, producer, correction and target
@@ -74,6 +80,8 @@ documented unknown input. A failed or unfinished prerequisite supplies no
 completion proof. Keep dependent results stale until a successful run can
 establish the required input and outcome.
 
+### Protected history and upgrades
+
 When a legacy finding carries customized text, preserve the original text and
 its sample, producer and historical finding identity in a local record outside
 the replaceable result set. Commit that preservation before or atomically
@@ -93,9 +101,13 @@ migration deletes **or rewrites** an affected finding. Preserve its original
 text, structured detail and provenance, including a missing provenance value,
 under the protected history policy. This must precede the pre-v21 phenytoin
 deletion and the TPMT and CYP2B6/efavirenz in-place updates in v22 and v23.
+Capture the original saved diff before those migrations scrub or rewrite
+its entries, including when a removed finding exists only in the diff.
 An install whose earlier migration already deleted text or cleared provenance
 can identify a gap. Recover an original only from a verified source such as
 the prior backup. A new run's provenance cannot fill that gap.
+
+### Repairs that span producers
 
 The transaction must cover every producer the write actually changes. The
 methylation writer currently migrates historical MTHFR nutrigenomics rows
@@ -128,7 +140,7 @@ response. Coordinate the cross-process publication boundary with
 [#2511](https://github.com/bioedca/Yeliztli/issues/2511); recorded sex remains
 a separate cause.
 
-## Consumer contract and acceptance
+## Which readers need the eligibility check?
 
 Apply eligibility before query limits, group counts, evidence levels and
 summary selection. Use the same projection on module list/detail, All
@@ -164,6 +176,8 @@ other by-ID reads, including copied links. Return the ordinary unavailable
 response when the generation changed or a legacy link cannot prove its
 identity. Current listings supply fresh links.
 
+### What the Updates page can show and dismiss
+
 The updates banner reads a separate saved diff. Preserve the original
 `last_finding_diff_json` under its existing audit and retention rules. When
 producing a new diff, capture each prior finding's producer, input and
@@ -173,7 +187,12 @@ removal and both sides for a change in a versioned diff. Include each
 producer's completion record on **both** sides, including an explicitly empty
 result. Compare membership only across two verified completions for that
 producer. With an unknown baseline, a current result may be shown on its
-own but cannot be described as newly added or removed. At
+own but cannot be described as newly added or removed. Within a matched
+identity, compare a reviewed action change as well as the existing structured
+meaning fields. A changed prescribing action can require a notice with the
+same drug, phenotype and evidence level. Keep the old advice in protected
+history and present a safe explanation linked to eligible current guidance.
+A punctuation-only projection does not constitute a new prescribing action. At
 `GET /api/updates/finding-changes`, check this evidence for every displayed
 value. Legacy diffs have no per-entry revision. Only present entries that
 can independently be proved eligible. Project only a verified wording change
@@ -189,12 +208,15 @@ Give each published diff an immutable identity independent of its reminder.
 The Updates page discovers undismissed, eligible diffs for authorized samples
 even after the last repair reason clears. Recheck eligibility before
 advertising a sample or its count. Accept a dismissal only for the sample
-and exact diff the user saw, atomically comparing its identity with the
-current stored diff. A late or repeated request about an old diff leaves its
+and exact diff the user saw. Atomically compare both its identity and the
+displayed eligibility revision, including disclosure state. A late request
+after newly eligible entries become visible must leave the current view
+undismissed even when the stored diff ID is unchanged. A repeated request about an old diff leaves its
 replacement visible. Dismissing a diff has no effect on a reanalysis reason.
 
-For the four implementation issues, use the actual scoring, persistence,
-upgrade and read paths with synthetic controls:
+## Acceptance cases for the four implementation issues
+
+Use the actual scoring, persistence, upgrade and read paths with synthetic controls.
 
 - Score and store the released legacy clopidogrel Intermediate and Poor
   Metabolizer fixtures before upgrading the reference. Verify each old
@@ -215,6 +237,9 @@ upgrade and read paths with synthetic controls:
   Upgrade and restore fixtures from before each legacy repair. Verify the
   original phenytoin, TPMT and CYP2B6/efavirenz text, detail and provenance
   in protected history after deletion or in-place update and a second open.
+  Seed a saved diff containing a removed item whose original finding row is
+  already gone. Verify that its original payload survives in protected history
+  after upgrade and restore and remains absent from patient-facing output.
   Check continued withholding. On an already-migrated fixture verify that
   unavailable text and provenance remain explicitly unknown.
 - Take the DPYD `rs115232898` reference migration through both a fresh
@@ -232,11 +257,17 @@ upgrade and read paths with synthetic controls:
   CYP2B6 result, exercise a sparse synthetic input for which the new caller
   changes the assessment from Insufficient to Partial and emits an alert.
   Check an unaffected caller control and verify that repairing DPYD content
-  alone cannot clear a pending caller revision.
+  alone cannot clear a pending caller revision. Seed a matching annotated
+  variant with a known coverage mask. Inject failure after the real coverage
+  update and before alert storage. Verify the prior mask, findings and
+  completion record after rollback. On retry verify the exact CPIC bit,
+  unchanged unrelated bits and matching new alerts and completion.
   Generate both SVG markers through the production annotation path. Before
   the correction, request each ID and verify its expected SVG content.
-  After the correction, require the ordinary unavailable response for that
-  same affected ID and a rendered SVG for the eligible control. After repair,
+  Once the correction advances the generation, both old links must expire.
+  At the new generation, request the still-stored affected ID and require
+  the ordinary unavailable response. A newly issued link for the eligible
+  control must return its SVG. After repair,
   verify the card for the new current result reflects the actual rerun. Force
   reuse of the old integer ID for a different eligible result. The old SVG
   link and variant-card request must remain unavailable while newly issued
@@ -285,14 +316,20 @@ upgrade and read paths with synthetic controls:
   the old text. Cover stale before/after values, an all-withheld diff, and
   a repeated read after a successful rerun. With unchanged reference releases
   and a new analysis order, verify the banner attributes the visible change
-  to the analysis or uses neutral wording. Compare the same new finding
+  to the analysis or uses neutral wording. With the shipped old and new
+  clopidogrel records, verify a changed-action notice for the same finding
+  identity, with current guidance and no superseded advice. Include a
+  wording-only control. Compare the same new finding
   against a completed empty run and a producer with no verified prior run.
   Only the completed empty baseline should yield an addition, regardless of
   other producers' findings. Check the reverse transition to an empty run.
   Open the actual Updates page after the last pending reason clears. Show the
   undismissed eligible diff, replace it with a later one, then deliver the
   delayed dismissal for the first. Only dismissal of the displayed
-  replacement should remove it. Include an all-withheld control on the page.
+  replacement should remove it. With the same diff ID, change disclosure
+  so that an additional entry becomes visible, then deliver a dismissal
+  from the older view. Require the new entry to stay visible. Include an
+  all-withheld control on the page.
 - Use the same module selection and `include_all=true` on
   `GET /api/export/fhir/eligibility` and `POST /api/export/fhir`. Seed two
   synthetic carried rsIDs, one selected only by a stale finding and one by a
