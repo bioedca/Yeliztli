@@ -34,6 +34,7 @@ from backend.db.connection import DBRegistry
 from backend.db.database_registry import DATABASES
 from backend.db.tables import database_versions, jobs, reference_metadata, samples
 from backend.db.update_manager import get_active_prompts
+from backend.services.reference_versions import read_current_reference_snapshot
 from backend.services.staleness import (
     find_stale_reference_versions,
     read_current_reference_versions,
@@ -350,6 +351,10 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         assert lookup_gene_names(["ENSG002.1"], installed) == {"ENSG002.1": "GENEB"}
         assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
         assert read_current_reference_versions(ref) == {"gtex_eqtl": "v8", "vep_bundle": "v1.0.0"}
+        assert read_current_reference_snapshot(ref)["gtex_eqtl"] == {
+            "version": "v8",
+            "genome_build": "GRCh37",
+        }
         assert read_recorded_reference_versions(sample) == snapshot
         assert find_stale_reference_versions(sample, ref) == changes
         prompts = get_active_prompts(ref)
