@@ -45,7 +45,7 @@ identify the inputs or analysis revision.
 | --- | --- |
 | Proven current or provably outside the correction scope | Serve current output under existing disclosure rules. Repeated startup creates no prompt. |
 | Legacy run or empty history with no dependable revision | Do not infer currentness from zero rows, dates or an upgraded reference DB. If prior execution or affectedness cannot be excluded, withhold the affected scope with “Reanalysis needed to verify these results.” If a trustworthy marker proves no run occurred, use the ordinary first-run action. |
-| Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values and the old analysis revision. Keep unrelated and user-authored text intact. If a custom field could contain stale clinical guidance and cannot be separated safely, retain it in storage and request review or rerun before patient presentation. |
+| Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values, original notes and the old analysis revision. Keep inseparable custom clinical guidance in protected history until a separate content review approves it. A rerun may publish a new canonical finding without publishing the historical note. |
 | Interpretation, membership or dependency change | Suppress stale affected results before counting, deduplicating and choosing a top finding. Surface a generic rerun reason through authorized readers. Unaffected results stay visible. |
 | Installed reference content is missing, duplicated or otherwise unverifiable | Keep affected output withheld and identify the local reference component needing repair. A successful scorer exit or an empty row set cannot resolve this state. Verify the installed correction's required content and applicability before rerunning and clearing it. |
 | Storage unavailable, failed job or interrupted replacement | Preserve the prior completed state and pending reasons. Never mark an analysis current because a prompt was emitted or a run was queued. Reconcile and retry without duplicating rows or losing an independent reason. |
@@ -82,7 +82,9 @@ Recover a note only through an authorized history view
 that applies the sample's disclosure rules and identifies the prior result.
 Place the archive under the same protections used for audit-only content,
 including direct SQL query and export controls from its first write. Only
-reattach a note to a current result when its identity is unambiguous.
+reattach an independently presentable note to a current result when its
+identity is unambiguous and its content is still appropriate. A match on
+gene, drug and phenotype alone cannot approve copied prescribing advice.
 
 Install this preservation step before any earlier migration can delete the
 source row. Both normal upgrade and backup restore can take a pre-v21 sample
@@ -98,7 +100,11 @@ customized text and completion state in one transaction for the scoped
 repair. A failure restores the prior state for both panels.
 Assign methylation ownership of the standalone SNP findings for the three
 identifiers in that migration. Nutrigenomics still owns its pathway-level
-interpretation, supporting SNP detail and citations. Its writer must honor
+interpretation, supporting SNP detail and citations. Persist the applicable
+recommendation and its own PMID list per SNP in the nutrigenomics pathway
+detail, populated by that run's scorer. Read those fields from the pathway
+detail even when there is no standalone nutrigenomics row. Missing legacy
+detail requires reconciliation before display. Its writer must honor
 the same ownership rule on every later run. For an old sample needing both
 panels, repair them together, or keep the affected scope pending until both
 can publish consistently.
@@ -119,7 +125,7 @@ a separate cause.
 
 Apply eligibility before query limits, group counts, evidence levels and
 summary selection. Use the same projection on module list/detail, All
-Findings, pathway or drug detail, variant cards, Individuals, global summary,
+Findings, pathway or drug detail, variant cards, direct finding SVGs, Individuals, global summary,
 report preview, HTML/PDF and finding-based export. Scope FHIR selections
 derived from finding membership consistently in both preflight and delivery.
 An unscoped FHIR export also uses findings for disclosure. When a gated
@@ -177,6 +183,9 @@ upgrade and read paths with synthetic controls:
   *installed* reference row keeps the correction pending even if scoring
   finishes. Repair the reference and verify that only a subsequent run using
   the verified content clears that reason.
+  Keep a custom note containing superseded guidance on the same finding
+  identity through that run. Verify the new canonical recommendation is
+  eligible while the historical note remains outside all current results.
   Upgrade and restore pre-v21 fixtures with a customized phenytoin row. Check
   retention before deletion, continued withholding, and a second open. Use
   an already-migrated fixture to verify that missing text stays unavailable.
@@ -189,6 +198,17 @@ upgrade and read paths with synthetic controls:
   and successful rerun. A current run stays current on either install.
   Verify the caveat as well as the call before classifying an input as
   unaffected. A missing or uncalled marker cannot establish non-carriage.
+  Separate the allele-table correction from the shared PGx confidence
+  algorithm revision that shipped with it. Give each its own correction ID,
+  verified dependencies and affected producers. With an old completed empty
+  CYP2B6 result, exercise a sparse synthetic input for which the new caller
+  changes the assessment from Insufficient to Partial and emits an alert.
+  Check an unaffected caller control and verify that repairing DPYD content
+  alone cannot clear a pending caller revision.
+  Request the direct finding SVG for an affected stored record and an
+  eligible control that supports a card. Require the ordinary unavailable
+  response for the stale record and a rendered SVG for the eligible one.
+  After repair, verify the current card reflects the actual rerun.
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
@@ -206,6 +226,8 @@ upgrade and read paths with synthetic controls:
   retry, including a control outside the migrated set. Run both real panel
   writers in each order and repeat the scoped runs. Require identical SNP
   ownership, pathway summaries, supporting detail, citations and counts.
+  At the nutrigenomics pathway API, verify the exact scorer recommendation
+  and a nonempty expected PMID list for the seeded shared SNP in each order.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
