@@ -1,0 +1,15 @@
+{
+  "url": "https://human-phenotype-ontology.github.io/license.html",
+  "response_bytes": 8351,
+  "sha256": "d63799ff8d381891114b22e78c8164f198a9642f9ed0ca8b53bc73238c318b39",
+  "accessed": "2026-11-19",
+  "selection": "Literal excerpts of the project guidance, markup removed and whitespace collapsed.",
+  "verbatim_excerpts": [
+    "acknowledged and cited properly",
+    "date(s) and/or version number(s)",
+    "neither the content",
+    "nor the logical relationships",
+    "be altered in any way",
+    "short acknowledgement statement"
+  ]
+}
