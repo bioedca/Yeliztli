@@ -1,0 +1,36 @@
+{
+  "source": "backend/data/panels/haplogroup_bundle.json",
+  "version": "1.1.30",
+  "source_sha256": "f79b720c8ac74a42f257cff302237dd64f8dbb9891a08bbf11d035d3029eda2e",
+  "build": "GRCh37",
+  "part": "Y",
+  "coordinates": "1-based, inclusive",
+  "markers": 154,
+  "current_rsids": 135,
+  "internal_probe_ids": [
+    "i3000026",
+    "i4000052",
+    "i4000123",
+    "i4000126",
+    "i4000181",
+    "i4000290",
+    "i5053616",
+    "i701114",
+    "i701395",
+    "i701926",
+    "i701954",
+    "i702462",
+    "i702568",
+    "i702668",
+    "i704116",
+    "i704203",
+    "i704441",
+    "i706454",
+    "i706678"
+  ],
+  "positions": [
+    2655180,
+    23973594
+  ],
+  "par_hits": []
+}

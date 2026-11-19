@@ -1,0 +1,237 @@
+{
+  "bundle": "1.1.30",
+  "build": "GRCh37",
+  "witnesses": [
+    {
+      "target": "R1b1a1a",
+      "node": "R1b1a1a",
+      "marker": "rs9786153",
+      "controls": {
+        "derived_single": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "derived_doubled": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "mixed": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "no_call": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "absent": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "issue_control_AA": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "issue_mixed_AC": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ]
+      }
+    },
+    {
+      "target": "R1b1a1a",
+      "node": "R1b1a",
+      "marker": "rs7893073",
+      "controls": {
+        "derived_single": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "derived_doubled": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "R1b1",
+          17,
+          17,
+          1.0
+        ],
+        "mixed": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "no_call": [
+          "R1b1a1a",
+          19,
+          20,
+          0.95
+        ],
+        "absent": [
+          "R1b1a1a",
+          19,
+          20,
+          0.95
+        ]
+      }
+    },
+    {
+      "target": "B2",
+      "node": "B",
+      "marker": "rs2032599",
+      "controls": {
+        "derived_single": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "derived_doubled": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "Y-Adam",
+          0,
+          0,
+          0.0
+        ],
+        "mixed": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "no_call": [
+          "B2",
+          2,
+          3,
+          0.6667
+        ],
+        "absent": [
+          "B2",
+          2,
+          3,
+          0.6667
+        ]
+      }
+    }
+  ],
+  "parser_controls": {
+    "23andMe v3 Y CT": [
+      "Y",
+      "CT"
+    ],
+    "23andMe v3 Y C": [
+      "Y",
+      "C"
+    ],
+    "23andMe v3 Y CC": [
+      "Y",
+      "CC"
+    ],
+    "23andMe v3 Y --": [
+      "Y",
+      "--"
+    ],
+    "23andMe v4 Y CT": [
+      "Y",
+      "CT"
+    ],
+    "23andMe v4 Y C": [
+      "Y",
+      "C"
+    ],
+    "23andMe v4 Y CC": [
+      "Y",
+      "CC"
+    ],
+    "23andMe v4 Y --": [
+      "Y",
+      "--"
+    ],
+    "23andMe v5 Y CT": [
+      "Y",
+      "CT"
+    ],
+    "23andMe v5 Y C": [
+      "Y",
+      "C"
+    ],
+    "23andMe v5 Y CC": [
+      "Y",
+      "CC"
+    ],
+    "23andMe v5 Y --": [
+      "Y",
+      "--"
+    ],
+    "AncestryDNA 24 C/T": [
+      "Y",
+      "CT"
+    ],
+    "AncestryDNA 25 C/T": [
+      "X",
+      "CT"
+    ],
+    "AncestryDNA 24 C/C": [
+      "Y",
+      "CC"
+    ],
+    "AncestryDNA 24 C/0": [
+      "Y",
+      "--"
+    ],
+    "AncestryDNA 24 0/0": [
+      "Y",
+      "--"
+    ]
+  },
+  "same_id_other_locus": {
+    "X:22739367": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ],
+    "Y:20000": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ],
+    "Y:22739368": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ]
+  }
+}

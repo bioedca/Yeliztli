@@ -1,0 +1,34 @@
+[
+  {
+    "article_id": 42965202914711,
+    "title": "How 23andMe Reports Genotypes",
+    "url": "https://support.23andme.org/hc/en-us/articles/42965202914711-How-23andMe-Reports-Genotypes",
+    "api_url": "https://support.23andme.org/api/v2/help_center/en-us/articles/42965202914711.json",
+    "accessed": "2026-11-19",
+    "updated_at": "2026-10-01T19:09:10Z",
+    "body_sha256": "d7ad39c447b4c6cb848e8791b764057db77a37c08e4b779d1975f7ab0cd47724",
+    "heading": "Base Pairs (A, C, T, G)",
+    "excerpts": [
+      "your genotype will be reported as a single allele",
+      "for the most part, the X and Y chromosomes in males"
+    ],
+    "scope": "General raw-data convention. No per-chip specification of mixed Y calls or named marker list.",
+    "rights": "Manufacturer help content. Only identifiers, limited excerpts and factual metadata retained."
+  },
+  {
+    "article_id": 53933317283603,
+    "title": "Downloading DNA Data",
+    "url": "https://redir.ancestry.help/hc/en-us/articles/53933317283603-Downloading-DNA-Data",
+    "api_url": "https://help.ancestry.com/api/v2/help_center/en-us/articles/53933317283603.json",
+    "accessed": "2026-11-19",
+    "updated_at": "2026-11-17T13:52:33Z",
+    "body_sha256": "afe4186615138aadd78b570df6ad3fcaae9e8463ee27a25cc641c58e1ff5c707",
+    "heading": "Reading your DNA Data",
+    "excerpts": [
+      "the X and Y chromosomes are referred to as 23 and 24",
+      "the observed pair of alleles at each position"
+    ],
+    "scope": "General forward-strand GRCh37 download format. No explicit non-PAR Y doubling or mixed-call rule for v2.0.",
+    "rights": "Manufacturer help content. Only identifiers, limited excerpts and factual metadata retained."
+  }
+]

@@ -1,0 +1,41 @@
+{
+  "source": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.25_GRCh37.p13/GCF_000001405.25_GRCh37.p13_assembly_regions.txt",
+  "accessed": "2026-11-19",
+  "assembly": "GCF_000001405.25",
+  "build": "GRCh37.p13",
+  "sha256": "47e9b1456638b8b25fb6cc8fb7f82c9b37b8a0ca907f55548e09c6c9e32c9085",
+  "coordinates": "1-based, inclusive",
+  "columns": [
+    "region",
+    "chromosome",
+    "start",
+    "end"
+  ],
+  "rows": [
+    [
+      "PAR#1",
+      "X",
+      60001,
+      2699520
+    ],
+    [
+      "PAR#2",
+      "X",
+      154931044,
+      155260560
+    ],
+    [
+      "PAR#1",
+      "Y",
+      10001,
+      2649520
+    ],
+    [
+      "PAR#2",
+      "Y",
+      59034050,
+      59363566
+    ]
+  ],
+  "rights": "NCBI GRC assembly metadata. Only four reference interval records retained."
+}
