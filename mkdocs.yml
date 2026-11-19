@@ -160,6 +160,7 @@ nav:
       - maintainer/index.md
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
       - Bundle build & release: bundle-release-runbook.md
+      - Updating stored findings after a correction: maintainer/stored-finding-revisions.md
       - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
       - LAI coverage calibration: maintainer/lai-coverage-calibration.md
