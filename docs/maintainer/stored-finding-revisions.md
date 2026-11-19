@@ -907,6 +907,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   reports incompleteness in both preflight and the delivered report. A gated
   reason alone cannot change either signal. Verify that a successful empty
   rerun clears the incomplete notice.
+  Inspect the rendered Report Builder preflight for both selections. For
+  the pending selection, explain that reanalysis can change the count.
+  Reserve the no-variants message for a verified empty selection, and
+  verify the message updates after a successful empty rerun.
   Repeat both calls without a module selection, using an rsID named by a
   gated finding and a stale visible finding, plus a separate eligible rsID.
   Require only the separate rsID and a count of one. When the visible
