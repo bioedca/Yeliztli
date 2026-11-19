@@ -159,6 +159,7 @@ nav:
   - Maintainer:
       - maintainer/index.md
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
+      - DPYD vendor export coverage: maintainer/dpyd-vendor-export-coverage.md
       - Bundle build & release: bundle-release-runbook.md
       - Updating stored findings after a correction: maintainer/stored-finding-revisions.md
       - External inputs strategy: external-inputs-strategy.md
