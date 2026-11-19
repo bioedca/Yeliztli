@@ -10,7 +10,7 @@ whose interpretation can have changed and offer a scoped rerun.
 
 | Work item | Trigger | Proposed handling |
 | --- | --- | --- |
-| #2304, corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel Intermediate Metabolizer correction changes the action by indication. Withhold that old recommendation until the scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
+| #2304, corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel repair addresses the Intermediate and Poor Metabolizer records independently. Withhold both superseded recommendations until a scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
 | #2454, changed CPIC interpretation or callable allele | Updated interpretation can change the call, caveat, action, membership or whether a result exists | Withhold affected PGx output and prompt once per affected sample and analysis, listing safe reasons. A schema migration's return value or the presence of an old finding cannot establish who was affected. Reconcile even on installs that already received the reference migration. |
 | #2435, seven pathway panels | Panel changes in allergy, sleep, skin, fitness, nutrigenomics, methylation or traits | Project only when the exact dependency, category, membership and rendered template still match. Refresh citations and embedded SNP detail consistently. Preserve independently authored notes and customized text. A moved SNP, newly eligible finding or changed pathway aggregate requires rerunning the affected panel. |
 | #2413, changed analysis order | Historical cancer, APOL1, gout, nutrigenomics and traits runs may predate the ancestry-first order | Use an analysis revision and its input dependencies. Recompute ancestry before its affected consumers. If ancestry still cannot produce a usable result, let those modules report their normal unknown state. An unchanged reference bundle cannot certify the run order. |
@@ -48,7 +48,7 @@ identify the inputs or analysis revision.
 | Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values and the old analysis revision. Keep unrelated and user-authored text intact. If a custom field could contain stale clinical guidance and cannot be separated safely, retain it in storage and request review or rerun before patient presentation. |
 | Interpretation, membership or dependency change | Suppress stale affected results before counting, deduplicating and choosing a top finding. Surface a generic rerun reason through authorized readers. Unaffected results stay visible. |
 | Storage unavailable, failed job or interrupted replacement | Preserve the prior completed state and pending reasons. Never mark an analysis current because a prompt was emitted or a run was queued. Reconcile and retry without duplicating rows or losing an independent reason. |
-| Successful rerun at the target revisions, including zero results | Atomically replace that producer's rows and completion record. Clear only matching reasons for this sample and run generation. A repeated rerun gives the same visible set; another correction remains pending. |
+| Successful rerun at the target revisions, including zero results | Atomically replace the producer's replaceable results and completion record. Retain audit-only rows under their existing disclosure rules, including withdrawn prescribing alerts. Clear only matching reasons for this sample and run generation. A repeated rerun gives the same visible set. Another correction remains pending. |
 
 Keep authoritative pending state in the sample database. Publish central UI
 reminders idempotently using sample identity, producer, correction and target
@@ -69,10 +69,17 @@ establish the required input and outcome.
 When a legacy finding carries customized text, preserve the original text and
 its sample, producer and historical finding identity in a local record outside
 the replaceable result set. Commit that preservation before or atomically
-with replacement. This allows a person with access to the sample to recover
-their words even if the rerun yields zero rows. Only reattach a note to a
-current result when its identity is unambiguous. Keep historical clinical
-wording out of current findings, summaries and exports.
+with replacement. Recover a note only through an authorized history view
+that applies the sample's disclosure rules and identifies the prior result.
+Place the archive under the same protections used for audit-only content,
+including direct SQL query and export controls from its first write. Only
+reattach a note to a current result when its identity is unambiguous.
+
+The transaction must cover every producer the write actually changes. The
+methylation writer currently migrates historical MTHFR nutrigenomics rows
+before replacing its own results. Put any affected rows for both panels,
+customized text and completion state in one transaction for the scoped
+repair. A failure restores the prior state for both panels.
 
 Use **scoped automatic recomputation** only for bounded, deterministic repairs
 with verified inputs, an idempotent transaction and a tested failure path. The
@@ -98,9 +105,14 @@ access rules. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
 The updates banner reads a separate saved diff. Preserve the original
-`last_finding_diff_json` for audit. At `GET /api/updates/finding-changes`,
-check the recorded revision of each added, removed and changed entry,
-including its before/after values. Project only a verified wording change
+`last_finding_diff_json` under its existing audit and retention rules. When
+producing a new diff, capture each prior finding's producer, input and
+presentation revisions before replacement and its successor's revisions
+from the completed run. Persist the appropriate side for an addition or
+removal and both sides for a change in a versioned diff. At
+`GET /api/updates/finding-changes`, check this evidence for every displayed
+value. Legacy diffs have no per-entry revision. Only present entries that
+can independently be proved eligible. Project only a verified wording change
 and withhold entries with unsafe or unverifiable text. Apply disclosure
 checks to the final display, recalculate each bucket count from its visible
 entries and return `available=false` when none remain. A later rerun cannot
@@ -109,11 +121,14 @@ make obsolete text in an older snapshot eligible.
 For the four implementation issues, use the actual scoring, persistence,
 upgrade and read paths with synthetic controls:
 
-- Score and store the released legacy clopidogrel Intermediate Metabolizer
-  fixture before upgrading the reference. Verify that its old guidance is
-  withheld after upgrade and that the scoped rerun returns the shipped
-  indication-specific text in the drug view, summary, card and report. In a
-  separate synthetic wording-only update, assert the projected text, detail
+- Score and store the released legacy clopidogrel Intermediate and Poor
+  Metabolizer fixtures before upgrading the reference. Verify each old
+  recommendation is withheld after upgrade and that each scoped rerun returns
+  its own shipped text in the drug view, summary, card and report. Include an
+  unchanged Normal Metabolizer control and a run producing no presentable
+  alerts. Its pre-existing audit-only CYP2D6/tamoxifen row must survive and
+  remain withheld. In a separate synthetic wording-only update, assert the
+  projected text, detail
   and citations on the same surfaces. A missing key or applicability change
   must withhold the old guidance.
 - Take the DPYD `rs115232898` reference migration through both a fresh
@@ -131,15 +146,21 @@ upgrade and read paths with synthetic controls:
   Assert identifiers, counts, text and citations on both sides of each filter,
   including a fully called non-carrier for a carriage-gated finding.
   Remove a customized finding in a successful rerun. Recover its exact
-  original text from the historical record and verify that no current finding
-  or report presents it, including after another rerun.
+  original note through authorized history and verify that the ordinary SQL
+  console, SQL export, reports and current findings cannot return its archived
+  payload, including after another rerun. With the real methylation writer,
+  interrupt the repair after legacy MTHFR migration and before replacement.
+  Verify both panels, original notes and completion records on failure and
+  retry, including a control outside the migrated set.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
   sample with the same registry ID. A stale result must never be presented as
   current through a secondary surface.
-- Open an undismissed saved diff containing a stale added prescribing alert
-  and one eligible entry. Verify the banner API returns only the eligible
+- Generate diffs with the production snapshot, comparison and persistence
+  paths. Open an undismissed legacy diff and its new-format equivalent,
+  each containing a stale added prescribing alert and one entry whose
+  eligibility can be proved. Verify the banner API returns only the eligible
   text and exact bucket counts, and that rendering the banner cannot reveal
   the old text. Cover stale before/after values, an all-withheld diff, and
   a repeated read after a successful rerun.
