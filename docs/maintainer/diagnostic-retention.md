@@ -50,8 +50,12 @@ become an independent operational failure just by using an exception API.
 The zero/one/many test covers the producer and the existing test covers
 the safe representation of a failure that actually occurred.
 Preserve the existing response-refusal audit as a separate approved event.
-A refused response emits one `patient_response_payload_withheld` event
-with its reviewed operation context. A presentable response emits none.
+Its trusted producer accepts only the final disposition and reviewed
+operation. Construct and route this event without importing ambient
+request context at any stage. An ordinary logger cannot select that
+route by supplying the event name. A refused response emits one
+`patient_response_payload_withheld` event with its reviewed operation
+context. A presentable response emits none.
 This records the disposition of the request. Holding that disposition
 fixed, the number of contributing results and internal checks must not
 change the audit. Preserve the product response's own `withheld` status.
@@ -180,15 +184,20 @@ as a positive control.
 ### Restricted results and request audits
 
 Run one operation with zero, one and several restricted results, holding
-public inputs and retries fixed. Require identical event counts and approved
-content, including across Explorer filters, totals and pages. Include a
-registered event to exercise suppression before templating.
+public inputs and retries fixed. Observe calls where the real producer
+would submit a result to its logger. Require zero per-result calls in each
+case, including for a registered event. Separately compare all downstream
+event counts and approved content, including Explorer filters, totals and
+pages. Any permitted operation-level event has the same count in all runs.
 
 Run both the presentable and refused request fixtures and assert the product
 response status. A presentable detail response with an eligible item and one
 or several omitted items returns that eligible item and produces zero refusal
 audits. A refused request produces one neutral refusal audit with exactly its
 approved operation context, whether one or several items were withheld.
+Repeat with synthetic restricted context bound to the request. Require
+the same response and one identical audit on its route, with no extra
+marker or inherited fields.
 
 ### Process output and routing
 
