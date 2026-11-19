@@ -8,7 +8,6 @@ the context-only badge (never ACMG evidence).
 from __future__ import annotations
 
 import gzip
-import json
 import tarfile
 from pathlib import Path
 
@@ -34,11 +33,11 @@ from backend.config import Settings
 from backend.db.connection import DBRegistry
 from backend.db.database_registry import DATABASES
 from backend.db.standalone import run_standalone_build
-from backend.db.tables import annotation_state, database_versions, reference_metadata
+from backend.db.tables import database_versions, reference_metadata
 from backend.services.staleness import (
-    REFERENCE_VERSION_SNAPSHOT_KEY,
     find_stale_reference_versions,
     read_current_reference_versions,
+    read_recorded_reference_versions,
 )
 
 # GTEx WGS lookup table (variant_id → rsID). Last variant has no rsID ('.').
@@ -240,7 +239,6 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         installed = registry.gtex_eqtl_engine
         ref = registry.reference_engine
         reference_metadata.create_all(ref)
-        annotation_state.create(sample)
         lookup = _write(tmp_path, "lookup.txt", _LOOKUP)
         # Seed the legacy association values independently of the loader under test.
         columns = ("rsid", "gene_id", "tissue", "chrom", "pos", "pval_nominal", "slope")
@@ -263,14 +261,19 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
             )
 
         gtex_mod.record_gtex_eqtl_version(ref, version="v8")
-        snapshot = read_current_reference_versions(ref)
-        assert snapshot["gtex_eqtl"] == "v8"
+        # Fixed legacy storage key, table and payload from before gene-name enrichment.
+        snapshot = {"gtex_eqtl": "v8", "vep_bundle": "v1.0.0"}
         with sample.begin() as conn:
-            conn.execute(
-                annotation_state.insert().values(
-                    key=REFERENCE_VERSION_SNAPSHOT_KEY, value=json.dumps(snapshot)
-                )
+            conn.exec_driver_sql(
+                "CREATE TABLE annotation_state (key TEXT NOT NULL PRIMARY KEY, "
+                "value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"
             )
+            conn.exec_driver_sql(
+                "INSERT INTO annotation_state (key, value) VALUES (?, ?)",
+                ("reference_versions_json", '{"gtex_eqtl":"v8","vep_bundle":"v1.0.0"}'),
+            )
+        assert read_recorded_reference_versions(sample) == snapshot
+        assert read_current_reference_versions(ref) == snapshot
         assert associations() == historical
         assert lookup_gene_names(["ENSG001.4", "ENSG002.1"], installed) == {}
         assert find_stale_reference_versions(sample, ref) == []
@@ -288,6 +291,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         assert lookup_gene_names(["ENSG002.1"], installed) == {"ENSG002.1": "GENEB"}
         assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
         assert read_current_reference_versions(ref) == snapshot
+        assert read_recorded_reference_versions(sample) == snapshot
         assert find_stale_reference_versions(sample, ref) == []
 
         # A changed source identity must still produce the normal re-annotation signal.
