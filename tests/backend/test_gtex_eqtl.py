@@ -230,12 +230,17 @@ def _create_legacy_gtex_table(engine: sa.Engine) -> None:
 
 
 @pytest.mark.parametrize(
-    ("recorded_version", "worker"),
+    ("installed_version", "worker"),
     [("v8", "update"), (None, "update"), (None, "setup")],
-    ids=["recorded-v8", "unstamped", "unstamped-setup"],
+    ids=["stamped-update", "unstamped-update", "unstamped-setup"],
 )
+@pytest.mark.parametrize("recorded_version", ["v8", None], ids=["recorded-v8", "unrecorded"])
 def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, recorded_version: str | None, worker: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    installed_version: str | None,
+    recorded_version: str | None,
+    worker: str,
 ) -> None:
     settings = Settings(data_dir=tmp_path)
     registry = DBRegistry(settings)
@@ -271,11 +276,15 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
                 tuple(row[col] for col in columns) for hits in rows.values() for row in hits
             )
 
-        # Fixed legacy storage key, table and payload from before gene-name enrichment.
+        installed_versions = {"vep_bundle": "v1.0.0"}
+        if installed_version:
+            gtex_mod.record_gtex_eqtl_version(ref, version=installed_version)
+            installed_versions["gtex_eqtl"] = installed_version
+
+        # The historical sample payload is independent of the current installation stamp.
         snapshot = {"vep_bundle": "v1.0.0"}
         payload = '{"vep_bundle":"v1.0.0"}'
         if recorded_version is not None:
-            gtex_mod.record_gtex_eqtl_version(ref, version=recorded_version)
             snapshot["gtex_eqtl"] = recorded_version
             payload = '{"gtex_eqtl":"v8","vep_bundle":"v1.0.0"}'
         with ref.begin() as conn:
@@ -298,10 +307,15 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
                 ("reference_versions_json", payload),
             )
         assert read_recorded_reference_versions(sample) == snapshot
-        assert read_current_reference_versions(ref) == snapshot
+        assert read_current_reference_versions(ref) == installed_versions
         assert associations() == historical
         assert lookup_gene_names(["ENSG001.4", "ENSG002.1"], installed) == {}
-        assert find_stale_reference_versions(sample, ref) == []
+        changes = (
+            [{"db_name": "gtex_eqtl", "recorded_version": None, "current_version": "v8"}]
+            if recorded_version is None
+            else []
+        )
+        assert find_stale_reference_versions(sample, ref) == (changes if installed_version else [])
         assert get_active_prompts(ref) == []
 
         pairs = _SIGNIF.replace("ENSG001\t", "ENSG001.4\t").replace("ENSG002\t", "ENSG002.1\t")
@@ -337,11 +351,6 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
         assert read_current_reference_versions(ref) == {"gtex_eqtl": "v8", "vep_bundle": "v1.0.0"}
         assert read_recorded_reference_versions(sample) == snapshot
-        changes = (
-            [{"db_name": "gtex_eqtl", "recorded_version": None, "current_version": "v8"}]
-            if recorded_version is None
-            else []
-        )
         assert find_stale_reference_versions(sample, ref) == changes
         prompts = get_active_prompts(ref)
         if changes and worker == "update":
