@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import socket
 import sqlite3
 import sys
 import tempfile
@@ -16,7 +17,24 @@ EXPECTED_SHA = "1786b5bc1a6f5a0440239f40d5f5ac69d15ce213015a9cbf11affa05bbedfff0
 EXAMPLE = "rs1051266"
 
 
+def require_local_ipc() -> None:
+    """The in-process HTTP client's event loop must be able to wake its worker."""
+    try:
+        reader, writer = socket.socketpair()
+        with reader, writer:
+            reader.settimeout(2)
+            writer.settimeout(2)
+            writer.sendall(b"x")
+            if reader.recv(1) != b"x":
+                raise OSError("Unexpected local socket-pair result")
+    except OSError as error:
+        raise RuntimeError(
+            "This offline probe requires local socket-pair communication"
+        ) from error
+
+
 def measure(directory: Path) -> dict:
+    require_local_ipc()
     # Import the app only after the caller sets the isolated data directory.
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -161,7 +179,7 @@ def measure(directory: Path) -> dict:
                     "absent_status": absent.status_code,
                     "exports": exports,
                 }
-        return {
+        observation = {
             "status_stamp": status_stamp,
             "effective_after_status": effective,
             "install_stamp": install_stamp,
@@ -170,6 +188,13 @@ def measure(directory: Path) -> dict:
             "bundle_protein": protein,
             "synthetic_controls": controls,
         }
+        baseline_path = Path(__file__).parent / "raw/fallback-baseline.json"
+        baseline = json.loads(baseline_path.read_text())["isolated_route"]
+        if observation != baseline:
+            raise ValueError(
+                "Observed worker, API or VCF output differs from the historical baseline"
+            )
+        return observation
     finally:
         registry.dispose_all()
 

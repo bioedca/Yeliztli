@@ -15,6 +15,44 @@ def read_only(path, digest):
     return path.resolve().as_uri() + "?mode=ro&immutable=1"
 
 
+def check_sentinel(conn):
+    """Verify the published T>C sentinel against the retained GRCh37 response."""
+    sources = json.loads((Path(__file__).parent / "raw/source-metadata.json").read_text())
+    key = "/vep/human/region/21:46957794-46957794:1/C"
+    location = sources["grch37_sentinel"][key]["selected_fields"]
+    (transcript,) = location["transcript_consequences"]
+    ref, alt = location["allele_string"].split("/")
+    tx_id, _version = transcript["transcript_id"].rsplit(".", 1)
+    expected = (
+        location["seq_region_name"],
+        location["start"],
+        ref,
+        alt,
+        tx_id,
+        {1: "+", -1: "-"}[transcript["strand"]],
+        transcript["hgvsc"].split(":", 1)[1],
+        transcript["hgvsp"].split(":", 1)[1],
+    )
+    columns = (
+        "chrom",
+        "pos",
+        "ref",
+        "alt",
+        "transcript_id",
+        "strand",
+        "hgvs_coding",
+        "hgvs_protein",
+    )
+    rows = conn.execute(
+        "SELECT " + ", ".join(columns) + " FROM full_release.vep_annotations "
+        "WHERE rsid = ? AND alt = ? AND transcript_id = ?",
+        ("rs1051266", alt, tx_id),
+    ).fetchall()
+    if rows != [expected]:
+        raise ValueError("Published sentinel differs from the retained versioned GRCh37 response")
+    return dict(zip(columns, rows[0], strict=True))
+
+
 def compare(release):
     legacy = read_only(
         Path("bundles/vep_bundle.db"),
@@ -62,6 +100,7 @@ def compare(release):
         pages = conn.execute("PRAGMA main.page_count").fetchone()[0]
         page_bytes = conn.execute("PRAGMA main.page_size").fetchone()[0]
         return {
+            "v4_sentinel": check_sentinel(conn),
             "legacy_sites": total,
             "sites_matching_rsid": rsid_only,
             "sites_matching_rsid_and_position": covered,

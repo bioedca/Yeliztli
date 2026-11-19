@@ -18,6 +18,16 @@
   },
   "downloaded_sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
   "legacy_catalog_projection": {
+    "v4_sentinel": {
+      "chrom": "21",
+      "pos": 46957794,
+      "ref": "T",
+      "alt": "C",
+      "transcript_id": "ENST00000311124",
+      "strand": "-",
+      "hgvs_coding": "c.80A>G",
+      "hgvs_protein": "p.His27Arg"
+    },
     "legacy_sites": 102254,
     "sites_matching_rsid": 101959,
     "sites_matching_rsid_and_position": 101958,
