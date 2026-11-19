@@ -48,10 +48,15 @@ displayed badge. Return a per-source pending mask alongside verified
 coverage. A pending source supplies neither a positive nor a negative
 answer. Keep unrelated verified sources visible and label the unresolved
 source as pending. Show “no sources covered” only when absence is known for
-all relevant sources. The SQL console and SQL export must use the same eligible
-coverage values for selection and filtering, or refuse an access that would
-expose the unprojected mask. A raw column in a SQL expression is still a
-reader of that value. Track a wording projection separately so the original
+all relevant sources. In the SQL console and SQL export, expose a nullable
+predicate for each source. It returns true for verified coverage, false for
+verified absence and SQL NULL for pending or unassessed coverage. Expose
+processing status separately. Permit access to the legacy integer mask only
+where every source is resolved or the existing unannotated state is known.
+Refuse ambiguous mask queries, including filters and aggregates, when the
+queried relation can include pending rows. Clearing the bit on such rows
+would make a negative test count them as uncovered.
+Track a wording projection separately so the original
 analysis remains auditable. The sample's
 verified storage identity scopes every correction, including after restore or
 replacement. The registry's existing CYP2C9/phenytoin prompt validates that
@@ -129,6 +134,15 @@ Deduplicate the user-facing action when several reasons share a rerun. Existing
 prompt schema constraints and API enums need a coordinated migration for a new
 reason. The existing major-version 423 gate remains a prerequisite when it
 applies.
+
+On upgrade, reconcile the v21 local phenytoin marker with its central
+`version_staleness` entry under the existing sample-ownership check.
+Adopt a dismissed entry only when it can be bound to this installed copy
+and the same legacy CPIC correction and target. Carry that acknowledgment
+to the matching reason only. The local repair remains pending until a
+verified rerun. Preserve a matching active reminder as visible. A missing,
+ambiguous or unbound acknowledgment cannot silence a reason. Applying the
+migration twice must preserve the same result.
 
 A completed prerequisite with an explicitly unknown result can supply a
 documented unknown input. A failed or unfinished prerequisite supplies no
@@ -320,8 +334,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Metabolizer fixtures before upgrading the reference. Verify each old
   recommendation is withheld after upgrade and that each scoped rerun returns
   its own shipped text in the drug view, summary, card and report. Include an
-  explicit `reanalysis_needed` state on the drug API and panel when a
-  prior callable finding is withheld. Show the action to update guidance.
+  explicit `reanalysis_needed` state on the drug API and panel whenever an
+  unresolved correction applies to that sample and gene–drug pair, including
+  when the previous completed run was empty. Determine this state before the
+  no-finding branch, subject to the existing disclosure and permanent
+  withholding rules. Show the action to update guidance.
   An actually unassessed control follows its existing `not_assessed` path.
   Assert both API states and displayed explanations before the rerun. Include an
   unaffected Normal Metabolizer control. Run full reannotation using a different
@@ -361,6 +378,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   verified dependencies and affected producers. With an old completed empty
   CYP2B6 result, exercise a sparse synthetic input for which the new caller
   changes the assessment from Insufficient to Partial and emits an alert.
+  Before repair require `reanalysis_needed` with no stale guidance in the
+  drug response and panel. After repair require `available` and the new
+  recommendation. An unaffected unassessed control keeps its ordinary state.
   Check an unaffected caller control and verify that repairing DPYD content
   alone cannot clear a pending caller revision. Seed a matching annotated
   variant with a known coverage mask. Inject failure after the real coverage
@@ -380,10 +400,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Separately verify `annotation_coverage:notnull` and `:null` counts using
   a processed zero-mask row, a processed mixed verified/pending row and a
   never-annotated row.
-  Check the pending and unaffected coverage values through both the SQL
-  console and SQL export, including filtering and counts. If a path cannot
-  project the mask, verify that it refuses the unprojected value and still
-  allows independently eligible data.
+  On both SQL paths, require one verified CPIC positive and one verified
+  negative among the three processed controls, with the pending row in
+  neither count. Require a raw `(annotation_coverage & 64) = 0` count
+  over that population to be refused. Verify a resolved-only query can
+  still use the mask and an unrelated verified source remains queryable.
   Stop a full reannotation immediately after the production staging-table
   swap and before PGx runs. Assert no old conclusion or missing coverage bit
   is served as current for the new generation. Retry and verify the new
@@ -427,6 +448,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
+  Upgrade an already-v21 sample with its marker and a matching dismissed
+  central entry. Across two opens, verify the local reason remains pending,
+  its reminder stays dismissed and a new, independent reason stays visible.
+  With a matching active entry expect one visible reminder. An old entry
+  belonging to another copy cannot suppress the current reminder.
   Delay dismissal of the original reminder until a different correction
   occupies its place. Verify that the new correction stays visible.
   Also clear and recreate the same reason and target under a new publication
@@ -508,10 +534,14 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   method and fractions. Replace imputed dosages between scoring and
   publication without changing the annotated token. The old result cannot
   become current. Retry and match a fresh run on the replacement dosages.
-  On an imputed-only PRS fixture, replace the frequency artifact at its
-  existing path while both sample tokens and the upstream label stay fixed.
-  Compare the recalibrated result with a fresh run. Also remove and restore
-  the store and check its documented unavailable outcome and recovery.
+  On an imputed-only PRS fixture, record the published calibration, then
+  change a frequency used by the score while keeping both sample tokens and
+  the upstream label fixed. Exercise both file replacement at the same path
+  and a committed update to the same database file. In each case reopen
+  before rerunning and require the old calibration to be withheld. After
+  repair, compare with a fresh run and require the expected changed value.
+  Also remove and restore the store and check its documented unavailable
+  outcome and recovery.
   In nutrigenomics, choose an LCT fixture whose
   ancestry-conditional caveat changes and another whose result stays current.
   Compare with the same inputs scored in the supported ancestry-first order.
