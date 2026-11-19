@@ -12,6 +12,7 @@ import json
 import math
 import sqlite3
 import tarfile
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
@@ -355,6 +356,64 @@ def _route_state(env: _Environment, module: str) -> str:
     response = env.client.get(f"/api/analysis/{module}/{endpoint}?sample_id=1")
     assert response.status_code == 200, response.text
     return response.json()["scoring_state"]
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_reopens_stale_after_frequency_update(
+    routing_env: _Environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.analysis import metabolic_prs, pgs_bridge
+
+    # The shared routing fixture substitutes weight loaders. Read this model
+    # from the positional PGS store through the ordinary metabolic entrypoint.
+    monkeypatch.setattr(metabolic_prs, "build_trait_weight_set", pgs_bridge.build_trait_weight_set)
+    settings = routing_env.registry.settings
+    with closing(sqlite3.connect(pgs_bridge.pgs_scores_db_path(settings.data_dir))) as pgs:
+        pgs.execute(
+            """INSERT INTO pgs_score_metadata
+               (pgs_id, pgs_name, trait_reported, genome_build, variants_number,
+                weight_type, license, license_bundle_ok)
+               VALUES ('PGS005198', 'Synthetic BMI', 'Synthetic', 'GRCh37', 2,
+                       'beta', 'CC-BY-4.0', 1)"""
+        )
+        pgs.executemany(
+            """INSERT INTO pgs_score_weights
+               (pgs_id, rsid, chrom, pos, effect_allele, other_allele, effect_weight)
+               VALUES ('PGS005198', NULL, ?, ?, ?, ?, 1.0)""",
+            [("2", 500, "T", "C"), ("1", 999, "G", "A")],
+        )
+        pgs.commit()
+
+    def run_and_read() -> dict:
+        response = routing_env.client.post("/api/analysis/metabolic/run?sample_id=1")
+        assert response.status_code == 200, response.text
+        assert response.json()["prs_traits_computed"] == 1
+        with routing_env.sample.connect() as conn:
+            payload = conn.execute(
+                sa.select(findings.c.detail_json).where(
+                    findings.c.module == "metabolic", findings.c.category == "prs"
+                )
+            ).scalar_one()
+        result = json.loads(payload)
+        assert result["pgs_id"] == "PGS005198"
+        assert result["calibrated"] is True
+        assert result["snps_used"] == 2
+        assert result["snps_used_imputed"] == 1
+        assert _route_state(routing_env, "metabolic") == "current"
+        return result
+
+    original = run_and_read()
+    with closing(sqlite3.connect(settings.gnomad_db_path)) as frequencies:
+        updated = frequencies.execute(
+            "UPDATE gnomad_af SET af_eur = 0.7 WHERE chrom = '1' AND pos = 999"
+        )
+        assert updated.rowcount == 1
+        frequencies.commit()
+    assert _route_state(routing_env, "metabolic") == "stale"
+    repaired = run_and_read()
+    assert original["calibration_reference_mean"] == pytest.approx(1.4)
+    assert repaired["calibration_reference_mean"] == pytest.approx(2.2)
+    assert 0 < repaired["percentile"] < original["percentile"] < 100
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)

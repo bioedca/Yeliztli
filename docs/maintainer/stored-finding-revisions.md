@@ -53,6 +53,10 @@ not negotiated pending coverage must receive an upgrade-required response
 without variant data whenever the response could contain a pending source.
 The legacy tooltip treats both zero and null as confirmed absence. Test a
 legacy client and a current client on the same pending-only and mixed rows.
+Before activating this protocol on an existing installation, close the old
+application windows and browser tabs, then reopen them on the current
+client. An already-open legacy tab can keep a cached finding indefinitely
+without making a request. Treat this as a coordinated upgrade prerequisite.
 In the SQL console and SQL export, expose a nullable
 predicate for each source. It returns true for verified coverage, false for
 verified absence and SQL NULL for pending or unassessed coverage. Expose
@@ -258,6 +262,15 @@ sources. Filter the sample side first, including alerts for which no
 supporting source is available. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
+The medication safety report aggregates evidence across genes. Compute each
+drug verdict from eligible effects and independently known, disclosable
+pending assessments. A confirmed actionable effect warrants review even if
+another is pending. When a pending effect could change an otherwise routine
+verdict, show “Reanalysis needed” and keep the eligible effects visible.
+With pending assessments, label aggregate counts as confirmed so far and
+mark the report incomplete. Apply the same rule when no eligible effect
+remains. Preserve permanent clinical holds throughout.
+
 Cache identity must include the verified sample identity and its published
 result generation. Advance and notify clients whenever eligibility changes:
 on correction registration, dependency invalidation, result publication or
@@ -348,9 +361,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   its own shipped text in the drug view, summary, card and report. Include an
   explicit `reanalysis_needed` state on the drug API and panel whenever an
   unresolved correction applies to that sample and gene–drug pair, including
-  when the previous completed run was empty. Determine this state before the
-  no-finding branch, subject to the existing disclosure and permanent
-  withholding rules. Show the action to update guidance.
+  when the previous completed run was empty. Consult eligible correction
+  records independently of reference discovery, before a missing guideline
+  can exclude a gene or produce a drug-level 404. Combine known pending
+  pairs with independently eligible reference rows under the existing
+  disclosure and permanent withholding rules. Show the action to update guidance.
   An actually unassessed control follows its existing `not_assessed` path.
   Assert both API states and displayed explanations before the rerun. Include an
   unaffected Normal Metabolizer control. Run full reannotation using a different
@@ -362,6 +377,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   *installed* reference row keeps the correction pending even if scoring
   finishes. Repair the reference and verify that only a subsequent run using
   the verified content clears that reason.
+  Remove every reference row for a known pending drug, then remove just
+  its affected gene from a multi-gene drug. In both cases require the
+  pending state without guidance for that pair, preserving any current
+  independent effect. A genuinely unknown drug still returns 404.
   Keep a custom note containing superseded guidance on the same finding
   identity through that run. Verify the new canonical recommendation is
   eligible while the historical note remains outside all current results.
@@ -460,6 +479,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Query the PGx evidence overlay with an affected and an unaffected alert.
   Check the exact remaining identities, statuses and source associations,
   then verify the corrected alert after repair.
+  In the medication report API and rendered report, combine a pending TPMT
+  assessment with an eligible routine NUDT15 effect for the same test drug.
+  Require a pending drug verdict, the visible current effect and an
+  incomplete flagged count. Repeat with an eligible actionable effect:
+  the drug is flagged once and coverage remains incomplete. A fully
+  assessed routine control stays routine. Rerunning the affected pair
+  restores the verdict and counts derived from the completed results.
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
@@ -556,7 +582,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   synthetic positional weights for its PGS005198 model in the PGS store.
   Exercise the real weight loader, scorer and result store. In a two-locus
   synthetic check, one typed and one imputed contribution produced a
-  calibrated finding. Updating the fixture's frequency changed the route
+  calibrated finding in the executable BMI case.
+  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py::test_positional_bmi_reopens_stale_after_frequency_update`.
+  Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
   mean from 1.4 to 2.2. These values describe the fixture. Require
   `snps_used_imputed > 0` before changing an input and zero in a typed-only
@@ -575,6 +603,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
 
 ### Browser caches, change notices and exports
 
+- Warm the shipped legacy client on the drug and coverage pages before
+  upgrading the backend. Retire those tabs before activating the correction.
+  Reopen on the current client and verify pending results on both pages.
+  An old-format request after activation receives the upgrade requirement.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
