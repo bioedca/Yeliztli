@@ -310,7 +310,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         monkeypatch.setattr(
             gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
         )
-        monkeypatch.setattr("backend.db.connection.get_registry", lambda: registry)
+        monkeypatch.setattr("backend.db.connection._registry", registry)
         if worker == "update":
             from backend.tasks.huey_tasks import (
                 create_database_update_job,
