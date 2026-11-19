@@ -40,5 +40,34 @@
     "release_rows_at_matching_sites": 169315,
     "release_rows_with_protein_name": 4319,
     "two_index_annotation_table_size_bytes": 19357696
+  },
+  "synthetic_rsid_lookup_at_two_positions": {
+    "rsid": "rs11431378",
+    "measurements": {
+      "legacy": {
+        "chrom": "9",
+        "pos": 108274509,
+        "v4_lookup": {
+          "matched_by": "rsid",
+          "allele_unambiguous": false,
+          "returned_pos": 108274510,
+          "gene_symbol": "FSD1L",
+          "consequence": "intron_variant",
+          "hgvs_coding": "c.896-578T>C"
+        }
+      },
+      "v4": {
+        "chrom": "9",
+        "pos": 108274510,
+        "v4_lookup": {
+          "matched_by": "rsid",
+          "allele_unambiguous": true,
+          "returned_pos": 108274510,
+          "gene_symbol": "FSD1L",
+          "consequence": "intron_variant",
+          "hgvs_coding": "c.896-578T>C"
+        }
+      }
+    }
   }
 }
