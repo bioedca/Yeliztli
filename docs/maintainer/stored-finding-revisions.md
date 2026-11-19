@@ -115,8 +115,12 @@ the original numeric ID, content hash, source path and creation time.
 Bind the new identity to its verified physical file in the registry. Bind
 writers, links, reminders and dismissals to that identity before comparing
 revisions. On replacement, atomically repoint the registry and retire the
-superseded copy. Commit a replayable retirement notice for the old identity
-in that registry transaction. An open view of the retired copy clears its
+superseded copy. Refuse replacement if an existing merged sample identifies
+its source only by this numeric ID. Offer a side-by-side import. Replacement
+can resume after verified source-copy links support lineage, cascade preview
+and deletion without reassigning any descendant. Commit a replayable
+retirement notice for the old identity in that registry transaction.
+An open view of the retired copy clears its
 results and requires a fresh selection. Fence old operations, drain handles
 and dispose of its cached engines before retiring its storage. Never reuse
 a live or cached path for the replacement.
@@ -412,15 +416,18 @@ only after verifying one complete set and durably recording its outcome
 and replayable notice. Reconcile each dependent sample by publication ID
 and copy identity. A retry cannot duplicate a notice, publish a score
 made from mixed revisions or clear an independent reason.
-Backup creation participates in the same protocol. Capture a consistent
-snapshot of the selected registry entries, sample copies and reference
+Backup creation participates in the same protocol. Enumerate selected,
+published sample copies from the registry snapshot. Exclude reservations,
+retired copies and unregistered files. Capture the corresponding reference
 publication. Use committed database snapshots, including committed journal
 contents. Pin immutable revisions or hold read leases across capture.
 Record the publication, copy identities, generations and each archived
 member's digest in the manifest. If any selected input escapes the pinned
 snapshot, discard the incomplete archive and retry. On restore, verify
-each member against the manifest before publication. Admit legacy archives
-through the supported migration path. Keep results with missing provenance
+the complete sample file set and each member digest against the manifest
+before publication. Reject extra sample files in the new format.
+Limit legacy sample inference to the
+supported legacy migration path. Keep results with missing provenance
 pending until their components and dependent samples are verified.
 
 Revalidate on mount, navigation, focus and reconnect. While a view is open, a change
@@ -690,6 +697,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   findings and links, accepts its own writes and maintains its own
   reminders. The original open page keeps its verified selection. Clearing
   a reason in one copy must leave the other intact.
+  Give the original a merged child with legacy source IDs. Refuse its
+  replacement and preserve the child's source and cascade preview. Import
+  alongside it and delete the new copy in the synthetic fixture. The
+  original and its child must survive. Take a backup while a retired
+  reader and a restore reservation exist. Verify the exact active set in
+  both the archive and the restored registry.
 
 ### Panel wording, membership and rollback
 
@@ -780,9 +793,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   The unchanged controls check SQLite write-ahead log (WAL) mode with no
   outstanding WAL frames. The gnomAD release label stays the same for both
   unchanged and changed inputs. Also exercise a score recorded with
-  committed frequency updates still in the WAL. Checkpoint those pages and close the last writer
-  without changing the values. The proposed content revision must survive
-  that shutdown. In a synthetic checkpoint the existing file-and-WAL
+  committed frequency updates still in the WAL. Checkpoint those pages and
+  close the last writer without changing the values. The proposed content
+  revision must survive that shutdown. In a synthetic checkpoint the existing file-and-WAL
   fingerprint conservatively reported stale, and recalculation returned
   the same 95.42 percentile. A genuine change to a
   committed frequency must invalidate the result in either journal mode.
@@ -807,7 +820,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the same raw score. The repair must match fresh annotation and scoring.
   Keep an unchanged-source control and inspect the stored annotation and
   GET response after reopening. The current behavior is tracked in
-  [#2746](https://github.com/bioedca/Yeliztli/issues/2746).
+  [#2746](https://github.com/bioedca/Yeliztli/issues/2746). To reproduce the
+  discrepancy from the repository root, run
+  `python -m pytest tests/backend/test_prs_gnomad_routing.py -k scorer_only_bmi_repair --runxfail`.
+  The regression marks only the known obsolete result as an expected failure.
   Replace imputed dosages between scoring and publication without changing
   the annotated token. Reject the old publication and match a fresh run on
   the replacement dosages. In a separate case record the published
@@ -896,6 +912,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   upgrade response before sending headers for a download. A current client
   gets the pending representation. Register the correction after the
   snapshot is pinned and verify every batch describes the same generation.
+  On the VCF route, apply the same eligibility decision to membership
+  filters. Refuse an ambiguous legacy coverage filter or a request whose
+  result requires a pending annotation that VCF cannot encode. A negotiated
+  verified-absence filter may return its verified-uncovered control only.
+  Check the response status and exact variant identities with a pending
+  and a verified-uncovered synthetic row.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
