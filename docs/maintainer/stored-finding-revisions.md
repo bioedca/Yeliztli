@@ -26,7 +26,11 @@ CPIC, panel-source or VEP release.
 During rollout, inventory the shipped CYP2B6/efavirenz, CYP2D6/tamoxifen
 and TPMT repairs alongside the existing phenytoin path. Classify each from
 its released old and new records and test its actual sample-side effect
-before enabling projection. For panels, match the genotype used in scoring
+before enabling projection. Include the DPYD activity-score guidance matrix
+from [#2119](https://github.com/bioedca/Yeliztli/pull/2119) as its own
+content correction. The current marker table, confidence algorithm and
+conservative diplotype algorithm do not certify the separate dosing table.
+For panels, match the genotype used in scoring
 after module-specific normalization and verify the stored template and
 citations. An ambiguous match goes to the panel rerun.
 
@@ -50,6 +54,14 @@ replacement. The registry's existing CYP2C9/phenytoin prompt validates that
 identity and a file fingerprint before publication; a fingerprint alone cannot
 identify the inputs or analysis revision.
 
+Bind producer completion and coverage contributions to the annotated-variants
+generation actually used. The full annotation path replaces that table
+before running the analysis modules. Atomically advance its generation and
+invalidate dependent receipts when the staging table goes live. Carry a
+contribution forward only with proof that its inputs, output and disclosure
+still match. A process that stops after the swap leaves dependent results
+pending until their generation has been verified.
+
 | Evidence at open or upgrade | Reader and repair behavior |
 | --- | --- |
 | Proven current or provably outside the correction scope | Serve current output under existing disclosure rules. Repeated startup creates no prompt. |
@@ -66,7 +78,11 @@ Keep authoritative pending state in the sample database. Publish central UI
 reminders idempotently using sample identity, producer, correction and target
 revision. Retry an interrupted cross-database publication on the next valid
 open. Check the current local state and ownership before publishing or
-retracting. Bind publication to the observed generation. After the central
+retracting. Bind publication to the observed generation. The central store
+must accept writes only at or above its last verified generation for that
+identity and key. Retain this generation when retracting or dismissing a
+reminder so a late writer cannot recreate or overwrite it. Retries at the
+same generation must agree on the reason and acknowledgment state. After the central
 write, recheck the local reason and identity. Conditionally retract only a
 reminder from the obsolete generation if a rerun, replacement or dismissal
 won the race. On interruption reconcile both sides, including a central
@@ -245,6 +261,8 @@ replacement visible. Dismissing a diff has no effect on a reanalysis reason.
 
 Use the actual scoring, persistence, upgrade and read paths with synthetic controls.
 
+### Corrected prescribing text
+
 - Score and store the released legacy clopidogrel Intermediate and Poor
   Metabolizer fixtures before upgrading the reference. Verify each old
   recommendation is withheld after upgrade and that each scoped rerun returns
@@ -269,6 +287,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   after upgrade and restore and remains absent from patient-facing output.
   Check continued withholding. On an already-migrated fixture verify that
   unavailable text and provenance remain explicitly unknown.
+
+### PGx interpretation, reminders and coverage
+
 - Take the DPYD `rs115232898` reference migration through both a fresh
   upgrade and an install that already has the target allele. Seed synthetic
   raw inputs for an affected stored result, an empty completed result, a
@@ -297,6 +318,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   console and SQL export, including filtering and counts. If a path cannot
   project the mask, verify that it refuses the unprojected value and still
   allows independently eligible data.
+  Stop a full reannotation immediately after the production staging-table
+  swap and before PGx runs. Assert no old conclusion or missing coverage bit
+  is served as current for the new generation. Retry and verify the new
+  variant mask, findings and receipt agree.
   Independently register the conservative diplotype selection change shipped
   in [#2643](https://github.com/bioedca/Yeliztli/pull/2643). An old alert
   can have a current allele table, direct call and Partial confidence while
@@ -305,6 +330,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the superseded alert and confirm the new conservative basis, score-specific
   guidance and citations after repair. A fully assayed `hom_ref` control
   stays current. Neither of the earlier revisions can clear this correction.
+  Separately restore a DPYD reference with phenotype-only rows and a newly
+  added nullable activity-score column. Use two shipped score-specific rows
+  within the same phenotype band that map to different guidance. A scorer
+  completing via the legacy null-score fallback cannot clear the correction.
+  After verified reference repair, require the production prescribing path to
+  resolve each score to its own approved row and return its exact text.
+  Include an already-current installation and an unaffected guidance key.
   Generate both SVG markers through the production annotation path. Before
   the correction, request each ID and verify its expected SVG content.
   Once the correction advances the generation, both old links must expire.
@@ -323,6 +355,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   preserve an independent live reason and honor dismissal.
   Delay dismissal of the original reminder until a different correction
   occupies its place. Verify that the new correction stays visible.
+  Race two publishers for the same central key in opposite generation order.
+  The older one must neither replace nor retract the newer reminder, even
+  after retry or when the newer reminder has already been dismissed.
+
+### Panel wording, membership and rollback
+
 - Exercise each of the seven panel readers with a wording-only change and a
   change that moves category, eliminates a row, introduces a row or changes
   the pathway aggregate. Cover missing or ambiguous keys and custom wording.
@@ -350,6 +388,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   supported by two panels. Drop that panel's contribution to both, interrupt
   publication and retry. Check stored contributions and variant API masks.
   Only the shared marker retains GWAS coverage after repair.
+
+### Ancestry-first reanalysis
+
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
@@ -364,6 +405,18 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   reviewed panel revision. Pass the retained and corrected gout values
   through the production diff path. Expect one changed finding with the
   reviewed odds-ratio change and zero additions or removals for that identity.
+  For each of the other four consumers, assert the old stored fields first,
+  their withholding after upgrade, and their exact expected values after
+  repair and reopen. In APOL1, exercise the shipped caveat and indeterminate
+  disclosure separately with an eligible synthetic ancestry input and an
+  input outside the gate. In cancer PRS and traits PRS, check each producer's
+  ancestry caveat and, for a score with calibration support, its calibration
+  method and fractions. In nutrigenomics, choose an LCT fixture whose
+  ancestry-conditional caveat changes and another whose result stays current.
+  Compare with the same inputs scored in the supported ancestry-first order.
+
+### Browser caches, change notices and exports
+
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
