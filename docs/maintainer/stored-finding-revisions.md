@@ -243,6 +243,12 @@ response. Coordinate the cross-process publication boundary with
 [#2511](https://github.com/bioedca/Yeliztli/issues/2511); recorded sex remains
 a separate cause.
 
+Publish the allowed repair action with the stale state. When a correction
+requires a manual rerun, every scoring page must wait for the user's action.
+The existing `useAutoScore` hook starts work on a settled non-current state,
+so a plain `stale` flag cannot communicate this choice. Ordinary first-run
+scoring and explicitly approved automatic repairs retain their own policy.
+
 ## Which readers need the eligibility check?
 
 Apply eligibility before query limits, group counts, evidence levels and
@@ -254,6 +260,12 @@ An unscoped FHIR export also uses findings for disclosure. When a gated
 module names an rsID, only an independently eligible, visible finding may
 justify including it under the shared-membership exception. Apply this rule
 to both calls even when `modules` is omitted.
+For the caller's authorized selection, return whether reanalysis could
+change the eligible observations. Explain that incomplete state in the
+preflight and in the delivered `DiagnosticReport.conclusion` alongside
+its research-use disclaimer. Keep the existing preliminary report status.
+Derive the notice only from reasons the caller can independently see.
+Adding or removing a gated reason alone must leave the notice unchanged.
 Patient-independent raw annotations and reference assertions retain their own
 provenance and access rules. Every response derived from a sample finding
 inherits its eligibility before any join, count or lookup. In particular,
@@ -270,6 +282,12 @@ verdict, show “Reanalysis needed” and keep the eligible effects visible.
 With pending assessments, label aggregate counts as confirmed so far and
 mark the report incomplete. Apply the same rule when no eligible effect
 remains. Preserve permanent clinical holds throughout.
+
+Negotiate the lifecycle capability on every response whose meaning depends
+on pending results. Send the upgrade requirement, without a legacy verdict,
+whenever the caller cannot represent the response. Test an incomplete
+medication report on a legacy client with all variant coverage bits resolved.
+Compatible clients should still see the eligible effects and incomplete count.
 
 Cache identity must include the verified sample identity and its published
 result generation. Advance and notify clients whenever eligibility changes:
@@ -366,6 +384,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   can exclude a gene or produce a drug-level 404. Combine known pending
   pairs with independently eligible reference rows under the existing
   disclosure and permanent withholding rules. Show the action to update guidance.
+  Expose pending pairs through a disclosure-checked, sample-specific list
+  or link on the Pharmacogenomics page. Keep the shared drug catalog
+  independent of samples. Navigate from the actual page for each fixture
+  and verify the pending drug remains reachable when its last reference
+  row is removed. An unaffected sample sees its own ordinary list.
   An actually unassessed control follows its existing `not_assessed` path.
   Assert both API states and displayed explanations before the rerun. Include an
   unaffected Normal Metabolizer control. Run full reannotation using a different
@@ -594,10 +617,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the replacement dosages. In a separate case record the published
   calibration, then change a frequency used by that contribution while
   keeping both sample tokens and the upstream label fixed. Exercise both
-  file replacement at the same path
-  and a committed update to the same database file. In each case reopen
-  before rerunning and require the old calibration to be withheld. After
-  repair, compare with a fresh run and require the expected changed value.
+  file replacement at the same path and a committed update to the same
+  database file. For a manual repair, reopen the Metabolic page and verify
+  the old percentile is withheld and no run starts on mount or refocus.
+  Choose reanalysis, observe one run request, then compare the displayed
+  recalibration with a fresh run and require the expected changed value.
   Also remove and restore the store and check its documented unavailable
   outcome and recovery.
 
@@ -649,6 +673,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   an observation count of one and exactly the current rsID in the delivered
   Observations. Rerun with a current finding for the formerly stale rsID.
   Require a count of two and the exact pair of carried rsIDs in the bundle.
+  With one disclosable pending-only selection and a separate verified empty
+  selection, require zero observations in each. Only the pending selection
+  reports incompleteness in both preflight and the delivered report. A gated
+  reason alone cannot change either signal. Verify that a successful empty
+  rerun clears the incomplete notice.
   Repeat both calls without a module selection, using an rsID named by a
   gated finding and a stale visible finding, plus a separate eligible rsID.
   Require only the separate rsID and a count of one. When the visible

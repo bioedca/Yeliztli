@@ -399,7 +399,13 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
         assert result["calibrated"] is True
         assert result["snps_used"] == 2
         assert result["snps_used_imputed"] == 1
-        assert _route_state(routing_env, "metabolic") == "current"
+        current = routing_env.client.get("/api/analysis/metabolic/prs?sample_id=1")
+        assert current.status_code == 200, current.text
+        body = current.json()
+        assert body["scoring_state"] == "current"
+        assert body["total"] == 1
+        assert [item["pgs_id"] for item in body["items"]] == ["PGS005198"]
+        assert body["items"][0]["percentile"] == pytest.approx(result["percentile"])
         return result
 
     original = run_and_read()
