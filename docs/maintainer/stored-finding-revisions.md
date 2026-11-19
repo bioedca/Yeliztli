@@ -75,10 +75,13 @@ recovery. Keep the backup out of patient-facing reads and exports until its
 eligibility can be verified. Opening an upgraded sample in place with an
 older release is unsafe.
 Before the new worker consumes queued jobs, drain old work under its
-original verified installation or retire it. A job submitted for a sample
-must carry its copy identity from enqueue through execution and publication.
-A job with an unverified identity cannot resolve a current copy by numeric
-ID or path. Offer a new run for the explicitly selected current copy.
+original verified installation or retire it. Every sample action starts
+with the verified copy identity shown to its caller. Carry that identity
+on the request, including synchronous module reruns and queued annotation.
+Check it against the registry as part of accepting the work, then retain
+it through execution and publication. If the copy was replaced, reject
+the old request before any job, write or scoring work starts. Require a
+fresh selection. A numeric ID or path cannot supply a missing identity.
 In the SQL console and SQL export, expose a nullable
 predicate for each source. It returns true for verified coverage, false for
 verified absence and SQL NULL for pending or unassessed coverage. Expose
@@ -111,12 +114,13 @@ identity. Before publishing any sample or shared reference, durably
 record one restore operation with a retry key established before upload,
 the archive digest, target installation and reference publication ID. In
 the same registry transaction, reserve each copy's identity, numeric
-sample ID and destination path. Ingest and restore must use the same
-allocator and honor those reservations. Keep reserved copies unavailable
-until publication. A retry verifies ownership of each reservation and
-reuses it. It must never overwrite a destination owned by another copy.
-An intentional second
-import gets a new operation ID, even for the same archive. Reject a
+sample ID and destination path. Enforce ID and path uniqueness in the
+registry across reserved and published copies. Every insertion into
+`samples` honors it, including ingest, sample merges and restore. A merge
+using a unique filename still needs its own numeric ID. Keep reserved
+copies unavailable until publication. A retry reuses only its own
+reservations. An intentional second import gets a new operation ID, even
+for the same archive. Reject a
 retry whose archive or target has changed. Reconcile the imported copy
 when both stores agree on its identity. Within one copy, use an ordered,
 sample-local publication counter for conditional writes.
@@ -358,21 +362,22 @@ dependency invalidation, result publication or disclosure change. For a
 change within one database, commit the invalidation and a durable change
 notice in its transaction.
 
-A shared reference-file replacement spans the filesystem and potentially
-many sample databases. Before the switch, durably record a publication ID,
-the old and intended content revisions, an in-progress state and a change
-notice in the authoritative reference registry. From that point, fence
-dependent reads and in-flight publications across *all* installed samples.
-Clients already displaying them use the same generation and notification
-rules. Install the verified file durably, then commit its confirmed revision
-and a replayable completion notice. Reconcile each dependent sample by
-publication ID and sample-copy identity. Serialize changes to the same
-artifact. Reconcile only the current intent. A retry must not duplicate
-a notice or clear a newer reason. On interruption, recheck the installed
-content. Complete a matching new publication or retire the intent if the
-old revision is intact. Reevaluate the sample's other eligibility rules
-in either case. For any other content, keep affected results pending
-until recovery establishes the installed revision.
+A reference publication can replace several files across many samples.
+Before changing any file, durably record one publication ID, the old and
+intended revision of **each** member (including absence), and an in-progress
+notice in the reference registry. Retain verified staged contents for the
+entire operation and the information and contents needed to restore the
+prior set. Serialize overlapping publications. Fence dependent reads and
+in-flight writes on every installed sample from the start of the operation.
+Clients already displaying those results follow the same notification rules.
+After a restart, check the complete installed set against the current
+intent. Finish a partial switch from verified staging, or restore the
+whole prior set when completion is impossible. Keep dependent results
+pending if neither complete set can be verified. Clear the shared fence
+only after verifying one complete set and durably recording its outcome
+and replayable notice. Reconcile each dependent sample by publication ID
+and copy identity. A retry cannot duplicate a notice, publish a score
+made from mixed revisions or clear an independent reason.
 
 Revalidate on mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
@@ -760,15 +765,20 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   once after it and before registry completion, and once partway through
   notifying dependent samples. Keep the existing view open through the
   interruption and reconnection, then separately test a newly opened view.
-  Interrupt after the plan reserves its destinations, then ingest a
-  different synthetic sample before retry. The upload must receive a
-  different ID and path and keep its contents. Also interrupt after
+  Interrupt after the plan reserves its destinations. Before retry, ingest
+  a different sample and merge two synthetic samples. Both operations
+  must receive distinct unreserved IDs and paths and keep their contents.
+  Also interrupt after
   sample registration and before the reference switch. Retry the same
   restore operation twice. It must reuse the reserved ID and path and
   finish with one imported copy and one logical reference publication.
-  Initiate a
-  second intentional import of the same fixture and require a distinct
+  Initiate a second intentional import of the same fixture and require a distinct
   copy without changing the first one's association.
+  Restore changed PGS weights and gnomAD frequencies together. Interrupt
+  between their file replacements and reopen an existing sample. Keep
+  its score pending throughout recovery. Exercise both completion and
+  rollback, comparing each with scoring against the corresponding complete
+  reference set. An unrelated producer remains available.
   Verify the content revision, one logical change per affected sample,
   the absence of the old percentile while pending, and agreement with a
   fresh run after repair. An unrelated sample keeps its current values.
@@ -794,7 +804,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Start the new worker with a pre-upgrade task lacking a verified copy
   identity still queued. Require no execution against either sample and
   no changes to their findings or receipts. A newly submitted, identified
-  task runs once against the selected copy.
+  task runs once against the selected copy. Delay both an annotation POST
+  and a synchronous rerun after displaying the action for one copy.
+  Replace that copy before either request arrives. Verify both are
+  rejected before a job or result is created. Select the replacement
+  explicitly and verify its own rerun succeeds.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
