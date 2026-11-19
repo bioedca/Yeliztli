@@ -38,8 +38,10 @@ Write the completion record atomically with its finding set and every
 patient-visible value derived by that run. In PGx this includes the CPIC
 coverage bit written to annotated variants. Publish the desired CPIC bit
 for the affected scope with its alerts and leave other coverage bits intact.
-Track a wording
-projection separately so the original analysis remains auditable. The sample's
+Before repair, every variant reader must mask a CPIC contribution whose
+eligibility is unknown. Apply the same rule to filters and counts as to a
+displayed badge. Track a wording projection separately so the original
+analysis remains auditable. The sample's
 verified storage identity scopes every correction, including after restore or
 replacement. The registry's existing CYP2C9/phenytoin prompt validates that
 identity and a file fingerprint before publication; a fingerprint alone cannot
@@ -114,6 +116,13 @@ methylation writer currently migrates historical MTHFR nutrigenomics rows
 before replacing its own results. Put any affected rows for both panels,
 customized text and completion state in one transaction for the scoped
 repair. A failure restores the prior state for both panels.
+The GWAS coverage bit can have multiple producers. Record each producer's
+current contribution per variant, including a verified source annotation
+when applicable. Expose the bit only when at least one current contributor
+supports it. Publish each contribution with its own completed findings.
+Removing one producer's contribution cannot clear another's. A legacy set
+bit alone does not identify a contributor. Reconcile the contributing inputs
+before showing it when its only possible support is uncertain.
 Assign methylation ownership of the standalone SNP findings for the three
 identifiers in that migration. Nutrigenomics still owns its pathway-level
 interpretation, supporting SNP detail and citations. Persist the applicable
@@ -182,7 +191,12 @@ The updates banner reads a separate saved diff. Preserve the original
 `last_finding_diff_json` under its existing audit and retention rules. When
 producing a new diff, capture each prior finding's producer, input and
 presentation revisions before replacement and its successor's revisions
-from the completed run. Persist the appropriate side for an addition or
+from the completed run. Full and scoped repairs must commit either the
+finished diff or the protected before/after evidence needed to finish it
+idempotently with that result generation. Display or clear the repair
+reminder only according to its own state. A completed repair must retain
+the comparison across a crash, and retries must not replace a newer diff
+or recreate a dismissed one. Persist the appropriate side for an addition or
 removal and both sides for a change in a versioned diff. Include each
 producer's completion record on **both** sides, including an explicitly empty
 result. Compare membership only across two verified completions for that
@@ -261,7 +275,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   variant with a known coverage mask. Inject failure after the real coverage
   update and before alert storage. Verify the prior mask, findings and
   completion record after rollback. On retry verify the exact CPIC bit,
-  unchanged unrelated bits and matching new alerts and completion.
+  unchanged unrelated bits and matching new alerts and completion. Include
+  a previously assessed marker that the corrected scorer drops. Variant
+  list, detail and coverage filters must suppress its pending CPIC bit and
+  retain unrelated source bits. After retry verify the bit is cleared for
+  that marker and set for the newly assessed control.
   Generate both SVG markers through the production annotation path. Before
   the correction, request each ID and verify its expected SVG content.
   Once the correction advances the generation, both old links must expire.
@@ -298,11 +316,22 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   and a nonempty expected PMID list for the called non-Standard shared SNP
   in each order. A fully called `hom_ref` fixture scored as Standard must
   return a null recommendation and an empty per-SNP PMID list in both orders.
+  Seed one GWAS bit supported only by the panel being repaired and another
+  supported by two panels. Drop that panel's contribution to both, interrupt
+  publication and retry. Check stored contributions and variant API masks.
+  Only the shared marker retains GWAS coverage after repair.
 - Restore a pre-ancestry-first fixture, rerun the prerequisite and its
   dependent modules, then open it again. Check an unaffected module, empty
   results, failed prerequisites, concurrent readers and replacement of a
   sample with the same registry ID. A stale result must never be presented as
-  current through a secondary surface.
+  current through a secondary surface. Use a synthetic gout carrier whose
+  stored finding text and structured odds-ratio field differ between the
+  unknown-ancestry fallback and the fixture's inferred ancestry. Assert the
+  exact old values before upgrade,
+  withholding while pending, and the exact ancestry-specific values after
+  repair and reopen. A fully called `hom_ref` control must produce no
+  carrier finding. Keep the fixture and expected text tied to the same
+  reviewed panel revision.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
@@ -319,7 +348,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   to the analysis or uses neutral wording. With the shipped old and new
   clopidogrel records, verify a changed-action notice for the same finding
   identity, with current guidance and no superseded advice. Include a
-  wording-only control. Compare the same new finding
+  wording-only control. Interrupt a scoped repair after result replacement
+  and before banner publication. Restart and verify exactly one eligible
+  changed-action notice from the durably saved comparison. Compare the same new finding
   against a completed empty run and a producer with no verified prior run.
   Only the completed empty baseline should yield an addition, regardless of
   other producers' findings. Check the reverse transition to an empty run.
