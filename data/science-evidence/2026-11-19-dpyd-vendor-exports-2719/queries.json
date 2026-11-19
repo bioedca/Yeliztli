@@ -1,0 +1,14 @@
+{
+  "accessed_utc": "2026-11-19",
+  "consensus": "DPYD rs146356975 rs186169810 rs112766203 SNP microarray probe manufacturer 23andMe AncestryDNA raw data export coverage variant chip platform",
+  "scite": "\"DPYD\" AND (\"rs146356975\" OR \"rs186169810\" OR \"rs112766203\") AND (\"23andMe\" OR \"AncestryDNA\" OR \"microarray\")",
+  "entrez_platform_metadata": "(23andMe[Title] OR AncestryDNA[Title]) AND gpl[Entry Type]",
+  "manufacturer_searches": [
+    "23andMe AncestryDNA v2 genotyping chip marker list official Illumina 23andMe v3 v4 v5 DPYD probe manifest rs146356975 rs186169810 rs112766203 export",
+    "site:customercare.23andme.com chip versions v3 v4 v5 raw data i numbers raw data markers download variants tested",
+    "site:ancestry.com AncestryDNA genotyping array version 2 raw data SNPs strand markers covered custom OmniExpress GSA white paper",
+    "\"rs146356975\" OR \"rs186169810\" OR \"rs112766203\" site:23andme.org OR site:ancestry.com OR site:illumina.com marker",
+    "23andMe r8_g1 supplemental material Genotyping array platforms supplement technical overview release supplemental pdf v4 custom v5 GSA \"23andMe\" R8 genotyping platform supplemental methods"
+  ],
+  "clinical_report_search": "\"DPYD\" \"23andMe\" variants tested dihydropyrimidine dehydrogenase deficiency official rs146356975 reports"
+}

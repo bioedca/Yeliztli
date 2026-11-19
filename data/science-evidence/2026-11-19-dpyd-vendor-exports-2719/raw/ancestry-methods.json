@@ -1,0 +1,8 @@
+{
+  "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC5309710/fullTextXML",
+  "accessed_utc": "2026-11-19",
+  "source_sha256": "bfd78218fa51b2675279e54dc997fc8bd78e4f49f481ecfb8acc7b23faf895f6",
+  "doi": "10.1038/ncomms14238",
+  "scope": "Manufacturer-affiliated research methods, not a consumer export manifest",
+  "reported_array_family": "Illumina Human OmniExpress"
+}
