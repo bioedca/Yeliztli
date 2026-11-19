@@ -112,5 +112,51 @@
         ]
       }
     }
+  },
+  "grch37_sentinel": {
+    "/vep/human/region/21:46957794-46957794:1/C": {
+      "request": "https://grch37.rest.ensembl.org/vep/human/region/21:46957794-46957794:1/C?content-type=application%2Fjson&hgvs=1&transcript_version=1&canonical=1",
+      "accessed": "2026-11-19",
+      "selected_fields": {
+        "assembly_name": "GRCh37",
+        "seq_region_name": "21",
+        "start": 46957794,
+        "end": 46957794,
+        "strand": 1,
+        "allele_string": "T/C",
+        "transcript_consequences": [
+          {
+            "hgvsp": "ENSP00000308895.4:p.His27Arg",
+            "variant_allele": "C",
+            "strand": -1,
+            "canonical": 1,
+            "amino_acids": "H/R",
+            "transcript_id": "ENST00000311124.4",
+            "protein_end": 27,
+            "gene_id": "ENSG00000173638",
+            "cds_end": 80,
+            "hgvsc": "ENST00000311124.4:c.80A>G",
+            "cds_start": 80,
+            "protein_start": 27
+          }
+        ]
+      }
+    },
+    "/lookup/id/ENST00000311124": {
+      "request": "https://grch37.rest.ensembl.org/lookup/id/ENST00000311124?content-type=application%2Fjson",
+      "accessed": "2026-11-19",
+      "selected_fields": {
+        "id": "ENST00000311124",
+        "assembly_name": "GRCh37",
+        "Parent": "ENSG00000173638",
+        "start": 46933690,
+        "seq_region_name": "21",
+        "biotype": "protein_coding",
+        "end": 46962385,
+        "strand": -1,
+        "version": 4,
+        "display_name": "SLC19A1-001"
+      }
+    }
   }
 }

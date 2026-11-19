@@ -48,6 +48,8 @@ def probe(folder: Path, mode: str, case: str) -> dict:
     )
     with closing(sqlite3.connect(dest.as_uri() + "?mode=ro", uri=True)) as conn:
         rows = conn.execute("SELECT " + ", ".join(FIELDS) + " FROM vep_annotations").fetchall()
+    if rows != [observed_input]:
+        raise ValueError(f"{mode} failed to preserve the exact supplied {case} tuple")
     return {
         "mode": mode,
         "case": case,

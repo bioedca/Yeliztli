@@ -15,5 +15,16 @@
     "html_url": "https://github.com/bioedca/Yeliztli/releases/tag/bundle-v4.0.0",
     "published_at": "2026-07-02T02:18:24Z",
     "tag_name": "bundle-v4.0.0"
+  },
+  "downloaded_sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+  "legacy_catalog_projection": {
+    "legacy_sites": 102254,
+    "sites_matching_rsid": 101959,
+    "sites_matching_rsid_and_position": 101958,
+    "sites_without_matching_rsid_and_position": 296,
+    "sites_with_exact_unordered_allele_pair": 101958,
+    "release_rows_at_matching_sites": 169315,
+    "release_rows_with_protein_name": 4319,
+    "two_index_annotation_table_size_bytes": 19357696
   }
 }

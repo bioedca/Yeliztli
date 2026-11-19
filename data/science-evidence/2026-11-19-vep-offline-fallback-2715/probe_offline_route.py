@@ -6,8 +6,9 @@ import hashlib
 import json
 import os
 import sqlite3
+import sys
 import tempfile
-from contextlib import closing
+from contextlib import closing, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,9 +20,9 @@ def measure(directory: Path) -> dict:
     # Import the app only after the caller sets the isolated data directory.
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from sqlalchemy import select
+    from sqlalchemy import func, select
 
-    from backend.annotation.vep_bundle import annotate_sample_vep
+    from backend.api.routes.export import router as export_router
     from backend.api.routes.ingest import _vep_bundle_blocks_ancestrydna
     from backend.api.routes.variant_detail import router
     from backend.config import Settings
@@ -36,6 +37,7 @@ def measure(directory: Path) -> dict:
         annotated_variants,
         annotation_state,
         database_versions,
+        jobs,
         raw_variants,
         reference_metadata,
         samples,
@@ -46,8 +48,7 @@ def measure(directory: Path) -> dict:
     registry = DBRegistry(settings)
     bundle = DATABASES["vep_bundle"]
     path = settings.vep_bundle_db_path
-    sample_path = directory / "samples" / "sample_1.db"
-    sample_path.parent.mkdir(exist_ok=True)
+    (directory / "samples").mkdir(exist_ok=True)
     try:
         reference = registry.reference_engine
         reference_metadata.create_all(reference)
@@ -65,60 +66,109 @@ def measure(directory: Path) -> dict:
         with reference.connect() as conn:
             status_stamp = conn.scalar(version_query)
         effective = resolve_effective_vep_bundle_version(reference, path)
-        assert install_committed_bundle(bundle, settings)
+        if not install_committed_bundle(bundle, settings):
+            raise ValueError("Explicit fallback installation failed")
         with reference.begin() as conn:
             install_stamp = conn.scalar(version_query)
-            conn.execute(
-                samples.insert().values(
-                    id=1,
-                    name="synthetic",
-                    db_path="samples/sample_1.db",
-                    file_format="23andme_v5",
-                    file_hash="synthetic",
-                )
-            )
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro&immutable=1", uri=True)) as conn:
-            chrom, pos, ref, alt, protein = conn.execute(
-                "SELECT chrom,pos,ref,alt,hgvs_protein FROM vep_annotations WHERE rsid = ?",
+            chrom, pos, ref, alt, transcript, protein = conn.execute(
+                "SELECT chrom,pos,ref,alt,transcript_id,hgvs_protein "
+                "FROM vep_annotations WHERE rsid = ?",
                 (EXAMPLE,),
             ).fetchone()
-        sample = registry.get_sample_engine(sample_path)
-        with sample.begin() as conn:
-            # An artificial heterozygous call constructed solely from public reference alleles.
-            conn.execute(
-                raw_variants.insert().values(
-                    rsid=EXAMPLE, chrom=chrom, pos=pos, genotype=ref + alt
-                )
-            )
-        stats = annotate_sample_vep(sample, registry.vep_engine)
-        with sample.begin() as conn:
-            stored = conn.scalar(
-                select(annotated_variants.c.hgvs_protein).where(
-                    annotated_variants.c.rsid == EXAMPLE
-                )
-            )
-            conn.execute(
-                annotation_state.insert().values(key="vep_bundle_version", value=effective)
-            )
         app = FastAPI()
         app.include_router(router, prefix="/api")
+        app.include_router(export_router, prefix="/api")
+        controls = {}
         with patch.object(connection, "_registry", registry), TestClient(app) as client:
-            ok = client.get(f"/api/variants/{EXAMPLE}", params={"sample_id": 1})
-            absent = client.get("/api/variants/rsSyntheticAbsent", params={"sample_id": 1})
-        ok.raise_for_status()
-        body = ok.json()
+            from backend.tasks.huey_tasks import create_annotation_job, run_annotation_task
+
+            # Both calls are manufactured from the public worked example. The
+            # archived GRCh37 reference base is T. No person's data is an input.
+            for sample_id, (label, call) in enumerate(
+                [("heterozygous", ref + alt), ("reference_homozygous", "TT")], start=1
+            ):
+                relative_path = f"samples/sample_{sample_id}.db"
+                with reference.begin() as conn:
+                    conn.execute(
+                        samples.insert().values(
+                            id=sample_id,
+                            name=label,
+                            db_path=relative_path,
+                            file_format="23andme_v5",
+                            file_hash=f"synthetic-{sample_id}",
+                        )
+                    )
+                sample = registry.get_sample_engine(directory / relative_path)
+                with sample.begin() as conn:
+                    conn.execute(
+                        raw_variants.insert().values(
+                            rsid=EXAMPLE, chrom=chrom, pos=pos, genotype=call
+                        )
+                    )
+                job_id = create_annotation_job(sample_id)
+                run_annotation_task.call_local(sample_id, job_id)
+                with reference.connect() as conn:
+                    job_state = conn.scalar(select(jobs.c.status).where(jobs.c.job_id == job_id))
+                with sample.connect() as conn:
+                    stamp = conn.scalar(
+                        select(annotation_state.c.value).where(
+                            annotation_state.c.key == "vep_bundle_version"
+                        )
+                    )
+                    count = conn.scalar(select(func.count()).select_from(annotated_variants))
+                    stored = conn.execute(
+                        select(
+                            annotated_variants.c.ref,
+                            annotated_variants.c.alt,
+                            annotated_variants.c.zygosity,
+                            annotated_variants.c.hgvs_protein,
+                        ).where(annotated_variants.c.rsid == EXAMPLE)
+                    ).one()
+                if job_state not in {"complete", "partial"} or count != 1 or stamp != effective:
+                    raise ValueError(
+                        f"Unexpected historical annotation state: {job_state}, {count}, {stamp}"
+                    )
+                params = {"sample_id": sample_id}
+                ok = client.get(f"/api/variants/{EXAMPLE}", params=params)
+                absent = client.get("/api/variants/rsSyntheticAbsent", params=params)
+                ok.raise_for_status()
+                body = ok.json()
+                payload = {**params, "filter": {"combinator": "and", "rules": []}, "format": "vcf"}
+                exports = {}
+                for field, all_positions in [("carried", False), ("all_positions", True)]:
+                    resp = client.post(
+                        "/api/export/query",
+                        json={**payload, "include_all_positions": all_positions},
+                    )
+                    resp.raise_for_status()
+                    rows = [
+                        line.split("\t")
+                        for line in resp.text.splitlines()
+                        if not line.startswith("#")
+                    ]
+                    if any(len(row) != 10 or row[2] != EXAMPLE for row in rows):
+                        raise ValueError("Unexpected VCF records")
+                    exports[field] = [{"ref": row[3], "alt": row[4], "gt": row[9]} for row in rows]
+                controls[label] = {
+                    "job_state": job_state,
+                    "sample_annotation_stamp": stamp,
+                    "stored_rows": count,
+                    "stored": dict(stored._mapping),
+                    "primary_protein": body["hgvs_protein"],
+                    "live_transcript_proteins": [r["hgvs_protein"] for r in body["transcripts"]],
+                    "example_status": ok.status_code,
+                    "absent_status": absent.status_code,
+                    "exports": exports,
+                }
         return {
             "status_stamp": status_stamp,
             "effective_after_status": effective,
             "install_stamp": install_stamp,
             "ancestrydna_ingest_blocked": _vep_bundle_blocks_ancestrydna(reference, path)[0],
-            "annotation_rows_written": stats.rows_written,
+            "bundle_transcript": transcript,
             "bundle_protein": protein,
-            "stored_protein": stored,
-            "primary_protein": body["hgvs_protein"],
-            "live_transcript_proteins": [row["hgvs_protein"] for row in body["transcripts"]],
-            "example_status": ok.status_code,
-            "absent_status": absent.status_code,
+            "synthetic_controls": controls,
         }
     finally:
         registry.dispose_all()
@@ -134,4 +184,9 @@ if __name__ == "__main__":
                 "YELIZTLI_MANIFEST_PATH": str(Path("bundles/manifest.json").resolve()),
             },
         ):
-            print(json.dumps(measure(directory), indent=2))
+            with (
+                redirect_stdout(sys.stderr),
+                patch("socket.socket.connect", side_effect=OSError("Offline reproduction")),
+            ):
+                observed = measure(directory)
+            print(json.dumps(observed, indent=2))

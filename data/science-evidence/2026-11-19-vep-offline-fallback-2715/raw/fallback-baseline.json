@@ -24,14 +24,75 @@
     "effective_after_status": "v1.0.0",
     "install_stamp": "v1.0.0",
     "ancestrydna_ingest_blocked": true,
-    "annotation_rows_written": 1,
+    "bundle_transcript": "ENST00000311124",
     "bundle_protein": "p.Arg27His",
-    "stored_protein": "p.Arg27His",
-    "primary_protein": "p.Arg27His",
-    "live_transcript_proteins": [
-      "p.Arg27His"
-    ],
-    "example_status": 200,
-    "absent_status": 404
+    "synthetic_controls": {
+      "heterozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "C",
+          "alt": "T",
+          "zygosity": "het",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [
+          "p.Arg27His"
+        ],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "ref": "C",
+              "alt": "T",
+              "gt": "0/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "ref": "C",
+              "alt": "T",
+              "gt": "0/1"
+            }
+          ]
+        }
+      },
+      "reference_homozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "C",
+          "alt": "T",
+          "zygosity": "hom_alt",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [
+          "p.Arg27His"
+        ],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "ref": "C",
+              "alt": "T",
+              "gt": "1/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "ref": "C",
+              "alt": "T",
+              "gt": "1/1"
+            }
+          ]
+        }
+      }
+    }
   }
 }
