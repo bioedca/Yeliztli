@@ -23,7 +23,7 @@ fields independently so a valid diagnostic remains useful.
 | Free text, exception message, interpolated argument, unknown event or third-party message | Use a static fallback with approved context. Arbitrary strings cannot acquire permission through a familiar event name, a different log level or a caller's claim that they are safe. |
 | Exception or exception chain | Retain an approved class or reason category and, when needed, a bounded list of reviewed application frame identifiers. Map unknown or dynamically named classes to a generic category. Exclude stringification, messages and notes, locals, paths, source lines and unreviewed chained context. |
 | Counts, timing, status, component and operation | Retain only when explicitly allowed for that event and safe under its disclosure policy. Reject invalid types, unexpected nested keys, unbounded values and user-controlled identifiers. A public-looking gene, filename or count can still disclose a private association. |
-| Withheld or restricted analysis | Preserve the stricter existing neutral-event rule. No site, gene, drug, sample identity or result-specific count may be reconstructed through text, error type, component, stack frames, filters or aggregate counts. |
+| Withheld or restricted analysis | Suppress individual result events at both sinks. If an operator needs confirmation that an operation ran, its trusted producer may emit one neutral event per operation under the same rule for zero, one or many restricted results. Apply that rule to retries, severities and summary fields as well as message text. |
 | Legacy and independently managed output | Keep an explicit new presentation-policy revision. Query only eligible rows before filtering, counting or pagination. Never relabel old serialized text as newly verified. Existing database rows, backups and service logs have their own retention lifecycle. |
 
 Choose a **structured allowlist plus reviewed templates**. Trying to remove
@@ -31,10 +31,10 @@ recognizable sensitive patterns from arbitrary text cannot establish that
 the remainder is safe. Omitting every message would also discard approved
 instructions that distinguish a retryable problem from an installation
 problem. A permissive developer console would put raw values back into
-durable service logs. This resolves the conflicting acceptance language in
-#2459: preserve complete explanations for known safe cases and a useful
-category for unknown ones. Arbitrary apparently harmless exception strings
-need explicit approval before becoming durable output.
+durable service logs. Under the proposed resolution of
+[issue #2459](https://github.com/bioedca/Yeliztli/issues/2459), known
+events retain their approved explanations and unknown events receive a
+safe category. Only reviewed templates can supply durable explanatory text.
 
 ## Boundaries and migration
 
@@ -49,6 +49,15 @@ Keep the strict final check at each output boundary. The logging operation
 must not raise into the application or print the rejected input on its
 own error path.
 
+The console guarantee covers the shipped API and worker entrypoints and
+all handlers they configure, including the queue consumer's own handler.
+Pass a safe event to every application-controlled destination before any
+handler formats it. An additional handler attached by a host may receive
+only the safe form of application events, or propagation must stop before
+reaching it. Keep other applications' logging configuration intact. Direct
+output by independently launched tools and historical service logs are
+outside this policy. Document those boundaries in operator guidance.
+
 Register trusted producers, event IDs, approved templates, field validators
 and ownership in application code. A free-form third-party message equal to
 template text is still a free-form message. For standard-library call sites,
@@ -60,7 +69,11 @@ know the storage area, supply a reviewed category such as â€œapplication cache.â
 
 Coordinate the writer revision and the database/API read policy, including
 existing installations, workers started without the API, older schemas,
-mixed-version processes, and restored backups. A process unable to attest
+mixed-version processes, and restored backups. At cutover, stop serving the
+Log Explorer until every serving API reader enforces the new revision.
+Drain old readers and workers and check each replacement before reopening
+access. A reader whose policy cannot be verified stays out of service,
+including after restart or rollback. A process unable to attest
 the current policy cannot create patient-presentable entries. A missing,
 old or unrecognized marker must withhold old content from search, result
 counts and excerpts. Keep the current log schema compatible where possible
@@ -82,14 +95,25 @@ and captured console output.
    nested metadata, path, chained exception and diagnostic object. Assert it
    is absent from stored message and JSON, console, explorer search and
    counts. Verify stable reason and component still reach both sinks.
-3. For the existing restricted-event fixture, require its neutral output on
-   both routes even when a normally approved template or category is supplied.
-   Check normal events remain discoverable. Invalid fields, malformed records
-   and failures in logging itself cannot cause fallback to the original text.
+3. Run the same operation with zero, one and several synthetic restricted
+   results. Hold public inputs and retry count fixed. Compare emitted event
+   counts and approved content across the database, captured console and
+   Explorer filters, totals and pages. An allowed template cannot override
+   suppression. A separate normal event remains discoverable.
 4. Verify repeated configuration produces one event, worker-only bootstrap
    uses the same policy, and a restored legacy row cannot be exposed by a
    search match or count. Preserve existing noncreation behavior when the
-   database was removed. Use synthetic inputs throughout.
+   database was removed. Exercise a harmless failing task in the shipped
+   worker process with the consumer handler enabled. Capture its complete
+   console and verify the safe category also reaches the expected sink.
+   Repeat with an additional standard-library handler observing application
+   events. Confirm each permitted diagnostic appears the intended number
+   of times and failures in logging itself preserve the same content rule.
+5. Start with an old reader and writer and a synthetic historical row. Test
+   cutover with that reader still running. No client may reach it once the
+   new policy becomes active. The new reader returns only eligible entries
+   and their counts. Restoring the fixture or restarting an old process
+   must not reopen the old presentation path.
 
 Approval is requested for the common content policy, the safe-template
 exception and the treatment of historical rows before #2459 changes logging.
