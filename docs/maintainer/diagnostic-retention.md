@@ -130,9 +130,13 @@ existing installations, workers started without the API, older schemas,
 mixed-version processes, and restored backups. At cutover, stop serving the
 Log Explorer until every serving API reader enforces the new revision.
 Drain old readers and workers and check each replacement before reopening
-access. Apply this admission rule at the managed service entrypoint on
-every start, restart and rollback. A reader must qualify before serving
-requests and a worker before consuming tasks or emitting task diagnostics.
+access. Enforce admission on every managed start, restart and rollback.
+The authority controlling access to the active data and queue must survive
+replacement of the release, launcher and its configuration. Where a
+deployment cannot provide that guarantee, support rollback only into an
+isolated environment with no access to the active service, data or queue.
+A reader must qualify before serving requests and a worker before consuming
+tasks or emitting task diagnostics.
 Older binaries cannot grant themselves admission. A process unable to attest
 the current policy cannot create patient-presentable entries. A missing,
 old or unrecognized marker must withhold old content from search, result
@@ -218,6 +222,11 @@ short-circuit as soon as they know the final disposition.
   its consumer handler enabled. Require the expected safe category. Have
   a test dependency write distinctive harmless bytes directly to stdout
   and stderr. Neither stream nor the database may retain those bytes.
+  Separately exercise a worker task that collects a helper's output and
+  reports a failure. Use a synthetic helper that emits a marker and exits
+  unsuccessfully. Require the task's failure outcome and approved category.
+  Neither forwarded nor inherited output may expose the marker in the
+  worker console, new log rows or Explorer.
 - Attach an observing standard-library handler. Inspect what reaches it
   before formatting. Require zero delivery or solely the approved record,
   including arguments, exception state and extras. Verify repeated
@@ -252,9 +261,13 @@ short-circuit as soon as they know the final disposition.
   restorable. In the new session, check first paint, loading states, Back
   navigation and a delayed reply from the prior revision. No navigation
   can restore an old document. Only eligible rows and totals may appear.
-- Queue a harmless task and attempt to start an old worker through the
-  managed service. The task stays queued without task output until a
-  compatible worker runs it once and emits its approved diagnostic.
+- Queue a harmless task and exercise both an old worker under the new
+  launcher and a full rollback of the API, worker and launch configuration,
+  including the image and service definition for a Compose deployment. Neither old
+  process may serve the active Explorer, access its data or consume the
+  queued task. Check the supported isolated rollback where external
+  admission is unavailable. The task stays queued without task output
+  until a compatible worker runs it once and emits its approved diagnostic.
   Repeat the cutover with manually launched API and worker processes.
   Only replacements may serve the active data and consume the queued task.
 
