@@ -26,6 +26,17 @@ fields independently so a valid diagnostic remains useful.
 | Withheld or restricted analysis | Suppress individual result events at both sinks. If an operator needs confirmation that an operation ran, its trusted producer may emit one neutral event per operation under the same rule for zero, one or many restricted results. Apply that rule to retries, severities and summary fields as well as message text. |
 | Legacy and independently managed output | Keep an explicit new presentation-policy revision. Query only eligible rows before filtering, counting or pagination. Never relabel old serialized text as newly verified. Existing database rows, backups and service logs have their own retention lifecycle. |
 
+Keep the existing standalone exception contract. One independently
+occurring operational failure whose diagnostic is restricted produces one
+`clinical_guidance_withheld` record containing only its approved neutral
+marker, with the current policy revision. Keep
+`test_configured_logging_redacts_held_exception_text` unchanged as its
+regression. Enforce the separate result-count rule at the producer, before
+it calls the logger for a result. A result-dependent occurrence cannot
+become an independent operational failure just by using an exception API.
+The zero/one/many test covers the producer and the existing test covers
+the safe representation of a failure that actually occurred.
+
 Choose a **structured allowlist plus reviewed templates**. Trying to remove
 recognizable sensitive patterns from arbitrary text cannot establish that
 the remainder is safe. Omitting every message would also discard approved
@@ -50,7 +61,8 @@ must not raise into the application or print the rejected input on its
 own error path.
 
 The console guarantee covers the shipped API and worker entrypoints and
-all handlers they configure, including the queue consumer's own handler.
+all handlers they configure, including the server's access and error
+handlers and the queue consumer's own handler.
 Pass a safe event to every application-controlled destination before any
 handler formats it. An additional handler attached by a host may receive
 only the safe form of application events, or propagation must stop before
@@ -109,6 +121,11 @@ and captured console output.
    Repeat with an additional standard-library handler observing application
    events. Confirm each permitted diagnostic appears the intended number
    of times and failures in logging itself preserve the same content rule.
+   Start the shipped API server as a process as well. Exercise an ordinary
+   Log Explorer search with a synthetic query value and a benign failed
+   request. Capture complete stdout and stderr. Verify the approved
+   operation and status are useful and the unapproved query value is
+   absent from both console streams and durable diagnostics.
 5. Start with an old reader and writer and a synthetic historical row. Test
    cutover with that reader still running. No client may reach it once the
    new policy becomes active. The new reader returns only eligible entries
