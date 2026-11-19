@@ -2,8 +2,11 @@
 
 **Proposed policy for #2710 and #2459.** An operator needs to identify the
 failed operation and an appropriate next step without exposing the person's
-inputs or analysis results. Apply one content policy before the application
-writes to its database or renders the API and worker consoles. Normal
+inputs or analysis results. Apply one content policy before writing an
+operator log entry to `log_entries` or rendering the shipped API and
+worker consoles. The database scope includes presentation through the Log
+Explorer. Product job-status records, API error responses and support-file
+contents have separate contracts and require their own review. Normal
 developer output can be captured by a service manager or included in a
 support report, so the same content rules apply there.
 
@@ -71,7 +74,10 @@ output by independently launched tools and historical service logs are
 outside this policy. Document those boundaries in operator guidance.
 
 Register trusted producers, event IDs, approved templates, field validators
-and ownership in application code. A free-form third-party message equal to
+and ownership in application code. Route approved events through their
+registered producer's typed interface. Treat a claimed producer field,
+logger name or event ID on an ordinary record as untrusted input.
+A free-form third-party message equal to
 template text is still a free-form message. For standard-library call sites,
 migrate useful operator messages to fixed templates with explicitly typed
 arguments. Messages already formatted before the bridge need the fallback
@@ -84,8 +90,10 @@ existing installations, workers started without the API, older schemas,
 mixed-version processes, and restored backups. At cutover, stop serving the
 Log Explorer until every serving API reader enforces the new revision.
 Drain old readers and workers and check each replacement before reopening
-access. A reader whose policy cannot be verified stays out of service,
-including after restart or rollback. A process unable to attest
+access. Apply this admission rule at the managed service entrypoint on
+every start, restart and rollback. A reader must qualify before serving
+requests and a worker before consuming tasks or emitting task diagnostics.
+Older binaries cannot grant themselves admission. A process unable to attest
 the current policy cannot create patient-presentable entries. A missing,
 old or unrecognized marker must withhold old content from search, result
 counts and excerpts. Keep the current log schema compatible where possible
@@ -103,6 +111,10 @@ and captured console output.
 1. Trigger two distinct approved failure categories and an unknown exception.
    Assert exact helpful messages and allowed fields for the known cases.
    Require a nonempty generic event for the unknown case.
+   Send the same registered event ID and valid fields through its authorized
+   interface and through an ordinary third-party record. Require the approved
+   template only for the authorized event and the safe fallback for the other
+   in both the database and the console.
 2. Put a synthetic opaque sentinel in free text, a formatting argument,
    nested metadata, path, chained exception and diagnostic object. Assert it
    is absent from stored message and JSON, console, explorer search and
@@ -130,7 +142,11 @@ and captured console output.
    cutover with that reader still running. No client may reach it once the
    new policy becomes active. The new reader returns only eligible entries
    and their counts. Restoring the fixture or restarting an old process
-   must not reopen the old presentation path.
+   must not reopen the old presentation path. Queue a harmless synthetic
+   task and attempt to restart an old worker under the managed service.
+   Require the task to remain unconsumed and no task output to be emitted
+   until a compatible worker starts. Then require one completed task and
+   only its approved diagnostic.
 
 Approval is requested for the common content policy, the safe-template
 exception and the treatment of historical rows before #2459 changes logging.
