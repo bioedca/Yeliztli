@@ -103,11 +103,15 @@ processed row with mask zero and a processed row with verified VEP and
 pending CPIC. The `:null` view still identifies unannotated rows. Exclude
 a pending source from that source's positive and negative predicates only.
 
-Give each installed copy of a sample a fresh identity on restore or
-replacement, even when its registry ID, content hash, path and creation
-time are preserved. The registry identifies each installed copy. Bind
+Give each installed copy of a sample a fresh identity and a distinct
+physical database path on restore or replacement. An archive may preserve
+the original numeric ID, content hash, source path and creation time.
+Bind the new identity to its verified physical file in the registry. Bind
 writers, links, reminders and dismissals to that identity before comparing
-revisions. On replacement, retire the superseded copy as part of the switch.
+revisions. On replacement, atomically repoint the registry and retire the
+superseded copy. Fence old operations, drain handles and dispose of its
+cached engines before retiring its storage. Never reuse a live or cached
+path for the replacement.
 On a side-by-side restore, the importer assigns a distinct ID and path on
 collision. Keep both copies active and fence writes by each copy's own
 identity. Issue the restore retry key before upload. Give each request
@@ -662,6 +666,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Restore an older backup keeping the same registry metadata and a lower
   local counter. Its new copy identity must permit a legitimate reminder
   and reject late writes, reads and dismissals for the retired copy.
+  Warm the old sample's connection pool and keep a reader open across the
+  logical switch. Give the two copies different synthetic findings. A new
+  request must read only the replacement, and the retired handle must
+  never publish a result or return one for the replacement.
   Separately import that backup alongside its original using the real
   collision-handling path. Verify each registry entry opens its own
   findings and links, accepts its own writes and maintains its own
@@ -753,9 +761,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   The scoring receipt must survive application shutdown. In a fresh process
   the changed input must reopen stale. With unchanged inputs the stored
   result and its fixture percentile must reopen current before any rerun.
-  The executable unchanged case uses SQLite's rollback journal. Also
-  exercise a score recorded with committed frequency updates still in a
-  write-ahead log (WAL). Checkpoint those pages and close the last writer
+  The unchanged controls check SQLite write-ahead log (WAL) mode with no
+  outstanding WAL frames. The gnomAD release label stays the same for both
+  unchanged and changed inputs. Also exercise a score recorded with
+  committed frequency updates still in the WAL. Checkpoint those pages and close the last writer
   without changing the values. The proposed content revision must survive
   that shutdown. In a synthetic checkpoint the existing file-and-WAL
   fingerprint conservatively reported stale, and recalculation returned

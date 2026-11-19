@@ -37,6 +37,7 @@ from backend.db.tables import (
     annotated_variants,
     annotation_state,
     clinvar_variants,
+    database_versions,
     findings,
     imputed_variants,
     raw_variants,
@@ -487,6 +488,7 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
             isolate_data_home(isolated, data_dir)
             from backend.db.connection import get_registry
             from backend.main import app
+            from backend.services.reference_versions import read_current_reference_snapshot
 
             with TestClient(app) as client:
                 registry = get_registry()
@@ -508,8 +510,20 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                     client, registry, sample, registry.reference_engine, "match"
                 )
                 inputs_before_rerun = _bmi_input_generations(sample)
+                release = read_current_reference_snapshot(registry.reference_engine)["gnomad"]
+                frequency_path = registry.settings.gnomad_db_path
+                with closing(sqlite3.connect(frequency_path)) as frequencies:
+                    journal_mode = frequencies.execute("PRAGMA journal_mode").fetchone()[0]
+                wal = frequency_path.with_name(frequency_path.name + "-wal")
+                wal_size = wal.stat().st_size if wal.exists() else 0
                 result = _run_positional_bmi(reopened)
-                return {**result, "input_generations_before_rerun": inputs_before_rerun}
+                return {
+                    **result,
+                    "input_generations_before_rerun": inputs_before_rerun,
+                    "frequency_release": release,
+                    "frequency_journal_mode": journal_mode,
+                    "frequency_wal_bytes": wal_size,
+                }
     finally:
         attempted = _no_network.end()
         assert not attempted, f"Restart worker attempted network access: {attempted}"
@@ -517,32 +531,35 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
-    ("typed_alleles", "expected_imputed", "frequency_changed"),
-    [
-        pytest.param(None, 1, True, id="imputed-dosage"),
-        pytest.param(("A", None), 0, True, id="typed-dosage-incomplete-alleles"),
-        pytest.param(None, 1, False, id="unchanged-frequency"),
-    ],
+    ("typed_second", "expected_imputed"),
+    [pytest.param(False, 1, id="imputed"), pytest.param(True, 0, id="typed-incomplete")],
 )
+@pytest.mark.parametrize("frequency_changed", [True, False], ids=["changed", "unchanged"])
 def test_positional_bmi_reopens_with_durable_scoring_state(
     positional_bmi: _Environment,
-    typed_alleles: tuple[str, str | None] | None,
+    typed_second: bool,
     expected_imputed: int,
     frequency_changed: bool,
 ) -> None:
-    if typed_alleles is not None:
-        _add_typed_second_locus(positional_bmi, typed_alleles)
-    else:
-        _seed_bmi_raw_calls(positional_bmi, both_typed=False)
-        _annotate_bmi_with_controlled_ancestry(positional_bmi, 1)
-        _publish_bmi_imputation(positional_bmi, 1.0)
+    with positional_bmi.reference.begin() as conn:
+        conn.execute(
+            database_versions.insert().values(
+                db_name="gnomad", version="synthetic-frequency-release", genome_build="GRCh37"
+            )
+        )
+    _seed_bmi_raw_calls(positional_bmi, both_typed=typed_second, second_identity=False)
+    _annotate_bmi_with_controlled_ancestry(positional_bmi, 2 if typed_second else 1)
+    _publish_bmi_imputation(positional_bmi, 0.25 if typed_second else 1.0)
+    if typed_second:
+        with positional_bmi.sample.connect() as conn:
+            c = annotated_variants.c
+            typed = conn.execute(
+                sa.select(c.genotype, c.ref, c.alt).where(c.rsid == "SYN_TYPED_SECOND")
+            ).one()
+        assert typed == ("AG", None, None)
     published = _bmi_input_generations(positional_bmi.sample)
-    if typed_alleles is None:
-        assert set(published) == {
-            ANNOTATED_VARIANTS_GENERATION_KEY,
-            IMPUTED_VARIANTS_GENERATION_KEY,
-        }
-    assert published and all(published.values())
+    assert set(published) == {ANNOTATED_VARIANTS_GENERATION_KEY, IMPUTED_VARIANTS_GENERATION_KEY}
+    assert all(published.values())
     data_dir = positional_bmi.registry.settings.data_dir
     positional_bmi.client.close()
     positional_bmi.registry.dispose_all()
@@ -559,6 +576,13 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
         )
     for run in (original, repaired):
         assert run["input_generations_before_rerun"] == published
+        assert run["frequency_release"] == {
+            "version": "synthetic-frequency-release",
+            "genome_build": "GRCh37",
+        }
+        assert run["frequency_journal_mode"] == "wal"
+        if not frequency_changed:
+            assert run["frequency_wal_bytes"] == 0
         assert run["calibrated"] is True
         assert run["stored_score"] == 3.0
         assert run["snps_used_imputed"] == expected_imputed
@@ -574,14 +598,14 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
 
 
-def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool) -> None:
+def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool, second_identity: bool) -> None:
     loci = [{"rsid": "SYN_TYPED", "chrom": "2", "pos": 500, "ref": "C", "alt": "T"}]
     calls = ["TT"]
     if both_typed:
         loci.append({"rsid": "SYN_TYPED_SECOND", "chrom": "1", "pos": 999, "ref": "A", "alt": "G"})
         calls.append("AG")
     with env.reference.begin() as conn:
-        conn.execute(clinvar_variants.insert(), loci)
+        conn.execute(clinvar_variants.insert(), loci if second_identity else loci[:1])
     with env.sample.begin() as conn:
         conn.execute(
             raw_variants.insert(),
@@ -649,7 +673,7 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
     positional_bmi: _Environment,
 ) -> None:
     env = positional_bmi
-    _seed_bmi_raw_calls(env, both_typed=True)
+    _seed_bmi_raw_calls(env, both_typed=True, second_identity=True)
     with env.sample.begin() as conn:
         # Neither locus may obtain alleles or frequencies through imputation.
         assert conn.execute(imputed_variants.delete()).rowcount == 1
