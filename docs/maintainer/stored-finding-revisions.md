@@ -384,7 +384,12 @@ in-flight writes on every installed sample from the start of the operation.
 Clients already displaying those results follow the same notification rules.
 After a restart, check the complete installed set against the current
 intent. Finish a partial switch from verified staging, or restore the
-whole prior set when completion is impossible. Keep dependent results
+whole prior set when completion is impossible. For each SQLite switch or rollback,
+use the exclusive publication lease and checkpoint-or-refuse rule of
+`backend.db.standalone.publish_standalone`. Drain reference readers,
+including health probes, and preserve committed journal contents. If the
+destination cannot be checkpointed or its journals safely closed, leave
+the installed member intact and retry under the same operation. Keep results
 pending if neither complete set can be verified. Clear the shared fence
 only after verifying one complete set and durably recording its outcome
 and replayable notice. Reconcile each dependent sample by publication ID
@@ -812,7 +817,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   between their file replacements and reopen an existing sample. Keep
   its score pending throughout recovery. Exercise both completion and
   rollback, comparing each with scoring against the corresponding complete
-  reference set. An unrelated producer remains available.
+  reference set. Hold a reference reader open with committed WAL contents.
+  Verify that a switch or rollback preserves the installed member and its
+  committed data until the reader drains. After release, retry and verify
+  the complete target set. An unrelated producer remains available.
   Check two independent restore operations using different synthetic
   archives. Each must publish exactly the contents identified by its own
   digest and release only its own resources. During a same-key retry,
