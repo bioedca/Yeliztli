@@ -142,9 +142,11 @@ data directory and task queue. If the operator cannot establish which
 processes have access, the new policy is not yet active. A rollback uses
 an isolated compatible environment and requires its own explicit policy
 decision before it can serve operator logs again.
-Close or reload open Log Explorer sessions during cutover and clear their
-cached rows, totals and filters before displaying the new revision. A
-client that cannot establish the current revision must reopen the Explorer.
+At cutover, retire the old Explorer revision across the entire client,
+including inactive views and cached filter queries. Clear its rows, totals
+and filter selections. Only a response for the verified current revision
+may populate or render a view, even when an older request completes late.
+A client that cannot establish the current revision must reopen the Explorer.
 Previously exported information has its own retention lifecycle.
 
 ## Synthetic acceptance cases
@@ -165,11 +167,12 @@ and captured console output.
    trusted interface and require “Operation failed” with its approved
    component. With a valid reason and an out-of-range optional retry count,
    require the approved explanation at both sinks and no count.
-   For an ordinary nonrestricted failure, use a fixed log message and put
-   a harmless unique test value only in the exception's own text. Run the
-   native and standard-library exception paths separately. Require the
-   approved failure category and verify the test value is absent from
-   every column of every new row, the Explorer and both console streams.
+   For an ordinary nonrestricted failure, use a fixed log message and
+   distinct harmless markers for the exception text, raising file and
+   source line. Run the native and standard-library exception paths
+   separately. Require the approved category and the exact reviewed frame
+   identifiers, if any. None of the markers may appear in any column of
+   any new row, the Explorer or either console stream.
 2. With safely inspectable, nonrestricted primitive text, put an unapproved
    test value in the message, nested metadata and path. Require the approved
    fallback reason and component at both sinks, and no test value in stored
@@ -205,9 +208,11 @@ and captured console output.
    Have a test dependency write benign distinctive bytes directly to the
    worker's stderr. They must appear in neither captured service output
    nor the database, while the approved task diagnostic remains visible.
-   Repeat with an additional standard-library handler observing application
-   events. Confirm each permitted diagnostic appears the intended number
-   of times and failures in logging itself preserve the same content rule.
+   With an additional standard-library handler, inspect each record at
+   delivery, before formatting. Require either zero deliveries or exactly
+   the approved content, including arguments, exception state and extras.
+   Check the expected event count at each sink and apply the same content
+   rule to failures in logging itself.
    Start the shipped API server as a process as well. Exercise an ordinary
    Log Explorer search with a synthetic query value for access logging.
    Separately inject a harmless application exception in an isolated test
@@ -228,10 +233,12 @@ and captured console output.
    cutover with that reader still running. No client may reach it once the
    new policy becomes active. The new reader returns only eligible entries
    and their counts. Restoring the fixture or restarting an old process
-   must not reopen the old presentation path. Warm an Explorer tab before
-   cutover and verify its old rows and totals are cleared before the new
-   session displays its first results. Queue a harmless synthetic
-   task and attempt to restart an old worker under the managed service.
+   must not reopen the old presentation path. Warm two filtered Explorer
+   views. Leave one visible and navigate away from the other. Across
+   cutover, first paint on return, and a delayed old response, require
+   only current-revision rows and totals, even while loading. Queue a
+   harmless synthetic task and attempt to restart an old worker under the
+   managed service.
    Require the task to remain unconsumed and no task output to be emitted
    until a compatible worker starts. Then require one completed task and
    only its approved diagnostic.
