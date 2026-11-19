@@ -59,6 +59,11 @@ source as pending. Show “no sources covered” only when absence is known for
 all relevant sources. Version the API representation. A client that has
 not negotiated pending coverage must receive an upgrade-required response
 without variant data whenever the response could contain a pending source.
+For a streamed export, pin the sample copy and read snapshot, check the
+client's capability and open the export cursor before sending headers.
+Stream every batch from that snapshot and release it on completion,
+failure or disconnect. A request that fails the check returns the
+upgrade response before any download begins.
 The legacy tooltip treats both zero and null as confirmed absence. Test a
 legacy client and a current client on the same pending-only and mixed rows.
 Before activating this protocol on an existing installation, close the old
@@ -329,10 +334,11 @@ and the generated PDF. If a selected, disclosable analysis is pending,
 include a generic notice in the document itself and qualify its totals,
 even when that analysis contributes no section. Apply the same disclosure
 decision to the notice, counts, ordering and section titles.
-Populate the Report Builder picker and its “Select all” action from
-eligible findings and independently disclosable pending analyses. A
-pending-only module remains selectable with zero eligible findings. Never
-expose a hidden module through the picker or its totals.
+Populate the Report Builder picker and “Select all” from eligible findings
+and independently disclosable pending or completed analyses. A module with
+zero eligible findings remains selectable while pending and after verified
+empty completion. An unassessed module has no completion record. Apply
+the same disclosure rule to names, counts and selection.
 Unscoped FHIR export follows the same disclosure rule as its preflight.
 Include a carried variant only when its eligibility is established. A
 pending or legacy analysis can change membership even when its stored
@@ -377,6 +383,10 @@ result generation. Advance and notify clients on correction registration,
 dependency invalidation, result publication or disclosure change. For a
 change within one database, commit the invalidation and a durable change
 notice in its transaction.
+For an individual's aggregate, also track the registry revision of its
+linked sample copies. Advance it with each membership change and notify
+each affected individual. Refresh membership before subscribing to sample
+summaries. Discard late counts and rows from an older membership revision.
 
 A reference publication can replace several files across many samples.
 Before changing any file, durably record one publication ID, the old and
@@ -854,6 +864,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   incomplete notice and current findings in each. Compare with a verified
   empty PGx run and a reason hidden by disclosure. Neither adds a pending
   notice, a section or a count that could disclose withheld membership.
+  After the empty rerun, reopen Report Builder with a fresh selection.
+  Select the completed module alone and through “Select all”. Its own
+  preflight shows verified absence. A hidden completion stays out of both.
 - Warm the shipped legacy client on the drug and coverage pages before
   upgrading the backend. Retire those tabs before activating the correction.
   Reopen on the current client and verify pending results on both pages.
@@ -870,6 +883,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Replace that copy before either request arrives. Verify both are
   rejected before a job or result is created. Select the replacement
   explicitly and verify its own rerun succeeds.
+- Exercise CSV, TSV and JSON through the export route. Register a correction
+  before the export pins its snapshot. A legacy request must return the
+  upgrade response before sending headers for a download. A current client
+  gets the pending representation. Register the correction after the
+  snapshot is pinned and verify every batch describes the same generation.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only
@@ -878,6 +896,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   On mount and reconnect, commit a correction between the first GET and
   subscription establishment. Without another navigation, verify the view
   discards the earlier generation and displays the eligible result.
+  With two Individuals views open, unlink a synthetic sample from one
+  individual and link it to the other without changing its findings.
+  Verify both header counts, linked samples and summary rows after each
+  change, including after an earlier summary response arrives. An
+  unrelated individual's counts and rows stay unchanged.
 - Generate diffs with the production snapshot, comparison and persistence
   paths. Open an undismissed legacy diff and its new-format equivalent,
   each containing a stale added prescribing alert and one entry whose
