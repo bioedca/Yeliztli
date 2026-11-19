@@ -1,0 +1,19 @@
+{
+  "accessed": "2026-11-19",
+  "request": "https://api.github.com/repos/bioedca/Yeliztli/releases/tags/bundle-v4.0.0",
+  "selected_fields": {
+    "assets": [
+      {
+        "browser_download_url": "https://github.com/bioedca/Yeliztli/releases/download/bundle-v4.0.0/vep_bundle.db",
+        "digest": "sha256:c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+        "id": 463821245,
+        "name": "vep_bundle.db",
+        "size": 352251904
+      }
+    ],
+    "draft": false,
+    "html_url": "https://github.com/bioedca/Yeliztli/releases/tag/bundle-v4.0.0",
+    "published_at": "2026-07-02T02:18:24Z",
+    "tag_name": "bundle-v4.0.0"
+  }
+}

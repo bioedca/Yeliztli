@@ -161,6 +161,7 @@ nav:
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
       - DPYD vendor export coverage: maintainer/dpyd-vendor-export-coverage.md
       - Bundle build & release: bundle-release-runbook.md
+      - Offline VEP annotations: maintainer/vep-offline-fallback.md
       - External inputs strategy: external-inputs-strategy.md
       - LAI bundle: maintainer/lai-bundle.md
       - LAI coverage calibration: maintainer/lai-coverage-calibration.md

@@ -1,0 +1,37 @@
+{
+  "base_commit": "4e6788efa6c5a7e888a09cd3ee8aec3c4bf141ea",
+  "git_blob": "ec58414f860f16509e4b87c045aff353022df497",
+  "sha256": "1786b5bc1a6f5a0440239f40d5f5ac69d15ce213015a9cbf11affa05bbedfff0",
+  "size_bytes": 11374592,
+  "counts": {
+    "rows": 102254,
+    "distinct_rsids": 102254,
+    "single_base": 102254,
+    "single_base_ref_before_alt": 102254,
+    "coding_rows": 28147,
+    "protein_rows": 2742
+  },
+  "bundle_metadata": {
+    "build_date": "2026-04-03",
+    "ensembl_version": "112",
+    "schema_version": "1",
+    "variant_count": "102254"
+  },
+  "wheel": "yeliztli-0.2.0-py3-none-any.whl",
+  "wheel_members_named_vep_bundle_db": [],
+  "isolated_route": {
+    "status_stamp": null,
+    "effective_after_status": "v1.0.0",
+    "install_stamp": "v1.0.0",
+    "ancestrydna_ingest_blocked": true,
+    "annotation_rows_written": 1,
+    "bundle_protein": "p.Arg27His",
+    "stored_protein": "p.Arg27His",
+    "primary_protein": "p.Arg27His",
+    "live_transcript_proteins": [
+      "p.Arg27His"
+    ],
+    "example_status": 200,
+    "absent_status": 404
+  }
+}
