@@ -65,6 +65,15 @@ Before activating this protocol on an existing installation, close the old
 application windows and browser tabs, then reopen them on the current
 client. An already-open legacy tab can keep a cached finding indefinitely
 without making a request. Treat this as a coordinated upgrade prerequisite.
+Retire old backend processes and their launch configuration as well. The
+supported launcher or an external storage boundary must keep an older
+reader or writer away from lifecycle-managed samples, including after a
+service or container rollback. If that boundary cannot survive a downgrade,
+run the old release only against an isolated compatible pre-upgrade backup,
+with separate references and queue. Preserve the upgraded installation for
+recovery. Keep the backup out of patient-facing reads and exports until its
+eligibility can be verified. Opening an upgraded sample in place with an
+older release is unsafe.
 In the SQL console and SQL export, expose a nullable
 predicate for each source. It returns true for verified coverage, false for
 verified absence and SQL NULL for pending or unassessed coverage. Expose
@@ -112,11 +121,14 @@ Capture the imputed-variants token even when an applicable positional lookup
 returned no rows. Models that cannot consult this table need no imputation
 dependency. Reject publication if an input token changed during scoring,
 including a dosage replacement that leaves the annotated table untouched.
-Record reference artifacts and supporting results actually used by the
-producer. For PRS calibration this includes the installed `gnomad_af.db`
-when it supplies a frequency or its absence affects calibration, the score weights,
-and the relevant ancestry and monogenic findings. Record a verified version
-of each artifact that changes on content replacement, including committed
+Record reference artifacts and supporting results that affected the
+outcome. For PRS calibration this includes the score weights, the relevant
+ancestry and monogenic findings, and each applicable frequency lookup.
+Record a verified revision of the installed `gnomad_af.db` even if no
+matching allele row or usable population frequency was found. If the
+store was missing, record that distinct state. A new match can change a
+previously uncalibrated score while the sample stays identical. Record a
+verified version of each artifact that changes on content replacement, including committed
 database updates, even if its upstream label is unchanged. A trusted
 publication or content revision must distinguish different scoring inputs
 even when filesystem metadata agrees. Use the existing
@@ -315,11 +327,28 @@ medication report on a legacy client with all variant coverage bits resolved.
 Compatible clients should still see the eligible effects and incomplete count.
 
 Cache identity must include the verified sample identity and its published
-result generation. Advance and notify clients whenever eligibility changes:
-on correction registration, dependency invalidation, result publication or
-disclosure change. Commit the invalidation and a durable notification with
-the input switch so a worker crash cannot strand an old view. Revalidate on
-mount, navigation, focus and reconnect. While a view is open, a change
+result generation. Advance and notify clients on correction registration,
+dependency invalidation, result publication or disclosure change. For a
+change within one database, commit the invalidation and a durable change
+notice in its transaction.
+
+A shared reference-file replacement spans the filesystem and potentially
+many sample databases. Before the switch, durably record a publication ID,
+the old and intended content revisions, an in-progress state and a change
+notice in the authoritative reference registry. From that point, fence
+dependent reads and in-flight publications across *all* installed samples.
+Clients already displaying them use the same generation and notification
+rules. Install the verified file durably, then commit its confirmed revision
+and a replayable completion notice. Reconcile each dependent sample by
+publication ID and sample-copy identity. Serialize changes to the same
+artifact. Reconcile only the current intent. A retry must not duplicate
+a notice or clear a newer reason. On interruption, recheck the installed
+content. Complete a matching new publication or retire the intent if the
+old revision is intact. Reevaluate the sample's other eligibility rules
+in either case. For any other content, keep affected results pending
+until recovery establishes the installed revision.
+
+Revalidate on mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
 require revalidation before showing cached results. Close the gap between
 a GET and subscription by replaying changes since the generation returned
@@ -651,7 +680,7 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Exercise the real weight loader, scorer and result store. In a two-locus
   synthetic check, one typed and one imputed contribution produced a
   calibrated finding in the executable BMI case.
-  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py::test_positional_bmi_reopens_stale_after_frequency_update`.
+  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration'`.
   Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
   mean from 1.4 to 2.2. These values describe the fixture. Require
@@ -660,8 +689,14 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   The scorer can consult imputed alleles and the standalone frequency store
   for that locus. Track those actual dependencies even when
   `snps_used_imputed == 0`. Verify the changed calibration in that case.
-  Complete typed alleles and their own population frequency give an
-  unchanged-value control.
+  With typed dosage, keep the genotype, weights and frequency fixed and
+  remove the matching imputed allele pair. Both typed fixtures retain the
+  synthetic raw score of 3.0. Only the incomplete-alleles fixture loses
+  calibration and withholds its quantitative score. Complete typed alleles
+  with their own frequency retain the 95.42 fixture percentile. Separately
+  begin with an installed store whose lookup misses. Add the matching row
+  in that database without altering the sample. Verify the old uncalibrated
+  finding becomes stale and the rerun supplies the fixture percentile.
   Replace imputed dosages between scoring and publication without changing
   the annotated token. Reject the old publication and match a fresh run on
   the replacement dosages. In a separate case record the published
@@ -678,6 +713,15 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   recalibration with a fresh run and require the expected changed value.
   Also remove and restore the store and check its documented unavailable
   outcome and recovery.
+  Keep an existing sample open while importing another sample with a
+  replacement shared reference. Interrupt once before the file switch,
+  once after it and before registry completion, and once partway through
+  notifying dependent samples. Keep the existing view open through the
+  interruption and reconnection, then separately test a newly opened view.
+  Retry each recovery.
+  Verify the content revision, one logical change per affected sample,
+  the absence of the old percentile while pending, and agreement with a
+  fresh run after repair. An unrelated sample keeps its current values.
 
 ### Browser caches, change notices and exports
 
@@ -693,6 +737,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   upgrading the backend. Retire those tabs before activating the correction.
   Reopen on the current client and verify pending results on both pages.
   An old-format request after activation receives the upgrade requirement.
+  Also restore the old backend and launcher against the synthetic deployment.
+  Verify they cannot open its upgraded sample or consume queued work. An
+  isolated compatible backup must open under the old release without
+  changing the upgraded sample's receipts, pending state or retained rows.
 - Warm the drug and summary views in two tabs. Apply the correction and run
   the repair from one tab. Without reloading, verify that the other stops
   showing the old guidance, shows the pending state, and then receives only

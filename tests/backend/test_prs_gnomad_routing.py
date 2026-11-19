@@ -358,45 +358,15 @@ def _route_state(env: _Environment, module: str) -> str:
     return response.json()["scoring_state"]
 
 
-@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
-@pytest.mark.parametrize(
-    ("typed_alleles", "expected_imputed", "repaired_mean", "repaired_percentile"),
-    [
-        pytest.param(None, 1, 2.2, 80.05, id="imputed-dosage"),
-        pytest.param(("A", None), 0, 2.2, 80.05, id="typed-dosage-incomplete-alleles"),
-        pytest.param(("A", "G"), 0, 1.4, 95.42, id="typed-dosage-complete-alleles"),
-    ],
-)
-def test_positional_bmi_reopens_stale_after_frequency_update(
-    routing_env: _Environment,
-    monkeypatch: pytest.MonkeyPatch,
-    typed_alleles: tuple[str, str | None] | None,
-    expected_imputed: int,
-    repaired_mean: float,
-    repaired_percentile: float,
-) -> None:
+@pytest.fixture
+def positional_bmi(routing_env: _Environment, monkeypatch: pytest.MonkeyPatch) -> _Environment:
     from backend.analysis import metabolic_prs, pgs_bridge
 
-    # The shared routing fixture substitutes weight loaders. Read this model
-    # from the positional PGS store through the ordinary metabolic entrypoint.
+    # Use the actual positional PGS loader for these two synthetic loci.
     monkeypatch.setattr(metabolic_prs, "build_trait_weight_set", pgs_bridge.build_trait_weight_set)
-    settings = routing_env.registry.settings
-    if typed_alleles is not None:
-        ref, alt = typed_alleles
-        with routing_env.sample.begin() as conn:
-            conn.execute(
-                annotated_variants.insert().values(
-                    rsid="SYN_TYPED_SECOND",
-                    chrom="1",
-                    pos=999,
-                    ref=ref,
-                    alt=alt,
-                    genotype="AG",
-                    gnomad_af_global=0.3,
-                    gnomad_af_eur=0.3,
-                )
-            )
-    with closing(sqlite3.connect(pgs_bridge.pgs_scores_db_path(settings.data_dir))) as pgs:
+    with closing(
+        sqlite3.connect(pgs_bridge.pgs_scores_db_path(routing_env.registry.settings.data_dir))
+    ) as pgs:
         pgs.execute(
             """INSERT INTO pgs_score_metadata
                (pgs_id, pgs_name, trait_reported, genome_build, variants_number,
@@ -411,50 +381,157 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
             [("2", 500, "T", "C"), ("1", 999, "G", "A")],
         )
         pgs.commit()
+    return routing_env
 
-    def run_and_read() -> dict:
-        response = routing_env.client.post("/api/analysis/metabolic/run?sample_id=1")
-        assert response.status_code == 200, response.text
-        assert response.json()["prs_traits_computed"] == 1
-        with routing_env.sample.connect() as conn:
-            stored_score, payload = conn.execute(
-                sa.select(findings.c.prs_score, findings.c.detail_json).where(
-                    findings.c.module == "metabolic", findings.c.category == "prs"
-                )
-            ).one()
-        # Unit weights and dosages of two and one, regardless of their source.
-        assert stored_score == 3.0
-        result = json.loads(payload)
-        assert result["pgs_id"] == "PGS005198"
-        assert result["calibrated"] is True
-        assert result["snps_used"] == 2
-        assert result["snps_used_imputed"] == expected_imputed
-        current = routing_env.client.get("/api/analysis/metabolic/prs?sample_id=1")
-        assert current.status_code == 200, current.text
-        body = current.json()
-        assert body["scoring_state"] == "current"
-        assert body["total"] == 1
-        assert [item["pgs_id"] for item in body["items"]] == ["PGS005198"]
-        assert body["items"][0]["percentile"] == pytest.approx(result["percentile"])
-        return result
 
-    original = run_and_read()
-    with closing(sqlite3.connect(settings.gnomad_db_path)) as frequencies:
+def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
+    ref, alt = alleles
+    with env.sample.begin() as conn:
+        conn.execute(
+            annotated_variants.insert().values(
+                rsid="SYN_TYPED_SECOND",
+                chrom="1",
+                pos=999,
+                ref=ref,
+                alt=alt,
+                genotype="AG",
+                gnomad_af_global=0.3,
+                gnomad_af_eur=0.3,
+            )
+        )
+
+
+def _run_positional_bmi(env: _Environment) -> dict:
+    from backend.analysis import metabolic_prs
+
+    # Observe the real scorer's result before the real writer applies the
+    # separate rule for displaying a quantitative score without calibration.
+    with patch.object(
+        metabolic_prs, "store_prs_findings", wraps=metabolic_prs.store_prs_findings
+    ) as writer:
+        response = env.client.post("/api/analysis/metabolic/run?sample_id=1")
+    assert response.status_code == 200, response.text
+    assert response.json()["prs_traits_computed"] == 1
+    writer.assert_called_once()
+    (scored,) = writer.call_args.args[0]
+    assert scored.raw_score == 3.0
+    with env.sample.connect() as conn:
+        stored_score, payload = conn.execute(
+            sa.select(findings.c.prs_score, findings.c.detail_json).where(
+                findings.c.module == "metabolic", findings.c.category == "prs"
+            )
+        ).one()
+    result = json.loads(payload)
+    assert result["pgs_id"] == "PGS005198"
+    assert result["snps_used"] == result["snps_total"] == 2
+    current = env.client.get("/api/analysis/metabolic/prs?sample_id=1")
+    assert current.status_code == 200, current.text
+    body = current.json()
+    assert body["scoring_state"] == "current"
+    assert body["total"] == 1
+    (item,) = body["items"]
+    for key in ("pgs_id", "calibrated", "snps_used", "snps_used_imputed", "percentile"):
+        assert item[key] == result[key]
+    return {**result, "stored_score": stored_score}
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.parametrize(
+    ("typed_alleles", "expected_imputed", "repaired_mean", "repaired_percentile"),
+    [
+        pytest.param(None, 1, 2.2, 80.05, id="imputed-dosage"),
+        pytest.param(("A", None), 0, 2.2, 80.05, id="typed-dosage-incomplete-alleles"),
+        pytest.param(("A", "G"), 0, 1.4, 95.42, id="typed-dosage-complete-alleles"),
+    ],
+)
+def test_positional_bmi_reopens_stale_after_frequency_update(
+    positional_bmi: _Environment,
+    typed_alleles: tuple[str, str | None] | None,
+    expected_imputed: int,
+    repaired_mean: float,
+    repaired_percentile: float,
+) -> None:
+    if typed_alleles is not None:
+        _add_typed_second_locus(positional_bmi, typed_alleles)
+    original = _run_positional_bmi(positional_bmi)
+    with closing(sqlite3.connect(positional_bmi.registry.settings.gnomad_db_path)) as frequencies:
         updated = frequencies.execute(
             "UPDATE gnomad_af SET af_eur = 0.7 WHERE chrom = '1' AND pos = 999"
         )
         assert updated.rowcount == 1
         frequencies.commit()
     if typed_alleles != ("A", "G"):
-        assert _route_state(routing_env, "metabolic") == "stale"
-    repaired = run_and_read()
+        assert _route_state(positional_bmi, "metabolic") == "stale"
+    repaired = _run_positional_bmi(positional_bmi)
+    for run in (original, repaired):
+        assert run["calibrated"] is True
+        assert run["stored_score"] == 3.0
+        assert run["snps_used_imputed"] == expected_imputed
+        assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
     assert repaired["calibration_reference_mean"] == pytest.approx(repaired_mean)
-    # The two frequency distributions have the same variance (0.9).
-    assert original["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
-    assert repaired["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == repaired_percentile
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.parametrize("typed_alt", [None, "G"], ids=["incomplete", "complete"])
+def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
+    positional_bmi: _Environment, typed_alt: str | None
+) -> None:
+    _add_typed_second_locus(positional_bmi, ("A", typed_alt))
+    before = _run_positional_bmi(positional_bmi)
+    assert before["calibrated"] is True
+    assert before["snps_used_imputed"] == 0
+    assert before["stored_score"] == 3.0
+    assert before["percentile"] == 95.42
+
+    # Keep the typed genotype, PGS weights and frequency row fixed.
+    with positional_bmi.sample.begin() as conn:
+        removed = conn.execute(
+            imputed_variants.delete().where(
+                imputed_variants.c.chrom == "1", imputed_variants.c.pos == 999
+            )
+        )
+        assert removed.rowcount == 1
+    after = _run_positional_bmi(positional_bmi)
+    assert after["snps_used_imputed"] == 0
+    if typed_alt is None:
+        assert after["calibrated"] is False
+        assert after["percentile"] is None
+        assert after["stored_score"] is None
+        assert after["calibration_reference_mean"] is None
+    else:
+        assert after["calibrated"] is True
+        assert after["percentile"] == before["percentile"]
+        assert after["stored_score"] == before["stored_score"]
+        assert after["calibration_reference_mean"] == pytest.approx(1.4)
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_recovers_when_an_installed_store_gains_a_matching_row(
+    positional_bmi: _Environment,
+) -> None:
+    path = positional_bmi.registry.settings.gnomad_db_path
+    with closing(sqlite3.connect(path)) as frequencies:
+        moved = frequencies.execute("UPDATE gnomad_af SET pos=1000 WHERE chrom='1' AND pos=999")
+        assert moved.rowcount == 1
+        frequencies.commit()
+        missing = _run_positional_bmi(positional_bmi)
+        assert missing["snps_used_imputed"] == 1
+        assert missing["calibrated"] is False
+        assert missing["stored_score"] is None
+        assert missing["percentile"] is None
+        restored = frequencies.execute("UPDATE gnomad_af SET pos=999 WHERE chrom='1' AND pos=1000")
+        assert restored.rowcount == 1
+        frequencies.commit()
+    assert _route_state(positional_bmi, "metabolic") == "stale"
+    repaired = _run_positional_bmi(positional_bmi)
+    assert repaired["snps_used_imputed"] == 1
+    assert repaired["calibrated"] is True
+    assert repaired["stored_score"] == 3.0
+    assert repaired["calibration_reference_mean"] == pytest.approx(1.4)
+    assert repaired["percentile"] == 95.42
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
