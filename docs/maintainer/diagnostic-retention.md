@@ -29,6 +29,12 @@ Each template declares required and optional fields. An invalid required
 reason on a known failure selects the generic failure template. Drop an
 invalid optional retry count while preserving the explanation and safe fields.
 
+Give documented operator warnings their own reviewed templates. The
+network-bind warning must still tell the operator that other machines can
+reach the service without credentials. Recommend loopback-only access
+or enabling authentication and setting a password. The static text needs
+no configured address or credentials. [Network configuration](../install/configuration.md)
+
 | Input | Proposed database and default-console behavior |
 | --- | --- |
 | Approved application event | Select its static template from a versioned event catalog. Render only that event's explicitly typed, validated fields. A valid template can preserve the full approved explanation. |
@@ -251,6 +257,10 @@ short-circuit as soon as they know the final disposition.
   trigger one reload and send a request to the new child. Check the
   supervisor and both children for safe lifecycle and request output.
   The fixture's watched path and filename remain private.
+- Check the API's startup warning with synthetic configuration. An
+  unauthenticated non-loopback bind gets the exact reviewed warning and
+  remedy. A loopback bind or effective authentication produces no such
+  warning. Verify the configured host is absent from the diagnostic.
 - Exercise the API's report-generation path with a synthetic child that
   emits distinct harmless markers to stdout and stderr. Verify the child
   ran and the expected report outcome was delivered. Neither marker may
@@ -261,11 +271,14 @@ short-circuit as soon as they know the final disposition.
 
 ### Upgrade and restore
 
-- Begin with an old API reader still serving. Require the Explorer to
-  stay closed until only verified replacement readers can serve it.
-  Seed a historical row and a valid current-revision control. Check both
-  sides of search, filters, totals and pagination. Restoring an older
-  backup or restarting an old reader must never re-expose the old row.
+- Begin with a row written and displayed by the pre-cutover release
+  (presentation revision 2) using a harmless unique exception marker.
+  With that old reader still running, keep the Explorer closed until only
+  verified replacements can serve it. Write a new-revision control.
+  The old row must remain unchanged in the database and absent from
+  Explorer search, filters, totals and pages. Verify the control remains
+  visible. Repeat after restoring the old database and writing a new
+  control. Restarting an old reader must never re-expose the old row.
 - Warm two filtered Explorer views in the old application. Leave one
   visible and navigate away from the other, including to a different
   document. Require cutover to stay pending while either old document is
