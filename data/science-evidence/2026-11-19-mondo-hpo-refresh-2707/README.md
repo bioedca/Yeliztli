@@ -12,16 +12,20 @@ One intact and five damaged cases are measured per release. The damaged cases re
 
 ## Reproduction
 
-From the repository root in the project Python environment, set `packet` as below. Use a new local cache with sufficient space. The loop fetches only versioned public resources listed in the committed register. Each analysis opens and verifies all input lengths and hashes before reading the data. The two analysis scripts use local files throughout.
+From the repository root in the project Python environment, set `packet` as below. Use a new local cache with sufficient space. The loop fetches only versioned public resources listed in the committed register. Each analysis opens and verifies all input lengths and hashes before reading the data. The reproduction command extracts the recorded backend tree and places the measurement script beneath it. This deliberately selects the historical loader even when the packet is read from a later checkout. The two analysis scripts use local files throughout.
 
 ```bash
-set -e
+set -euo pipefail
 packet=data/science-evidence/2026-11-19-mondo-hpo-refresh-2707
 cache=$(mktemp -d)
 while IFS=$'\t' read -r url digest; do
     curl --fail --location --silent --show-error "$url" -o "$cache/$digest"
 done < <(jq -r '.files[] | [.url, .sha256] | @tsv' "$packet/raw/sources.json")
-python "$packet/measure.py" "$cache" > "$cache/measurements.json"
+loader="$cache/loader"
+mkdir -p "$loader/$packet"
+git archive 7be123f382be44cc3c0936d2787038886b6488f7 backend | tar -x -C "$loader"
+cp "$packet/measure.py" "$loader/$packet/measure.py"
+python "$loader/$packet/measure.py" "$cache" --index "$packet/raw/sources.json" > "$cache/measurements.json"
 cmp "$cache/measurements.json" "$packet/raw/measurements.json"
 python "$packet/compare.py" > "$cache/comparisons.json"
 cmp "$cache/comparisons.json" "$packet/raw/comparisons.json"
