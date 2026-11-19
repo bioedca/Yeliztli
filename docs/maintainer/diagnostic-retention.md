@@ -165,6 +165,11 @@ and captured console output.
    trusted interface and require “Operation failed” with its approved
    component. With a valid reason and an out-of-range optional retry count,
    require the approved explanation at both sinks and no count.
+   For an ordinary nonrestricted failure, use a fixed log message and put
+   a harmless unique test value only in the exception's own text. Run the
+   native and standard-library exception paths separately. Require the
+   approved failure category and verify the test value is absent from
+   every column of every new row, the Explorer and both console streams.
 2. With safely inspectable, nonrestricted primitive text, put an unapproved
    test value in the message, nested metadata and path. Require the approved
    fallback reason and component at both sinks, and no test value in stored
@@ -187,6 +192,10 @@ and captured console output.
    Verify their distinct response statuses and zero versus one neutral
    audit event. A refusal involving several held results has the same
    approved audit as a refusal involving one.
+   Also request a presentable detail response that omits one restricted
+   item, then several. Verify the eligible item and presentable status in
+   both responses. Neither operation emits a request-refusal event to
+   either sink. Only the final disposition can trigger that audit.
 4. Verify repeated configuration produces one event, worker-only bootstrap
    uses the same policy, and a restored legacy row cannot be exposed by a
    search match or count. Preserve existing noncreation behavior when the
