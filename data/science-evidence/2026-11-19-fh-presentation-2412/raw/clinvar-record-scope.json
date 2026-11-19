@@ -1,0 +1,15 @@
+{
+  "accessed_utc": "2026-11-19",
+  "source": "NCBI ClinVar",
+  "source_urls": [
+    "https://www.ncbi.nlm.nih.gov/clinvar/docs/data_model/",
+    "https://www.ncbi.nlm.nih.gov/clinvar/docs/identifiers/"
+  ],
+  "retrieval": "Indexed official documentation. Direct browser response required verification.",
+  "projection": "Accession prefix and scope, paraphrased from the documentation.",
+  "scopes": {
+    "SCV": "One submitted record",
+    "RCV": "Aggregate for a variant and condition",
+    "VCV": "Aggregate for a variant"
+  }
+}
