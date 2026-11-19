@@ -27,7 +27,7 @@ retry count while preserving the valid explanation and safe fields.
 | --- | --- |
 | Approved application event | Select its static template from a versioned event catalog. Render only that event's explicitly typed, validated fields. A valid template can preserve the full approved explanation. |
 | Free text, exception message, interpolated argument, unknown event or third-party message | Use a static fallback with approved context. Arbitrary strings cannot acquire permission through a familiar event name, a different log level or a caller's claim that they are safe. |
-| Exception or exception chain | Retain an approved class or reason category and, when needed, a bounded list of reviewed application frame identifiers. Map unknown or dynamically named classes to a generic category. Exclude stringification, messages and notes, locals, paths, source lines and unreviewed chained context. |
+| Exception, chain or exception group | Retain an approved class or reason category and, when needed, a bounded list of reviewed application frame identifiers. Map unknown or dynamically named classes to a generic category. Exclude stringification, messages, notes, locals, paths, source lines and unreviewed context from every member. |
 | Counts, timing, status, component and operation | Retain only when explicitly allowed for that event and safe under its disclosure policy. Reject invalid types, unexpected nested keys, unbounded values and user-controlled identifiers. A public-looking gene, filename or count can still disclose a private association. |
 | Withheld or restricted analysis | Suppress individual result events at both sinks. If an operator needs confirmation that an operation ran, its trusted producer may emit one neutral event per operation under the same rule for zero, one or many restricted results. Apply that rule to retries, severities and summary fields as well as message text. |
 | Legacy and independently managed output | Keep an explicit new presentation-policy revision. Query only eligible rows before filtering, counting or pagination. Never relabel old serialized text as newly verified. Existing database rows, backups and service logs have their own retention lifecycle. |
@@ -142,109 +142,94 @@ data directory and task queue. If the operator cannot establish which
 processes have access, the new policy is not yet active. A rollback uses
 an isolated compatible environment and requires its own explicit policy
 decision before it can serve operator logs again.
-At cutover, retire the old Explorer revision across the entire client,
-including inactive views and cached filter queries. Clear its rows, totals
-and filter selections. Only a response for the verified current revision
-may populate or render a view, even when an older request completes late.
-A client that cannot establish the current revision must reopen the Explorer.
+Before reopening the Explorer, close or fully reload every running copy
+of the old application, including tabs on other pages. The operator must
+verify the replacement client is loaded. Navigating within an old copy
+does not complete the upgrade. If any old copy cannot be retired, keep
+the Explorer closed and the cutover pending. The replacement client
+discards old rows, totals and filter selections and accepts responses
+only for the verified current revision, including after a delayed reply.
 Previously exported information has its own retention lifecycle.
 
 ## Synthetic acceptance cases
 
-Exercise native structured logging and standard-library logging through the
-actual API and worker configuration, a disposable database, the Log Explorer
-and captured console output.
+Run these cases against the shipped API and worker configuration, using
+only synthetic inputs, a disposable database, the Log Explorer and both
+console streams. Exercise native structured logging and its standard-library
+counterpart wherever either can supply the event. For each isolated operation,
+assert the complete approved event, the number of deliveries to each intended
+destination, and the absence of test markers from every column of every new
+row, console output and Explorer results. Compare variable service metadata
+against its approved type and range. Preserve a known, useful diagnostic
+as a positive control.
 
-1. Trigger two distinct approved failure categories and an unknown exception.
-   Assert exact helpful messages and allowed fields for the known cases.
-   Require a nonempty generic event for the unknown case.
-   Send the same registered event ID and valid fields through its authorized
-   interface and an ordinary record on the existing database-and-console
-   application route. Require the approved template for the former and
-   the safe fallback for the latter at both sinks. A console-only
-   third-party record gets the fallback on its console and produces no
-   database entry. Send an out-of-catalog required reason through the
-   trusted interface and require “Operation failed” with its approved
-   component. With a valid reason and an out-of-range optional retry count,
-   require the approved explanation at both sinks and no count.
-   For an ordinary nonrestricted failure, use a fixed log message and
-   distinct harmless markers for the exception text, raising file and
-   source line. Run the native and standard-library exception paths
-   separately. Require the approved category and the exact reviewed frame
-   identifiers, if any. None of the markers may appear in any column of
-   any new row, the Explorer or either console stream.
-2. With safely inspectable, nonrestricted primitive text, put an unapproved
-   test value in the message, nested metadata and path. Require the approved
-   fallback reason and component at both sinks, and no test value in stored
-   fields, the console, Explorer search or counts. Separately supply an
-   opaque argument whose formatting methods record calls. When safe
-   inspection cannot exclude restricted context, require exactly the neutral
-   marker with zero formatting calls and no reason or component derived
-   from the input. Repeat with an opaque exception, including in a chain.
-   Exercise native and standard-library records. Also put an opaque test
-   value in a supplied logger name. Inspect all database columns, including
-   the component, and both streams. An Explorer component filter for the
-   test value returns zero rows and a zero total, while a registered
-   component still returns its approved event.
-3. Run the same operation with zero, one and several synthetic restricted
-   results. Hold public inputs and retry count fixed. Compare emitted event
-   counts and approved content across the database, captured console and
-   Explorer filters, totals and pages. An allowed template cannot override
-   suppression. A separate normal event remains discoverable. For the
-   response audit, run the real presentable and refused request fixtures.
-   Verify their distinct response statuses and zero versus one neutral
-   audit event. A refusal involving several held results has the same
-   approved audit as a refusal involving one.
-   Also request a presentable detail response that omits one restricted
-   item, then several. Verify the eligible item and presentable status in
-   both responses. Neither operation emits a request-refusal event to
-   either sink. Only the final disposition can trigger that audit.
-4. Verify repeated configuration produces one event, worker-only bootstrap
-   uses the same policy, and a restored legacy row cannot be exposed by a
-   search match or count. Preserve existing noncreation behavior when the
-   database was removed. Exercise a harmless failing task in the shipped
-   worker process with the consumer handler enabled. Capture its complete
-   console and verify the safe category also reaches the expected sink.
-   Have a test dependency write benign distinctive bytes directly to the
-   worker's stderr. They must appear in neither captured service output
-   nor the database, while the approved task diagnostic remains visible.
-   With an additional standard-library handler, inspect each record at
-   delivery, before formatting. Require either zero deliveries or exactly
-   the approved content, including arguments, exception state and extras.
-   Check the expected event count at each sink and apply the same content
-   rule to failures in logging itself.
-   Start the shipped API server as a process as well. Exercise an ordinary
-   Log Explorer search with a synthetic query value for access logging.
-   Separately inject a harmless application exception in an isolated test
-   process so the server's error handler runs. Use distinct test values and
-   verify the approved access status and error category both appear at
-   their intended sinks. Capture complete stdout and stderr and check that
-   neither unapproved value appears there or in durable diagnostics.
-   Exercise the supported developer reload launch as well. Use an isolated
-   fixture directory, trigger one reload, and send a request after the new
-   child starts. Check the supervisor and both children together for the
-   expected safe lifecycle and request diagnostics. The synthetic watched
-   path and changed filename stay out of both console streams.
-   Finally, inject a synthetic initialization failure in each shipped
-   entrypoint before normal logging starts. Require a nonzero exit and the
-   approved startup explanation, without the test input or local path in
-   either console stream.
-5. Start with an old reader and writer and a synthetic historical row. Test
-   cutover with that reader still running. No client may reach it once the
-   new policy becomes active. The new reader returns only eligible entries
-   and their counts. Restoring the fixture or restarting an old process
-   must not reopen the old presentation path. Warm two filtered Explorer
-   views. Leave one visible and navigate away from the other. Across
-   cutover, first paint on return, and a delayed old response, require
-   only current-revision rows and totals, even while loading. Queue a
-   harmless synthetic task and attempt to restart an old worker under the
-   managed service.
-   Require the task to remain unconsumed and no task output to be emitted
-   until a compatible worker starts. Then require one completed task and
-   only its approved diagnostic.
-   Exercise the manual cutover separately with the API and worker launched
-   directly. Verify only the replacement processes can serve the active
-   data directory and consume its queued synthetic task.
+### Event identity, fields and exceptions
+
+| Synthetic input | Required observation |
+| --- | --- |
+| Two approved failures and an unknown exception | Each approved failure has its distinct explanation and exact allowed fields. The unknown failure has a nonempty static fallback. |
+| Registered event ID and valid fields through the typed producer, then through an ordinary record | The producer gets its template. The ordinary record on the same route gets the fallback. A console-only third-party message reaches only its console. |
+| Valid registered event with extra fields supplied directly and through bound request context | Its approved explanation and fields survive. Neither the extra keys nor their values reach any destination. Repeat with each context source in isolation. |
+| Invalid required reason, then a valid reason with an out-of-range optional count | The first gets “Operation failed” and the approved component. The second preserves its explanation and drops the count. |
+| Ordinary exception logged with a fixed message and distinct harmless markers in the exception text, raising file and source line | Both exception paths keep the approved category and exactly the reviewed frame identifiers, if any. All three markers are absent. |
+| Inspectable, nonrestricted primitive text in a free-form message, nested metadata and a path | The fallback contains the approved reason and component. Searching or filtering for the test value returns zero rows and a zero total. |
+| Opaque arguments, logger names and exceptions with observable formatting methods | When restricted content cannot be excluded, emit only the neutral marker, with zero formatting calls. No reason or component comes from the input. An Explorer component filter still finds the approved positive control. |
+| A restricted ordinary record, a held exception, a cause/context chain and a nested exception group with a benign outer message and one held member | Each independently occurring operational event gets exactly one neutral diagnostic on its configured route. No member text is rendered. Exercise each exception shape independently. |
+
+### Restricted results and request audits
+
+Run one operation with zero, one and several restricted results, holding
+public inputs and retries fixed. Require identical event counts and approved
+content, including across Explorer filters, totals and pages. Include a
+registered event to exercise suppression before templating.
+
+Run both the presentable and refused request fixtures and assert the product
+response status. A presentable detail response with an eligible item and one
+or several omitted items returns that eligible item and produces zero refusal
+audits. A refused request produces one neutral refusal audit with exactly its
+approved operation context, whether one or several items were withheld.
+
+### Process output and routing
+
+- Start the shipped worker on its own. Run a harmless failing task with
+  its consumer handler enabled. Require the expected safe category. Have
+  a test dependency write distinctive harmless bytes directly to stdout
+  and stderr. Neither stream nor the database may retain those bytes.
+- Attach an observing standard-library handler. Inspect what reaches it
+  before formatting. Require zero delivery or solely the approved record,
+  including arguments, exception state and extras. Verify repeated
+  configuration emits each diagnostic once. When the log database has
+  been removed, logging must leave it absent. A failure in logging itself
+  must preserve the same content rule.
+- Start the shipped API process. Exercise a real Explorer search and an
+  isolated synthetic application exception. Require the approved access
+  status and error category on their intended routes without the distinct
+  query or exception markers. In the supported developer reload mode,
+  trigger one reload and send a request to the new child. Check the
+  supervisor and both children for safe lifecycle and request output.
+  The fixture's watched path and filename remain private.
+- Cause a synthetic failure before normal logging starts in each shipped
+  entrypoint. Require a nonzero exit and the approved startup explanation.
+  Apply the same output assertions to initialization and shutdown.
+
+### Upgrade and restore
+
+- Begin with an old API reader still serving. Require the Explorer to
+  stay closed until only verified replacement readers can serve it.
+  Seed a historical row and a valid current-revision control. Check both
+  sides of search, filters, totals and pagination. Restoring an older
+  backup or restarting an old reader must never re-expose the old row.
+- Warm two filtered Explorer views in the old application. Leave one
+  visible and navigate away from the other. Require cutover to stay
+  pending until both copies close or fully reload the replacement app.
+  Inspect first paint, each loading state, return navigation and a delayed
+  reply from the prior revision. Only eligible rows and totals may appear
+  once the new revision is serving.
+- Queue a harmless task and attempt to start an old worker through the
+  managed service. The task stays queued without task output until a
+  compatible worker runs it once and emits its approved diagnostic.
+  Repeat the cutover with manually launched API and worker processes.
+  Only replacements may serve the active data and consume the queued task.
 
 Approval is requested for the common content policy, the safe-template
 exception and the treatment of historical rows before #2459 changes logging.
