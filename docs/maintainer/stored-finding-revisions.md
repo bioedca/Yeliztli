@@ -48,7 +48,12 @@ displayed badge. Return a per-source pending mask alongside verified
 coverage. A pending source supplies neither a positive nor a negative
 answer. Keep unrelated verified sources visible and label the unresolved
 source as pending. Show “no sources covered” only when absence is known for
-all relevant sources. In the SQL console and SQL export, expose a nullable
+all relevant sources. Version the API representation. A client that has
+not negotiated pending coverage must receive an upgrade-required response
+without variant data whenever the response could contain a pending source.
+The legacy tooltip treats both zero and null as confirmed absence. Test a
+legacy client and a current client on the same pending-only and mixed rows.
+In the SQL console and SQL export, expose a nullable
 predicate for each source. It returns true for verified coverage, false for
 verified absence and SQL NULL for pending or unassessed coverage. Expose
 processing status separately. Permit access to the legacy integer mask only
@@ -86,10 +91,11 @@ invalidate dependent receipts when the staging table goes live. Carry a
 contribution forward only with proof that its inputs, output and disclosure
 still match. A process that stops after the swap leaves dependent results
 pending until their generation has been verified.
-Record the entire set of generation tokens the producer used. For cancer
-and traits PRS that can include both annotated calls and imputed dosages.
-Capture the imputed-variants token even when an imputation lookup returned
-no rows. Reject publication if an input token changed during scoring,
+Record the entire set of generation tokens the producer used. A PRS model
+with positional weights may read both annotated calls and imputed dosages.
+Capture the imputed-variants token even when an applicable positional lookup
+returned no rows. Models that cannot consult this table need no imputation
+dependency. Reject publication if an input token changed during scoring,
 including a dosage replacement that leaves the annotated table untouched.
 Record reference artifacts and supporting results actually used by the
 producer. For PRS calibration this includes the installed `gnomad_af.db`
@@ -142,7 +148,11 @@ and the same legacy CPIC correction and target. Carry that acknowledgment
 to the matching reason only. The local repair remains pending until a
 verified rerun. Preserve a matching active reminder as visible. A missing,
 ambiguous or unbound acknowledgment cannot silence a reason. Applying the
-migration twice must preserve the same result.
+migration twice must preserve the same result. Stock v21 stores a hash of
+registry metadata with the central entry. The file fingerprint checked at
+publication was never persisted with that acknowledgment. Matching these
+legacy fields alone leaves the reminder visible, including after a restore
+that reproduces them. Preserve the historical dismissal in its original form.
 
 A completed prerequisite with an explicitly unknown result can supply a
 documented unknown input. A failed or unfinished prerequisite supplies no
@@ -249,8 +259,10 @@ supporting source is available. A stale-state reason must respect opt-in gates a
 revealing a withheld gene, drug or carrier status.
 
 Cache identity must include the verified sample identity and its published
-result generation. Expose that generation to open clients when a correction
-is registered, results are replaced, or disclosure changes. Revalidate on
+result generation. Advance and notify clients whenever eligibility changes:
+on correction registration, dependency invalidation, result publication or
+disclosure change. Commit the invalidation and a durable notification with
+the input switch so a worker crash cannot strand an old view. Revalidate on
 mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
 require revalidation before showing cached results. On mismatch discard
@@ -405,9 +417,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   neither count. Require a raw `(annotation_coverage & 64) = 0` count
   over that population to be refused. Verify a resolved-only query can
   still use the mask and an unrelated verified source remains queryable.
-  Stop a full reannotation immediately after the production staging-table
-  swap and before PGx runs. Assert no old conclusion or missing coverage bit
-  is served as current for the new generation. Retry and verify the new
+  Open the drug and coverage views, then stop a full reannotation immediately
+  after the production staging-table swap and before PGx runs. Without a
+  reload, verify both open views invalidate their previous results. A fresh
+  request and a reconnected client must agree with the new generation.
+  Assert no old conclusion or missing coverage bit is served as current.
+  Retry and verify the new
   variant mask, findings and receipt agree.
   Independently register the conservative diplotype selection change shipped
   in [#2643](https://github.com/bioedca/Yeliztli/pull/2643). An old alert
@@ -448,11 +463,13 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Delay central publication until after the rerun clears the sample's
   reason. The late publisher and a restart must leave no obsolete reminder,
   preserve an independent live reason and honor dismissal.
-  Upgrade an already-v21 sample with its marker and a matching dismissed
-  central entry. Across two opens, verify the local reason remains pending,
-  its reminder stays dismissed and a new, independent reason stays visible.
-  With a matching active entry expect one visible reminder. An old entry
-  belonging to another copy cannot suppress the current reminder.
+  Upgrade a stock v21 sample with its marker and a dismissed central entry
+  matching every saved identity field. Across two opens expect one visible
+  reminder, the local reason pending and the historical dismissal intact.
+  Repeat with a restored copy having the same fields. Separately, seed a
+  dismissal carrying an independently recorded copy identity from the time
+  of acknowledgment. Only that copy and correction retain the dismissal.
+  An active reminder and a new, independent reason each remain visible.
   Delay dismissal of the original reminder until a different correction
   occupies its place. Verify that the new correction stays visible.
   Also clear and recreate the same reason and target under a new publication
@@ -531,20 +548,30 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   reopen, including the absence of an indeterminate finding.
   In cancer PRS and traits PRS, check each producer's
   ancestry caveat and, for a score with calibration support, its calibration
-  method and fractions. Replace imputed dosages between scoring and
-  publication without changing the annotated token. The old result cannot
-  become current. Retry and match a fresh run on the replacement dosages.
-  On an imputed-only PRS fixture, record the published calibration, then
-  change a frequency used by the score while keeping both sample tokens and
-  the upstream label fixed. Exercise both file replacement at the same path
+  method and fractions. Keep the shipped weight loaders in these cases.
+  In nutrigenomics, choose an LCT fixture whose ancestry-conditional caveat
+  changes and another whose result stays current. Compare with the same
+  inputs scored in the supported ancestry-first order.
+- For the shared PRS dependency contract, use the metabolic BMI route and
+  synthetic positional weights for its PGS005198 model in the PGS store.
+  Exercise the real weight loader, scorer and result store. In a two-locus
+  synthetic check, one typed and one imputed contribution produced a
+  calibrated finding. Updating the fixture's frequency changed the route
+  state from current to stale before rerun and its recalculated reference
+  mean from 1.4 to 2.2. These values describe the fixture. Require
+  `snps_used_imputed > 0` before changing an input and zero in a typed-only
+  control.
+  Replace imputed dosages between scoring and publication without changing
+  the annotated token. Reject the old publication and match a fresh run on
+  the replacement dosages. In a separate case record the published
+  calibration, then change a frequency used by that contribution while
+  keeping both sample tokens and the upstream label fixed. Exercise both
+  file replacement at the same path
   and a committed update to the same database file. In each case reopen
   before rerunning and require the old calibration to be withheld. After
   repair, compare with a fresh run and require the expected changed value.
   Also remove and restore the store and check its documented unavailable
   outcome and recovery.
-  In nutrigenomics, choose an LCT fixture whose
-  ancestry-conditional caveat changes and another whose result stays current.
-  Compare with the same inputs scored in the supported ancestry-first order.
 
 ### Browser caches, change notices and exports
 
