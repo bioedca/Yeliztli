@@ -1,0 +1,282 @@
+{
+  "accessed_utc": "2026-11-19",
+  "api": "v1",
+  "shipped_csv_sha256": "ca81f1ba18388be0684da955c37af17ac161c006186e9bcc49430a6555130ccc",
+  "requests": [
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.atazanavir",
+      "count": 1,
+      "sha256": "e69ecd7c8ccbd9eaf54a6a8e9d60594d53cfb329a329bc98dc154a484c20213e"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A343047",
+      "count": 4,
+      "sha256": "3557b10d80810d50abab43a89a40b7e5746b3de9ca026768f33155ce1c7e4c8c"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.atazanavir",
+      "count": 1,
+      "sha256": "45cd3d4d53a23f0d1ca2a2ff30848c578d829ac36823609594eacbe114f88cdd"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.azathioprine",
+      "count": 1,
+      "sha256": "7ddc4f2affd68a6be9d43d00aff3bd04d5a3b37f9a3a702284d13fd5a2521bc2"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A1256",
+      "count": 35,
+      "sha256": "f096ccbaf14771ef6e728304967026d6bd5150c35d088d5a0733c362ebf70d73"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.azathioprine",
+      "count": 2,
+      "sha256": "ebd234c1ca4707ebcbe9e409ca6355afd3bcbe8cbdbbd4d4785704dee44d39d1"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.capecitabine",
+      "count": 1,
+      "sha256": "fd58a5b5c3bf68ee9555ebeb685ea0a4ac3355efdff780e033ab2e4a76f0fea7"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A194000",
+      "count": 5,
+      "sha256": "e37809f667b4bdb3eb30b9409c5076138710c447426b6db6a9177c04ea22e938"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.capecitabine",
+      "count": 2,
+      "sha256": "e88a6efee04ffc035657372b9b6ff0ab9cd2b6cc89a751bef9984712f462a572"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.clopidogrel",
+      "count": 1,
+      "sha256": "817d543ed6e41d902d2ff325ac00a80c773103442581de23056a644834fcc38c"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A32968",
+      "count": 24,
+      "sha256": "9696c33eda43306c89a5d2298b0183a2472748f44208620190353cdc02294c47"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.clopidogrel",
+      "count": 2,
+      "sha256": "2dfd834e0f5e9e2d0f26e873fc6c486d1fec699274d380a309afda1ab312ed3d"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.codeine",
+      "count": 1,
+      "sha256": "6c7f4417f365ba4bdc33a871881577bc280eff404422d53bf2cbe66262bdb823"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A2670",
+      "count": 22,
+      "sha256": "4ccf2ea67a1b52a1874f1582c4199ce07c82117d1a76569873af1f34045f0354"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.codeine",
+      "count": 3,
+      "sha256": "b50658147c80ecd3b6c66f6414f25865ef7ddaf2928225fd92e6e2cadb025f4e"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.efavirenz",
+      "count": 1,
+      "sha256": "033304c9245ab1bde4a1442f68557ef1f0d644ad2b41c6ddbef34cc086ee6b1f"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A195085",
+      "count": 6,
+      "sha256": "a7ed64077444295056c9d7e8db07704825fde5d44160b7e3bf0eb981bf93d444"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.efavirenz",
+      "count": 1,
+      "sha256": "7da5a828719c4d027796c0c965b313baff2d97e61fe0562dc8b9b45ec3d3dc9a"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.fluorouracil",
+      "count": 1,
+      "sha256": "7d0fcb520856e524c5d55617497a26398c52da0de3f409e8bdbb25d26a92356d"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A4492",
+      "count": 5,
+      "sha256": "9347a91b1d5ef19dd80c1ca3068aa4e65c258058fe5959b0843fcc4217c3920b"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.fluorouracil",
+      "count": 5,
+      "sha256": "e8a9891a092f844b68034fc92c427ab9bdcb81e9432e08d78c90840462416d5d"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.irinotecan",
+      "count": 1,
+      "sha256": "a3420deb3656e74324ce8a2bdd37a9e368d3e121c78d711b541aeac49bf2232e"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A51499",
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.irinotecan",
+      "count": 3,
+      "sha256": "6aeeabd8d2fa6a8f06961e4f2c85acc674490b998017862753da6f46c9f2fd40"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.mercaptopurine",
+      "count": 1,
+      "sha256": "f10d8a2b0280e89adfb050ba7a1a165cab21f89b8fb61c07a7c3892780688547"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A103",
+      "count": 35,
+      "sha256": "88adc1ef4f09f428923cc190c40694286fa8ae17f7a9235cb8be23f0caba3a81"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.mercaptopurine",
+      "count": 2,
+      "sha256": "bfc84aab6a31ffdf5c56cc4025f12427f3440f32decd9c9c19e8a2ee15bf1a3a"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.ondansetron",
+      "count": 1,
+      "sha256": "f78de4d9af851e349558e652587c28dee8945241c589d3db03bbb7c29e7cc635"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A26225",
+      "count": 22,
+      "sha256": "05a79d9dd9e1b1e9f021d9d6f11a4ebd94208ae246d8ba345a4589e48a4d459a"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.ondansetron",
+      "count": 2,
+      "sha256": "f50e8a2662288a4ff0d6b050e76e1eedf3ef1bfe1f05bb006140e9032b81dd20"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.phenytoin",
+      "count": 1,
+      "sha256": "51a2a421fd69372024140a985d11cad1f00d7c2b453ef6d6dbd93e58e6ea30e4"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A8183",
+      "count": 40,
+      "sha256": "35bce75576ceaeefd5203117744e681d8ae1cf255d23be4feef6c679e21adb5f"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.phenytoin",
+      "count": 3,
+      "sha256": "a3e1a76f5c0b9f37723e72b4ba63fdedf6124e1fe36e33f9245c5d85335f0089"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.simvastatin",
+      "count": 1,
+      "sha256": "43e03d64ce962943b8bbdff96c4255c31847c14a5c2c3a42b26d8286da0a8a77"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A36567",
+      "count": 6,
+      "sha256": "06499c8b21e106f6721b723aaaafc9c66f934e75768458c4a536177c9e391fd4"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.simvastatin",
+      "count": 7,
+      "sha256": "1df03a4defdf6b82df1a8b89211169a1dcc44c19aed00b40fade67d0e5e8cdcc"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.tacrolimus",
+      "count": 1,
+      "sha256": "fafcdeb34a0d78938096a9d42241d0c485012c84aef2b675a21cf415f1b57f07"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A42316",
+      "count": 5,
+      "sha256": "cc5d2e9645da5e1204fe7cffb1a1c5d4ee89452dbe892e47446f3b4836038816"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.tacrolimus",
+      "count": 2,
+      "sha256": "6a37202b129f5b5fa03bd09af6a38e443b5ee12eb9971c3f644ad3e9b5f4bbe4"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.tamoxifen",
+      "count": 1,
+      "sha256": "87fc3d9eb10a5a67583170aaf270e4d1aac2523227043ee7f04dfa702f68524b"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A10324",
+      "count": 22,
+      "sha256": "faa02425deedd970f72e70a33b383a99050faffd761faa0ead21e0abec2f1023"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.tamoxifen",
+      "count": 1,
+      "sha256": "d1e2cbf5909c3fde7b2ab3982bf4bbe5fbbe356df8fbf85a89478ab9f43eeb7a"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.thioguanine",
+      "count": 1,
+      "sha256": "73465521c1ad086d68914c0965e490368036b95104d6dedf5c9859a58ac764b9"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A10485",
+      "count": 35,
+      "sha256": "c4efbf79623d819ad5aaa546ace7069e0ec809ea42d96529ae876def6fc99225"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.thioguanine",
+      "count": 2,
+      "sha256": "a3d92fe69d4a3cf038078a2b97c3b6981ccfe4bb98bfb42e453157f2ed6725c1"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.tramadol",
+      "count": 1,
+      "sha256": "aef020595855548b23f5ec8a9a053259d60b45e3bfda8bf6341bcf4c29ffa998"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A10689",
+      "count": 22,
+      "sha256": "2b08c4c69d058ac6260958fe6087c83d6cc5dc0a22adc5526593ba3ae13260d3"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.tramadol",
+      "count": 3,
+      "sha256": "dbe2d3870508884ca297342597f645c62915f311b73763ce1d0f2984adb80a0e"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.voriconazole",
+      "count": 1,
+      "sha256": "3102ba90592a297c4f973ab4db2407288b2916b22e71cff3e60a1eadd3d78242"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A121243",
+      "count": 16,
+      "sha256": "8b578deb69246267c0349ae4ef71e057758d30e1e09bc645a26631c2b146735d"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.voriconazole",
+      "count": 1,
+      "sha256": "09cba18fbaeb7a6ba27dc2da56cf53c88e5605d08892aebbf4f0525cd3a05190"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/drug?select=drugid%2Cname&name=eq.warfarin",
+      "count": 1,
+      "sha256": "526b9614666a54f3b08cf39981c382d4932022d01344cc8301b9a51e9e5d4ad5"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/recommendation?select=id%2Cguidelineid%2Cdrugid%2Clookupkey%2Cphenotypes%2Cactivityscore%2Cdrugrecommendation%2Cclassification%2Cpopulation%2Cversion&drugid=eq.RxNorm%3A11289",
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/pair_view?select=genesymbol%2Cdrugname%2Ccpiclevel%2Cguidelineurl&drugname=eq.warfarin",
+      "count": 7,
+      "sha256": "7619c026691a448e99a4eeb9889c4f61a0e682c58df89a2965a6ef592760ef83"
+    },
+    {
+      "url": "https://api.cpicpgx.org/v1/guideline?select=id%2Cname%2Curl%2Cgenes",
+      "count": 29,
+      "sha256": "b27ad01d8599af1203d831f1c81d9c7ce40c39fae2e95c9e213e3527ebcacc14"
+    }
+  ]
+}

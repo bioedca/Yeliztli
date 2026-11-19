@@ -1,0 +1,476 @@
+{
+  "drugs": [
+    {
+      "drugid": "RxNorm:343047",
+      "name": "atazanavir"
+    },
+    {
+      "drugid": "RxNorm:1256",
+      "name": "azathioprine"
+    },
+    {
+      "drugid": "RxNorm:194000",
+      "name": "capecitabine"
+    },
+    {
+      "drugid": "RxNorm:32968",
+      "name": "clopidogrel"
+    },
+    {
+      "drugid": "RxNorm:2670",
+      "name": "codeine"
+    },
+    {
+      "drugid": "RxNorm:195085",
+      "name": "efavirenz"
+    },
+    {
+      "drugid": "RxNorm:4492",
+      "name": "fluorouracil"
+    },
+    {
+      "drugid": "RxNorm:51499",
+      "name": "irinotecan"
+    },
+    {
+      "drugid": "RxNorm:103",
+      "name": "mercaptopurine"
+    },
+    {
+      "drugid": "RxNorm:26225",
+      "name": "ondansetron"
+    },
+    {
+      "drugid": "RxNorm:8183",
+      "name": "phenytoin"
+    },
+    {
+      "drugid": "RxNorm:36567",
+      "name": "simvastatin"
+    },
+    {
+      "drugid": "RxNorm:42316",
+      "name": "tacrolimus"
+    },
+    {
+      "drugid": "RxNorm:10324",
+      "name": "tamoxifen"
+    },
+    {
+      "drugid": "RxNorm:10485",
+      "name": "thioguanine"
+    },
+    {
+      "drugid": "RxNorm:10689",
+      "name": "tramadol"
+    },
+    {
+      "drugid": "RxNorm:121243",
+      "name": "voriconazole"
+    },
+    {
+      "drugid": "RxNorm:11289",
+      "name": "warfarin"
+    }
+  ],
+  "pairs": [
+    {
+      "genesymbol": "UGT1A1",
+      "drugname": "atazanavir",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251453"
+    },
+    {
+      "genesymbol": "TPMT",
+      "drugname": "azathioprine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "NUDT15",
+      "drugname": "azathioprine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "DPYD",
+      "drugname": "capecitabine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251462"
+    },
+    {
+      "genesymbol": "TYMS",
+      "drugname": "capecitabine",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "CYP2C19",
+      "drugname": "clopidogrel",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251443"
+    },
+    {
+      "genesymbol": "CES1",
+      "drugname": "clopidogrel",
+      "cpiclevel": "C",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "COMT",
+      "drugname": "codeine",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "CYP2D6",
+      "drugname": "codeine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "OPRM1",
+      "drugname": "codeine",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "CYP2B6",
+      "drugname": "efavirenz",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251463"
+    },
+    {
+      "genesymbol": "DPYD",
+      "drugname": "fluorouracil",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251462"
+    },
+    {
+      "genesymbol": "GSTP1",
+      "drugname": "fluorouracil",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "NQO1",
+      "drugname": "fluorouracil",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "TYMS",
+      "drugname": "fluorouracil",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "UMPS",
+      "drugname": "fluorouracil",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "UGT1A1",
+      "drugname": "irinotecan",
+      "cpiclevel": "A",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "C8orf34",
+      "drugname": "irinotecan",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "SEMA3C",
+      "drugname": "irinotecan",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "TPMT",
+      "drugname": "mercaptopurine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "NUDT15",
+      "drugname": "mercaptopurine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "ABCB1",
+      "drugname": "ondansetron",
+      "cpiclevel": "C/D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "CYP2D6",
+      "drugname": "ondansetron",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251457"
+    },
+    {
+      "genesymbol": "CYP2C9",
+      "drugname": "phenytoin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251461"
+    },
+    {
+      "genesymbol": "HLA-B",
+      "drugname": "phenytoin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251461"
+    },
+    {
+      "genesymbol": "SCN1A",
+      "drugname": "phenytoin",
+      "cpiclevel": "B",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "SLCO1B1",
+      "drugname": "simvastatin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166264281"
+    },
+    {
+      "genesymbol": "CYP3A4",
+      "drugname": "simvastatin",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166264281"
+    },
+    {
+      "genesymbol": "CYP3A5",
+      "drugname": "simvastatin",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166264281"
+    },
+    {
+      "genesymbol": "CETP",
+      "drugname": "simvastatin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "HMGCR",
+      "drugname": "simvastatin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "LPA",
+      "drugname": "simvastatin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "ABCB1",
+      "drugname": "simvastatin",
+      "cpiclevel": "C",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "CYP3A5",
+      "drugname": "tacrolimus",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251451"
+    },
+    {
+      "genesymbol": "CYP3A4",
+      "drugname": "tacrolimus",
+      "cpiclevel": "C",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "CYP2D6",
+      "drugname": "tamoxifen",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251458"
+    },
+    {
+      "genesymbol": "NUDT15",
+      "drugname": "thioguanine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "TPMT",
+      "drugname": "thioguanine",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251442"
+    },
+    {
+      "genesymbol": "CYP2D6",
+      "drugname": "tramadol",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "COMT",
+      "drugname": "tramadol",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "OPRM1",
+      "drugname": "tramadol",
+      "cpiclevel": "C",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251454"
+    },
+    {
+      "genesymbol": "CYP2C19",
+      "drugname": "voriconazole",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251456"
+    },
+    {
+      "genesymbol": "CYP4F2",
+      "drugname": "warfarin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251465"
+    },
+    {
+      "genesymbol": "VKORC1",
+      "drugname": "warfarin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251465"
+    },
+    {
+      "genesymbol": "CYP2C9",
+      "drugname": "warfarin",
+      "cpiclevel": "A",
+      "guidelineurl": "https://www.clinpgx.org/guideline/PA166251465"
+    },
+    {
+      "genesymbol": "CALU",
+      "drugname": "warfarin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "GGCX",
+      "drugname": "warfarin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "PROC",
+      "drugname": "warfarin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    },
+    {
+      "genesymbol": "PROS1",
+      "drugname": "warfarin",
+      "cpiclevel": "D",
+      "guidelineurl": null
+    }
+  ],
+  "guidelines": [
+    {
+      "id": 100410,
+      "name": "CYP2C19 and Voriconazole",
+      "url": "https://www.clinpgx.org/guideline/PA166251456",
+      "genes": [
+        "CYP2C19"
+      ]
+    },
+    {
+      "id": 100411,
+      "name": "CYP2C19 and Clopidogrel",
+      "url": "https://www.clinpgx.org/guideline/PA166251443",
+      "genes": [
+        "CYP2C19"
+      ]
+    },
+    {
+      "id": 100412,
+      "name": "CYP2C9, HLA-B and Phenytoin",
+      "url": "https://www.clinpgx.org/guideline/PA166251461",
+      "genes": [
+        "CYP2C9",
+        "HLA-B"
+      ]
+    },
+    {
+      "id": 100415,
+      "name": "CYP2D6 and Tamoxifen",
+      "url": "https://www.clinpgx.org/guideline/PA166251458",
+      "genes": [
+        "CYP2D6"
+      ]
+    },
+    {
+      "id": 100416,
+      "name": "CYP2D6, OPRM1, COMT, and Opioids",
+      "url": "https://www.clinpgx.org/guideline/PA166251454",
+      "genes": [
+        "CYP2D6",
+        "COMT",
+        "OPRM1"
+      ]
+    },
+    {
+      "id": 100417,
+      "name": "CYP2D6 and Ondansetron and Tropisetron",
+      "url": "https://www.clinpgx.org/guideline/PA166251457",
+      "genes": [
+        "CYP2D6"
+      ]
+    },
+    {
+      "id": 100418,
+      "name": "CYP3A5 and Tacrolimus",
+      "url": "https://www.clinpgx.org/guideline/PA166251451",
+      "genes": [
+        "CYP3A5"
+      ]
+    },
+    {
+      "id": 100419,
+      "name": "DPYD and Fluoropyrimidines",
+      "url": "https://www.clinpgx.org/guideline/PA166251462",
+      "genes": [
+        "DPYD"
+      ]
+    },
+    {
+      "id": 100426,
+      "name": "SLCO1B1, ABCG2, CYP2C9, and Statins",
+      "url": "https://www.clinpgx.org/guideline/PA166264281",
+      "genes": [
+        "SLCO1B1",
+        "ABCG2",
+        "CYP2C9"
+      ]
+    },
+    {
+      "id": 100428,
+      "name": "TPMT, NUDT15 and Thiopurines",
+      "url": "https://www.clinpgx.org/guideline/PA166251442",
+      "genes": [
+        "NUDT15",
+        "TPMT"
+      ]
+    },
+    {
+      "id": 100429,
+      "name": "UGT1A1 and Atazanavir",
+      "url": "https://www.clinpgx.org/guideline/PA166251453",
+      "genes": [
+        "UGT1A1"
+      ]
+    },
+    {
+      "id": 104245,
+      "name": "CYP2B6 and efavirenz",
+      "url": "https://www.clinpgx.org/guideline/PA166251463",
+      "genes": [
+        "CYP2B6"
+      ]
+    }
+  ]
+}

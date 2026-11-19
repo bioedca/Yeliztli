@@ -1,0 +1,30 @@
+{
+  "source_url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=24479687,31562822&retmode=xml",
+  "accessed_utc": "2026-11-19",
+  "sha256": "ae2887cebadaccb4de6a89f7cce90ed214b9f94e920b7499d0748cf7090676bc",
+  "records": [
+    {
+      "pmid": "24479687",
+      "doi": "10.2174/1389200215666140130124910",
+      "title": "Incorporation of pharmacogenomics into routine clinical practice: the Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline development process.",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "notices": []
+    },
+    {
+      "pmid": "31562822",
+      "doi": "10.1002/cpt.1651",
+      "title": "The Clinical Pharmacogenetics Implementation Consortium: 10\u00a0Years Later.",
+      "publication_types": [
+        "Journal Article",
+        "Research Support, N.I.H., Extramural",
+        "Research Support, Non-U.S. Gov't",
+        "Review"
+      ],
+      "notices": []
+    }
+  ]
+}

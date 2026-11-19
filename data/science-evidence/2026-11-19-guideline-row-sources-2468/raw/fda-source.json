@@ -1,0 +1,12 @@
+{
+  "accessed_utc": "2026-11-19",
+  "url": "https://www.fda.gov/medical-devices/precision-medicine/table-pharmacogenetic-associations",
+  "source_response_sha256": "6ff37c3d1fb16545331755d183d0f238cddda346127038e5280124d8411f8b07",
+  "projection": "First two cells of matching authority-table rows only",
+  "drug_gene_cells": [
+    [
+      "Irinotecan",
+      "UGT1A1"
+    ]
+  ]
+}
