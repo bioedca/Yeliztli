@@ -1,0 +1,15 @@
+{
+  "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=28169989&retmode=xml",
+  "accessed_utc": "2026-11-19",
+  "source_sha256": "cc93d82d3b3635b41c732fceb0efe1504dea13e764e6c7ca6676117a05e25b5d",
+  "citation": {
+    "pmid": "28169989",
+    "doi": "10.1038/ncomms14238",
+    "title": "Clustering of 770,000 genomes reveals post-colonial population structure of North America.",
+    "publication_types": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't"
+    ],
+    "linked_notices": []
+  }
+}

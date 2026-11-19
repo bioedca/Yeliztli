@@ -1,0 +1,25 @@
+{
+  "accessed_utc": "2026-11-19",
+  "sources": [
+    {
+      "document_id": "23andMe Support article 42965294875031",
+      "url": "https://support.23andme.org/hc/en-us/articles/42965294875031-What-Are-RS-Numbers-Rsid",
+      "selected_fact": "Some custom probes have an internal i-number. A vendor identifier and a public rsID need not be interchangeable.",
+      "scope": "General identifier convention, no exhaustive version-specific inventory.",
+      "excerpt": "that marker is usually assigned an \"internal\" id (\"i\" followed by a number)",
+      "section": "What Are RS Numbers (Rsid)?"
+    },
+    {
+      "document_id": "Ancestry Help article 53933317283603",
+      "url": "https://help.ancestry.com/hc/en-us/articles/53933317283603-Downloading-DNA-Data",
+      "selected_fact": "Raw output is described with an rsID field and genotypes on the forward strand of GRCh37.",
+      "scope": "Official indexed documentation. Direct browser retrieval returned HTTP 403. No per-version marker inventory in the reviewed documentation.",
+      "section": "Reading your DNA Data",
+      "retrieval": "Dated indexed text of the official help page",
+      "excerpts": [
+        "first column in your DNA Data is the rsID",
+        "on the forward strand with respect to the human reference genome (GRCh37)"
+      ]
+    }
+  ]
+}

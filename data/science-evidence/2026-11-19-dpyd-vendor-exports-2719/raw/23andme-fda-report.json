@@ -1,0 +1,15 @@
+{
+  "url": "https://www.accessdata.fda.gov/cdrh_docs/pdf19/K193492.pdf",
+  "accessed_utc": "2026-11-19",
+  "source_sha256": "62a3d579d1cc1281085ef3e11de2cef30241a22620d2851ee04ce34b6f3e1eda",
+  "selected_facts": {
+    "submission": "K193492",
+    "scope": "Indications for Use, 23andMe Personal Genome Service Pharmacogenetic Reports",
+    "physical_page": 3,
+    "gene": "DPYD",
+    "listed_variants": [
+      "*2A",
+      "rs67376798"
+    ]
+  }
+}
