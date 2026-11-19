@@ -195,7 +195,9 @@ class TestRegulatoryContext:
         assert ctx["top_gene_symbol"] == "GENEA"
 
 
-def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
+def _make_eqtl_tar(
+    tmp_path: Path, tissue_to_signif: dict[str, str], *, egenes: str = _EGENES
+) -> Path:
     """Build a synthetic ``GTEx_Analysis_v8_eQTL.tar`` with per-tissue signif files."""
     raw = tmp_path / "tar_src"
     raw.mkdir(exist_ok=True)
@@ -207,7 +209,7 @@ def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
         members.append(f)
         g = raw / f"{tissue}.v8.egenes.txt.gz"
         with gzip.open(g, "wt", encoding="utf-8") as fh:
-            fh.write(_EGENES)
+            fh.write(egenes)
         members.append(g)
     tar_path = tmp_path / "GTEx_Analysis_v8_eQTL.tar"
     with tarfile.open(tar_path, "w") as tf:
@@ -243,8 +245,8 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         # Seed the legacy association values independently of the loader under test.
         columns = ("rsid", "gene_id", "tissue", "chrom", "pos", "pval_nominal", "slope")
         historical = [
-            ("rs2222", "ENSG002", "Liver", "2", 100, 3e-8, -0.22),
-            ("rs769952832", "ENSG001", "Liver", "1", 64764, 1e-12, 0.45),
+            ("rs2222", "ENSG002.1", "Liver", "2", 100, 3e-8, -0.22),
+            ("rs769952832", "ENSG001.4", "Liver", "1", 64764, 1e-12, 0.45),
         ]
         _create_legacy_gtex_table(installed)
         with installed.begin() as conn:
@@ -270,19 +272,23 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
                 )
             )
         assert associations() == historical
-        assert lookup_gene_names(["ENSG001", "ENSG002"], installed) == {}
+        assert lookup_gene_names(["ENSG001.4", "ENSG002.1"], installed) == {}
         assert find_stale_reference_versions(sample, ref) == []
 
-        archive = _make_eqtl_tar(tmp_path, {"Liver": _SIGNIF})
+        pairs = _SIGNIF.replace("ENSG001\t", "ENSG001.4\t").replace("ENSG002\t", "ENSG002.1\t")
+        names = "gene_id\tgene_name\nENSG001.4\tGENEA\nENSG002.1\tGENEB\n"
+        archive = _make_eqtl_tar(tmp_path, {"Liver": pairs}, egenes=names)
         monkeypatch.setattr(
             gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
         )
         run_standalone_build(DATABASES["gtex_eqtl"], settings, ref, download_and_load_gtex_eqtl)
 
         assert associations() == historical
-        assert lookup_gene_names(["ENSG001", "ENSG002", "ENSG999"], installed) == {
-            "ENSG001": "GENEA",
-            "ENSG002": "GENEB",
+        assert lookup_gene_names(
+            ["ENSG001.4", "ENSG002.1", "ENSG001.5", "ENSG002", "ENSG999"], installed
+        ) == {
+            "ENSG001.4": "GENEA",
+            "ENSG002.1": "GENEB",
         }
         assert read_current_reference_versions(ref) == snapshot
         assert find_stale_reference_versions(sample, ref) == []
