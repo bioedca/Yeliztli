@@ -20,7 +20,8 @@
       "RefStrand": "+",
       "IlmnStrand": "TOP",
       "AddressA_ID": "0060632538",
-      "AddressB_ID": ""
+      "AddressB_ID": "",
+      "SNP": "[A/G]"
     },
     {
       "IlmnID": "ilmnseq_rs146356975_F2BT-138_T_R_2609646621",
@@ -31,7 +32,8 @@
       "RefStrand": "-",
       "IlmnStrand": "TOP",
       "AddressA_ID": "0009806521",
-      "AddressB_ID": "0048614975"
+      "AddressB_ID": "0048614975",
+      "SNP": "[A/G]"
     },
     {
       "IlmnID": "rs186169810-138_T_F_2304765371",
@@ -42,7 +44,8 @@
       "RefStrand": "+",
       "IlmnStrand": "TOP",
       "AddressA_ID": "0051783560",
-      "AddressB_ID": ""
+      "AddressB_ID": "",
+      "SNP": "[A/C]"
     }
   ]
 }
