@@ -197,7 +197,7 @@ loading and aggregation remain linear, with their separate design tracked in
 
 Select bounded conversion for the five displayed cards and keep the full per-request
 disclosure and liveness checks. On the card-dense synthetic workload this removed
-4,995 unused conversions and reduced the median from 5.230 s to 5.012 s. Sparse
+4,995 unused conversions and reduced the median from 5.184 s to 5.015 s. Sparse
 summaries still spend nearly all their time checking rows. Keep the larger
 Report Builder latency problem open. A larger improvement needs evidence on
 the shared row gate or a separately validated cache design. This decision covers
@@ -225,14 +225,14 @@ The driver checks the identity and order of all five.
 
 | Synthetic workload | Stored / visible | Cards returned | Conversions, current → bounded | Median seconds, current → bounded |
 | --- | ---: | ---: | ---: | ---: |
-| 17 modules, low evidence only among visible rows | 10,003 / 10,001 | 0 | 0 → 0 | 4.999 → 5.017 |
-| 17 modules, half the ordinary rows have high evidence | 10,003 / 10,001 | 5 | 5,000 → 5 | 5.230 → 5.012 |
-| 17 modules, eight nested text sections per ordinary row | 2,003 / 2,001 | 5 | 20 → 5 | 4.273 → 4.344 |
+| 17 modules, low evidence only among visible rows | 10,003 / 10,001 | 0 | 0 → 0 | 5.039 → 4.999 |
+| 17 modules, half the ordinary rows have high evidence | 10,003 / 10,001 | 5 | 5,000 → 5 | 5.184 → 5.015 |
+| 17 modules, eight nested text sections per ordinary row | 2,003 / 2,001 | 5 | 20 → 5 | 4.307 → 4.315 |
 
 At the **311,471 stored rows** reported in #2358, a separate card-dense synthetic
-fixture took a median **161.353 s** on current main and **154.681 s** with
+fixture took a median **160.769 s** on current main and **155.053 s** with
 bounded conversion. All six unprofiled calls returned the identical complete
-body with 311,469 visible rows, 17 modules and five cards. The 6.673 s saving
+body with 311,469 visible rows, 17 modules and five cards. The 5.716 s saving
 leaves over two and a half minutes before Report Builder can use the summary on
 this fixture. Its cardinality matches the issue. Its contents and timings are
 specific to this synthetic distribution. Keep end-to-end latency open in #2358
@@ -242,8 +242,8 @@ across requests.
 Each smaller shape has three serial, alternating unprofiled repeats per lane and one
 separate profile per lane. All eight complete response digests agreed within
 each shape. The wide-row timing ranges overlap. On the card-dense baseline,
-the profile attributed 12.764 s cumulatively to 10,002 row checks, 0.041 s to
-fetching rows, 0.227 s to card conversion and 0.047 s to the handler's own
+the profile attributed 12.767 s cumulatively to 10,002 row checks, 0.041 s to
+fetching rows, 0.219 s to card conversion and 0.047 s to the handler's own
 bookkeeping and aggregation. In the prototype the five conversions took under
 0.001 s in the profile. These times include profiler overhead and nested work.
 The in-memory fixture uses neutral module labels. Disk access, HTTP overhead,
@@ -263,7 +263,13 @@ performance assertion. [Measurements, digests and environment](benchmarks/findin
   two individually excluded rows both produced zero and `withheld=false`.
   The two-row cross-record fixture reached card conversion twice, then the real
   final gate refused the assembled response. Both lanes returned the exact
-  five-field empty body with `withheld=true`. Cover Dashboard, All Findings and Report
+  five-field empty body with `withheld=true`. A separate synthetic panel contained
+  one current link alongside two stored cards. Its retired four-star row disappeared,
+  and the remaining three-star card and module preview carried the panel's current
+  note. The stored Traits detail names its historical destination in `to_module`.
+  The returned card adds the current `target_module` and updates
+  `cross_module_note` while preserving the other stored fields. The fixture supplies a
+  synthetic panel link map to the production resolver. Cover Dashboard, All Findings and Report
   Builder, including their distinct withheld and empty views. Report Builder still
   waits for summary data to create its module selections.
 - Retain the full projection. The gate examines the row's string fields, structured
@@ -277,24 +283,24 @@ performance assertion. [Measurements, digests and environment](benchmarks/findin
   context. Every writer and worker must observe those changes. Cache publication
   needs one consistent snapshot and version checks across concurrent mutations.
   On missing or uncertain version evidence, recompute with the full gate.
-- At measurement time [PR #2688](https://github.com/bioedca/Yeliztli/pull/2688)
-  was open at `6064683ef527a03d86d84cf610809e88ff607052`. It combines a
+- At measurement time PR #2688 was open at
+  `6064683ef527a03d86d84cf610809e88ff607052`. It combines a
   bounded card pass with an in-process summary cache. That revision builds
   a list of eligible rows and slices it to five before conversion. The measured
   prototype uses `islice` and stops iterating as soon as it has five. Recheck
   the PR and main before implementing #2358.
   If the card change has landed, verify it in place. If the cache has landed,
   establish fresh cold/warm measurements and exercise each invalidation event
-  before adopting its results.
+  before adopting its results. [Overlapping implementation](https://github.com/bioedca/Yeliztli/pull/2688)
 
 #### Reproducing the comparison
 
 Prepare the two source trees **on the local workstation**. The repository
 contains individual-level fixtures, while this benchmark uses generated
 observations and an in-memory database. Export only the 50 public Python files
-in the [source manifest](benchmarks/findings-summary-2026-11-19.source.sha256).
-The following commands start at the repository root and verify every exported
-blob before building the second tree.
+in the source manifest. Run these commands at the repository root to verify
+every exported blob before building the second tree.
+[Source manifest](benchmarks/findings-summary-2026-11-19.source.sha256)
 
 ```bash
 set -eu
@@ -320,10 +326,49 @@ for lane in baseline bounded; do
 done
 ```
 
-Stage only those verified trees, the selected public dependency wheels and the
-finite job launcher in a fresh job directory. Keep the source checkout, Git
+The requirements lock pins the 25 installed distributions and the pip bootstrap
+wheel. Use a matching CPython 3.12 Linux x86-64 environment on the workstation
+to obtain the recorded wheel filenames and hashes.
+[Requirements lock](benchmarks/findings-summary-2026-11-19-requirements.txt) ·
+[Wheel checksums](benchmarks/findings-summary-2026-11-19.wheels.sha256)
+
+```bash
+set -eu
+cp "$prefix-requirements.txt" "$stage_dir/requirements.txt"
+cp "$prefix.wheels.sha256" "$stage_dir/wheels.sha256"
+echo "$(jq -r .environment.requirements_sha256 "$prefix.json")  $stage_dir/requirements.txt" | sha256sum -c -
+echo "$(jq -r .environment.wheel_manifest_sha256 "$prefix.json")  $stage_dir/wheels.sha256" | sha256sum -c -
+python3.12 -m pip download --only-binary=:all: --no-deps --require-hashes \
+  -r "$stage_dir/requirements.txt" --dest "$stage_dir/wheels"
+(cd "$stage_dir/wheels" && sha256sum -c ../wheels.sha256)
+(cd "$stage_dir" && find baseline bounded wheels -type f -exec sha256sum {} + > INPUTS.sha256 &&
+  sha256sum requirements.txt wheels.sha256 >> INPUTS.sha256)
+```
+
+Package these two verified source trees, the wheelhouse, lock, checksum manifest
+and finite job launcher in a fresh job directory. Keep the source checkout, Git
 object store, data fixtures and configuration on the workstation. Check the
-transferred manifest before execution. In the allocation, run the historical
+transferred file digests in the allocation. From the staged directory, install
+the environment fully offline, including on compute images that lack `ensurepip`.
+
+```bash
+set -eu
+sha256sum -c INPUTS.sha256
+(cd wheels && sha256sum -c ../wheels.sha256)
+python3.12 -m venv --without-pip env
+bootstrap="$PWD/wheels/pip-26.3-py3-none-any.whl"
+PYTHONPATH="$bootstrap" env/bin/python -m pip --isolated install --no-index "$bootstrap"
+env/bin/python -m pip --isolated install --no-index --find-links wheels \
+  --require-hashes -r requirements.txt
+env/bin/python -m pip check
+export PATH="$PWD/env/bin:$PATH"
+export YELIZTLI_DATA_DIR="$PWD/synthetic-data"
+mkdir "$YELIZTLI_DATA_DIR"
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1
+export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+```
+
+In the allocation, run the historical
 command above once, then run the following in each tree (`10000`, `10000` and
 `2000` ordinary rows for the three throughput shapes).
 
@@ -331,8 +376,9 @@ command above once, then run the following in each tree (`10000`, `10000` and
 python scripts/benchmark_findings_summary.py --shape dense --rows 10000
 ```
 
-Use `low`, `dense` and `wide` for the throughput cases. Use `--rows 8` for
-`empty`, `held_only` and `response_refused`. Alternate lane order across three
+Use `low`, `dense` and `wide` for the throughput cases. The four semantic
+controls use fixed-size inputs. The recorded commands pass `--rows 8` for
+`empty`, `held_only`, `response_refused` and `links`. Alternate lane order across three
 repeats. Then add `--profile` for one diagnostic call per lane and shape.
 Require the full response SHA-256 to agree across all eight calls to each shape.
 To reproduce the reported-cardinality comparison, use `--shape dense --rows 311468`
