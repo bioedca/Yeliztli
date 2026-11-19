@@ -8,6 +8,7 @@ the context-only badge (never ACMG evidence).
 from __future__ import annotations
 
 import gzip
+import os
 import tarfile
 from pathlib import Path
 
@@ -326,6 +327,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
             gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
         )
         monkeypatch.setattr("backend.db.connection._registry", registry)
+        before_build = settings.gtex_eqtl_db_path.stat()
         if worker == "update":
             from backend.tasks.huey_tasks import (
                 create_database_update_job,
@@ -345,6 +347,7 @@ def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
         with ref.connect() as conn:
             job = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).one()
             assert job.status == "complete", job.error
+        assert not os.path.samestat(before_build, settings.gtex_eqtl_db_path.stat())
 
         assert associations() == historical
         assert lookup_gene_names(["ENSG001.4"], installed) == {"ENSG001.4": "GENEA"}
