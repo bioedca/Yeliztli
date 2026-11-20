@@ -1,6 +1,6 @@
 # Which strand does a categorical panel key use?
 
-**Proposed decision for #2716.** Preserve the source call and its verified
+**Maintainer decision for #2716.** Preserve the source call and its verified
 orientation at ingest. Give each curated panel row an explicit key frame.
 Resolve the relationship once, where a categorical scorer joins the two.
 An observed pair of letters alone cannot establish that relationship.
@@ -28,15 +28,14 @@ Implementation and migration belong to [#2301](https://github.com/bioedca/Yelizt
    distinct from an absent marker, no-call and verified non-carrier. Map an
    I/D or slash-delimited token only through its reviewed locus-specific
    encoding. Preserve the existing mtDNA rules that prohibit complementation.
-4. The proposed default for an unknown observed or key frame is to withhold
-   the affected interpretation, even if two possible keys have the same
-   category. Withhold dependent text, aggregate contributions and derived
-   actions. Keep independently supported results visible. A neutral coverage
-   record may explain that a call was present and its frame could not be
-   verified. The alternative requires every admissible orientation to resolve
-   to the same complete output, including membership, wording, citations and
-   every downstream contribution. The maintainer selects the policy before
-   implementation.
+4. Withhold the row's interpretation whenever the observed strand, key
+   strand or evidence linking them is unverified. This rule applies even
+   when all enumerated orientations would yield the same complete output.
+   Withhold dependent text, aggregate contributions and derived actions.
+   Keep independently verified rows visible. A neutral coverage record may
+   explain that a call was present and its strand could not be verified.
+   The maintainer considered an exception for fully invariant outputs and
+   chose to require provenance for every displayed interpretation.
 
 Recording a typed frame at ingest alone cannot interpret mixed historical
 panel conventions. Adapter-only metadata cannot recover a missing sample
@@ -62,10 +61,22 @@ already maps coordinates and complements nucleotide calls on reverse chain
 segments. Record that transformation and the resulting GRCh37 frame to avoid
 a second flip. An uncertified input frame or unsuitable mapping stays unknown.
 
+For merged samples, apply the same contract before deciding concordance.
+`sample_merge._stream_raw_variants` currently reads calls without frame
+metadata and `_apply_semantics` can mark equal spellings as a match.
+Preserve source-specific locus, frame and transform evidence for each
+candidate. A selected one-sided call inherits only its own proof. Mark a
+two-sided match only when both identified loci and calls agree in a verified
+common frame. If either source lacks frame evidence, equal letters cannot establish
+agreement. Retain the uncertainty and withhold that merged row. A
+recorded conflict resolution must identify the selected source and its
+verified frame. A `merged_v1` label or `source=both` cannot attest a strand.
+
 Today `lookup_by_genotype` tries the observed spelling and reversed order,
-then their complements for eligible nucleotide calls. The palindromic guard
-in the eight scorers compares categories. The table below inventories all
-133 `pathways[].snps[].genotype_effects` rows in their shipped panels on
+then their complements for eligible nucleotide calls. Seven scorers pass
+categories to the palindromic guard. Fitness passes the full effect
+dictionaries, so even two same-category entries can differ for that guard.
+The table inventories all 133 `pathways[].snps[].genotype_effects` rows in their shipped panels on
 `6ec3ba122c5eb319e63b4aa71bf8f39471077c5b`. None declares a typed key frame.
 Existing locus-specific evidence nevertheless establishes some conventions,
 including the fitness plus-strand fixture for rs1800012 and the nomenclature
@@ -73,7 +84,7 @@ audit of the methylation row for rs1051266.
 
 | Panel | Rows | Rows that model both a homozygote and its complement | Other consumers of the mapping |
 | --- | ---: | --- | --- |
-| Allergy | 14 | rs144012689, rs1061235, rs1049793 | Celiac, histamine and cross-module findings consume scored markers. |
+| Allergy | 14 | rs144012689, rs1061235, rs1049793 | `_compute_histamine_combined` counts AOC1 risk-allele letters in the observed genotype. Use panel-frame dosage for the count and preserve the observed string for provenance. Celiac and cross-module findings also consume scored markers. |
 | Fitness | 8 | rs1049434, rs9939609 | `_resolve_three_state` performs another lookup in the three-state table. |
 | Gene health | 40 | rs747302, rs1801282, rs9939609, rs738409, rs689, rs2230199 | `_current_curated_effect` also resolves historical finding wording. |
 | Methylation | 34 | rs1801198, rs12325817, rs585800 | `_genotype_matches` uses candidates for compound MTHFR rules. |
@@ -124,9 +135,12 @@ calls and findings need a verifiable chain from their source file, any
 coordinate transform and the exact panel revision. Reconstruct only the
 parts that can be proved. Withhold unsupported interpretations on every read
 path, including stored pathway detail, reports and exports. A saved category
-or file-format label alone cannot certify an earlier calculation. After
-verification, rerun the affected producer; only successful publication
-replaces the corresponding prior result. Preserve independent findings.
+or file-format label alone cannot certify an earlier calculation. If
+provenance is missing, offer reimport from a supported original export or
+recovery of a verified panel revision as appropriate. Previously stored
+rows that predate the frame contract require strand verification and a new
+analysis before display. Only a successfully published rerun restores the
+affected result. Preserve independently verified rows throughout recovery.
 
 Use two temporary, entirely synthetic vendor files and temporary sample
 databases. Through the production ingest, scorer and finding writer, exercise
@@ -139,15 +153,21 @@ Alleles and effects here are software fixtures without a clinical claim.
 | --- | --- |
 | A forward GRCh37 file reports AA | The adapter obtains TT. Stored SNP detail withholds the unmodelled call and no derived finding or recommendation inherits the AA effect. |
 | The same letters AA arrive with verified panel-frame provenance | The adapter resolves AA directly. At the vendor entry point, a verified forward TT reaches the same stored positive effect. Exercise the panel-frame input at the typed adapter boundary; neither supported vendor needs to emit coding-strand data. |
-| The same AA has unknown or contradictory provenance | Apply the selected policy. It cannot borrow the verified AA effect. A separately verified positive in the same sample is still present. |
+| A file header contradicts its supported format or build declaration | Reject the upload before publishing a sample or findings. Verify the rejection and absence of a new sample. |
+| An accepted sample contains AA with unverified row provenance | Withhold the interpretation. Repeat with an invariant mapping in which both orientations have the same complete output. Both cases stay withheld. A separately verified positive in the same sample is still present. |
+| A second synthetic reverse-oriented row models both AA and TT with distinct effects | Forward AA must store the TT effect; verified panel-frame AA must store the AA effect. Verify both complete outputs, including the pathway detail. Unknown strand withholds both. |
 | Forward CT and TC; panel GA and AG | Verify identical complete stored heterozygote output and membership for each order. Conflict between order aliases withholds the affected row. |
 | Forward CC (`hom_ref`), missing marker, and no-call | CC resolves to panel GG and produces no carrier-gated finding. Assert the baseline in the relevant pathway detail, the absence of the carrier text/action and the presence of the independent positive. The two missing cases retain their distinct coverage states. |
 | Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. |
+| Merged source calls | Equal letters that disagree after verified normalization are a conflict. An unverified source leaves agreement unresolved. Different source spellings that normalize to the same verified allele pair can agree. Reopen the merged sample and check the stored source identity, interpretation and independent control. |
 
 Run the same cases through both vendor formats for supported forward calls.
 Check values after reopening the sample database, including nonempty
 `pathway_summary.detail_json.snp_details`, individual reportable rows and
-each special consumer above. Exercise MT-RNR1 and LHON with their existing
+each special consumer above. For the allergy AOC1 aggregate, place a
+synthetic single-copy carrier in the opposite frame from the declared risk
+allele. Assert a stored dosage contribution of one and a reference control
+of zero. Exercise MT-RNR1 and LHON with their existing
 no-complement controls, plus a literal indel, a build-36 reverse chain
 segment and a parser no-call. Evidence of performance in these fixtures
 validates software behavior only. Public locus conflicts remain with #2301.
