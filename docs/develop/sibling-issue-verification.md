@@ -39,10 +39,13 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    reopened during review or post-merge CI, alongside earlier candidates.
    Map **each** candidate's acceptance criteria to its production paths,
    expected results and observed results. A live owner handles their own
-   issue. For an unclaimed candidate, finish or durably pause the primary
-   work, then acquire the sibling's claim before any write-producing check
-   or issue update. The confirmed owner runs those checks in a dedicated
-   worktree.
+   issue. Route other candidates through the fleet coordinator or, for
+   a single agent, the normal issue selection rules. Preserve an existing
+   allocation even if its claim election has yet to start. The assigned
+   or selected agent finishes or durably pauses any current issue before
+   claiming the sibling under the existing development contract. Confirm
+   that claim before any issue update or write-producing check. Run the
+   checks in the sibling's dedicated worktree.
    For a behavior or data defect, identify the committed regression test
    that exercises the affected production path and fails without the fix.
    Run it on the verified green SHA, including the applicable unaffected
@@ -55,8 +58,10 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    repeat verification on the new green head. If ownership changes, stop
    and leave the issue with its current owner. Check sole active ownership,
    the open issue and the exact green SHA before posting the evidence.
-   Post the criteria, results, SHA and check IDs on the sibling. Repeat the
-   ownership, issue and SHA checks immediately before closing. Re-read the
+   Link the fixing PR or commit in the sibling's evidence comment. Record
+   each criterion, its result, the tested main SHA and covering check IDs.
+   Repeat the ownership, issue and SHA checks immediately before closing.
+   Re-read the
    current criteria and clarifying comments, including edits, and match
    them to the posted evidence. Verify any added or changed requirement,
    including an in-scope release or backport, and update the evidence
