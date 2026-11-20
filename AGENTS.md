@@ -23,6 +23,12 @@
 - If behind, merge `origin/main` into the issue branch inside its worktree; never rebase a published branch or force-push. Resolve conflicts there, rerun affected gates, and restart the full review route on the new SHA.
 - Preserve unrelated dirty files, stashes, branches, and agent work. Never force-push, discard, delete, or rewrite work whose ownership is uncertain.
 
+## Verifying issues that may already be fixed
+
+- At pickup, search merged PRs for an existing fix using the reported behavior and affected paths. At draft creation, before merge and after the merge is green, search open issues for siblings addressed by the change or its review. Keep one primary closing issue per PR and squash message. Reference other candidates by issue number without closing keywords or Development sidebar links.
+- Each candidate keeps its own allocation and claim. Its confirmed owner may close it without a new PR when the fix has already shipped and every current acceptance criterion passes on freshly verified green `origin/main`. Link the fixing PR or commit and record the tested main SHA, covering check IDs, and observed result for each criterion. Recheck ownership, issue criteria and green main immediately before closure. Update the Project and finish the claim.
+- Keep the issue open if evidence or regression coverage is missing. Follow the usual issue and PR route for any needed change. The [sibling verification procedure](docs/develop/sibling-issue-verification.md) covers changed criteria, release scope and production-path checks.
+
 ## Agile delivery loop
 
 1. Turn the issue into a user story, acceptance criteria, risks, and a reproducible baseline. Escalate a missing material design choice to a design issue or Discussion.
