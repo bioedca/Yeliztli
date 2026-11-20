@@ -8,37 +8,48 @@ machine.**
 - **Your raw data file**, the parsed genotypes, every annotation, and every analysis
   finding live only in Yeliztli's local data directory (by default `~/.yeliztli/`) on the
   computer you run it on.
-- **Application logs stay local, too, but they can reveal analysis metadata.**
-  Yeliztli writes structured application logs to `reference.db` (`log_entries`, shown in
-  **Settings -> System Health -> Log explorer**) and renders logs to stdout, which installed
-  services can capture in `journalctl`, `~/Library/Logs/yeliztli-*.log`, or Docker logs. These
-  logs are for troubleshooting and can include sample filenames or local paths, gene symbols,
-  variant identifiers such as rsIDs, genomic coordinates, download paths, and error details.
-  New structured log entries redact genotypes, diplotypes, haplotypes, `gt` values,
-  phenotypes, carried-marker lists, unresolved-allele lists, confidence-note text, and
-  recommendations before they reach the Log explorer or application console. The same rules
-  apply to nested structured fields and application events from Python's standard logger.
-  PGx events use diagnostic categories and counts instead of these result values.
-  The Log explorer shows only entries written under the current presentation policy;
-  upgrading this policy hides older entries from its filters, counts, and pages without
-  rewriting or deleting them. Older database and service logs may still contain values that
-  newer versions redact. General free-text messages, exception text, and separately configured
-  logging handlers are not covered by the structured-field rules. Logs can still show what you
-  analyzed and where files live. Yeliztli does not currently prune the `log_entries` table
-  automatically; service-log retention is controlled by your operating system, launch service, or
-  Docker runtime.
-- Yeliztli serves its interface on `localhost` and, by default, binds only to the loopback
-  address (`127.0.0.1`), so it is not reachable from other machines on your network.
-  If you override the bind host to a non-loopback address for remote access, enable
-  authentication and set a password first; otherwise anyone who can reach the port can use
-  the app and API without credentials. See
-  [Exposing Yeliztli to your network](install/configuration.md#exposing-yeliztli-to-your-network).
+- **Application diagnostics stay local.** The shipped API and worker send reviewed messages to
+  their service console and write application records to `reference.db`. Settings → System Health
+  → Log Explorer shows only entries written under the current diagnostic policy. A reviewed
+  operating error can retain its explanation and validated fields. Unrecognized events receive
+  a static category. Individual prescribing results produce no diagnostic, and a refused response
+  records its reviewed operation once. Framework console messages stay on the console.
+  Historical database rows, existing service logs, backups and separately launched tools have
+  their own retention policies. The upgrade preserves existing rows while excluding them from
+  Explorer searches, totals and pages. Yeliztli does not automatically prune historical records.
+
 - **Your genotypes are never uploaded.** There is no analytics, no crash reporting, and no
   outbound transfer of your variant data — your raw file, parsed genotypes, annotations, and
   findings never leave your machine, to Yeliztli's authors or anyone else. Yeliztli *does*
   make a small number of automatic **non-genomic** connections by default (an app-version
   check and a reference-data update check); these send no genotype data, but they do reveal
   that you run Yeliztli (your IP, app version, and timing). They are listed in full below.
+
+## Upgrade the diagnostic policy
+
+New, empty installations initialize their diagnostic revision at first launch. For an existing
+installation, first close the Explorer to access at the service boundary. Stop the API and worker,
+including manual processes, and disable their restart commands. Preserve the data directory,
+queue and backups. Close and retire every browser context that accessed the old Explorer,
+including tabs navigated away from it, restorable sessions and cached documents. Reopen the
+verified application in a fresh browser context.
+
+Use an independently controlled service identity, mount policy or deployment gate to restrict the
+active data directory, queue and service endpoint to the verified release. Check the native
+services' interpreter, or both the API and worker image digests and volume mounts in Compose.
+Where the installation cannot enforce release admission independently, run old releases only in
+an isolated rollback environment with a separate identity, directory or volume, queue and
+endpoint. Keep the active data inaccessible to that environment. The same constraints apply to
+manual processes. Keep the service closed while old access or browser sessions could survive.
+
+After verifying that isolation, point `YELIZTLI_DATA_DIR` at the verified installation and run
+`python -m backend.diagnostic_cutover --confirm-isolated-upgrade` there. Start the API with
+`python -m backend.main` and the worker with `python -m backend.worker -w 1`. Review both
+before reopening the Explorer. These entrypoints check the installed revision before serving
+requests or consuming the queue. The local receipt records the operator's cutover decision.
+The deployment owner controls access by older executables and operating-system or container
+rollback. Repeat the isolation steps on restore, including retirement of old browser sessions.
+A restored installation without a valid receipt requires fresh confirmation.
 
 ## When Yeliztli does use the network
 

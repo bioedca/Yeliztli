@@ -403,7 +403,7 @@ def install_systemd() -> None:
         print("  You can still run Yeliztli manually:")
         print(f"    cd {_repo_root()}")
         print(f"    {shlex.quote(_find_python())} -m backend.main &")
-        print("    huey_consumer backend.tasks.huey_tasks.huey -w 1 &")
+        print(f"    {shlex.quote(_find_python())} -m backend.worker -w 1 &")
         return
 
     install_dir = _repo_root()

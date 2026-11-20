@@ -18,15 +18,22 @@ from backend.db.tables import (
     log_entries,
     reference_metadata,
 )
+from backend.diagnostics import (
+    DATABASE_BUSY,
+    GENERIC_EVENT,
+    GENERIC_FAILURE,
+    NETWORK_BIND_WARNING,
+    safe_event,
+    storage_failure,
+    warn_network_bind,
+)
 from backend.logging_config import (
-    _REDACTED_LOG_VALUE,
-    _redact_sensitive_log_fields,
     _redact_withheld_prescribing_alert_fields,
     configure_logging,
 )
 
 
-def test_redact_sensitive_log_fields_recursively() -> None:
+def test_unreviewed_nested_fields_are_excluded_together() -> None:
     event_dict = {
         "event": "analysis_event",
         "has_e4": True,
@@ -41,21 +48,7 @@ def test_redact_sensitive_log_fields_recursively() -> None:
         "input_gt": "0/1",
     }
 
-    redacted = _redact_sensitive_log_fields(None, "info", event_dict)
-
-    assert redacted["has_e4"] == _REDACTED_LOG_VALUE
-    assert redacted["e4_count"] == _REDACTED_LOG_VALUE
-    assert redacted["genotype"] == _REDACTED_LOG_VALUE
-    assert redacted["rs429358_genotype"] == _REDACTED_LOG_VALUE
-    assert redacted["call_confidence"] == "high"
-    assert redacted["diplotypes"] == _REDACTED_LOG_VALUE
-    assert redacted["diplotype_count"] == 42
-    assert redacted["nested"] == {
-        "diplotype": _REDACTED_LOG_VALUE,
-        "gene": "CYP2C19",
-    }
-    assert redacted["items"] == [{"haplotype": _REDACTED_LOG_VALUE, "rsid": "rs123"}]
-    assert redacted["input_gt"] == _REDACTED_LOG_VALUE
+    assert safe_event(event_dict) == {"event": GENERIC_EVENT}
 
 
 def test_withheld_prescribing_alert_log_keeps_only_neutral_metadata() -> None:
@@ -139,27 +132,20 @@ def test_configured_logging_redacts_before_db_and_console(
         assert "*1/*2" not in stdout
         assert "GG" not in stdout
         assert "H1" not in stdout
-        assert _REDACTED_LOG_VALUE in stdout
-        assert "rs123" in stdout
+        assert GENERIC_EVENT in stdout
+        assert "rs123" not in stdout
+        assert "APOE" not in stdout
 
         with engine.connect() as conn:
             row = conn.execute(
                 sa.select(
                     log_entries.c.event_data,
                     log_entries.c.presentation_policy_version,
-                ).where(log_entries.c.message == "analysis_event")
+                ).where(log_entries.c.message == GENERIC_EVENT)
             ).one()
 
-        event_data = json.loads(row.event_data)
+        assert row.event_data is None
         assert row.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
-        assert event_data["genotype"] == _REDACTED_LOG_VALUE
-        assert event_data["diplotype"] == _REDACTED_LOG_VALUE
-        assert event_data["rs429358_genotype"] == _REDACTED_LOG_VALUE
-        assert event_data["nested"] == {
-            "haplotype": _REDACTED_LOG_VALUE,
-            "gene": "APOE",
-        }
-        assert event_data["rsid"] == "rs123"
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -277,7 +263,7 @@ def test_configured_logging_redacts_held_exception_text(
         engine.dispose()
 
 
-def test_console_exception_logging_does_not_warn_and_persists_traceback(
+def test_console_exception_logging_preserves_only_the_reviewed_reason(
     tmp_path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     structlog.reset_defaults()
@@ -308,11 +294,12 @@ def test_console_exception_logging_does_not_warn_and_persists_traceback(
                 )
 
         stdout = capsys.readouterr().out
-        assert "exception_event" in stdout
+        assert GENERIC_FAILURE in stdout
+        assert "exception_event" not in stdout
         assert "AG" not in stdout
         assert "H1" not in stdout
         assert private_marker not in stdout
-        assert _REDACTED_LOG_VALUE in stdout
+        assert "Traceback" not in stdout and "boom" not in stdout
         assert not [
             warning
             for warning in caught
@@ -325,19 +312,12 @@ def test_console_exception_logging_does_not_warn_and_persists_traceback(
                 sa.select(
                     log_entries.c.event_data,
                     log_entries.c.presentation_policy_version,
-                ).where(log_entries.c.message == "exception_event")
+                ).where(log_entries.c.message == GENERIC_FAILURE)
             ).one()
 
         event_data = json.loads(row.event_data)
         assert row.presentation_policy_version == LOG_ENTRY_PRESENTATION_POLICY_VERSION
-        assert event_data["genotype"] == _REDACTED_LOG_VALUE
-        assert event_data["nested"] == {
-            "haplotype": _REDACTED_LOG_VALUE,
-            "gene": "APOE",
-        }
-        assert event_data["rsid"] == "rs123"
-        assert "exc_info" not in event_data
-        assert "RuntimeError: boom" in event_data["exception"]
+        assert event_data == {"reason": "runtime_error"}
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -392,8 +372,8 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
         assert "epsilon3/epsilon4" not in stdout
         assert "GG" not in stdout
         assert "AG" not in stdout
-        assert _REDACTED_LOG_VALUE in stdout
-        assert "rs429358" in stdout
+        assert GENERIC_EVENT in stdout
+        assert "rs429358" not in stdout
 
         with get_registry().reference_engine.connect() as conn:
             legacy_version = conn.execute(
@@ -403,7 +383,7 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
             ).scalar_one()
             policy_version = conn.execute(
                 sa.select(log_entries.c.presentation_policy_version).where(
-                    log_entries.c.message == "worker_analysis_event"
+                    log_entries.c.message == GENERIC_EVENT
                 )
             ).scalar_one()
             indexes = {row[1] for row in conn.exec_driver_sql("PRAGMA index_list(log_entries)")}
@@ -423,33 +403,24 @@ def test_huey_worker_logging_bootstrap_redacts_without_api_startup(
         get_settings.cache_clear()
 
 
-def test_logger_name_persists_as_component(tmp_path) -> None:
-    """A log line emitted through the configured pipeline persists its logger
-    name — the value the Log Explorer's Component column and filter read (#1997).
-
-    The route + writer were each fine in isolation; only their composition was
-    broken (the processor chain omitted add_logger_name, so every row was written
-    with an empty component). This spans the composition, so it fails on the
-    pre-fix chain where a hand-seeded fixture could not.
-    """
+def test_reviewed_producer_component_is_persisted(tmp_path) -> None:
+    """The Explorer can filter a reviewed producer by its registered component."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
 
     try:
         configure_logging(engine_getter=lambda: engine)
-        structlog.get_logger("backend.analysis.metabolic").info("prs_findings_stored")
+        storage_failure("busy")
 
         with engine.connect() as conn:
             logger_name = conn.execute(
-                sa.select(log_entries.c.logger).where(
-                    log_entries.c.message == "prs_findings_stored"
-                )
+                sa.select(log_entries.c.logger).where(log_entries.c.message == DATABASE_BUSY)
             ).scalar_one()
 
         # The exact name the writer must record — the substring the component
         # filter (`logger.contains(...)`) matches against.
-        assert logger_name == "backend.analysis.metabolic"
+        assert logger_name == "backend.storage"
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -468,7 +439,7 @@ def test_nameless_logger_persists_null_component_not_empty_string(tmp_path) -> N
 
         with engine.connect() as conn:
             logger_name = conn.execute(
-                sa.select(log_entries.c.logger).where(log_entries.c.message == "nameless_event")
+                sa.select(log_entries.c.logger).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
         assert logger_name is None
@@ -481,51 +452,31 @@ def test_nameless_logger_persists_null_component_not_empty_string(tmp_path) -> N
 
 
 def test_stdlib_logger_persists_to_log_entries(tmp_path) -> None:
-    """A ``logging.getLogger`` call reaches the DB, so the Log Explorer shows it.
-
-    ``configure_logging`` used to end with ``logging.basicConfig(...)`` under a
-    comment claiming it routed stdlib logging through structlog. It did not:
-    ``basicConfig`` installs a plain ``StreamHandler`` that formats the record
-    itself and never touches a processor, so all 65 ``logging.getLogger``
-    call sites in ``backend/`` wrote to stderr and nothing else. Verified against
-    a real database before the fix — ``DBRegistry initialised``, logged every
-    boot, had zero rows in ``log_entries``.
-
-    This asserts the message, the level and the component, because a route that
-    stored the text under an empty logger would still leave the Component filter
-    blind to every stdlib site.
-    """
+    """The real standard-library warning reaches the Explorer with its component and level."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
 
     try:
         configure_logging(engine_getter=lambda: engine)
-        logging.getLogger("backend.main").info(
-            "DBRegistry initialised (reference.db engine ready)"
-        )
+        warn_network_bind()
 
         with engine.connect() as conn:
             row = conn.execute(
                 sa.select(log_entries.c.logger, log_entries.c.level).where(
-                    log_entries.c.message == "DBRegistry initialised (reference.db engine ready)"
+                    log_entries.c.message == NETWORK_BIND_WARNING
                 )
             ).one()
 
         assert row.logger == "backend.main"
-        assert row.level == "INFO"
+        assert row.level == "WARNING"
     finally:
         structlog.reset_defaults()
         engine.dispose()
 
 
-def test_stdlib_percent_formatting_persists_interpolated(tmp_path) -> None:
-    """``%s`` arguments are interpolated before storage, not stored as a template.
-
-    The lifespan's surviving stdlib sites use ``%``-style arguments precisely
-    because a stdlib logger rejects keywords, so storing ``"...: %s"`` with the
-    value dropped would make those rows useless.
-    """
+def test_unreviewed_stdlib_interpolation_uses_the_fallback(tmp_path) -> None:
+    """Positional arguments cannot supply durable explanatory text."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -541,7 +492,7 @@ def test_stdlib_percent_formatting_persists_interpolated(tmp_path) -> None:
                 sa.select(log_entries.c.message).where(log_entries.c.level == "WARNING")
             ).scalar_one()
 
-        assert message == "data_directory_not_private: world-readable"
+        assert message == GENERIC_EVENT
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -565,11 +516,7 @@ def test_stdlib_routing_does_not_duplicate_native_events(tmp_path) -> None:
         structlog.get_logger("backend.analysis.metabolic").info("native_only_event")
 
         with engine.connect() as conn:
-            count = conn.execute(
-                sa.select(sa.func.count())
-                .select_from(log_entries)
-                .where(log_entries.c.message == "native_only_event")
-            ).scalar_one()
+            count = conn.execute(sa.select(sa.func.count()).select_from(log_entries)).scalar_one()
 
         assert count == 1
     finally:
@@ -578,16 +525,7 @@ def test_stdlib_routing_does_not_duplicate_native_events(tmp_path) -> None:
 
 
 def test_stdlib_records_are_redacted_before_storage(tmp_path) -> None:
-    """A stdlib record is redacted on the same terms as a native event.
-
-    The vector is a **bound contextvar**, not a keyword: a stdlib logger cannot
-    take structured keywords at all, and ``extra=`` is not merged into the event
-    dict by ``ProcessorFormatter``. What *does* reach a foreign record is
-    anything bound with ``bind_contextvars`` — request middleware or an analysis
-    routine binds a diplotype, and any stdlib line logged inside that scope
-    would carry it. Routing stdlib logs into the database must not turn that
-    into a privacy bypass, so the redactor runs in the foreign pre-chain.
-    """
+    """Bound request fields cannot enter a standard-library diagnostic."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -602,16 +540,10 @@ def test_stdlib_records_are_redacted_before_storage(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "stdlib_in_bound_scope"
-                )
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
-        stored = event_data or ""
-        # The keys survive (they are useful structure); the values must not.
-        assert "*1/*2" not in stored
-        assert '"AG"' not in stored
-        assert _REDACTED_LOG_VALUE in stored
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -637,11 +569,7 @@ def test_repeated_configuration_does_not_stack_root_handlers(tmp_path) -> None:
 
         logging.getLogger("backend.main").info("configured_thrice")
         with engine.connect() as conn:
-            count = conn.execute(
-                sa.select(sa.func.count())
-                .select_from(log_entries)
-                .where(log_entries.c.message == "configured_thrice")
-            ).scalar_one()
+            count = conn.execute(sa.select(sa.func.count()).select_from(log_entries)).scalar_one()
         assert count == 1
     finally:
         structlog.reset_defaults()
@@ -720,14 +648,8 @@ def test_withheld_pair_on_a_stdlib_record_is_held_not_crashed(tmp_path) -> None:
         engine.dispose()
 
 
-def test_stdlib_extra_fields_reach_the_payload(tmp_path) -> None:
-    """``extra={...}`` survives into the stored payload.
-
-    ProcessorFormatter builds a foreign event dict from the rendered message and
-    metadata only, so without ``ExtraAdder`` these fields are dropped and events
-    like ``sample_delete_cascade`` would reach the Log Explorer as a bare name
-    with their ids and counts discarded (#2126).
-    """
+def test_stdlib_extra_fields_need_a_reviewed_producer(tmp_path) -> None:
+    """Unreviewed IDs and row counts stay out of the stored payload."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -740,24 +662,17 @@ def test_stdlib_extra_fields_reach_the_payload(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "sample_delete_cascade"
-                )
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
-        assert event_data is not None
-        assert json.loads(event_data) == {"sample_id": 7, "deleted_rows": 42}
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()
 
 
 def test_stdlib_extra_fields_are_redacted(tmp_path) -> None:
-    """Imported ``extra`` fields are sanitised on the same terms as the rest.
-
-    ``ExtraAdder`` runs before the redactor precisely so a sensitive field
-    cannot enter the payload by the stdlib route and skip redaction.
-    """
+    """Adjacent unreviewed fields are excluded along with sensitive ones."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -770,13 +685,10 @@ def test_stdlib_extra_fields_are_redacted(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(log_entries.c.message == "call_recorded")
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
-        stored = json.loads(event_data)
-        assert stored["diplotype"] == _REDACTED_LOG_VALUE
-        # A non-sensitive neighbour is kept, so the redaction is targeted.
-        assert stored["gene"] == "CYP2C19"
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()
@@ -812,11 +724,7 @@ def test_logging_against_a_legacy_log_schema_still_persists(tmp_path) -> None:
         logging.getLogger("backend.main").info("legacy_schema_startup_diagnostic")
 
         with engine.connect() as conn:
-            count = conn.execute(
-                sa.select(sa.func.count())
-                .select_from(log_entries)
-                .where(log_entries.c.message == "legacy_schema_startup_diagnostic")
-            ).scalar_one()
+            count = conn.execute(sa.select(sa.func.count()).select_from(log_entries)).scalar_one()
 
         assert count == 1
     finally:
@@ -855,18 +763,7 @@ def test_configure_logging_replaces_rather_than_accumulates(tmp_path) -> None:
 
 
 def test_identifying_extras_are_not_persisted(tmp_path) -> None:
-    """A deleted sample's name must not survive in the Log Explorer (#2126).
-
-    ``sample_delete_cascade`` passes ``deleted_sample_name`` and a list of child
-    ``{"id", "name"}`` objects through stdlib ``extra={...}``. Those only ever
-    reached stderr before; once ``ExtraAdder`` imports extras they would be
-    written to ``log_entries`` durably — so deleting a sample would remove its
-    row and its database while leaving its name visible indefinitely, which
-    inverts the point of the deletion.
-
-    Ids and counts are deliberately kept: they make the entry useful for triage
-    and identify nothing on their own.
-    """
+    """Names, IDs and nested child details stay out of a deletion diagnostic."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -884,41 +781,20 @@ def test_identifying_extras_are_not_persisted(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "sample_delete_cascade"
-                )
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
         stored = event_data or ""
         assert "Alice DNA" not in stored
         assert "Alice v5" not in stored, "a nested child name survived"
-        # The useful, non-identifying structure is retained.
-        payload = json.loads(stored)
-        assert payload["deleted_sample_id"] == 7
-        assert payload["deleted_sample_name"] == _REDACTED_LOG_VALUE
-        assert payload["deleted_merged_children"][0]["id"] == 8
-        assert payload["deleted_merged_children"][0]["name"] == _REDACTED_LOG_VALUE
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()
 
 
 def test_default_configuration_installs_no_root_handler(tmp_path) -> None:
-    """The replacement for ``basicConfig`` leaves the root logger alone.
-
-    This is the exposure that actually got smaller: ``basicConfig`` installed a
-    root handler that printed every stdlib record **raw**, unconditionally. The
-    routing handler lives on the ``backend`` logger instead, so with no root
-    handler installed a propagated record reaches nothing and the only rendered
-    copy is the redacted one.
-
-    What this does *not* claim: propagation is still on, so a host or test
-    harness that installs its own root handler does receive the unredacted
-    original. Closing that needs record-level sanitisation in a logger-level
-    filter — turning propagation off instead silences ``caplog`` process-wide,
-    because this module is configured at import by the Huey bootstrap. Tracked
-    separately (#2126 review).
-    """
+    """Leave host handlers installed and allow them to observe the sanitized record."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -1000,18 +876,8 @@ def test_restoring_logging_state_puts_back_the_prior_structlog_chain(tmp_path) -
         engine.dispose()
 
 
-def test_path_extras_keep_only_the_basename(tmp_path) -> None:
-    """A durable log must not record the directory a user chose (#2126).
-
-    ``merged_sample_db_missing`` passes an absolute ``db_path`` through stdlib
-    ``extra={...}``. The data directory is user-selected, so that path routinely
-    embeds the account name or a self-chosen folder, and ``ExtraAdder`` would
-    persist it to ``log_entries`` indefinitely.
-
-    The basename survives on purpose: it is the diagnostic — which database was
-    missing — and every path-bearing extra here is id-derived or a fixed
-    filename, so it carries no user-supplied text.
-    """
+def test_path_extras_exclude_the_basename_and_directory(tmp_path) -> None:
+    """User-selected filenames and their parent directories cannot enter the fallback."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -1028,31 +894,20 @@ def test_path_extras_keep_only_the_basename(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "merged_sample_db_missing"
-                )
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
         stored = event_data or ""
         assert "Alice" not in stored, f"the account name was persisted: {stored}"
         assert "My Genomes" not in stored, "the user's chosen directory was persisted"
-        payload = json.loads(stored)
-        assert payload["db_path"] == "sample_4.db"
-        assert payload["merged_sample_id"] == 4
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()
 
 
-def test_path_policy_matches_by_suffix_not_an_enumerated_list(tmp_path) -> None:
-    """``expected_path`` must be reduced even though no list names it (#2126).
-
-    The vendored-liftover warnings in ``backend/ingestion/liftover.py`` report
-    their install location under ``expected_path``. An exact-name key set missed
-    it, and would miss the next ``*_path`` field somebody adds — a denylist of
-    names fails open every time the vocabulary grows, which on a privacy
-    boundary is the wrong direction to fail.
-    """
+def test_new_path_field_names_are_also_excluded(tmp_path) -> None:
+    """A new extra field cannot admit a directory or a basename."""
     structlog.reset_defaults()
     engine = sa.create_engine(f"sqlite:///{tmp_path / 'reference.db'}")
     reference_metadata.create_all(engine)
@@ -1066,15 +921,13 @@ def test_path_policy_matches_by_suffix_not_an_enumerated_list(tmp_path) -> None:
 
         with engine.connect() as conn:
             event_data = conn.execute(
-                sa.select(log_entries.c.event_data).where(
-                    log_entries.c.message == "liftover_chain_missing_fallback_to_web"
-                )
+                sa.select(log_entries.c.event_data).where(log_entries.c.message == GENERIC_EVENT)
             ).scalar_one()
 
         stored = event_data or ""
         assert "Alice" not in stored, f"the account name was persisted: {stored}"
         assert "My Genomes" not in stored
-        assert json.loads(stored)["expected_path"] == "hg19ToHg38.over.chain.gz"
+        assert event_data is None
     finally:
         structlog.reset_defaults()
         engine.dispose()

@@ -35,6 +35,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import CANCER_DISCLAIMER_TEXT, CANCER_DISCLAIMER_TITLE
 
 if TYPE_CHECKING:
@@ -298,7 +299,10 @@ def _cancer_variants_response(
 ) -> CancerVariantsListResponse:
     """Return a final, aggregate-gated cancer-variant response."""
     response = CancerVariantsListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.cancer._cancer_variants_response",
+    ):
         return CancerVariantsListResponse(items=[], total=0, withheld=True)
     return response
 
@@ -459,7 +463,10 @@ def list_cancer_prs(
         response = _prs_list_response(
             items, withheld, _unavailable_models(weight_sets, items, withheld)
         )
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.cancer.list_cancer_prs",
+    ):
         return _prs_list_response([], withheld=True)
     return response
 

@@ -31,6 +31,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker, withheld_not_found
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 
 logger = logging.getLogger(__name__)
 
@@ -343,8 +344,11 @@ def list_pathways(
         module_disclaimer=panel.module_disclaimer,
     )
     # The panel disclaimer is fixed reference text, not patient-result data.
-    if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude={"module_disclaimer"})
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            response.model_dump(mode="json", exclude={"module_disclaimer"})
+        ),
+        "backend.api.routes.traits.list_pathways",
     ):
         return PathwaysResponse(
             items=[], total=0, module_disclaimer=panel.module_disclaimer, withheld=True
@@ -441,7 +445,10 @@ def pathway_detail(
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.traits.pathway_detail",
+    ):
         raise withheld_not_found("This pathway's details are withheld for this sample.")
     return response
 
@@ -507,8 +514,11 @@ def list_prs(
     )
     # The panel disclaimer is code-owned reference text. The PRS findings are
     # dynamically assembled from patient records and must be checked together.
-    if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude={"module_disclaimer"})
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            response.model_dump(mode="json", exclude={"module_disclaimer"})
+        ),
+        "backend.api.routes.traits.list_prs",
     ):
         return PRSResponse(
             items=[], total=0, module_disclaimer=panel.module_disclaimer, withheld=True

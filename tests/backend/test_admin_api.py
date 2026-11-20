@@ -181,6 +181,11 @@ class TestLogExplorer:
     def test_new_structured_events_are_safe_in_storage_and_http(
         self, admin_client: TestClient, path: str
     ) -> None:
+        from backend.diagnostics import GENERIC_EVENT
+
+        engine = get_registry().reference_engine
+        with engine.connect() as conn:
+            previous = conn.scalar(sa.select(sa.func.max(log_entries.c.id))) or 0
         event = f"synthetic_privacy_fixture_{path}"
         private = {
             "phenotype": "synthetic-private-phenotype",
@@ -202,34 +207,30 @@ class TestLogExplorer:
 
         with get_registry().reference_engine.connect() as conn:
             persisted = (
-                conn.execute(sa.select(log_entries).where(log_entries.c.message == event))
+                conn.execute(sa.select(log_entries).where(log_entries.c.id > previous))
                 .mappings()
                 .one()
             )
-        response = admin_client.get(
-            "/api/admin/logs",
-            params={"search": event, "component": "synthetic_privacy", "page_size": 1},
-        )
-
+        assert persisted["message"] == GENERIC_EVENT
+        assert persisted["logger"] is None and persisted["event_data"] is None
+        assert persisted["level"] == "INFO"
+        response = admin_client.get("/api/admin/logs", params={"search": GENERIC_EVENT})
         assert response.status_code == 200
         body = response.json()
-        assert body["total"] == 1 and len(body["entries"]) == 1
-        entry = body["entries"][0]
-        assert entry["id"] == persisted["id"]
-        assert entry["message"] == event and entry["level"] == "INFO"
-        assert entry["event_data"] == persisted["event_data"]
-        expected = dict.fromkeys(private, "[REDACTED]")
-        assert json.loads(entry["event_data"]) == {
-            **expected,
-            "nested": [{"details": expected}],
-            "involved_variant_count": 1,
-            "indeterminate_allele_count": 1,
-        }
+        assert body["total"] == len(body["entries"]) == 1
+        assert body["entries"][0]["id"] == persisted["id"]
+        assert body["entries"][0]["event_data"] is None
         assert body["has_more"] is False
+        for spec in ({"search": event}, {"component": "synthetic_privacy"}):
+            filtered = admin_client.get("/api/admin/logs", params=spec)
+            assert filtered.status_code == 200
+            assert filtered.json()["total"] == 0 and filtered.json()["entries"] == []
 
     def test_previous_log_policy_rows_stay_stored_but_out_of_explorer(
         self, admin_client: TestClient
     ) -> None:
+        from backend.diagnostics import DATABASE_BUSY, storage_failure
+
         old_payload = json.dumps({"phenotype": "synthetic-private-historical-value"})
         engine = get_registry().reference_engine
         with engine.begin() as conn:
@@ -237,25 +238,23 @@ class TestLogExplorer:
                 sa.insert(log_entries).values(
                     timestamp=datetime.now(UTC),
                     level="INFO",
-                    logger="backend.synthetic_policy",
-                    message="synthetic_policy_fixture_old",
+                    logger="backend.storage",
+                    message=DATABASE_BUSY + " historical fixture",
                     event_data=old_payload,
-                    presentation_policy_version=1,
+                    presentation_policy_version=2,
                 )
             ).inserted_primary_key[0]
-        structlog.get_logger("backend.synthetic_policy").info(
-            "synthetic_policy_fixture_current", count=2
-        )
+        storage_failure("busy", retry_count=2)
 
-        params = {"search": "synthetic_policy_fixture", "page_size": 1}
+        params = {"search": DATABASE_BUSY, "component": "backend.storage", "page_size": 1}
         first = admin_client.get("/api/admin/logs", params=params)
         second = admin_client.get("/api/admin/logs", params={**params, "page": 2})
 
         assert first.status_code == second.status_code == 200
         body = first.json()
         assert body["total"] == 1 and len(body["entries"]) == 1
-        assert body["entries"][0]["message"] == "synthetic_policy_fixture_current"
-        assert json.loads(body["entries"][0]["event_data"]) == {"count": 2}
+        assert body["entries"][0]["message"] == DATABASE_BUSY
+        assert json.loads(body["entries"][0]["event_data"]) == {"reason": "busy", "retry_count": 2}
         assert body["has_more"] is False
         assert second.json()["entries"] == [] and second.json()["total"] == 1
         assert second.json()["has_more"] is False
@@ -266,7 +265,7 @@ class TestLogExplorer:
                     log_entries.c.event_data, log_entries.c.presentation_policy_version
                 ).where(log_entries.c.id == old_id)
             ).one()
-        assert old_row.event_data == old_payload and old_row.presentation_policy_version == 1
+        assert old_row.event_data == old_payload and old_row.presentation_policy_version == 2
 
     def test_returns_paginated_logs(self, admin_client: TestClient) -> None:
         """GET /api/admin/logs returns paginated log entries."""
@@ -602,6 +601,7 @@ class TestLogExplorer:
 
         assert response.status_code == 200
         assert response.json() == {
+            "presentation_policy_version": LOG_ENTRY_PRESENTATION_POLICY_VERSION,
             "entries": [],
             "total": 0,
             "page": 1,

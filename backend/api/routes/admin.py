@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.pool import NullPool
 
@@ -38,6 +38,7 @@ from backend.db.tables import (
     log_entries,
     samples,
 )
+from backend.diagnostics import finalize_response
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -120,6 +121,7 @@ class LogEntry(BaseModel):
 
 
 class LogResponse(BaseModel):
+    presentation_policy_version: int = LOG_ENTRY_PRESENTATION_POLICY_VERSION
     entries: list[LogEntry]
     total: int
     page: int
@@ -181,6 +183,7 @@ class SystemStatus(BaseModel):
 
 @router.get("/logs", response_model=LogResponse)
 def get_logs(
+    response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     level: str | None = Query(
@@ -192,6 +195,7 @@ def get_logs(
     search: str | None = Query(None, description="Search in message text"),
 ) -> LogResponse:
     """Paginated log explorer with faceted filtering."""
+    response.headers["Cache-Control"] = "no-store"
     registry = get_registry()
     engine = registry.reference_engine
     offset = (page - 1) * page_size
@@ -246,7 +250,9 @@ def get_logs(
     # The attestation is per row, but the actual response is a collection. Do
     # not serialize rows that would assemble held guidance after pagination,
     # including through escaped JSON event-data values.
-    if not _is_patient_presentable_log_page(page_rows):
+    if not finalize_response(
+        _is_patient_presentable_log_page(page_rows), "backend.api.routes.admin.get_logs"
+    ):
         return LogResponse(
             entries=[],
             total=0,

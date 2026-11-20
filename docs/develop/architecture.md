@@ -166,7 +166,7 @@ recorded in the [issue #2391 evidence packet](https://github.com/bioedca/Yeliztl
 | Process | Command |
 |---------|---------|
 | API server | `uvicorn backend.main:app` |
-| Background worker | `huey_consumer backend.tasks.huey_tasks.huey` |
+| Background worker | `python -m backend.worker` |
 | Frontend (dev) | `npm run dev` (in `frontend/`) |
 
 `make dev` runs all three together — see [development setup](development-setup.md).

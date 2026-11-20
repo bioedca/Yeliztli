@@ -222,7 +222,21 @@ def test_prs_and_anchor_aggregates_withhold_cross_row_pair(
     monkeypatch.setattr(metabolic, "read_scoring", lambda *_args: ScoringRead("current", "f"))
     monkeypatch.setattr(metabolic, "confirm_scoring", lambda first, *_args: first)
 
-    cancer_response = cancer.list_cancer_prs(sample_id=1)
+    from structlog.contextvars import bound_contextvars
+    from structlog.testing import capture_logs
+
+    with bound_contextvars(private_request_note="synthetic context"), capture_logs() as captures:
+        cancer_response = cancer.list_cancer_prs(sample_id=1)
+    audits = [
+        record for record in captures if record["event"] == "patient_response_payload_withheld"
+    ]
+    assert audits == [
+        {
+            "event": "patient_response_payload_withheld",
+            "caller": "backend.api.routes.cancer.list_cancer_prs",
+            "log_level": "warning",
+        }
+    ]
     metabolic_response = metabolic.list_metabolic_prs(sample_id=1)
 
     assert cancer_response == cancer.CancerPRSListResponse(

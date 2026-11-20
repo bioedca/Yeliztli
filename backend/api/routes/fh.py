@@ -31,6 +31,7 @@ from backend.analysis.pharmacogenomics import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import response_withheld
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
@@ -255,6 +256,7 @@ def get_fh_assessment(
         # Do not turn an unsafe combination into a clinical negative. The
         # assessment stays structurally valid but withholds all dynamic results
         # until the source records can be reviewed independently.
+        response_withheld("backend.api.routes.fh.get_fh_assessment")
         return FhAssessmentResponse(
             assessment_status="unavailable",
             has_monogenic=False,

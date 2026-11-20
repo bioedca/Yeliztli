@@ -32,6 +32,7 @@ from backend.api.gating import apoe_gate_status
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import apoe_gate, findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import (
     APOE_GATE_ACCEPT_LABEL,
     APOE_GATE_DECLINE_LABEL,
@@ -397,7 +398,10 @@ def list_apoe_findings(
         )
 
     response = APOEFindingsListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.apoe.list_apoe_findings",
+    ):
         return APOEFindingsListResponse(items=[], total=0, withheld=True)
     return response
 

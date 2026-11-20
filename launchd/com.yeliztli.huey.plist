@@ -8,8 +8,9 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>__HUEY_CONSUMER__</string>
-        <string>backend.tasks.huey_tasks.huey</string>
+        <string>__PYTHON__</string>
+        <string>-m</string>
+        <string>backend.worker</string>
         <string>-w</string>
         <string>1</string>
     </array>

@@ -37,7 +37,7 @@ async function mockApp(page: Page) {
       '/api/samples': [],
       '/api/admin/status': { version: '0.2.0', uptime_seconds: 60, data_dir: 'synthetic', active_jobs: [], total_samples: 0, auth_enabled: false, log_level: 'INFO' },
       '/api/admin/disk-usage': { data_dir: 'synthetic', total_bytes: 1000000, free_bytes: 900000, used_bytes: 100000, reference_dbs_bytes: 100000, sample_dbs_bytes: 0, logs_bytes: 0, other_bytes: 0 },
-      '/api/admin/logs': { entries: [], total: 0, page: 1, page_size: 50, has_more: false },
+      '/api/admin/logs': { presentation_policy_version: 3, entries: [], total: 0, page: 1, page_size: 50, has_more: false },
       '/api/admin/db-stats': [],
       '/api/admin/sample-stats': [],
       '/api/preferences/update-check-interval': { update_check_interval: 'off' },

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from copy import deepcopy
 from unittest.mock import Mock
@@ -17,9 +16,8 @@ from backend.db.tables import (
     log_entries,
     reference_metadata,
 )
+from backend.diagnostics import GENERIC_EVENT, safe_event
 from backend.logging_config import (
-    _REDACTED_LOG_VALUE,
-    _redact_sensitive_log_fields,
     configure_logging,
 )
 
@@ -70,16 +68,7 @@ def test_sensitive_result_fields_are_redacted_in_nested_containers(key: str) -> 
         "tuple": (deepcopy(original),),
     }
 
-    redacted = _redact_sensitive_log_fields(None, "info", event)
-
-    expected = {key: _REDACTED_LOG_VALUE, **SAFE_FIELDS}
-    assert redacted == {
-        "event": "synthetic_privacy_event",
-        **expected,
-        "mapping": expected,
-        "sequence": [expected],
-        "tuple": (expected,),
-    }
+    assert safe_event(event) == {"event": GENERIC_EVENT}
     assert original[key] == private
 
 
@@ -103,26 +92,17 @@ def test_configured_log_sinks_keep_only_safe_structured_values(tmp_path, capsys,
         captured = capsys.readouterr()
         console = captured.out + captured.err
         with engine.connect() as conn:
-            row = (
-                conn.execute(sa.select(log_entries).where(log_entries.c.message == event))
-                .mappings()
-                .one()
-            )
+            row = conn.execute(sa.select(log_entries)).mappings().one()
 
-        expected = {**dict.fromkeys(PRIVATE_FIELDS, _REDACTED_LOG_VALUE), **SAFE_FIELDS}
-        assert json.loads(row["event_data"]) == {
-            **expected,
-            "nested": {"rows": [expected, [expected]]},
-        }
+        assert row["event_data"] is None
+        assert row["message"] == GENERIC_EVENT
         assert row["presentation_policy_version"] == LOG_ENTRY_PRESENTATION_POLICY_VERSION
-        assert row["logger"] == "backend.synthetic_privacy"
-        assert row["level"] == "INFO"
-        assert event in console and _REDACTED_LOG_VALUE in console
-        assert "involved_variant_count" in console and "cpic_rsids" in console
+        assert row["logger"] is None and row["level"] == "INFO"
+        assert GENERIC_EVENT in console and event not in console
+        assert "involved_variant_count" not in console and "cpic_rsids" not in console
         sentinels = [v if isinstance(v, str) else v[0] for v in PRIVATE_FIELDS.values()]
         assert sentinels
         for value in sentinels:
-            assert value not in row["event_data"]
             assert value not in console
         assert payload["phenotype"] == original["phenotype"]
     finally:
@@ -143,7 +123,7 @@ def _result() -> pgx.StarAlleleResult:
     )
 
 
-def test_star_allele_producer_logs_counts_without_changing_results(monkeypatch) -> None:
+def test_star_allele_producer_keeps_results_without_logging_per_call(monkeypatch) -> None:
     result = _result()
     log = Mock()
     monkeypatch.setattr(pgx, "logger", log)
@@ -160,29 +140,13 @@ def test_star_allele_producer_logs_counts_without_changing_results(monkeypatch) 
     assert returned == [result]
     assert returned[0].phenotype == PRIVATE_FIELDS["phenotype"]
     assert returned[0].involved_rsids == set(PRIVATE_FIELDS["involved_rsids"])
-    log.info.assert_called_once_with(
-        "pgx_star_allele_called",
-        gene=result.gene,
-        call_confidence=result.call_confidence.value,
-        involved_variant_count=1,
-        missing_variant_count=1,
-    )
+    assert log.mock_calls == []
 
 
 @pytest.mark.parametrize(
-    ("case", "event", "level"),
-    [
-        ("no_phenotype", "pgx_alert_skipped_no_phenotype", "info"),
-        ("insufficient", "pgx_alert_skipped_insufficient", "info"),
-        ("covered", "pgx_phenotype_no_guideline_row", "warning"),
-        ("uncovered", "pgx_no_guidelines", "debug"),
-        ("direction", "pgx_alert_withheld_undetermined_direction", "info"),
-        ("prescribing", "pgx_prescribing_alert", "info"),
-    ],
+    "case", ["no_phenotype", "insufficient", "unmapped", "direction", "prescribing"]
 )
-def test_prescribing_producers_keep_diagnostics_without_result_values(
-    monkeypatch, case, event, level
-) -> None:
+def test_prescribing_producers_suppress_result_dependent_diagnostics(monkeypatch, case) -> None:
     result = _result()
     if case == "no_phenotype":
         result.phenotype = None
@@ -200,14 +164,7 @@ def test_prescribing_producers_keep_diagnostics_without_result_values(
     monkeypatch.setattr(
         pgx,
         "_fetch_guidelines_for_gene_phenotype",
-        lambda *_, **__: [] if case in {"covered", "uncovered"} else [guideline],
-    )
-    monkeypatch.setattr(
-        pgx,
-        "_fetch_guideline_phenotypes_for_gene",
-        lambda *_: (
-            {"synthetic-covered-one", "synthetic-covered-two"} if case == "covered" else set()
-        ),
+        lambda *_, **__: [] if case == "unmapped" else [guideline],
     )
     monkeypatch.setattr(pgx, "WITHHOLD_CROSS_DIRECTION_GENES", frozenset({result.gene}))
     monkeypatch.setattr(
@@ -217,22 +174,7 @@ def test_prescribing_producers_keep_diagnostics_without_result_values(
 
     alerts = pgx.generate_prescribing_alerts([result], None)
 
-    expected = {"gene": result.gene}
-    if case == "covered":
-        expected["covered_phenotype_count"] = 2
-    if case in {"insufficient", "direction"}:
-        expected["call_confidence"] = result.call_confidence.value
-        expected["indeterminate_allele_count"] = 1
-    if case == "direction":
-        expected["drug"] = guideline["drug"]
     if case == "prescribing":
-        expected.update(
-            drug=guideline["drug"],
-            classification=guideline["classification"],
-            call_confidence=result.call_confidence.value,
-            evidence_level=1,
-            conservative_alert=False,
-        )
         assert len(alerts) == 1
         assert alerts[0].phenotype == result.phenotype
         assert alerts[0].recommendation == PRIVATE_FIELDS["recommendation"]
@@ -240,4 +182,4 @@ def test_prescribing_producers_keep_diagnostics_without_result_values(
         assert alerts[0].involved_rsids == sorted(result.involved_rsids)
     else:
         assert alerts == []
-    getattr(log, level).assert_called_once_with(event, **expected)
+    assert log.mock_calls == []

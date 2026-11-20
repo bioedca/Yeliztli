@@ -30,22 +30,14 @@ const DISK_RESPONSE = {
   other_bytes: 500_000,
 }
 
-const EXCEPTION_TRACEBACK = [
-  'Traceback (most recent call last):',
-  '  File "/home/app/backend/api/routes/genes.py", line 264, in _fetch_uniprot_from_api',
-  '    resp.raise_for_status()',
-  "httpx.HTTPStatusError: Client error '400 Bad Request'",
-].join('\n')
-
 const EXCEPTION_LOG = {
   id: 6,
   timestamp: '2026-03-26T12:05:00',
   level: 'EXCEPTION',
-  logger: 'backend.api.routes.genes',
-  message: 'uniprot_fetch_failed',
+  logger: null,
+  message: 'Operation failed',
   event_data: JSON.stringify({
-    gene: 'CFTR',
-    exception: EXCEPTION_TRACEBACK,
+    reason: 'invalid_input',
   }),
 }
 
@@ -112,6 +104,7 @@ test.describe('System Health log level filtering', () => {
       return route.fulfill(
         jsonRoute({
           entries,
+          presentation_policy_version: 3,
           total: entries.length,
           page: 1,
           page_size: 50,
@@ -132,20 +125,21 @@ test.describe('System Health log level filtering', () => {
     await expect
       .poll(() => requestedLogLevels.includes('EXCEPTION'))
       .toBe(true)
-    await expect(page.getByText('uniprot_fetch_failed')).toBeVisible()
+    await expect(page.getByText('Operation failed')).toBeVisible()
     await expect(page.getByText('Application started')).toHaveCount(0)
 
-    const exceptionRow = page.locator('tr', { hasText: 'uniprot_fetch_failed' })
+    const exceptionRow = page.locator('tr', { hasText: 'Operation failed' })
     const levelCell = exceptionRow.locator('td').nth(1)
     await expect(levelCell).toHaveText('EXCEPTION')
     await expect(levelCell).toHaveClass(/text-red-700/)
   })
 
-  test('renders expanded EXCEPTION tracebacks as multiline text', async ({ page }) => {
+  test('shows the approved reason in expanded EXCEPTION details', async ({ page }) => {
     await page.route('**/api/admin/logs**', (route) =>
       route.fulfill(
         jsonRoute({
           entries: [EXCEPTION_LOG],
+          presentation_policy_version: 3,
           total: 1,
           page: 1,
           page_size: 50,
@@ -157,16 +151,31 @@ test.describe('System Health log level filtering', () => {
     await page.goto('/settings/health')
     await waitForReactHydration(page)
 
-    await page.getByText('uniprot_fetch_failed').click()
+    await page.getByText('Operation failed').click()
 
     const details = page.getByTestId('log-entry-details-6')
-    await expect(details).toContainText('CFTR')
-    await expect(details).toContainText('exception')
-    const detailText = await details.textContent()
-    expect(detailText).toContain(
-      'Traceback (most recent call last):\n  File "/home/app/backend/api/routes/genes.py"',
-    )
-    expect(detailText).not.toContain('\\n  File "/home/app/backend/api/routes/genes.py"')
+    await expect(details).toContainText('reason')
+    await expect(details).toContainText('invalid_input')
+    await expect(details).not.toContainText('Traceback')
+  })
+
+  test('withholds a delayed prior-revision response before displaying its rows', async ({ page }) => {
+    let release!: () => void
+    const delay = new Promise<void>((resolve) => { release = resolve })
+    await page.route('**/api/admin/logs**', async (route) => {
+      await delay
+      await route.fulfill(jsonRoute({
+        entries: [{ ...EXCEPTION_LOG, message: 'old fixture diagnostic' }],
+        presentation_policy_version: 2, total: 1, page: 1, page_size: 50, has_more: false,
+      }))
+    })
+    await page.goto('/settings/health')
+    await expect(page.getByLabel('Filter by log level')).toBeVisible()
+    await expect(page.getByText('old fixture diagnostic')).toHaveCount(0)
+    release()
+    await expect(page.getByText(/waiting for a verified service upgrade/)).toBeVisible({ timeout: 20000 })
+    await expect(page.getByText('old fixture diagnostic')).toHaveCount(0)
+
   })
 
   test('does not show a recovery warning for a ready database with a successful detail', async ({ page }) => {

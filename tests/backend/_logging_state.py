@@ -34,6 +34,7 @@ class LoggingState:
     handlers: list[logging.Handler]
     level: int
     propagate: bool
+    framework_handlers: dict[str, tuple[list[logging.Handler], bool]]
     structlog_config: dict[str, Any] = field(default_factory=dict)
 
 
@@ -44,6 +45,10 @@ def snapshot_logging_state() -> LoggingState:
         handlers=logger.handlers[:],
         level=logger.level,
         propagate=logger.propagate,
+        framework_handlers={
+            name: (logging.getLogger(name).handlers[:], logging.getLogger(name).propagate)
+            for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "huey", "huey.consumer")
+        },
         # Snapshot rather than plan to reset. Test modules import
         # ``huey_tasks``, which installs the production DB/redaction chain at
         # module scope before any fixture runs, so resetting to structlog's
@@ -78,5 +83,9 @@ def restore_logging_state(previous: LoggingState) -> None:
     logger.handlers[:] = previous.handlers
     logger.setLevel(previous.level)
     logger.propagate = previous.propagate
+    for name, (handlers, propagate) in previous.framework_handlers.items():
+        framework = logging.getLogger(name)
+        framework.handlers[:] = handlers
+        framework.propagate = propagate
     if previous.structlog_config:
         structlog.configure(**previous.structlog_config)
