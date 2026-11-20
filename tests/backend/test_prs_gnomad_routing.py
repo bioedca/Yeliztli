@@ -528,6 +528,11 @@ def _run_bmi_after_restart(
                 sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
                 receipt = read_scoring("metabolic", sample, registry.reference_engine)
                 assert receipt.state == state
+                if state == "current":
+                    anchors = client.get("/api/analysis/metabolic/anchors?sample_id=1")
+                    assert anchors.status_code == 200, anchors.text
+                    assert stored["scoring_generation"] == anchors.json()["scoring_generation"]
+                    assert stored["scoring_generation"] == receipt.recorded
                 copied_frequency = sa.select(annotated_variants.c.gnomad_af_eur).where(
                     annotated_variants.c.rsid == "SYN_TYPED_SECOND"
                 )
@@ -650,14 +655,16 @@ def _restart_bmi_pair(
     return original, repaired, published
 
 
+_BMI_CALL_CASES = [
+    pytest.param(False, False, 1, id="imputed"),
+    pytest.param(True, False, 0, id="typed-incomplete"),
+    pytest.param(True, True, 0, id="typed-complete"),
+]
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
-    ("typed_second", "complete_typed_alleles", "expected_imputed"),
-    [
-        pytest.param(False, False, 1, id="imputed"),
-        pytest.param(True, False, 0, id="typed-incomplete"),
-        pytest.param(True, True, 0, id="typed-complete"),
-    ],
+    ("typed_second", "complete_typed_alleles", "expected_imputed"), _BMI_CALL_CASES
 )
 @pytest.mark.parametrize("frequency_changed", [True, False], ids=["changed", "unchanged"])
 def test_positional_bmi_reopens_with_durable_scoring_state(
@@ -711,17 +718,22 @@ class _StalePercentileDisplayed(AssertionError):
 @pytest.mark.xfail(
     strict=True, raises=_StalePercentileDisplayed, reason="Approved withholding policy #2705"
 )
-@pytest.mark.parametrize("fully_typed", [False, True], ids=["imputed", "typed-complete"])
+@pytest.mark.parametrize(
+    ("typed_second", "complete_typed_alleles", "expected_imputed"), _BMI_CALL_CASES
+)
 def test_stale_bmi_read_withholds_the_previous_percentile_before_rerun(
     positional_bmi: _Environment,
-    fully_typed: bool,
+    typed_second: bool,
+    complete_typed_alleles: bool,
+    expected_imputed: int,
 ) -> None:
     original, repaired, _ = _restart_bmi_pair(
         positional_bmi,
-        typed_second=fully_typed,
+        typed_second=typed_second,
         frequency_changed=True,
-        complete_typed_alleles=fully_typed,
+        complete_typed_alleles=complete_typed_alleles,
     )
+    assert original["snps_used_imputed"] == repaired["snps_used_imputed"] == expected_imputed
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == 84.63
     assert repaired["scores_before_rerun"] == [(3.0, 95.42)]
@@ -993,6 +1005,18 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     assert fresh["percentile"] == expected_percentile
     assert fresh["calibration_reference_mean"] == pytest.approx(expected_mean)
     assert fresh["calibration_reference_std"] == pytest.approx(math.sqrt(expected_variance))
+    # Reports render finding_text alongside the stored percentile. Verify the
+    # independent recovery result even when the scorer-only path is refused or stale.
+    fresh_row, fresh_receipt = _stored_bmi_publication(env)
+    assert fresh_row is not None and fresh_receipt is not None
+    assert json.loads(fresh_receipt)["fingerprint"] == fresh["scoring_fingerprint"]
+    expected_z = round((3.0 - expected_mean) / math.sqrt(expected_variance), 4)
+    assert fresh["z_score"] == expected_z
+    assert fresh_row["prs_percentile"] == expected_percentile
+    assert fresh_row["finding_text"] == (
+        f"{fresh['name']}: {expected_percentile:.0f}th percentile [z = {expected_z:.2f}]"
+        " — Research Use Only"
+    )
     assert observed["total"] == len(observed["items"])
     if response.status_code == 409:
         reason = response.json()["detail"]
@@ -1031,8 +1055,6 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
             f"Scorer alone returned current at 95.42, fresh at {expected_percentile}"
         )
     assert item["percentile"] == fresh["percentile"]
-    fresh_row, _ = _stored_bmi_publication(env)
-    assert fresh_row is not None and fresh_row["finding_text"] != prior["finding_text"]
     assert persisted["finding_text"] == fresh_row["finding_text"]
     assert detail["z_score"] == fresh["z_score"] != original["z_score"]
     assert detail["calibration_reference_mean"] == pytest.approx(
