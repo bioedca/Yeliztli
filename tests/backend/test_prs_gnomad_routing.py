@@ -477,7 +477,7 @@ def _bmi_input_generations(sample: sa.Engine) -> dict[str, str]:
     return {key: value for key, value in rows}
 
 
-def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
+def _run_bmi_after_restart(data_dir: Path, expected_state: str | tuple[str, ...]) -> dict:
     import _no_network
     from _isolated_data_home import isolate_data_home
 
@@ -496,22 +496,13 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 frequency_path = registry.settings.gnomad_db_path
                 wal = frequency_path.with_name(frequency_path.name + "-wal")
                 wal_size = wal.stat().st_size if wal.exists() else 0
-                frequency_uri = f"{frequency_path.as_uri()}?mode=ro"
-                with closing(sqlite3.connect(frequency_uri, uri=True)) as db:
-                    journal_mode = db.execute("PRAGMA journal_mode").fetchone()[0]
                 response = client.get("/api/analysis/metabolic/prs?sample_id=1")
                 assert response.status_code == 200, response.text
                 stored = response.json()
                 assert stored["total"] == len(stored["items"])
                 state = stored["scoring_state"]
-                assert state == expected_state, (
-                    f"Reopened state {state!r}, expected {expected_state!r}"
-                )
-                if expected_state == "current":
-                    assert stored["total"] == 1
-                    (item,) = stored["items"]
-                    assert item["pgs_id"] == "PGS005198"
-                    assert item["percentile"] == 95.42
+                allowed = (expected_state,) if isinstance(expected_state, str) else expected_state
+                assert state in allowed, f"Reopened state {state!r}, expected {expected_state!r}"
                 sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
                 with sample.connect() as conn:
                     persisted = (
@@ -529,8 +520,12 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 inputs_before_rerun = _bmi_input_generations(sample)
                 release = read_current_reference_snapshot(registry.reference_engine)["gnomad"]
                 result = _run_positional_bmi(reopened)
+                frequency_uri = f"{frequency_path.as_uri()}?mode=ro"
+                with closing(sqlite3.connect(frequency_uri, uri=True)) as db:
+                    journal_mode = db.execute("PRAGMA journal_mode").fetchone()[0]
                 return {
                     **result,
+                    "state_before_rerun": state,
                     "visible_percentiles_before_rerun": [
                         (item["pgs_id"], item["percentile"]) for item in stored["items"]
                     ],
@@ -626,6 +621,8 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     )
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
+    if not frequency_changed:
+        assert repaired["visible_percentiles_before_rerun"] == [("PGS005198", 95.42)]
 
 
 class _StalePercentileDisplayed(AssertionError):
@@ -653,10 +650,10 @@ def test_stale_bmi_read_withholds_the_previous_percentile_before_rerun(
     assert visible in ([], [("PGS005198", None)])
 
 
-@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
-def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
+@pytest.fixture
+def checkpointed_bmi(
     positional_bmi: _Environment,
-) -> None:
+) -> tuple[dict, dict, dict[str, str]]:
     data_dir, published = _prepare_bmi_restart(positional_bmi, typed_second=False)
     path = positional_bmi.registry.settings.gnomad_db_path
     wal = path.with_name(path.name + "-wal")
@@ -680,19 +677,54 @@ def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
         assert before["frequency_wal_bytes"] > 0 and wal.stat().st_size > 0
         assert path.read_bytes() == checkpointed_image
         assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
+    with ctx.Pool(1) as pool:
+        after = pool.apply_async(_run_bmi_after_restart, (data_dir, ("current", "stale"))).get(
+            timeout=60
+        )
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as reader:
         assert reader.execute(frequency_query).fetchall() == [(0.6,)]
-    # The existing file fingerprint conservatively invalidates the receipt at checkpoint.
-    with ctx.Pool(1) as pool:
-        after = pool.apply_async(_run_bmi_after_restart, (data_dir, "stale")).get(timeout=60)
     assert after["frequency_wal_bytes"] == 0
     assert after["scores_before_rerun"] == [(3.0, 84.63)]
+    return before, after, published
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
+    checkpointed_bmi: tuple[dict, dict, dict[str, str]],
+) -> None:
+    before, after, published = checkpointed_bmi
     for run in (before, after):
         assert run["input_generations_before_rerun"] == published
         assert run["stored_score"] == 3.0
         assert run["calibration_reference_mean"] == pytest.approx(2.0)
         assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.96))
         assert run["percentile"] == 84.63
+
+
+class _CheckpointInvalidatedReceipt(AssertionError):
+    """Checkpointing the unchanged scoring input invalidated its persisted receipt."""
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.xfail(
+    strict=True, raises=_CheckpointInvalidatedReceipt, reason="Content revision proposal #2705"
+)
+def test_positional_bmi_checkpoint_leaves_the_unchanged_result_current(
+    checkpointed_bmi: tuple[dict, dict, dict[str, str]],
+) -> None:
+    before, after, published = checkpointed_bmi
+    assert (
+        before["input_generations_before_rerun"]
+        == after["input_generations_before_rerun"]
+        == published
+    )
+    assert before["percentile"] == after["percentile"] == 84.63
+    if after["state_before_rerun"] == "stale":
+        raise _CheckpointInvalidatedReceipt(
+            "Unchanged 84.63 score reopened stale after checkpoint"
+        )
+    assert after["state_before_rerun"] == "current"
+    assert after["visible_percentiles_before_rerun"] == [("PGS005198", 84.63)]
 
 
 def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool, second_identity: bool) -> None:

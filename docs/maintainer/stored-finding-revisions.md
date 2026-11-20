@@ -115,10 +115,10 @@ the original numeric ID, content hash, source path and creation time.
 Bind the new identity to its verified physical file in the registry. Bind
 writers, links, reminders and dismissals to that identity before comparing
 revisions. On replacement, atomically repoint the registry and retire the
-superseded copy. Refuse replacement if an existing merged sample identifies
-its source only by this numeric ID. Offer a side-by-side import. Replacement
-can resume after verified source-copy links support lineage, cascade preview
-and deletion without reassigning any descendant. Commit a replayable
+superseded copy. Refuse replacement while any active merged descendant
+depends on the original, including a dependency recorded only by numeric
+ID. Keep the source available for lineage, backup and recovery. Offer a
+side-by-side import with its own identity instead. Commit a replayable
 retirement notice for the old identity in that registry transaction.
 An open view of the retired copy clears its
 results and requires a fresh selection. Fence old operations, drain handles
@@ -420,8 +420,11 @@ and replayable notice. Reconcile each dependent sample by publication ID
 and copy identity. A retry cannot duplicate a notice, publish a score
 made from mixed revisions or clear an independent reason.
 Backup creation participates in the same protocol. Enumerate selected,
-published sample copies from the registry snapshot. Exclude reservations,
-retired copies and unregistered files. Capture the corresponding reference
+published sample copies from the registry snapshot. Include each selected
+merged sample's verified source copies, following dependencies through
+earlier merges. If a required source cannot be authorized and verified,
+refuse the incomplete archive. Exclude reservations, retired copies and
+unregistered files. Capture the corresponding reference
 publication. Use committed database snapshots, including committed journal
 contents. Pin immutable revisions or hold read leases across capture.
 Record the publication, copy identities, generations and each archived
@@ -706,6 +709,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   original and its child must survive. Take a backup while a retired
   reader and a restore reservation exist. Verify the exact active set in
   both the archive and the restored registry.
+  Restore a selected merged sample into an empty installation. Verify the
+  identities and contents of both sources, the child's remapped source
+  links and its cascade preview. A side-by-side import of a source must
+  never take the place of the original in those links.
 
 ### Panel wording, membership and rollback
 
@@ -785,7 +792,7 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Exercise the real weight loader, scorer and result store. In a two-locus
   synthetic check, one typed and one imputed contribution produced a
   calibrated finding in the executable BMI case.
-  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration'`.
+  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration or stale_bmi_read or scorer_only_bmi_repair'`.
   Updating the fixture's frequency changed the route
   state from current to stale before rerun and its recalculated reference
   mean from 1.4 to 2.0. Its reference variance changed from 0.90 to 0.96
@@ -801,7 +808,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   revision must survive that shutdown. In the checkpoint fixture the main
   file holds 0.3 and only the WAL contains the committed 0.6. Scoring
   returns 84.63 before and after checkpoint. The existing file-and-WAL
-  fingerprint conservatively reports stale on reopening. A genuine change to a
+  fingerprint conservatively reports stale on reopening. A separate strict
+  expected failure checks the proposed current state at 84.63. The numerical
+  check accepts either receipt state after the checkpoint. A genuine change to a
   committed frequency must invalidate the result in either journal mode.
   Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
   can be typed while a typed locus lacks an allele needed for calibration.
