@@ -754,8 +754,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   from 0.3 to 0.6, changes both the calibration mean and variance. Verify both
   stored moments, the z-score and the text rendered in reports against
   fresh annotation and scoring. A successful POST that reports one computed
-  score must publish that result. On refusal, check the rejection returned to
-  the caller and verify the complete stored finding and receipt survive.
+  score must publish that result. If the scorer needs fresh annotation, its
+  HTTP 409 response identifies the reason in `detail.code` (`stale_copied_frequency`)
+  and the recovery in `detail.action` (`reannotate`). Verify the complete stored
+  finding and receipt survive that refusal.
   In fresh processes, inspect the original copied frequency and
   first GET before rerunning either analysis. Compare the changed source with
   an unchanged control. The current behavior is tracked in
