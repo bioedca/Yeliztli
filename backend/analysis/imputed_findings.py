@@ -59,6 +59,7 @@ from backend.analysis.finding_gate import imputed_variant_surfaceable
 from backend.analysis.imputation_input import AUTOSOMAL_INPUT_CHROMOSOMES
 from backend.analysis.imputation_runner import ImputedVariant
 from backend.db.tables import annotated_variants, clinvar_variants, findings, imputed_variants
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -122,7 +123,7 @@ def _open_reference_sequence(
         logger.warning(
             "imputed_clinvar_reference_fasta_unavailable",
             path=str(path),
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return None
 

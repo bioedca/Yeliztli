@@ -38,6 +38,8 @@ from typing import IO, TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
+from backend.diagnostics import DiagnosticError
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -418,7 +420,7 @@ def load_gtex_eqtl_dir(
             # build rather than silently ship an incomplete DB.
             if "parsed zero eQTL rows with an rsID" not in str(exc):
                 raise
-            logger.warning("gtex_eqtl_tissue_empty", tissue=tissue, error=str(exc))
+            logger.warning("gtex_eqtl_tissue_empty", tissue=tissue, error=DiagnosticError(exc))
             continue
         stats.append(s)
         total_loaded += s.loaded
@@ -462,7 +464,7 @@ def _download_gtex_inputs(
         """
         dest_path = dest_dir / name
         tmp_path = dest_path.with_suffix(dest_path.suffix + ".tmp")
-        logger.info("gtex_eqtl_download_start", url=url, dest=str(dest_path))
+        logger.info("gtex_eqtl_download_start", url=url, dest=dest_path)
 
         def _banded(done: int, total: int | None) -> None:
             if download_progress is None:

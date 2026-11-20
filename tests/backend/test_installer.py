@@ -571,6 +571,9 @@ class TestUninstallFlow:
         (mixed_data_dir / "samples").mkdir(parents=True)
         (mixed_data_dir / "samples" / "sample_1.db").touch()
         (mixed_data_dir / ".source-binding.key").write_bytes(b"x" * 32)
+        from backend.diagnostic_cutover import RECEIPT
+
+        (mixed_data_dir / RECEIPT).touch()
         (mixed_data_dir / ".source-binding.key.lock").touch()
         (mixed_data_dir / "notes.txt").write_text("not yeliztli", encoding="utf-8")
         home_dir.mkdir()
@@ -592,6 +595,7 @@ class TestUninstallFlow:
         assert (mixed_data_dir / "notes.txt").exists()
         assert not (mixed_data_dir / "samples").exists()
         assert not (mixed_data_dir / ".source-binding.key").exists()
+        assert not (mixed_data_dir / RECEIPT).exists()
         assert not (mixed_data_dir / ".source-binding.key.lock").exists()
         assert not home_dir.exists()
 

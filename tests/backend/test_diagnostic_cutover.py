@@ -33,6 +33,6 @@ def test_existing_queue_waits_for_confirmed_cutover_and_compatible_runtime(tmp_p
 
 
 def test_unrecognized_receipt_never_attests_an_installation(tmp_path: Path):
-    (tmp_path / policy._RECEIPT).write_bytes(b"unknown")
+    (tmp_path / policy.RECEIPT).write_bytes(b"unknown")
     with pytest.raises(policy.CutoverPending):
         policy.admit(tmp_path, operator_verified=True)

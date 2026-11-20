@@ -4,7 +4,6 @@ Layered: defaults -> ~/.yeliztli/config.toml ([yeliztli] table) -> environment
 variables (YELIZTLI_*).
 """
 
-import logging
 import os
 import stat
 import threading
@@ -16,7 +15,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-logger = logging.getLogger(__name__)
+from backend.diagnostics import record_operation
 
 try:
     import tomllib
@@ -585,10 +584,7 @@ def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None
         # re-permission, but refusing the path outright made a required database
         # unbuildable on ordinary deployments, and setup cannot finish without
         # it. Report it and continue.
-        logger.warning(
-            "data_directory_owned_by_another_user: %s",
-            path,
-        )
+        record_operation("directory")
         return None
     if not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         return None
@@ -597,11 +593,7 @@ def ensure_private_directory(path: Path, *, parents: bool = False) -> str | None
     except OSError as exc:
         # Best effort: we own it but could not tighten it. Worth surfacing,
         # not worth refusing the location over.
-        logger.warning(
-            "data_directory_write_bits_not_cleared: %s (%s)",
-            path,
-            exc,
-        )
+        record_operation("directory", exc)
     return None
 
 

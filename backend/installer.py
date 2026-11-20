@@ -36,6 +36,7 @@ LOG_DIR_MACOS = Path.home() / "Library" / "Logs"
 
 _YELIZTLI_DATA_ARTIFACT_NAMES = frozenset(
     {
+        ".diagnostic-policy-v3",
         ".claims",
         ".disclaimer_accepted",
         ".source-binding.key",

@@ -22,7 +22,7 @@ from sqlalchemy.exc import OperationalError
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
 from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
-from backend.diagnostics import record_operation
+from backend.diagnostics import DiagnosticError, record_operation
 from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
@@ -685,7 +685,7 @@ def run_annotation_task(sample_id: int, job_id: str) -> None:
                             "job_id": job_id,
                             "sample_id": sample_id,
                             "fallback_version": bundle_version,
-                            "error": str(exc),
+                            "error": DiagnosticError(exc),
                         },
                     )
             # Pin every successful-run record to one resolved value.  Copying
@@ -1280,8 +1280,8 @@ def _execute_database_update(
                         "job_id": job_id,
                         "db_name": db_name,
                         "db_version": version,
-                        "reference_engine": str(registry.reference_engine.url),
-                        "error": str(exc),
+                        "reference_database": registry.reference_engine.url.database,
+                        "error": DiagnosticError(exc),
                     },
                 )
 

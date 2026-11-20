@@ -210,7 +210,7 @@ def load_fitness_panel(panel_path: Path | None = None) -> FitnessPanel:
         json.JSONDecodeError: If the panel JSON is malformed.
     """
     path = panel_path or _PANEL_PATH
-    logger.info("loading_fitness_panel", path=str(path))
+    logger.info("loading_fitness_panel", path=path)
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)

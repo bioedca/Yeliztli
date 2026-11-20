@@ -111,7 +111,9 @@ def test_validated_fields_belong_to_the_reviewed_producer(diagnostics, capsys):
 
 
 @pytest.mark.parametrize("source", ["native", "stdlib"])
-@pytest.mark.parametrize("shape", ["event", "exception", "cause", "group", "opaque"])
+@pytest.mark.parametrize(
+    "shape", ["event", "exception", "cause", "group", "reused_group_input", "opaque"]
+)
 def test_restricted_or_unknown_evidence_has_one_neutral_delivery(
     diagnostics, capsys, source, shape
 ):
@@ -141,6 +143,10 @@ def test_restricted_or_unknown_evidence_has_one_neutral_delivery(
             error = outer
         elif shape == "group":
             error = ExceptionGroup("fixture outer", [ExceptionGroup("nested", [error])])
+        elif shape == "reused_group_input":
+            members = [error]
+            error = ExceptionGroup("fixture outer", members)
+            members.clear()
         logger.warning("fixture failure", exc_info=(type(error), error, None))
     assert calls == []
     assert read_rows(diagnostics) == [
@@ -295,3 +301,100 @@ def test_only_final_response_disposition_can_emit_refusal(diagnostics, capsys):
     output = capsys.readouterr().out
     assert output.count("patient_response_payload_withheld") == 1 and operation in output
     assert "CYP2D6" not in output and "tamoxifen" not in output
+
+
+def test_sidecar_failure_preserves_recovery_without_formatting(
+    diagnostics, capsys, tmp_path, monkeypatch
+):
+    from pathlib import Path
+
+    from backend.annotation.http_download import write_validator_sidecar
+
+    calls = []
+
+    class FixtureError(OSError):
+        def __str__(self):
+            calls.append(True)
+            raise ValueError("unexpected formatting")
+
+    def fail_write(*args, **kwargs):
+        raise FixtureError()
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    write_validator_sidecar(tmp_path / "test.tmp", "synthetic validator")
+    assert calls == []
+    assert read_rows(diagnostics) == [
+        (
+            "WARNING",
+            None,
+            "clinical_guidance_withheld",
+            {"clinical_guidance_withheld": True},
+            LOG_ENTRY_PRESENTATION_POLICY_VERSION,
+        )
+    ]
+    assert "clinical_guidance_withheld" in capsys.readouterr().out
+
+
+def test_panel_observer_does_not_format_a_caller_supplied_path(diagnostics, tmp_path):
+    from backend.analysis.allergy import load_allergy_panel
+
+    source = tmp_path / "fixture.json"
+    source.write_text(
+        json.dumps(
+            {
+                "module": "fixture",
+                "version": "1",
+                "pathways": [{"id": "fixture", "name": "Fixture", "description": "", "snps": []}],
+            }
+        )
+    )
+
+    attempts = []
+
+    class PanelPath(type(tmp_path)):
+        def __str__(self):
+            attempts.append(True)
+            raise ValueError("unexpected diagnostic formatting")
+
+        def __fspath__(self):
+            return str(source)
+
+    panel = load_allergy_panel(PanelPath("fixture-public-panel"))
+    assert [entry.id for entry in panel.pathways] == ["fixture"]
+    assert attempts == []
+    rows = read_rows(diagnostics)
+    assert rows and rows[0][2:4] == (
+        "clinical_guidance_withheld",
+        {"clinical_guidance_withheld": True},
+    )
+
+
+@pytest.mark.parametrize("advisory", ["foreign_owner", "mode_unchanged"])
+def test_directory_warning_retains_its_remedy_without_changing_recovery(
+    diagnostics, capsys, tmp_path, monkeypatch, advisory
+):
+    import os
+    from pathlib import Path
+
+    from backend.config import ensure_private_directory
+
+    folder = tmp_path / "fixture-diagnostic-folder"
+    folder.mkdir()
+    if advisory == "foreign_owner":
+        uid = os.geteuid()
+        monkeypatch.setattr(os, "geteuid", lambda: uid + 1)
+    else:
+        folder.chmod(0o775)
+
+        def failed_chmod(_self, _mode):
+            raise PermissionError("fixture permission")
+
+        monkeypatch.setattr(Path, "chmod", failed_chmod)
+    assert ensure_private_directory(folder) is None
+    text = "The data directory could not be made private. Choose a private directory in Setup."
+    assert read_rows(diagnostics) == [
+        ("WARNING", "backend.main", text, {}, LOG_ENTRY_PRESENTATION_POLICY_VERSION)
+    ]
+    captured = capsys.readouterr()
+    shown = captured.out + captured.err
+    assert text in shown and str(folder) not in shown and "fixture permission" not in shown

@@ -5,21 +5,35 @@
 Yeliztli checks GitHub for new releases at startup (configurable via
 `update_check_interval`). When an update is available, a subtle indicator appears in the UI.
 
-To update a [native install](native-install.md):
+Before updating, stop the API and every worker, including services that restart automatically.
+On the first upgrade to diagnostic revision 3, close every browser session that used the old
+Explorer and complete the [release isolation steps](../privacy.md#upgrade-the-diagnostic-policy).
+Keep the active data, queue and service endpoint accessible only to the verified release.
+Back up your installation before proceeding.
+
+To update a [native install](native-install.md), install the new code while the services are stopped.
 
 ```bash
 cd Yeliztli
 git pull
 pip install -e .
 cd frontend && npm install && npm run build && cd ..
-yeliztli-setup install   # re-register and restart services
+# First upgrade to diagnostic revision 3, after verifying isolation:
+python -m backend.diagnostic_cutover --confirm-isolated-upgrade
+yeliztli-setup install
 ```
 
-For [Docker](docker.md), rebuild and recreate the containers:
+For [Docker](docker.md), stop the services and retain their named data volume. Build the
+new image and confirm both service definitions use that verified image and the same active
+volume. Run the one-off confirmation against that volume after completing the isolation steps.
 
 ```bash
+docker compose down
 git pull
-docker compose up -d --build
+docker compose build api
+# First upgrade to diagnostic revision 3, after verifying isolation:
+docker compose run --rm --no-deps api python -m backend.diagnostic_cutover --confirm-isolated-upgrade
+docker compose up -d
 ```
 
 !!! tip "Back up first"

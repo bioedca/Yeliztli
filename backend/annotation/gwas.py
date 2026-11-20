@@ -45,6 +45,7 @@ from backend.annotation.http_download import (
     write_validator_sidecar,
 )
 from backend.db.tables import gwas_associations
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -721,7 +722,7 @@ def _parse_last_modified_version(last_modified: str | None) -> str | None:
     try:
         return parsedate_to_datetime(last_modified).strftime("%Y%m%d")
     except (TypeError, ValueError) as exc:
-        logger.warning("gwas_last_modified_parse_failed", error=str(exc))
+        logger.warning("gwas_last_modified_parse_failed", error=DiagnosticError(exc))
         return None
 
 
@@ -772,7 +773,7 @@ def check_gwas_update(
             last_modified = resp.headers.get("Last-Modified", "")
             content_length = resp.headers.get("Content-Length")
     except Exception as exc:
-        logger.warning("gwas_update_check_failed", error=str(exc))
+        logger.warning("gwas_update_check_failed", error=DiagnosticError(exc))
         return None
 
     remote_version = _parse_last_modified_version(last_modified)
@@ -880,7 +881,7 @@ def download_gwas_catalog(
     finally:
         zip_path.unlink(missing_ok=True)
 
-    logger.info("gwas_download_complete", path=str(dest_path))
+    logger.info("gwas_download_complete", path=dest_path)
     return dest_path
 
 

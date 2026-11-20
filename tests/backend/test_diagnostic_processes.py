@@ -20,6 +20,7 @@ import pytest
 def _environment(data: Path, **settings: str) -> dict[str, str]:
     return {
         **os.environ,
+        "HOME": str(data.parent / "fixture-home"),
         "YELIZTLI_DATA_DIR": str(data),
         "YELIZTLI_HUEY_IMMEDIATE": "0",
         "OPENBLAS_NUM_THREADS": "1",
@@ -281,3 +282,82 @@ raise SystemExit(_run(serve_fixture))
     with sqlite3.connect(data / "reference.db") as db:
         rows = db.execute("SELECT message, event_data, logger FROM log_entries").fetchall()
     assert rows and all("helper" not in str(row) and "fixture" not in str(row) for row in rows)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "runpy.run_module('backend.main', run_name='__mp_main__')",
+        "from backend.operator_console import create_operator_app; create_operator_app()",
+    ],
+)
+def test_api_child_admits_storage_before_loading_the_queue(tmp_path, entry):
+    data = tmp_path / "replacement"
+    data.mkdir()
+    original = data / "fixture.txt"
+    original.write_bytes(b"existing installation")
+    code = (
+        "import runpy, sys\n"
+        "from backend.diagnostic_cutover import CutoverPending\n"
+        "try:\n    " + entry + "\n"
+        "except CutoverPending:\n"
+        "    assert 'backend.tasks.huey_tasks' not in sys.modules\n"
+        "else:\n    raise AssertionError('unverified replacement was admitted')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=tmp_path,
+        env=_environment(data),
+        capture_output=True,
+        text=True,
+        timeout=40,
+    )
+    assert result.returncode == 0, result.stderr
+    assert list(data.iterdir()) == [original]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="Huey restart signal requires POSIX")
+def test_worker_hup_rechecks_admission_through_its_reviewed_console(tmp_path):
+    from backend.diagnostic_cutover import CUTOVER_MESSAGE, RECEIPT
+
+    data = tmp_path / "data"
+    ready = tmp_path / "ready"
+    # Expose only the point at which the real consumer has installed its signal handlers.
+    launcher = tmp_path / "fixture_launcher.py"
+    launcher.write_text(
+        "import runpy, sys\n"
+        "from pathlib import Path\n"
+        "from huey.consumer import Consumer\n"
+        "register = Consumer._set_signal_handlers\n"
+        "def ready(self):\n"
+        "    register(self)\n"
+        "    Path('ready').touch()\n"
+        "Consumer._set_signal_handlers = ready\n"
+        "sys.argv[1:] = ['-w', '1', '--no-periodic']\n"
+        "runpy.run_module('backend.worker', run_name='__main__')\n"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, str(launcher)],
+        cwd=tmp_path,
+        env=_environment(data),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 90
+        while not ready.exists() and time.monotonic() < deadline:
+            assert proc.poll() is None
+            time.sleep(0.1)
+        assert ready.exists()
+        (data / RECEIPT).unlink()
+        proc.send_signal(signal.SIGHUP)
+        out, err = proc.communicate(timeout=40)
+    finally:
+        if proc.poll() is None:
+            _stop(proc)
+    assert proc.returncode == 1
+    assert out == ""
+    assert err.count("ERROR " + CUTOVER_MESSAGE) == 1
+    assert str(tmp_path) not in err

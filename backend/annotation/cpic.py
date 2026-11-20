@@ -41,6 +41,7 @@ from backend.db.tables import (
     cpic_diplotypes,
     cpic_guidelines,
 )
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -502,7 +503,7 @@ def check_cpic_update(
             resp.raise_for_status()
             payload = resp.json()
     except Exception as exc:
-        logger.warning("cpic_update_check_failed", error=str(exc))
+        logger.warning("cpic_update_check_failed", error=DiagnosticError(exc))
         return None
 
     if not isinstance(payload, dict):

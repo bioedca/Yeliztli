@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 import structlog
 
+from backend.diagnostics import DiagnosticError
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -187,7 +189,7 @@ def bulk_write_connection(engine: sa.Engine) -> Iterator[sa.Connection]:
                 try:
                     _exec_pragmas(conn, "PRAGMA synchronous=NORMAL")
                 except Exception as exc:  # noqa: BLE001
-                    logger.warning("bulk_write_pragma_reset_failed", error=str(exc))
+                    logger.warning("bulk_write_pragma_reset_failed", error=DiagnosticError(exc))
 
 
 def _exec_pragmas(conn: sa.Connection, *pragmas: str) -> None:

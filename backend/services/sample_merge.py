@@ -72,7 +72,7 @@ from backend.db.tables import (
     sample_metadata_table,
     samples,
 )
-from backend.diagnostics import record_operation
+from backend.diagnostics import DiagnosticError, record_operation
 from backend.services.sample_operation_lock import sample_merge_lease
 from backend.services.staleness import is_sample_stale
 
@@ -312,7 +312,7 @@ def _rsids_in_vep_bundle(vep_engine: sa.Engine, rsids: set[str]) -> set[str]:
         # production VEP bundle yet (Step 4 / ADNA-00a).
         logger.warning(
             "merge_vep_bundle_unreachable",
-            extra={"error": str(exc), "conflict_rsid_count": len(rsids)},
+            extra={"error": DiagnosticError(exc), "conflict_rsid_count": len(rsids)},
         )
         return set()
 
@@ -821,7 +821,7 @@ def _is_published(registry: DBRegistry, db_path: str) -> bool:
                 > 0
             )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("merge_publication_check_failed", extra={"error": str(exc)})
+        logger.warning("merge_publication_check_failed", extra={"error": DiagnosticError(exc)})
         return True
 
 
@@ -849,7 +849,7 @@ def recover_unpublished_merge_artifacts(registry: DBRegistry) -> list[str]:
     except Exception as exc:  # noqa: BLE001
         # A half-broken install must still start. Sweeping without a readable
         # registry could delete a published child, so do nothing at all.
-        logger.warning("merge_recovery_registry_unreadable", extra={"error": str(exc)})
+        logger.warning("merge_recovery_registry_unreadable", extra={"error": DiagnosticError(exc)})
         return []
 
     removed: list[str] = []

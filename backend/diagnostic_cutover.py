@@ -12,10 +12,8 @@ from backend.db.tables import LOG_ENTRY_PRESENTATION_POLICY_VERSION
 # A new launcher must refuse an incompatible installed writer/reader, even if
 # somebody accidentally points its interpreter at a different release.
 _LAUNCH_REVISION = 3
-_RECEIPT = ".diagnostic-policy-v3"
-_CUTOVER_MESSAGE = (
-    "Diagnostic upgrade pending. Complete the operator cutover in the privacy guide."
-)
+RECEIPT = ".diagnostic-policy-v3"
+CUTOVER_MESSAGE = "Diagnostic upgrade pending. Complete the operator cutover in the privacy guide."
 
 
 class CutoverPending(Exception):
@@ -41,7 +39,7 @@ def admit(data_dir: Path, *, operator_verified: bool = False) -> None:
     if LOG_ENTRY_PRESENTATION_POLICY_VERSION != _LAUNCH_REVISION:
         raise CutoverPending
     data_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    receipt = data_dir / _RECEIPT
+    receipt = data_dir / RECEIPT
     if _receipt_exists(receipt):
         return
     if not operator_verified:
@@ -80,7 +78,7 @@ def main() -> None:
     try:
         admit(get_settings().data_dir, operator_verified=True)
     except (CutoverPending, OSError):
-        parser.exit(1, _CUTOVER_MESSAGE + "\n")
+        parser.exit(1, CUTOVER_MESSAGE + "\n")
 
 
 if __name__ == "__main__":

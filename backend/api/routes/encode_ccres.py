@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.db.connection import get_registry
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -24,7 +25,7 @@ def _get_encode_engine():
     try:
         return registry.encode_ccres_engine
     except Exception as exc:
-        logger.warning("encode_ccres_engine_unavailable", error=str(exc))
+        logger.warning("encode_ccres_engine_unavailable", error=DiagnosticError(exc))
         raise HTTPException(
             status_code=503,
             detail="ENCODE cCREs database not available. Download it via the setup wizard.",
@@ -157,7 +158,7 @@ async def get_status() -> StatusResponse:
     try:
         engine = registry.encode_ccres_engine
     except Exception as exc:
-        logger.debug("encode_ccres_status_unavailable", error=str(exc))
+        logger.debug("encode_ccres_status_unavailable", error=DiagnosticError(exc))
         return StatusResponse(loaded=False, record_count=0)
 
     loaded = is_loaded(engine)

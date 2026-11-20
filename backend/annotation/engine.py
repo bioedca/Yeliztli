@@ -57,6 +57,7 @@ from backend.db.tables import (
     sample_metadata_table,
 )
 from backend.db.vep_version import resolve_effective_vep_bundle_version
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
@@ -1640,7 +1641,7 @@ def _check_engine_available(
     except Exception as exc:
         logger.warning(
             "annotation_source_failed",
-            extra={"source": name, "error": str(exc)},
+            extra={"source": name, "error": DiagnosticError(exc)},
         )
         if result is not None:
             result.source_failures[name] = str(exc)
@@ -1968,7 +1969,7 @@ def run_annotation(
                         vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": source, "error": str(exc)},
+                        extra={"source": source, "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
 
@@ -2141,7 +2142,7 @@ def run_annotation(
                     vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "vep_coord_fallback", "error": str(exc)},
+                        extra={"source": "vep_coord_fallback", "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
                 else:
@@ -2173,7 +2174,7 @@ def run_annotation(
                     vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "vep_settled_identity", "error": str(exc)},
+                        extra={"source": "vep_settled_identity", "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
                 finally:
@@ -2195,7 +2196,10 @@ def run_annotation(
                     vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "vep_settled_coord_fallback", "error": str(exc)},
+                        extra={
+                            "source": "vep_settled_coord_fallback",
+                            "error": DiagnosticError(exc),
+                        },
                     )
                     result.errors.append(msg)
                 else:
@@ -2217,7 +2221,7 @@ def run_annotation(
                     vep_lookup_complete = False
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "vep_alleles", "error": str(exc)},
+                        extra={"source": "vep_alleles", "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
 
@@ -2238,7 +2242,7 @@ def run_annotation(
                     msg = f"alphamissense lookup failed: {exc}"
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "alphamissense", "error": str(exc)},
+                        extra={"source": "alphamissense", "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
 
@@ -2279,7 +2283,7 @@ def run_annotation(
                     msg = f"gene_phenotype lookup failed: {exc}"
                     logger.warning(
                         "annotation_source_error",
-                        extra={"source": "gene_phenotype", "error": str(exc)},
+                        extra={"source": "gene_phenotype", "error": DiagnosticError(exc)},
                     )
                     result.errors.append(msg)
 

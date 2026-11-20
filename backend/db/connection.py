@@ -25,6 +25,7 @@ import structlog
 
 from backend.config import Settings, get_settings
 from backend.db.sqlite_engine import SQLiteSynchronousMode, make_sqlite_engine
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -207,7 +208,7 @@ class DBRegistry:
             logger.warning(
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                 reason="reference_db_unreadable",
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
             return False
 
@@ -300,7 +301,7 @@ class DBRegistry:
                     "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                     reason="prompt_retraction_failed",
                     sample_id=sample_id,
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
                 return False
             return True
@@ -332,7 +333,7 @@ class DBRegistry:
                     "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                     reason="marker_update_failed",
                     sample_id=sample_id,
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
                 return False
             if result.rowcount != 1:
@@ -361,7 +362,7 @@ class DBRegistry:
                 "cyp2c9_phenytoin_reanalysis_prompt_deferred",
                 reason="prompt_publish_failed",
                 sample_id=sample_id,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
             return False
         if not publication_complete:

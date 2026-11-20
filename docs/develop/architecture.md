@@ -165,7 +165,7 @@ recorded in the [issue #2391 evidence packet](https://github.com/bioedca/Yeliztl
 
 | Process | Command |
 |---------|---------|
-| API server | `uvicorn backend.main:app` |
+| API server | `python -m backend.main` |
 | Background worker | `python -m backend.worker` |
 | Frontend (dev) | `npm run dev` (in `frontend/`) |
 

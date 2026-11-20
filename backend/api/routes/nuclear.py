@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from backend.db.connection import get_registry, reset_registry
+from backend.diagnostic_cutover import admit
 from backend.services.data_wipe_fence import exclusive_wipe
 from backend.services.sample_operation_lock import SampleOperationConflictError
 
@@ -57,7 +58,7 @@ def _wipe_data_dir() -> None:
                 child.unlink(missing_ok=True)
 
         # 3. Recreate the empty data_dir structure expected by lifespan
-        data_dir.mkdir(parents=True, exist_ok=True)
+        admit(data_dir)
 
         logger.info("Nuclear delete completed: all data wiped from %s", data_dir)
     except Exception:

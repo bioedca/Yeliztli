@@ -66,6 +66,7 @@ from backend.db.database_registry import (
 from backend.db.download_manager import INCOMPLETE_DOWNLOAD_STATES
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.tables import database_versions, download_session_jobs, downloads, jobs
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from backend.config import Settings
@@ -942,7 +943,7 @@ def clean_database_artifacts(db_info: DatabaseInfo, settings: Settings, engine: 
                     p.unlink()
                     removed.append(str(p))
                 except OSError as exc:
-                    logger.warning("clean_unlink_failed", path=str(p), error=str(exc))
+                    logger.warning("clean_unlink_failed", path=str(p), error=DiagnosticError(exc))
 
     # The primary artifact (skip the shared reference.db — never delete it).
     path = _artifact_path(db_info, settings)
@@ -952,7 +953,7 @@ def clean_database_artifacts(db_info: DatabaseInfo, settings: Settings, engine: 
                 shutil.rmtree(path)
                 removed.append(str(path))
             except OSError as exc:
-                logger.warning("clean_rmtree_failed", path=str(path), error=str(exc))
+                logger.warning("clean_rmtree_failed", path=str(path), error=DiagnosticError(exc))
         elif path.exists() and path.is_file():
             for p in (path, Path(f"{path}-wal"), Path(f"{path}-shm")):
                 if p.exists():
@@ -960,7 +961,9 @@ def clean_database_artifacts(db_info: DatabaseInfo, settings: Settings, engine: 
                         p.unlink()
                         removed.append(str(p))
                     except OSError as exc:
-                        logger.warning("clean_unlink_failed", path=str(p), error=str(exc))
+                        logger.warning(
+                            "clean_unlink_failed", path=str(p), error=DiagnosticError(exc)
+                        )
 
     # Clear tracking rows so the DB reads as not_installed afterwards.
     with engine.begin() as conn:

@@ -18,6 +18,7 @@ import structlog
 from backend.db.database_registry import EXPECTED_GENOME_BUILD
 from backend.db.tables import database_versions
 from backend.db.vep_version import resolve_effective_vep_bundle_version
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -72,7 +73,7 @@ def read_current_reference_snapshot(
         logger.warning(
             "database_versions_unreadable",
             reason="table_or_db_unreachable",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         if effective_vep_version is None:
             return {}
@@ -106,7 +107,7 @@ def read_current_reference_snapshot(
                 logger.warning(
                     "database_versions_unreadable",
                     reason="table_or_db_unreachable",
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
                 # The initial snapshot query succeeded, so retain those known
                 # row-backed releases.  The resolver re-reads the registry to

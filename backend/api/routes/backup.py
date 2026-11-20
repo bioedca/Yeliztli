@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from backend.config import config_toml_path, get_settings
 from backend.db.database_registry import DATABASES
 from backend.db.sample_schema import collect_sample_database_files
+from backend.diagnostics import DiagnosticError
 from backend.services.sample_operation_lock import ACTIVE_JOB_STATUSES
 
 logger = structlog.get_logger(__name__)
@@ -142,7 +143,7 @@ def _unpublished_merge_files(data_dir: Path, candidates: list[Path]) -> set[Path
         # restore materialises any archived file the manifest omits as a
         # phantom sample. Aborting matches how a registry failure is already
         # treated when building the manifest.
-        logger.warning("backup_publication_check_failed", error=str(exc))
+        logger.warning("backup_publication_check_failed", error=DiagnosticError(exc))
         raise BackupRegistryManifestError(
             "Could not verify merged-sample publication; backup would risk "
             "archiving an unpublished database."
@@ -246,7 +247,7 @@ def build_sample_registry_manifest(
                     for row in individual_rows
                 ]
     except (sa.exc.SQLAlchemyError, BackupRegistryManifestError) as exc:
-        logger.warning("backup_registry_manifest_skipped", error=str(exc))
+        logger.warning("backup_registry_manifest_skipped", error=DiagnosticError(exc))
         raise BackupRegistryManifestError(
             "Could not export the sample registry; backup would omit sample names/groupings."
         ) from exc

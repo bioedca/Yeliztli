@@ -47,6 +47,8 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 import structlog
 
+from backend.diagnostics import DiagnosticError
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping
 
@@ -528,7 +530,7 @@ def write_validator_sidecar(tmp_path: Path, validator: str) -> None:
     try:
         _validator_sidecar_path(tmp_path).write_text(validator, encoding="utf-8")
     except OSError as exc:
-        logger.warning("validator_sidecar_write_failed", path=str(tmp_path), error=str(exc))
+        logger.warning("validator_sidecar_write_failed", path=tmp_path, error=DiagnosticError(exc))
 
 
 def clear_validator_sidecar(tmp_path: Path) -> None:
@@ -536,7 +538,7 @@ def clear_validator_sidecar(tmp_path: Path) -> None:
     try:
         _validator_sidecar_path(tmp_path).unlink(missing_ok=True)
     except OSError as exc:
-        logger.warning("validator_sidecar_clear_failed", path=str(tmp_path), error=str(exc))
+        logger.warning("validator_sidecar_clear_failed", path=tmp_path, error=DiagnosticError(exc))
 
 
 def stream_download(
@@ -670,7 +672,9 @@ def stream_download(
                 tmp_path.unlink(missing_ok=True)
             except OSError as cleanup_err:
                 logger.warning(
-                    "download_cleanup_failed", path=str(tmp_path), error=str(cleanup_err)
+                    "download_cleanup_failed",
+                    path=tmp_path,
+                    error=DiagnosticError(cleanup_err),
                 )
 
     # Construct this only after leaving the ``except`` suite below. Raising a
@@ -888,10 +892,7 @@ def stream_download(
                     offset=new_offset,
                     made_progress=made_progress,
                     retry_in_s=round(delay, 2),
-                    error=(
-                        f"{type(exc).__name__}: "
-                        f"{_safe_error_text(exc, raw_url=url, safe_url=safe_url)}"
-                    ),
+                    error=(DiagnosticError(exc)),
                 )
                 sleep(delay)
         assert terminal_error is not None

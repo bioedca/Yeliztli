@@ -7,6 +7,7 @@ import inspect
 import logging
 import sys
 from dataclasses import dataclass
+from pathlib import PosixPath, WindowsPath
 from types import TracebackType
 
 import structlog
@@ -82,6 +83,16 @@ _OPERATIONS = {
         "The merged sample was saved. Start annotation again.",
     ),
 }
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class DiagnosticError:
+    """A producer can pass a failure without invoking its formatting methods."""
+
+    error: BaseException
+
+    def __repr__(self) -> str:
+        return GENERIC_FAILURE
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,8 +180,17 @@ def _primitive_evidence(
     if depth > 32 or budget[0] < 0:
         raise _Uninspectable
     kind = type(value)
+    if kind is DiagnosticError:
+        if not issubclass(type(value.error), BaseException):
+            raise _Uninspectable
+        return _primitive_evidence(value.error, budget, seen_exceptions, depth + 1)
     if value is None or kind is bool or kind is int or kind is float:
         return value
+    if kind is PosixPath or kind is WindowsPath:
+        # The application may pass a path object directly. A subclass remains
+        # opaque so its custom formatter cannot run while preparing evidence.
+        value = str(value)
+        kind = str
     if kind is bytes:
         if len(value) > 8192:
             raise _Uninspectable
@@ -216,6 +236,8 @@ def _primitive_evidence(
             BaseException.__context__.__get__(value),
             BaseException.__dict__["__dict__"].__get__(value),
         ]
+        if issubclass(kind, BaseExceptionGroup):
+            parts.append(BaseExceptionGroup.exceptions.__get__(value))
         if issubclass(kind, OSError):
             parts.extend((OSError.filename.__get__(value), OSError.filename2.__get__(value)))
         return _primitive_evidence(parts, budget, seen_exceptions, depth + 1)
@@ -301,6 +323,11 @@ def safe_event(raw: dict[str, object], component: object = None) -> dict[str, ob
                     if type(template.retry_count) is int and 0 <= template.retry_count <= 100:
                         record["retry_count"] = template.retry_count
                 return record
+        if exc is None:
+            for value in inputs.values():
+                if type(value) is DiagnosticError:
+                    exc = value.error
+                    break
         if exc is not None:
             record = {"event": GENERIC_FAILURE}
             for cls, category in _EXCEPTION_CATEGORIES:
@@ -359,5 +386,6 @@ _AUDIT_OPERATIONS = frozenset(
         "backend.api.routes.traits.list_pathways",
         "backend.api.routes.traits.list_prs",
         "backend.api.routes.traits.pathway_detail",
+        "backend.api.routes.updates.get_finding_changes",
     }
 )

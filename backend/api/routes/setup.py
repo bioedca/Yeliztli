@@ -52,6 +52,7 @@ from backend.db.db_health import get_database_health
 from backend.db.sample_schema import collect_sample_database_files, sample_db_sidecars
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.vep_version import resolve_effective_vep_bundle_version
+from backend.diagnostics import DiagnosticError
 from backend.disclaimers import (
     GLOBAL_DISCLAIMER_ACCEPT_LABEL,
     GLOBAL_DISCLAIMER_TEXT,
@@ -273,7 +274,7 @@ def _merge_restored_config_toml(staged_config: Path, config_dest: Path) -> bool:
     if not restored_content and staged_config_has_content:
         logger.warning(
             "backup_config_restore_skipped",
-            path=str(staged_config),
+            path=staged_config,
             reason="invalid_or_unreadable",
         )
         return False
@@ -705,8 +706,8 @@ def _upgrade_restored_sample_db(sample_db_path: Path) -> None:
     except sa.exc.SQLAlchemyError as exc:
         logger.warning(
             "restore_sample_upgrade_skipped",
-            sample_db=str(sample_db_path),
-            error=str(exc),
+            sample_db=sample_db_path,
+            error=DiagnosticError(exc),
         )
 
 
@@ -748,14 +749,14 @@ def _load_registry_manifest(manifest_path: Path) -> tuple[list[dict], list[dict]
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning(
             "restore_registry_manifest_skipped",
-            manifest=str(manifest_path),
-            error=str(exc),
+            manifest=manifest_path,
+            error=DiagnosticError(exc),
         )
         return [], []
     if raw.get("version") != 1:
         logger.warning(
             "restore_registry_manifest_unsupported",
-            manifest=str(manifest_path),
+            manifest=manifest_path,
             version=raw.get("version"),
         )
         return [], []
@@ -806,8 +807,8 @@ def _load_legacy_registry_db(
     except sa.exc.SQLAlchemyError as exc:
         logger.warning(
             "restore_legacy_registry_skipped",
-            reference_db=str(backup_reference_db),
-            error=str(exc),
+            reference_db=backup_reference_db,
+            error=DiagnosticError(exc),
         )
         return [], []
     finally:
@@ -877,8 +878,8 @@ def _default_sample_registry_row(
     except sa.exc.SQLAlchemyError as exc:
         logger.warning(
             "restore_sample_metadata_fallback_skipped",
-            sample_db=str(staged_sample_path),
-            error=str(exc),
+            sample_db=staged_sample_path,
+            error=DiagnosticError(exc),
         )
     finally:
         source_engine.dispose()
@@ -1201,7 +1202,7 @@ def _remap_staged_merge_provenance(
                 logger.warning(
                     "restore_nonmerged_provenance_check_skipped",
                     sample_db=str(staged_path),
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
                 continue
             raise _RestoreMergeProvenanceError(
@@ -1291,7 +1292,7 @@ def _publish_restored_reanalysis_prompts(sample_paths: list[Path]) -> None:
             logger.warning(
                 "restore_reanalysis_prompt_sync_deferred",
                 sample_db=sample_path.name,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
             continue
         if not published:
@@ -1442,7 +1443,7 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     except _RestoreMergeProvenanceError as exc:
                         logger.warning(
                             "backup_merge_provenance_invalid",
-                            error=str(exc),
+                            error=DiagnosticError(exc),
                         )
                         raise HTTPException(
                             status_code=400,
@@ -1484,7 +1485,7 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                     except _RestoreMergeProvenanceError as exc:
                         logger.warning(
                             "backup_merge_provenance_invalid",
-                            error=str(exc),
+                            error=DiagnosticError(exc),
                         )
                         raise HTTPException(
                             status_code=400,
@@ -1528,7 +1529,7 @@ async def import_backup(file: UploadFile) -> ImportBackupResponse:
                         logger.warning(
                             "backup_sample_restore_failed",
                             moved_samples=len(moved_sample_paths),
-                            error=str(exc),
+                            error=DiagnosticError(exc),
                         )
                         raise HTTPException(
                             status_code=500,
@@ -1898,6 +1899,16 @@ async def set_storage_path(body: SetStoragePathRequest) -> SetStoragePathRespons
 
     # Persist the chosen path so it survives a restart, and bust the settings
     # cache so subsequent reads in this process use it immediately.
+    from backend.diagnostic_cutover import CUTOVER_MESSAGE, CutoverPending, admit
+
+    try:
+        admit(resolved)
+    except CutoverPending as exc:
+        raise HTTPException(status_code=409, detail=CUTOVER_MESSAGE) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=400, detail="Cannot initialize the storage directory."
+        ) from exc
     write_data_dir_pointer(resolved)
     get_settings.cache_clear()
 
@@ -1928,8 +1939,8 @@ def _read_config_toml(config_path: Path) -> dict[str, dict[str, object]]:
     except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
         logger.warning(
             "config_toml_parse_failed",
-            path=str(config_path),
-            error=str(exc),
+            path=config_path,
+            error=DiagnosticError(exc),
         )
         return {}
 

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import structlog
 
+from backend.diagnostics import DiagnosticError
+
 LIFTOVER_FILENAMES = ("array_site_mapping.tsv", "rsid_to_grch38.tsv")
 
 logger = structlog.get_logger(__name__)
@@ -138,7 +140,7 @@ def _validate_lai_liftover_file(path: Path, signature: tuple[int, int, int, int]
     if signature[0] <= 0:
         logger.warning(
             "lai_liftover_validation_failed",
-            path=str(path),
+            path=path,
             reason="invalid_file_metadata",
         )
         return False
@@ -149,14 +151,14 @@ def _validate_lai_liftover_file(path: Path, signature: tuple[int, int, int, int]
         if not has_mapping:
             logger.warning(
                 "lai_liftover_validation_failed",
-                path=str(path),
+                path=path,
                 reason="no_mapping_rows",
             )
             return False
         if not _has_effective_autosomal_mapping(path):
             logger.warning(
                 "lai_liftover_validation_failed",
-                path=str(path),
+                path=path,
                 reason="no_effective_autosomal_mapping",
             )
             return False
@@ -164,9 +166,9 @@ def _validate_lai_liftover_file(path: Path, signature: tuple[int, int, int, int]
     except (OSError, UnicodeError, ValueError) as exc:
         logger.warning(
             "lai_liftover_validation_failed",
-            path=str(path),
+            path=path,
             reason="malformed_or_unreadable",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return False
 
@@ -188,7 +190,7 @@ def validate_lai_liftover_bundle(bundle_path: str | Path) -> bool:
             "lai_liftover_validation_failed",
             path=str(path),
             reason="stat_failed",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return False
     signature = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)

@@ -29,6 +29,7 @@ import sqlalchemy as sa
 import structlog
 
 from backend.db.tables import uniprot_cache
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -670,7 +671,7 @@ class UniProtCacheFetcher:
                 logger.warning(
                     "uniprot_cache_domains_parse_error",
                     gene=gene_symbol,
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
 
         features: list[ProteinFeatureData] = []
@@ -682,7 +683,7 @@ class UniProtCacheFetcher:
                 logger.warning(
                     "uniprot_cache_features_parse_error",
                     gene=gene_symbol,
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                 )
 
         fetched_at = row.fetched_at

@@ -7,6 +7,14 @@ if __name__ == "__main__":
 
     raise SystemExit(run_api())
 
+if __name__ == "__mp_main__":
+    # A reload interpreter imports this module before Uvicorn calls its app
+    # factory. Check its own data directory before any route can open the queue.
+    from backend.config import get_settings
+    from backend.diagnostic_cutover import admit
+
+    admit(get_settings().data_dir)
+
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

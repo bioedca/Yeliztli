@@ -47,6 +47,7 @@ from backend.annotation.bulk_load import serialized_write
 from backend.annotation.http_download import stream_download
 from backend.db.build_guard import build_claim
 from backend.db.tables import database_versions, gene_phenotype
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -587,7 +588,7 @@ def _parse_last_modified_version(last_modified: str | None) -> str | None:
     try:
         return parsedate_to_datetime(last_modified).strftime("%Y%m%d")
     except (TypeError, ValueError) as exc:
-        logger.warning("mondo_hpo_source_version_bad_last_modified", error=str(exc))
+        logger.warning("mondo_hpo_source_version_bad_last_modified", error=DiagnosticError(exc))
         return None
 
 
@@ -865,7 +866,7 @@ def _assert_private_source_bundle_directory(
     if result.st_uid != os.geteuid() or result.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         logger.warning(
             "mondo_hpo_source_bundle_directory_not_private",
-            path=str(path),
+            path=path,
             owned_by_current_user=result.st_uid == os.geteuid(),
             group_or_world_writable=bool(result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)),
         )
@@ -954,14 +955,14 @@ def _assert_source_bundle_ancestor_chain_is_trusted(dest_dir: Path) -> None:
                 ):
                     logger.warning(
                         "mondo_hpo_downloads_ancestor_not_trusted",
-                        ancestor=str(ancestor),
+                        ancestor=ancestor,
                         reason="owner",
                         lexical=lexical,
                     )
                 if is_writable_by_others and not is_sticky:
                     logger.warning(
                         "mondo_hpo_downloads_ancestor_not_trusted",
-                        ancestor=str(ancestor),
+                        ancestor=ancestor,
                         reason="group_or_world_writable",
                         lexical=lexical,
                     )
@@ -993,14 +994,14 @@ def _assert_source_bundle_ancestor_directory_is_trusted(
     ):
         logger.warning(
             "mondo_hpo_downloads_ancestor_not_trusted",
-            ancestor=str(path),
+            ancestor=path,
             reason="owner",
         )
     writable_by_others = result.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
     if writable_by_others and not result.st_mode & stat.S_ISVTX:
         logger.warning(
             "mondo_hpo_downloads_ancestor_not_trusted",
-            ancestor=str(path),
+            ancestor=path,
             reason="group_or_world_writable",
         )
 
@@ -2089,7 +2090,7 @@ def _reconcile_committed_source_bundle_pending(
         logger.warning(
             "mondo_hpo_source_bundle_pending_reconciliation_failed",
             bundle_name=bundle_name,
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
 
 
@@ -2195,7 +2196,7 @@ def download_file(
     dest_path = dest_dir / filename
     tmp_path = dest_dir / f"{filename}.tmp"
 
-    logger.info("download_start", url=_public_source_url(url), dest=str(dest_path))
+    logger.info("download_start", url=_public_source_url(url), dest=dest_path)
 
     outcome = stream_download(
         url,
@@ -2215,7 +2216,7 @@ def download_file(
     # Atomic rename on success (stream_download cleans up the .tmp on failure).
     tmp_path.replace(dest_path)
 
-    logger.info("download_complete", path=str(dest_path))
+    logger.info("download_complete", path=dest_path)
     return dest_path
 
 
@@ -2478,7 +2479,7 @@ def _hpo_labels_need_refresh(reference_engine: sa.Engine) -> bool:
                 ):
                     return True
     except sa.exc.SQLAlchemyError as exc:
-        logger.warning("mondo_hpo_label_shape_check_failed", error=str(exc))
+        logger.warning("mondo_hpo_label_shape_check_failed", error=DiagnosticError(exc))
         return False
 
     return False
@@ -2675,7 +2676,7 @@ def check_mondo_hpo_update(
             resp.raise_for_status()
             last_modified = resp.headers.get("Last-Modified", "")
     except Exception as exc:
-        logger.warning("mondo_hpo_update_check_failed", error=str(exc))
+        logger.warning("mondo_hpo_update_check_failed", error=DiagnosticError(exc))
         return None
 
     if not last_modified:
@@ -2684,7 +2685,7 @@ def check_mondo_hpo_update(
     try:
         remote_version = parsedate_to_datetime(last_modified).strftime("%Y%m%d")
     except (TypeError, ValueError) as exc:
-        logger.warning("mondo_hpo_update_check_bad_last_modified", error=str(exc))
+        logger.warning("mondo_hpo_update_check_bad_last_modified", error=DiagnosticError(exc))
         return None
 
     primary_size = _positive_content_length_or_none(resp)
@@ -2730,7 +2731,7 @@ def check_mondo_hpo_update(
             sssom_resp = client.head(MONDO_SSSOM_URL, headers=_IDENTITY_REPRESENTATION)
             sssom_resp.raise_for_status()
     except Exception as exc:
-        logger.warning("mondo_hpo_secondary_update_check_failed", error=str(exc))
+        logger.warning("mondo_hpo_secondary_update_check_failed", error=DiagnosticError(exc))
         # A MONDO/HPO refresh always transfers all three authoritative
         # sources.  Do not offer a primary-only estimate when a secondary
         # validator is unavailable: it could understate the transfer and
@@ -3067,7 +3068,7 @@ def download_and_load_mondo_hpo(
                                 logger.warning(
                                     "mondo_hpo_source_bundle_pending_cleanup_failed",
                                     bundle_name=published.name,
-                                    error=str(exc),
+                                    error=DiagnosticError(exc),
                                 )
 
             logger.info(

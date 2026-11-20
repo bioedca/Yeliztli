@@ -30,6 +30,7 @@ from backend.db.vep_version import (
     VERSIONLESS_VEP_BUNDLE_BASELINE,
     resolve_effective_vep_bundle_version,
 )
+from backend.diagnostics import DiagnosticError
 from backend.services.reference_versions import (
     compact_reference_versions,
     read_current_reference_snapshot,
@@ -132,7 +133,7 @@ def read_recorded_reference_versions(
         logger.warning(
             "reference_versions_missing",
             reason="table_or_db_unreachable",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return None
     state = {row.key: row.value for row in rows}
@@ -200,7 +201,7 @@ def _read_installed_major() -> int | None:
         logger.warning(
             "database_versions_unreadable",
             reason="table_or_db_unreachable",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return None
     major = _coerce_major(installed_version)
@@ -275,7 +276,7 @@ def get_recorded_bundle_version(sample_id: int) -> str | None:
             "annotation_state_missing",
             sample_id=sample_id,
             reason="table_or_db_unreachable",
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return None
 

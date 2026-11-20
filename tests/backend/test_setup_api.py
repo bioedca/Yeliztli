@@ -1466,6 +1466,34 @@ class TestSetStoragePath:
         assert data["free_space_gb"] > 0
         assert data["status"] in ("ok", "warning", "blocked")
 
+    def test_storage_switch_requires_admission_before_changing_the_pointer(
+        self, setup_client: TestClient, tmp_path: Path
+    ) -> None:
+        from backend.config import data_dir_pointer_path
+        from backend.diagnostic_cutover import CUTOVER_MESSAGE, admit
+
+        first, existing = tmp_path / "first", tmp_path / "existing"
+        assert (
+            setup_client.post("/api/setup/set-storage-path", json={"path": str(first)}).status_code
+            == 200
+        )
+        pointer = data_dir_pointer_path()
+        original = pointer.read_bytes()
+        existing.mkdir()
+        queue = existing / "huey.db"
+        queue.write_bytes(b"synthetic pending queue")
+        refused = setup_client.post("/api/setup/set-storage-path", json={"path": str(existing)})
+        assert refused.status_code == 409 and refused.json() == {"detail": CUTOVER_MESSAGE}
+        assert (
+            pointer.read_bytes() == original and queue.read_bytes() == b"synthetic pending queue"
+        )
+        admit(existing, operator_verified=True)
+        accepted = setup_client.post("/api/setup/set-storage-path", json={"path": str(existing)})
+        assert accepted.status_code == 200 and accepted.json()["data_dir"] == str(existing)
+        assert pointer.read_text().strip() == str(existing)
+        (first / ".disclaimer_accepted").touch()
+        admit(first)
+
     def test_creates_directory_structure(self, setup_client: TestClient, tmp_path: Path) -> None:
         """Should create data dir with samples, downloads, logs subdirs."""
         new_path = tmp_path / "gi_data"

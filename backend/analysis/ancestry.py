@@ -351,7 +351,7 @@ def load_ancestry_bundle(bundle_path: Path | None = None) -> AncestryBundle:
     if not path.exists():
         raise FileNotFoundError(f"Ancestry PCA bundle not found: {path}")
 
-    logger.info("loading_ancestry_bundle", path=str(path))
+    logger.info("loading_ancestry_bundle", path=path)
 
     data = np.load(path, allow_pickle=False)
 
@@ -1694,7 +1694,7 @@ def load_haplogroup_bundle(
         KeyError: If required keys are missing from the bundle.
     """
     path = bundle_path or _HAPLOGROUP_BUNDLE_PATH
-    logger.info("loading_haplogroup_bundle", path=str(path))
+    logger.info("loading_haplogroup_bundle", path=path)
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)

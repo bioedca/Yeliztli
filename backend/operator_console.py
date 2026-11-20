@@ -79,6 +79,10 @@ class AccessStatus:
 
 
 def create_operator_app():
+    from backend.config import get_settings
+    from backend.diagnostic_cutover import admit
+
+    admit(get_settings().data_dir)
     from backend.main import app
 
     # Wrap FastAPI's outer error handler so the status is the one actually sent.
@@ -112,6 +116,7 @@ def _api() -> None:
 
 
 def _worker() -> None:
+    from huey.consumer import Consumer
     from huey.consumer_options import ConsumerConfig, OptionParserHandler
 
     parser = OptionParserHandler().get_option_parser()
@@ -128,19 +133,56 @@ def _worker() -> None:
     from backend.tasks.huey_tasks import huey
 
     logging.getLogger("huey").setLevel(config.loglevel)
-    huey.create_consumer(**config.values).run()
+
+    class WorkerConsumer(Consumer):
+        restart_requested = False
+
+        def stop(self, graceful=False):
+            super().stop(graceful)
+            # Huey normally execs its script directly. Let it finish task
+            # notification, then restart through our service entrypoint.
+            if self._restart:
+                self.restart_requested = True
+                self._restart = False
+
+    consumer = WorkerConsumer(huey, **config.values)
+    consumer.run()
+    if consumer.restart_requested:
+        fd = _isolate_output()
+        os.set_inheritable(fd, True)
+        try:
+            os.execv(
+                sys.executable,
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; from backend.operator_console import _resume_worker; "
+                    "raise SystemExit(_resume_worker(int(sys.argv.pop(1))))",
+                    str(fd),
+                    *sys.argv[1:],
+                ],
+            )
+        finally:
+            os.set_inheritable(fd, False)
+
+
+def _resume_worker(fd: int) -> int:
+    global _console_fd
+    os.set_inheritable(fd, False)
+    _console_fd = fd
+    return run_worker()
 
 
 def _run(main: Callable[[], None]) -> int:
     try:
         _isolate_output()
         from backend.config import get_settings
-        from backend.diagnostic_cutover import _CUTOVER_MESSAGE, CutoverPending, admit
+        from backend.diagnostic_cutover import CUTOVER_MESSAGE, CutoverPending, admit
 
         try:
             admit(get_settings().data_dir)
         except CutoverPending:
-            write_diagnostic("ERROR " + _CUTOVER_MESSAGE + "\n", sys.stderr)
+            write_diagnostic("ERROR " + CUTOVER_MESSAGE + "\n", sys.stderr)
             return 1
         main()
     except KeyboardInterrupt:
