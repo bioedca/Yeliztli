@@ -502,6 +502,7 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 response = client.get("/api/analysis/metabolic/prs?sample_id=1")
                 assert response.status_code == 200, response.text
                 stored = response.json()
+                assert stored["total"] == len(stored["items"])
                 state = stored["scoring_state"]
                 assert state == expected_state, (
                     f"Reopened state {state!r}, expected {expected_state!r}"
@@ -530,6 +531,9 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 result = _run_positional_bmi(reopened)
                 return {
                     **result,
+                    "visible_percentiles_before_rerun": [
+                        (item["pgs_id"], item["percentile"]) for item in stored["items"]
+                    ],
                     "scores_before_rerun": [tuple(row) for row in persisted],
                     "input_generations_before_rerun": inputs_before_rerun,
                     "frequency_release": release,
@@ -569,6 +573,22 @@ def _prepare_bmi_restart(env: _Environment, *, typed_second: bool) -> tuple[Path
     return data_dir, published
 
 
+def _restart_bmi_pair(
+    env: _Environment, *, typed_second: bool, frequency_changed: bool
+) -> tuple[dict, dict, dict[str, str]]:
+    data_dir, published = _prepare_bmi_restart(env, typed_second=typed_second)
+    # Each run gets a separate interpreter, production startup and orderly shutdown.
+    with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
+        original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
+        if frequency_changed:
+            _update_second_frequency(env, 0.6)
+        expected_state = "stale" if frequency_changed else "current"
+        repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
+            timeout=60
+        )
+    return original, repaired, published
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
     ("typed_second", "expected_imputed"),
@@ -581,16 +601,9 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     expected_imputed: int,
     frequency_changed: bool,
 ) -> None:
-    data_dir, published = _prepare_bmi_restart(positional_bmi, typed_second=typed_second)
-    # Each run gets a separate interpreter, production startup and orderly shutdown.
-    with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
-        original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
-        if frequency_changed:
-            _update_second_frequency(positional_bmi, 0.6)
-        expected_state = "stale" if frequency_changed else "current"
-        repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
-            timeout=60
-        )
+    original, repaired, published = _restart_bmi_pair(
+        positional_bmi, typed_second=typed_second, frequency_changed=frequency_changed
+    )
     for run in (original, repaired):
         assert run["input_generations_before_rerun"] == published
         assert run["frequency_release"] == {
@@ -615,6 +628,31 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
 
 
+class _StalePercentileDisplayed(AssertionError):
+    """A stale first GET still displays the specific superseded fixture percentile."""
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.xfail(
+    strict=True, raises=_StalePercentileDisplayed, reason="Withholding proposal #2705"
+)
+def test_stale_bmi_read_withholds_the_previous_percentile_before_rerun(
+    positional_bmi: _Environment,
+) -> None:
+    original, repaired, _ = _restart_bmi_pair(
+        positional_bmi, typed_second=False, frequency_changed=True
+    )
+    assert original["percentile"] == 95.42
+    assert repaired["percentile"] == 84.63
+    assert repaired["scores_before_rerun"] == [(3.0, 95.42)]
+    visible = repaired["visible_percentiles_before_rerun"]
+    if visible == [("PGS005198", 95.42)]:
+        raise _StalePercentileDisplayed(
+            "First stale GET displayed 95.42 before rerun yielded 84.63"
+        )
+    assert visible in ([], [("PGS005198", None)])
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
     positional_bmi: _Environment,
@@ -627,31 +665,34 @@ def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
     with closing(sqlite3.connect(path)) as writer:
         assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
         writer.execute("PRAGMA wal_autocheckpoint=0")
-        for frequency in (0.31, 0.3):
-            assert (
-                writer.execute(
-                    "UPDATE gnomad_af SET af_eur=? WHERE chrom='1' AND pos=999", (frequency,)
-                ).rowcount
-                == 1
-            )
-            writer.commit()
+        assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
         assert writer.execute(frequency_query).fetchall() == [(0.3,)]
+        checkpointed_image = path.read_bytes()
+        assert (
+            writer.execute("UPDATE gnomad_af SET af_eur=0.6 WHERE chrom='1' AND pos=999").rowcount
+            == 1
+        )
+        writer.commit()
+        assert writer.execute(frequency_query).fetchall() == [(0.6,)]
         with ctx.Pool(1) as pool:
             before = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
         assert before["scores_before_rerun"] == []
         assert before["frequency_wal_bytes"] > 0 and wal.stat().st_size > 0
+        assert path.read_bytes() == checkpointed_image
         assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as reader:
-        assert reader.execute(frequency_query).fetchall() == [(0.3,)]
+        assert reader.execute(frequency_query).fetchall() == [(0.6,)]
     # The existing file fingerprint conservatively invalidates the receipt at checkpoint.
     with ctx.Pool(1) as pool:
         after = pool.apply_async(_run_bmi_after_restart, (data_dir, "stale")).get(timeout=60)
     assert after["frequency_wal_bytes"] == 0
-    assert after["scores_before_rerun"] == [(3.0, 95.42)]
+    assert after["scores_before_rerun"] == [(3.0, 84.63)]
     for run in (before, after):
         assert run["input_generations_before_rerun"] == published
         assert run["stored_score"] == 3.0
-        assert run["percentile"] == 95.42
+        assert run["calibration_reference_mean"] == pytest.approx(2.0)
+        assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.96))
+        assert run["percentile"] == 84.63
 
 
 def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool, second_identity: bool) -> None:

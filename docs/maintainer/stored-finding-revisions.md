@@ -143,8 +143,11 @@ releases only its own staging. Enforce ID and path uniqueness in the
 registry across reserved and published copies. Every insertion into
 `samples` honors it, including ingest, sample merges and restore. A merge
 using a unique filename still needs its own numeric ID. Keep reserved
-copies unavailable until publication. A retry reuses only its own
-reservations. An intentional second import gets a new operation ID, even
+copies unavailable until publication. Startup cleanup checks published
+bindings and unfinished restore reservations under the same ownership
+lock. Preserve reserved files during recovery. Verify their contents
+against the recorded step before completing registration. A retry reuses
+only its own reservations. An intentional second import gets a new operation ID, even
 for the same archive. Reject a retry whose archive or target has changed.
 Reconcile the imported copy
 when both stores agree on its identity. Within one copy, use an ordered,
@@ -795,9 +798,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   unchanged and changed inputs. Also exercise a score recorded with
   committed frequency updates still in the WAL. Checkpoint those pages and
   close the last writer without changing the values. The proposed content
-  revision must survive that shutdown. In a synthetic checkpoint the existing file-and-WAL
-  fingerprint conservatively reported stale, and recalculation returned
-  the same 95.42 percentile. A genuine change to a
+  revision must survive that shutdown. In the checkpoint fixture the main
+  file holds 0.3 and only the WAL contains the committed 0.6. Scoring
+  returns 84.63 before and after checkpoint. The existing file-and-WAL
+  fingerprint conservatively reports stale on reopening. A genuine change to a
   committed frequency must invalidate the result in either journal mode.
   Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
   can be typed while a typed locus lacks an allele needed for calibration.
@@ -834,7 +838,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   identity metadata for two different committed contents and an unchanged
   control. Require a new content revision and stale state only for changed
   inputs. Before manual repair, inspect the GET for the affected score.
-  It must report reanalysis needed and omit the obsolete percentile. Reopen
+  It must report reanalysis needed and omit the obsolete percentile. Make
+  that GET in a fresh process. The proposed withholding check is a strict
+  expected failure while the first stale GET still returns 95.42 before
+  the explicit rerun yields 84.63. The restart and scoring checks remain
+  independent of this proposed presentation change. Reopen
   the Metabolic page and verify that no run starts on mount or refocus.
   Choose reanalysis, observe one run request, then compare the displayed
   recalibration with a fresh run and require the expected changed value.
@@ -848,7 +856,10 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Interrupt after the plan reserves its destinations. Before retry, ingest
   a different sample and merge two synthetic samples. Both operations
   must receive distinct unreserved IDs and paths and keep their contents.
-  Also interrupt after
+  Restart after switching a reserved sample file and before registering
+  its row. Startup cleanup must preserve the reserved file and remove a
+  separate, verified orphan from an abandoned merge. Recovery must verify the reserved
+  file and publish its sample exactly once. Also interrupt after
   sample registration and before the reference switch. Retry the same
   restore operation twice. It must reuse the reserved ID and path and
   finish with one imported copy and one logical reference publication.
