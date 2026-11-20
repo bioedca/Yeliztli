@@ -711,94 +711,9 @@ new analysis no longer returns the old finding.
   In nutrigenomics, choose an LCT fixture whose ancestry-conditional caveat
   changes and another whose result stays current. Compare with the same
   inputs scored in the supported ancestry-first order.
-- For the shared PRS dependency contract, use the metabolic BMI route and
-  synthetic positional weights for its PGS005198 model in the PGS store.
-  Exercise the real weight loader, scorer and result store. In a two-locus
-  synthetic check, one typed and one imputed contribution produced a
-  calibrated finding in the executable BMI case.
-  Run `python -m pytest tests/backend/test_prs_gnomad_routing.py -k 'positional_bmi or typed_bmi_calibration or stale_bmi_read or scorer_only_bmi_repair'`.
-  Updating the fixture's frequency changed the route
-  state from current to stale before rerun and its recalculated reference
-  mean from 1.4 to 2.0. Its reference variance changed from 0.90 to 0.96
-  and its percentile from 95.42 to 84.63. These values describe the fixture.
-  The scoring receipt must survive application shutdown. In a fresh process
-  the changed input must reopen stale. With unchanged inputs the stored
-  result and its fixture percentile must reopen current before any rerun.
-  The first score and anchor responses must identify the same recorded run.
-  The unchanged controls check SQLite write-ahead log (WAL) mode with no
-  outstanding WAL frames. The gnomAD release label stays the same for both
-  unchanged and changed inputs. Also exercise a score recorded with
-  committed frequency updates still in the WAL. Checkpoint those pages and
-  close the last writer without changing the values. The content
-  revision must survive that shutdown. In the checkpoint fixture the main
-  file holds 0.3 and only the WAL contains the committed 0.6. Scoring
-  returns 84.63 before and after checkpoint. The existing file-and-WAL
-  fingerprint conservatively reports stale on reopening. A separate strict
-  expected failure checks the required current state at 84.63. Before any
-  replacement run, verify that the reopened scoring receipt contains the same
-  valid fingerprint that the first run recorded. A stale read may withhold
-  the fixture or still display its 84.63 percentile. An unrelated model or
-  value is a separate failure. The numerical
-  check accepts either receipt state after the checkpoint. A genuine change to a
-  committed frequency must invalidate the result in either journal mode.
-  Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
-  can be typed while a typed locus lacks an allele needed for calibration.
-  The scorer can consult imputed alleles and the standalone frequency store
-  for that locus. Track those actual dependencies even when
-  `snps_used_imputed == 0`. Verify the changed calibration in that case.
-  With typed dosage 1.0 and a distinct imputed dosage of 0.25, keep the
-  genotype, weights and frequency fixed and remove the matching imputed
-  allele pair. Both typed fixtures retain the synthetic raw score of 3.0.
-  Only the incomplete-alleles fixture loses
-  calibration and withholds its quantitative score. Complete typed alleles
-  with their own frequency retain the 95.42 fixture percentile. Separately
-  begin with an installed store whose lookup misses. Add the matching row
-  in that database without altering the sample. Verify the old uncalibrated
-  finding becomes stale and the rerun supplies the fixture percentile.
-  Also populate both typed loci through the production annotation engine.
-  After a source frequency changes, a scorer-only rerun can declare the
-  old copied frequency current. In the synthetic fixture this returned
-  95.42, while fresh annotation followed by scoring returned 80.05 at
-  the same raw score. Capture the scorer's persisted finding and completion
-  receipt before the fresh annotation replaces them. A second frequency change,
-  from 0.3 to 0.6, changes both the calibration mean and variance. Verify both
-  stored moments, the z-score and the text rendered in reports against
-  fresh annotation and scoring. A successful POST that reports one computed
-  score must publish that result. If the scorer needs fresh annotation, its
-  HTTP 409 response identifies the reason in `detail.code` (`stale_copied_frequency`)
-  and the recovery in `detail.action` (`reannotate`). Verify the complete stored
-  finding and receipt survive that refusal.
-  In fresh processes, inspect the original copied frequency and
-  first GET before rerunning either analysis. Compare the changed source with
-  an unchanged control. The current behavior is tracked in
-  [#2746](https://github.com/bioedca/Yeliztli/issues/2746). To reproduce the
-  discrepancy from the repository root, run
-  `python -m pytest tests/backend/test_prs_gnomad_routing.py -k scorer_only_bmi_repair --runxfail`.
-  The regression marks only the known obsolete result as an expected failure.
-  Replace imputed dosages between scoring and publication without changing
-  the annotated token. Reject the old publication and match a fresh run on
-  the replacement dosages. In a separate case record the published
-  calibration, then change a frequency used by that contribution while
-  keeping both sample tokens and the upstream label fixed. Exercise both
-  file replacement at the same path and a committed update to the same
-  database file. Include a restoration fixture with equal filesystem
-  identity metadata for two different committed contents and an unchanged
-  control. Require a new content revision and stale state only for changed
-  inputs. Before manual repair, inspect the GET for the affected score.
-  It must report reanalysis needed and omit the obsolete percentile. Make
-  that GET in a fresh process for imputed dosage, fully typed calls, and a
-  typed call that needed imputed alleles for calibration. The withholding check is a strict
-  expected failure while the first stale GET still returns 95.42 before
-  the explicit rerun yields 84.63. The restart and scoring checks remain
-  independent of when the application implements withholding. Reopen
-  the Metabolic page and verify that no run starts on mount or refocus.
-  Choose reanalysis, observe one run request, then compare the displayed
-  recalibration with a fresh run and require the expected changed value.
-  Also remove and restore the store and check its documented unavailable
-  outcome and recovery.
-  Withhold affected scores after restore whenever their input revisions are
-  unverifiable. Verify an independent score stays visible. A successful rerun
-  on verified inputs clears only the corresponding correction.
+The separate BMI copied-frequency defect and its synthetic regression suite are tracked in
+[issue #2746](https://github.com/bioedca/Yeliztli/issues/2746) and
+[PR #2750](https://github.com/bioedca/Yeliztli/pull/2750).
 
 ### Browser caches, change notices and exports
 
