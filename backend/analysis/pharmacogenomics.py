@@ -53,7 +53,9 @@ import json
 import re
 import sqlite3
 import unicodedata
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -384,6 +386,16 @@ def _normalize_prescribing_text(
     UTS #39 residual set before NFKC/NFD so compatibility normalization or mark
     filtering cannot erase its reviewed source characters.
     """
+    # Printable ASCII is already in both normalization forms and contains no
+    # control, invisible or combining characters. Identifier matching has a
+    # separate skeleton transform and continues through its ordinary path.
+    if (
+        not preserve_identifier_confusables
+        and type(value) is str
+        and value.isascii()
+        and value.isprintable()
+    ):
+        return value
     normalized_characters: list[str] = []
 
     if preserve_identifier_confusables:
@@ -792,20 +804,50 @@ def is_prescribing_alert_withheld(gene: object, drug: object) -> bool:
     )
 
 
+type _FieldMatches = tuple[tuple[bool, bool, bool], ...]
+
+
+def _field_matches(text: str) -> _FieldMatches:
+    scanner = _RenderedTextHeldPairScanner()
+    scanner.feed(text)
+    return scanner.held_pair_matches()
+
+
+_request_field_scan: ContextVar[Callable[[str], _FieldMatches] | None] = ContextVar(
+    "request_prescribing_field_scan", default=None
+)
+
+
+@contextmanager
+def reuse_short_prescribing_field_scans() -> Iterator[None]:
+    """Reuse individual string classifications while filtering one batch of findings."""
+    scan = lru_cache(maxsize=512)(_field_matches)
+    token = _request_field_scan.set(scan)
+    try:
+        yield
+    finally:
+        _request_field_scan.reset(token)
+        scan.cache_clear()
+
+
 def _strings_mention_held_pair(values: list[str]) -> bool:
     """Scan each field once, then combine matches within this evidence group.
 
-    The existing finite scanner shares bounded character/event metadata, never
-    full finding text. Reset its state for each field: a partial identifier or
+    Each field starts with fresh finite-scanner state: a partial identifier or
     fused sequence cannot cross field edges. Complete gene and drug matches may
     meet across fields, exactly as in the original predicate. Callers retain
     the independent-record boundaries in ``_evidence_has_held_pair``.
     """
     group_matches = [(False, False)] * len(_rendered_text_scanner_config().pair_patterns)
+    request_scan = _request_field_scan.get()
     for value in values:
-        scanner = _RenderedTextHeldPairScanner()
-        scanner.feed(value)
-        for index, (gene, drug, sequence) in enumerate(scanner.held_pair_matches()):
+        # Bound both the number and length of retained strings. Only exact
+        # built-in strings have the same contents for hashing and iteration.
+        if request_scan is not None and type(value) is str and len(value) <= 256:
+            matches = request_scan(value)
+        else:
+            matches = _field_matches(value)
+        for index, (gene, drug, sequence) in enumerate(matches):
             previous_gene, previous_drug = group_matches[index]
             gene = gene or previous_gene
             drug = drug or previous_drug

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+from itertools import islice
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -31,6 +32,7 @@ from backend.analysis.pharmacogenomics import (
     is_patient_presentable_finding_payload,
     is_patient_presentable_response_payload,
     patient_visible_finding_clause,
+    reuse_short_prescribing_field_scans,
 )
 from backend.analysis.roh import normalize_legacy_finding_text, normalize_legacy_row
 from backend.analysis.svg_renderer import is_safe_svg_marker, render_finding_svg
@@ -392,7 +394,8 @@ def findings_summary(
             all_stmt = all_stmt.where(findings.c.module.not_in(hidden_modules))
         all_rows = conn.execute(all_stmt).fetchall()
 
-    all_rows = [row for row in all_rows if _is_patient_presentable_row(row)]
+    with reuse_short_prescribing_field_scans():
+        all_rows = [row for row in all_rows if _is_patient_presentable_row(row)]
 
     # Build per-module and evidence summaries from the same payload-safe rows.
     module_counts: dict[str, int] = {}
@@ -469,7 +472,8 @@ def findings_summary(
         )
 
     # High-confidence: top 5 findings with >=3 stars
-    high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
+    eligible = (row for row in all_rows if (row.evidence_level or 0) >= 3)
+    high_conf = [_row_to_response(row, engine) for row in islice(eligible, 5)]
 
     response = FindingsSummaryResponse(
         total_findings=sum(module_counts.values()),
