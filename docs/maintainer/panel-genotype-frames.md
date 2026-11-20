@@ -60,6 +60,12 @@ declaration actually supported by the importer. The 23andMe build-36 path
 already maps coordinates and complements nucleotide calls on reverse chain
 segments. Record that transformation and the resulting GRCh37 frame to avoid
 a second flip. An uncertified input frame or unsuitable mapping stays unknown.
+Capture the source marker, build and position before liftover. The current
+`_lift_result_build36` drops unsuccessful mappings and counts them. Keep an
+unmappable marker in local source provenance with its failure reason, outside
+the GRCh37 scoring rows. A previous total count alone cannot reconstruct
+which individual markers were seen. On reopening a synthetic sample, compare
+an observed failed lift, a successful lift, an absent marker and a no-call.
 
 For merged samples, apply the same contract before deciding concordance.
 `sample_merge._stream_raw_variants` currently reads calls without frame
@@ -195,7 +201,7 @@ Alleles and effects here are software fixtures without a clinical claim.
 | A second synthetic reverse-oriented row models both AA and TT with distinct effects | Forward AA must store the TT effect; verified panel-frame AA must store the AA effect. Verify both complete outputs, including the pathway detail. Unknown strand withholds both. |
 | Forward CT and TC; panel GA and AG | Verify equality of the normalized key, full curated interpretation and finding membership. After reopening, check each source's own observed allele pair, its source frame and any recorded ordering transform. Conflict between order aliases withholds the affected row. |
 | Forward CC (`hom_ref`), missing marker, and no-call | CC resolves to panel GG and produces no carrier-gated finding. Assert the baseline in the relevant pathway detail, the absence of the carrier text/action and the presence of the independent positive. The two missing cases retain their distinct coverage states. |
-| Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. Read an affected stored cross-module card through its module endpoint and the generic findings endpoint. Neither may return a carrier interpretation or derived action before the verified rerun. Verify the independent positive and the new result on both endpoints. |
+| Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. Read an affected stored cross-module card through its module endpoint and the generic findings endpoint. Neither may return a carrier interpretation or derived action before the verified rerun. Verify the independent positive and the new result on both endpoints. Also render a report and export a card by its saved finding ID. Both readers must withhold the old interpretation while still exporting the independent verified result. Repeat after the verified rerun. |
 | Merged source calls | Equal letters that disagree after verified normalization are a conflict. An unverified source leaves agreement unresolved. Different source spellings that normalize to the same verified allele pair can agree. Reopen the merged sample and check the stored source identity, interpretation and independent control. |
 
 Repeat the rs1051266 baseline with the migrated, shipped methylation row and
@@ -234,8 +240,12 @@ that the reopened `celiac_combined.detail_json.state` is indeterminate in
 both cases. Its stored and displayed explanation must say that the proxy was
 observed and its strand could not be verified. Exercise a genuinely untyped
 proxy separately and verify its missing-coverage wording. Both states
-withhold positive and rule-out text. Check a fully verified pair separately. Apply the same
-distinction between unresolved coverage and verified reference across aggregate readers.
+withhold positive and rule-out text. Also pair a verified-positive proxy with an unresolved one
+in each order. Preserve the independently verified proxy result and report
+the other's unresolved coverage; an exclusive positive, double positive or
+rule-out is unsupported. Verify the state and text after reopening. Include
+fully verified positive and reference controls. Apply the same distinction
+between unresolved coverage and verified reference across aggregate readers.
 Exercise MT-RNR1 and LHON with their existing
 no-complement controls, plus a literal indel, a build-36 reverse chain
 segment and a parser no-call. Evidence of performance in these fixtures
