@@ -19,7 +19,6 @@ from datetime import date
 from typing import IO, Any
 
 import sqlalchemy as sa
-import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 from starlette.background import BackgroundTask
@@ -45,6 +44,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import annotated_variants, findings, samples
+from backend.diagnostics import finalize_response, response_withheld
 from backend.services.sex_inference import (
     get_recorded_biological_sex,
     infer_biological_sex,
@@ -53,7 +53,6 @@ from backend.services.sex_inference import (
 
 logger = logging.getLogger(__name__)
 # The #2297 withheld-response event is structlog-native, as the generic gate emits it.
-_structured_logger = structlog.get_logger(__name__)
 
 router = APIRouter(
     prefix="/analysis/rare-variants",
@@ -753,8 +752,11 @@ def list_rare_variant_findings(
         )
 
     response = RareVariantFindingsListResponse(items=items, total=total)
-    if not is_patient_presentable_response_payload(
-        [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            [_payload_gate_projection(item.model_dump(mode="json")) for item in items]
+        ),
+        "backend.api.routes.rare_variants.list_rare_variant_findings",
     ):
         return RareVariantFindingsListResponse(items=[], total=0, withheld=True)
     return response
@@ -1056,10 +1058,7 @@ def export_rare_variants_vcf(
     if not payload_scanner.is_presentable():
         spool.close()
         # The same event the list gate this replaces emitted (#2297).
-        _structured_logger.warning(
-            "patient_response_payload_withheld",
-            caller=f"{__name__}.export_rare_variants_vcf",
-        )
+        response_withheld("backend.api.routes.rare_variants.export_rare_variants_vcf")
         return StreamingResponse(
             iter((header,)), media_type="text/plain", headers=response_headers
         )

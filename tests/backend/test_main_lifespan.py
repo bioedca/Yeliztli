@@ -193,8 +193,8 @@ async def test_cleanup_failures_do_not_mask_original_exception(
     lifespan_dependencies.reset_registry.assert_called_once_with()
     assert "FastAPI lifespan cleanup failed for download executor" in caplog.text
     assert "FastAPI lifespan cleanup failed for database registry" in caplog.text
-    assert "executor stuck" in caplog.text
-    assert "registry stuck" in caplog.text
+    assert "executor stuck" not in caplog.text
+    assert "registry stuck" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -257,8 +257,11 @@ async def test_startup_survives_a_directory_it_cannot_make_private(
 
     assert ensure_private.call_count >= 1
     warnings = [record.getMessage() for record in caplog.records]
-    assert any("data_directory_not_private" in message for message in warnings), warnings
-    assert any(problem in message for message in warnings), warnings
+    assert (
+        "The data directory could not be made private. Choose a private directory in Setup."
+        in warnings
+    )
+    assert all(problem not in message for message in warnings)
 
 
 @pytest.mark.asyncio
@@ -286,10 +289,8 @@ async def test_startup_survives_a_detected_genome_build_skew(
             pass
 
     messages = [record.getMessage() for record in caplog.records]
-    assert any("genome_build_skew_detected" in message for message in messages), messages
-    # The detail has to survive into the message, since a stdlib logger cannot
-    # carry it as structure.
-    assert any("gnomad" in message for message in messages), messages
+    assert "The installed reference builds differ. Check Database Health." in messages
+    assert all("gnomad" not in message for message in messages)
 
 
 @pytest.mark.asyncio

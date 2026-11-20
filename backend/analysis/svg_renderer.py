@@ -47,6 +47,7 @@ import structlog
 
 from backend.analysis.pathway_coverage import pathway_level_display_label
 from backend.analysis.pharmacogenomics import is_patient_presentable_finding_payload
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -904,7 +905,7 @@ def generate_svgs_for_sample(
                 "quarantined_finding_svg_delete_failed",
                 finding_id=finding_id,
                 svg_path=str(stale_svg),
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
 
     finding_dicts = [

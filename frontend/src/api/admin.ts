@@ -14,7 +14,10 @@ export interface LogEntry {
   event_data: string | null
 }
 
+const LOG_POLICY_REVISION = 3
+
 export interface LogResponse {
+  presentation_policy_version: number
   entries: LogEntry[]
   total: number
   page: number
@@ -83,7 +86,7 @@ export interface LogFilters {
 
 // ── Query keys ───────────────────────────────────────────────────────
 
-const ADMIN_LOGS_KEY = ['admin', 'logs'] as const
+const ADMIN_LOGS_KEY = ['admin', 'logs', LOG_POLICY_REVISION] as const
 const ADMIN_DB_STATS_KEY = ['admin', 'db-stats'] as const
 const ADMIN_SAMPLE_STATS_KEY = ['admin', 'sample-stats'] as const
 const ADMIN_DISK_USAGE_KEY = ['admin', 'disk-usage'] as const
@@ -91,7 +94,7 @@ const ADMIN_STATUS_KEY = ['admin', 'status'] as const
 
 // ── Fetch functions ─────────────────────────────────────────────────
 
-async function fetchLogs(filters: LogFilters): Promise<LogResponse> {
+async function fetchLogs(filters: LogFilters, signal: AbortSignal): Promise<LogResponse> {
   const params = new URLSearchParams()
   if (filters.page) params.set('page', String(filters.page))
   if (filters.page_size) params.set('page_size', String(filters.page_size))
@@ -100,9 +103,13 @@ async function fetchLogs(filters: LogFilters): Promise<LogResponse> {
   if (filters.since) params.set('since', filters.since)
   if (filters.until) params.set('until', filters.until)
   if (filters.search) params.set('search', filters.search)
-  const res = await fetch(`/api/admin/logs?${params}`)
+  const res = await fetch(`/api/admin/logs?${params}`, { signal, cache: 'no-store' })
   if (!res.ok) await throwApiError(res, 'Unable to load logs. Please try again.')
-  return res.json()
+  const result: LogResponse = await res.json()
+  if (result.presentation_policy_version !== LOG_POLICY_REVISION) {
+    throw new Error('The Log Explorer is waiting for a verified service upgrade.')
+  }
+  return result
 }
 
 async function fetchDbStats(): Promise<DatabaseStat[]> {
@@ -134,7 +141,8 @@ async function fetchSystemStatus(): Promise<SystemStatus> {
 export function useLogs(filters: LogFilters) {
   return useQuery({
     queryKey: [...ADMIN_LOGS_KEY, filters] as const,
-    queryFn: () => fetchLogs(filters),
+    queryFn: ({ signal }) => fetchLogs(filters, signal),
+    gcTime: 0,
     staleTime: 0,
   })
 }

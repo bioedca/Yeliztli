@@ -64,7 +64,7 @@ If systemd is not enabled in WSL2:
 
 - [ ] Installer prints helpful message about enabling systemd
 - [ ] Manual start works: `python -m backend.main &`
-- [ ] Manual huey works: `huey_consumer backend.tasks.huey_tasks.huey -w 1 &`
+- [ ] Manual huey works: `python -m backend.worker -w 1 &`
 
 ### 8. Docker (Inside WSL2)
 

@@ -58,6 +58,7 @@ from backend.annotation.http_download import (
 )
 from backend.annotation.insilico_axes import assess_insilico_axes
 from backend.annotation.sqlite_limits import SQLITE_MAX_VARIABLE_NUMBER as _SQLITE_VAR_LIMIT
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -961,7 +962,7 @@ def download_dbnsfp(
     if dest_path.exists() and dest_path.stat().st_size > 0:
         logger.info(
             "dbnsfp_download_skip_existing",
-            path=str(dest_path),
+            path=dest_path,
             bytes=dest_path.stat().st_size,
         )
         return dest_path
@@ -986,7 +987,7 @@ def download_dbnsfp(
     tmp_path.replace(dest_path)
     clear_validator_sidecar(tmp_path)
 
-    logger.info("dbnsfp_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
+    logger.info("dbnsfp_download_complete", path=dest_path, bytes=outcome.total_bytes)
     return dest_path
 
 
@@ -997,9 +998,9 @@ def _cleanup_dbnsfp_archive(path: Path) -> None:
     except FileNotFoundError:
         return
     except OSError as exc:
-        logger.warning("dbnsfp_archive_cleanup_failed", path=str(path), error=str(exc))
+        logger.warning("dbnsfp_archive_cleanup_failed", path=path, error=DiagnosticError(exc))
     else:
-        logger.info("dbnsfp_archive_cleanup_complete", path=str(path))
+        logger.info("dbnsfp_archive_cleanup_complete", path=path)
 
 
 def download_and_load_dbnsfp(
@@ -1179,7 +1180,7 @@ def check_dbnsfp_update(
             if content_length:
                 download_size = int(content_length)
     except Exception as exc:
-        logger.warning("dbnsfp_update_check_failed", error=str(exc))
+        logger.warning("dbnsfp_update_check_failed", error=DiagnosticError(exc))
         return None
 
     return VersionInfo(

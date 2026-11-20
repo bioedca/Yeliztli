@@ -22,6 +22,7 @@ from backend.analysis.pharmacogenomics import is_patient_presentable_response_pa
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
 from backend.db.connection import get_registry
+from backend.diagnostics import finalize_response
 
 logger = logging.getLogger(__name__)
 
@@ -87,15 +88,18 @@ def list_gene_validity(
         GeneValidityResponse(**item)
         for item in assess_finding_gene_validity(sample_engine, reference_engine)
     ]
-    if not is_patient_presentable_response_payload(
-        [
-            item.model_dump(
-                mode="json",
-                exclude={"note", "pmid_citations"},
-                exclude_none=True,
-            )
-            for item in response
-        ]
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            [
+                item.model_dump(
+                    mode="json",
+                    exclude={"note", "pmid_citations"},
+                    exclude_none=True,
+                )
+                for item in response
+            ]
+        ),
+        "backend.api.routes.gene_validity.list_gene_validity",
     ):
         return []
     return response

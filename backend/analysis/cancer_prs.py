@@ -127,7 +127,7 @@ def load_cancer_prs_weights(
         json.JSONDecodeError: If the weights JSON is malformed.
     """
     path = weights_path or _WEIGHTS_PATH
-    logger.info("loading_cancer_prs_weights", path=str(path))
+    logger.info("loading_cancer_prs_weights", path=path)
 
     with open(path, encoding="utf-8") as f:
         data = json.load(f)

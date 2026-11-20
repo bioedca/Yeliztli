@@ -344,7 +344,7 @@ def load_encode_ccres(
     Returns:
         LoadStats with counts of loaded/skipped records.
     """
-    logger.info("encode_ccres_load_start", path=str(bed_path))
+    logger.info("encode_ccres_load_start", path=bed_path)
 
     create_encode_ccres_tables(engine)
 

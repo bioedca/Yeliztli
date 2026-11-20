@@ -4,7 +4,7 @@ After=network.target yeliztli-api.service
 
 [Service]
 Type=simple
-ExecStart=huey_consumer backend.tasks.huey_tasks.huey -w 1
+ExecStart=__PYTHON__ -m backend.worker -w 1
 WorkingDirectory=%h/Yeliztli
 Restart=on-failure
 RestartSec=5

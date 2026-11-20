@@ -13,10 +13,8 @@ This module turns that silent class into:
    for that gene (from ``cpic_diplotypes``) must have a guideline row, or be
    listed in the explicit, reviewed ``KNOWN_NO_GUIDANCE`` allowlist. Silent
    omissions become a failing test.
-2. **Telemetry** assertions: a non-``Insufficient``, callable phenotype with no
-   guideline row emits a ``pgx_phenotype_no_guideline_row`` warning when the
-   gene is otherwise covered (a likely missing row), and stays quiet for a gene
-   with no guidelines at all.
+2. **Runtime privacy** assertions: missing and present guidelines retain their
+   respective alert outcomes without reporting per-result diagnostics.
 """
 
 from __future__ import annotations
@@ -141,10 +139,10 @@ def _result(gene: str, phenotype: str) -> StarAlleleResult:
     )
 
 
-class TestCoverageGapTelemetry:
-    """A missing guideline row for a covered gene is a visible warning."""
+class TestCoverageGapPrivacy:
+    """Clinical output still reflects coverage; logs never reveal the individual outcome."""
 
-    def test_warns_when_gene_covered_but_phenotype_row_missing(self) -> None:
+    def test_missing_phenotype_row_does_not_emit_result_context(self) -> None:
         # GENEX has a row for Normal Metabolizer but not Poor Metabolizer.
         engine = _reference_engine_with_guidelines(
             [
@@ -162,16 +160,7 @@ class TestCoverageGapTelemetry:
             alerts = generate_prescribing_alerts([_result("GENEX", "Poor Metabolizer")], engine)
 
         assert alerts == []
-        warnings = [
-            entry for entry in logs if entry.get("event") == "pgx_phenotype_no_guideline_row"
-        ]
-        assert len(warnings) == 1
-        assert warnings[0]["log_level"] == "warning"
-        assert warnings[0]["gene"] == "GENEX"
-        assert warnings[0]["covered_phenotype_count"] == 1
-        assert "phenotype" not in warnings[0]
-        assert "covered_phenotypes" not in warnings[0]
-        assert "diplotype" not in warnings[0]
+        assert logs == []
 
     def test_no_warning_when_gene_has_no_guidelines(self) -> None:
         engine = _reference_engine_with_guidelines([])
@@ -179,9 +168,7 @@ class TestCoverageGapTelemetry:
             alerts = generate_prescribing_alerts([_result("GENEX", "Poor Metabolizer")], engine)
 
         assert alerts == []
-        assert not [
-            entry for entry in logs if entry.get("event") == "pgx_phenotype_no_guideline_row"
-        ]
+        assert logs == []
 
     def test_no_warning_when_phenotype_is_covered(self) -> None:
         engine = _reference_engine_with_guidelines(
@@ -200,9 +187,7 @@ class TestCoverageGapTelemetry:
             alerts = generate_prescribing_alerts([_result("GENEX", "Poor Metabolizer")], engine)
 
         assert len(alerts) == 1
-        assert not [
-            entry for entry in logs if entry.get("event") == "pgx_phenotype_no_guideline_row"
-        ]
+        assert logs == []
 
     def test_fetch_guideline_phenotypes_for_gene(self) -> None:
         engine = _reference_engine_with_guidelines(

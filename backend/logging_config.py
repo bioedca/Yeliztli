@@ -9,52 +9,17 @@ from __future__ import annotations
 import contextvars
 import json
 import logging
+import sys
 from datetime import UTC, datetime
-from pathlib import Path, PurePath
+from pathlib import Path
 
 import structlog
 
 from backend.analysis.pharmacogenomics import contains_unpresentable_prescribing_identifier
+from backend.diagnostics import safe_event
 
 # Guard against recursive log writes (e.g. if the DB insert triggers logging)
 _in_db_processor = contextvars.ContextVar("_in_db_processor", default=False)
-
-_REDACTED_LOG_VALUE = "[REDACTED]"
-_SENSITIVE_LOG_KEY_SUFFIXES = (
-    "_genotype",
-    "_genotypes",
-    "_diplotype",
-    "_diplotypes",
-    "_haplotype",
-    "_haplotypes",
-    "_gt",
-    "_phenotype",
-    "_phenotypes",
-    "_involved_rsids",
-    "_indeterminate_alleles",
-    "_confidence_note",
-    "_recommendation",
-    "_recommendations",
-)
-_SENSITIVE_LOG_KEYS = {
-    "e4_count",
-    "e4_present",
-    "genotype",
-    "genotypes",
-    "has_e4",
-    "diplotype",
-    "diplotypes",
-    "haplotype",
-    "haplotypes",
-    "gt",
-    "phenotype",
-    "phenotypes",
-    "involved_rsids",
-    "indeterminate_alleles",
-    "confidence_note",
-    "recommendation",
-    "recommendations",
-}
 
 
 def _redact_withheld_prescribing_alert_fields(
@@ -68,13 +33,7 @@ def _redact_withheld_prescribing_alert_fields(
     neutral marker when a withheld pair is encountered.
     """
     try:
-        # ``exc_info`` has not reached either renderer yet. Format a private copy
-        # for classification so a held pair in an exception message cannot bypass
-        # the event-dict scan and reappear in the console traceback or DB payload.
-        evidence = dict(event_dict)
-        if evidence.get("exc_info"):
-            evidence = structlog.processors.format_exc_info(None, "", evidence)
-        should_redact = contains_unpresentable_prescribing_identifier(evidence)
+        should_redact = contains_unpresentable_prescribing_identifier(event_dict)
     except Exception:  # noqa: BLE001 - logging must fail closed before either sink
         should_redact = True
     if not should_redact:
@@ -92,149 +51,6 @@ def _redact_withheld_prescribing_alert_fields(
         }
     )
     return event_dict
-
-
-def _is_sensitive_log_key(key: object) -> bool:
-    """Identify structured result fields, including prefixed aliases.
-
-    Keep diagnostic counts: several existing ``*_rsids`` fields hold counts,
-    so match the result-bearing field family rather than every rsID suffix.
-    """
-    normalized = str(key).strip().lower()
-    return normalized in _SENSITIVE_LOG_KEYS or normalized.endswith(_SENSITIVE_LOG_KEY_SUFFIXES)
-
-
-def _redact_sensitive_value(value: object) -> object:
-    """Recursively redact sensitive fields in structured containers."""
-    if isinstance(value, dict):
-        return {
-            key: (
-                _REDACTED_LOG_VALUE
-                if _is_sensitive_log_key(key)
-                else _redact_sensitive_value(nested)
-            )
-            for key, nested in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_sensitive_value(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(_redact_sensitive_value(item) for item in value)
-    return value
-
-
-# Identifying free text that must not enter a durable log through stdlib
-# ``extra={...}``. These are user-supplied strings — a sample name can be a
-# person's name — and the Log Explorer is a durable, admin-visible surface, so
-# deleting a sample must not leave its name behind in reference.db forever.
-#
-# Scoped deliberately to the foreign-record import path (#2126): native
-# structlog events choose their own fields and are covered by the curated
-# genotype policy above, so widening that curated list here would be a separate
-# decision with its own blast radius.
-# Path-bearing extras keep their basename and lose every directory component.
-# The directory is what identifies: a user picks their own data directory, so an
-# absolute path routinely embeds the account name (/home/Alice/...) or a
-# self-chosen folder, and that would sit in reference.db indefinitely.
-#
-# The basename is kept because it *is* the diagnostic — which database was
-# missing — and because every path-bearing extra here is id-derived or a fixed
-# filename: db_path values are generated as ``samples/sample_<id>.db`` and
-# ``samples/<prefix><publication_id>.db``, sample_merge passes a candidate under
-# those, and preferences passes config.toml. None carries user-supplied text.
-#
-# The limit that follows: a user-supplied *name* must be sanitised where it is
-# logged, not here. That is why the uploaded filename is reported by content
-# hash at its call site rather than routed through this scrubber.
-_PATH_EXTRA_KEYS = frozenset({"path", "data_dir", "directory"})
-
-
-def _is_path_extra_key(key: str) -> bool:
-    """True for a key whose value is a filesystem path.
-
-    Matched by **suffix**, not by an enumerated list. An exact-name set missed
-    ``expected_path`` on the two vendored-liftover warnings, and would miss the
-    next ``*_path`` field somebody adds — a denylist of names fails open every
-    time the vocabulary grows, which on a privacy boundary is the wrong
-    direction to fail.
-    """
-    lowered = key.lower()
-    return lowered in _PATH_EXTRA_KEYS or lowered.endswith("_path")
-
-
-_IDENTIFYING_EXTRA_KEYS = frozenset(
-    {
-        "name",
-        "sample_name",
-        "deleted_sample_name",
-        "individual_name",
-        "display_name",
-        "filename",
-        "file_name",
-    }
-)
-
-
-def _drop_identifying_extras(
-    _logger: structlog.types.WrappedLogger,
-    _method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Redact identifying names imported from a stdlib record's ``extra``.
-
-    ``ExtraAdder`` copies every field verbatim, and ``sample_delete_cascade``
-    passes ``deleted_sample_name`` plus a list of child ``{"id", "name"}``
-    objects — so without this, deleting a sample removed its row and its
-    database while persisting its name to the Log Explorer indefinitely.
-
-    Ids and counts are kept: they are what makes the entry useful for triage and
-    identify nothing on their own.
-    """
-
-    def sanitize(key: str, value: object) -> object:
-        lowered = key.lower()
-        if lowered in _IDENTIFYING_EXTRA_KEYS:
-            return _REDACTED_LOG_VALUE
-        if _is_path_extra_key(lowered) and isinstance(value, str):
-            return PurePath(value).name or _REDACTED_LOG_VALUE
-        return scrub(value)
-
-    def scrub(value: object) -> object:
-        if isinstance(value, dict):
-            return {key: sanitize(key, sub) for key, sub in value.items()}
-        if isinstance(value, (list, tuple)):
-            return [scrub(item) for item in value]
-        return value
-
-    for key in list(event_dict):
-        event_dict[key] = sanitize(key, event_dict[key])
-    return event_dict
-
-
-def _redact_sensitive_log_fields(
-    logger: structlog.types.WrappedLogger,
-    method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Redact sensitive structured results before either application log sink."""
-    _redact_withheld_prescribing_alert_fields(event_dict)
-    for key, value in list(event_dict.items()):
-        event_dict[key] = (
-            _REDACTED_LOG_VALUE if _is_sensitive_log_key(key) else _redact_sensitive_value(value)
-        )
-    return event_dict
-
-
-def _event_dict_for_db_storage(
-    logger: structlog.types.WrappedLogger,
-    method_name: str,
-    event_dict: structlog.types.EventDict,
-) -> structlog.types.EventDict:
-    """Return a DB-only event copy with exception info rendered as text."""
-    if not event_dict.get("exc_info"):
-        return event_dict
-    # Runs after _redact_sensitive_log_fields. Keep ConsoleRenderer's event dict
-    # untouched so it can pretty-print exc_info without structlog's warning.
-    return structlog.processors.format_exc_info(logger, method_name, dict(event_dict))
 
 
 def _db_processor_factory(engine_getter: callable) -> callable:
@@ -280,10 +96,8 @@ def _db_processor_factory(engine_getter: callable) -> callable:
             from backend.db.tables import LOG_ENTRY_PRESENTATION_POLICY_VERSION, log_entries
 
             level = method_name.upper()
-            db_event_dict = _event_dict_for_db_storage(logger, method_name, event_dict)
-            # Rendering exception information for the database creates a fresh
-            # event shape, so apply the same fail-closed hold immediately before
-            # deriving durable fields and attesting their presentation policy.
+            db_event_dict = dict(event_dict)
+            # Recheck the projected shape just before attesting a durable row.
             _redact_withheld_prescribing_alert_fields(db_event_dict)
             # NULL (not "") when no name was captured, so a misconfigured processor
             # chain reads as a visible gap rather than a tidy blank column (#1997).
@@ -301,15 +115,15 @@ def _db_processor_factory(engine_getter: callable) -> callable:
                 "_from_structlog",
             }
             extra = {k: v for k, v in db_event_dict.items() if k not in _internal}
-            extra_json = json.dumps(extra, default=str) if extra else None
+            extra_json = json.dumps(extra) if extra else None
 
             with engine.begin() as conn:
                 conn.execute(
                     sa.insert(log_entries).values(
                         timestamp=datetime.now(UTC),
                         level=level,
-                        logger=str(logger_name) if logger_name is not None else None,
-                        message=str(message),
+                        logger=logger_name,
+                        message=message,
                         event_data=extra_json,
                         presentation_policy_version=LOG_ENTRY_PRESENTATION_POLICY_VERSION,
                     )
@@ -340,42 +154,128 @@ class _NamedPrintLoggerFactory(structlog.PrintLoggerFactory):
         logger = super().__call__(*args)
         # structlog passes the get_logger() positional args here; the first is the
         # logger name (empty when get_logger() was called without one).
-        logger.name = str(args[0]) if args else ""
+        logger.name = args[0] if args else None
         return logger
 
 
-def configure_logging(engine_getter: callable | None = None) -> None:
-    """Configure structlog with console + optional DB output.
+def _safe_native(logger, _method: str, raw: dict) -> dict:
+    return safe_event(raw, logger.name)
 
-    Args:
-        engine_getter: Optional callable returning the reference DB engine.
-            If provided, log entries are also persisted to reference.db.
-    """
-    processors: list[structlog.types.Processor] = [
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_log_level,
-        # Puts the get_logger() name into the event dict as ``logger`` (works
-        # because _NamedPrintLoggerFactory reattaches it to the PrintLogger).
-        # Feeds the DB processor's ``logger`` column — the Log Explorer's
-        # Component column and filter (#1997).
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        _redact_sensitive_log_fields,
-    ]
 
-    if engine_getter is not None:
-        processors.append(_db_processor_factory(engine_getter))
+_STANDARD_FIELDS = frozenset(logging.LogRecord("", logging.INFO, "", 0, "", (), None).__dict__)
+_LEVELS = {
+    logging.DEBUG: "debug",
+    logging.INFO: "info",
+    logging.WARNING: "warning",
+    logging.ERROR: "error",
+    logging.CRITICAL: "critical",
+}
 
-    # RichTracebackFormatter defaults to ``show_locals=True``.  Exception-frame
-    # locals can contain credentials, keyed binding material, or private sample
-    # state that was never added to the structured event and therefore cannot
-    # be removed by the field redactor above.  The dependency-free formatter
-    # keeps the stack and exception while never rendering arbitrary locals.
-    processors.append(
-        structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
+
+_FRAMEWORK_LOGGERS = ("uvicorn", "uvicorn.access", "uvicorn.error", "huey", "huey.consumer")
+
+
+class _ReviewedRecord(logging.LogRecord):
+    """An observer and the owned sinks share only this fixed projection."""
+
+    def __init__(self, event: dict, level: int):
+        super().__init__(
+            event.get("logger") or "application", level, "", 0, event["event"], (), None
+        )
+        self.__dict__.update(threadName=None, processName=None, taskName=None)
+        self.approved = event
+
+
+def _project_record(record: logging.LogRecord) -> _ReviewedRecord:
+    if type(record) is _ReviewedRecord:
+        return record
+    level = (
+        record.levelno
+        if type(record.levelno) is int and record.levelno in _LEVELS
+        else logging.INFO
     )
+    raw = {key: value for key, value in vars(record).items() if key not in _STANDARD_FIELDS}
+    raw.update(
+        event=record.msg,
+        args=record.args,
+        exc_info=record.exc_info,
+        exc_text=record.exc_text,
+        stack_info=record.stack_info,
+    )
+    return _ReviewedRecord(safe_event(raw, record.name), level)
 
+
+def _owned_namespace(name: str) -> bool:
+    return name.partition(".")[0] in {"backend", "huey", "uvicorn"}
+
+
+def _install_record_filter() -> None:
+    # Python 3.12 logger filters can return a replacement record before the
+    # first handler sees it. Configure existing and subsequently created
+    # application loggers, preserving the host's original logger class.
+    prior = logging.getLoggerClass()
+    if not getattr(prior, "_yeliztli_projection", False):
+
+        class ApplicationLogger(prior):
+            _yeliztli_projection = True
+
+            def __init__(self, name, level=logging.NOTSET):
+                super().__init__(name, level)
+                if _owned_namespace(name):
+                    self.addFilter(_project_record)
+
+        logging.setLoggerClass(ApplicationLogger)
+    for name, logger in list(logging.Logger.manager.loggerDict.items()):
+        if _owned_namespace(name) and isinstance(logger, logging.Logger):
+            if _project_record not in logger.filters:
+                logger.filters.insert(0, _project_record)
+
+
+class _SafeHandler(logging.Handler):
+    """Send an approved record to this logger's configured destinations."""
+
+    def __init__(self, db_processor=None) -> None:
+        super().__init__()
+        self.db_processor = db_processor
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            reviewed = _project_record(record)
+            level = _LEVELS[reviewed.levelno]
+            if self.db_processor is not None:
+                self.db_processor(None, level, reviewed.approved)
+            _console_write(level, reviewed.approved, sys.stderr)
+        except Exception:
+            # Handler.handleError formats the rejected input. Logging failures
+            # must not trigger that fallback or interrupt the original operation.
+            return
+
+
+def _console_write(method: str, event: dict, stream) -> None:
+    from backend.operator_console import write_diagnostic
+
+    fields = {k: v for k, v in event.items() if k != "event"}
+    suffix = " " + json.dumps(fields, ensure_ascii=True) if fields else ""
+    write_diagnostic(f"{method.upper()} {event['event']}{suffix}\n", stream)
+
+
+def _render_native(_logger, method: str, event: dict) -> None:
+    # Keep the native stdout route for embedded callers. The shipped services
+    # redirect this single approved write to their operator console.
+    try:
+        _console_write(method, event, sys.stdout)
+    except Exception:
+        pass
+    raise structlog.DropEvent
+
+
+def configure_logging(engine_getter: callable | None = None) -> None:
+    """Install one safe route for each sink, without attaching to unrelated loggers."""
+    processors = [_safe_native]
+    db_processor = _db_processor_factory(engine_getter) if engine_getter is not None else None
+    if db_processor is not None:
+        processors.append(db_processor)
+    processors.append(_render_native)
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,
@@ -384,123 +284,16 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         cache_logger_on_first_use=False,
     )
 
-    _route_stdlib_logging_through_structlog(engine_getter)
-
-
-def _route_stdlib_logging_through_structlog(engine_getter: callable | None) -> None:
-    """Send records from ``logging.getLogger`` through the structlog chain (#2126).
-
-    The previous implementation was ``logging.basicConfig(...)`` under a comment
-    claiming it routed stdlib logging through structlog. It does not: it installs
-    a plain :class:`logging.StreamHandler` on the root logger, which formats and
-    writes the record itself and never touches a structlog processor. Everything
-    logged through the 65 ``logging.getLogger(__name__)`` call sites in
-    ``backend/`` — including the lifespan's own startup diagnostics — reached
-    stderr and nothing else, so the Log Explorer, whose rows come from the DB
-    processor, showed none of it. Verified against a real database before the
-    fix: ``DBRegistry initialised``, logged on every boot, had zero rows in
-    ``log_entries``.
-
-    :class:`structlog.stdlib.ProcessorFormatter` is the supported way to do what
-    the comment described. Foreign (stdlib) records run through
-    ``foreign_pre_chain`` to gain the same level, logger name, timestamp and
-    **redaction** a native structlog event gets, then through the formatter's own
-    processors, which is where the DB processor sits.
-
-    The DB processor runs *after* ``remove_processors_meta`` deliberately. That
-    call strips the ``_record`` and ``_from_structlog`` keys ProcessorFormatter
-    adds, and ``_record`` is a :class:`logging.LogRecord` — passing it to the DB
-    writer would put an unserialisable object into the stored payload.
-
-    Native structlog events do not pass through here at all: this app's
-    ``logger_factory`` is a :class:`~structlog.PrintLoggerFactory`, so structlog
-    writes straight to stderr and never through the stdlib root logger. This
-    handler therefore only ever sees foreign records, and no event is recorded
-    twice.
-
-    Root handlers are replaced rather than appended, so calling
-    ``configure_logging`` more than once (the API lifespan reconfigures once the
-    reference engine exists) cannot stack duplicate handlers.
-    """
-    foreign_pre_chain: list[structlog.types.Processor] = [
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_log_level,
-        # Reads ``record.name`` for foreign records, so a stdlib logger lands in
-        # the Log Explorer's Component column under its real module path.
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        # ProcessorFormatter builds a foreign event dict from the rendered
-        # message and metadata only, so fields passed as ``extra={...}`` are
-        # dropped unless this adds them. Without it, newly persisted events such
-        # as sample_delete_cascade and sample_merge_complete would reach the Log
-        # Explorer as a bare event name with their ids, counts and error details
-        # discarded. It runs here, before ``remove_processors_meta``, because it
-        # reads ``_record`` — and before the redactor below, so imported fields
-        # are sanitised on the same terms as everything else.
-        structlog.stdlib.ExtraAdder(),
-        # Immediately after the import, so an identifying name never reaches the
-        # renderer or the durable writer.
-        _drop_identifying_extras,
-    ]
-
-    formatter_processors: list[structlog.types.Processor] = [
-        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-        # Redaction runs *after* the formatter metadata is removed, not in the
-        # pre-chain. The fail-closed path for a withheld prescribing pair calls
-        # ``event_dict.clear()``, which would also drop ProcessorFormatter's
-        # ``_record`` and ``_from_structlog`` keys; ``remove_processors_meta``
-        # then deletes them unconditionally and raises ``KeyError``, so the
-        # neutral replacement was neither stored nor rendered and stdlib's
-        # ``handleError`` printed the original message — publishing the held pair
-        # it was supposed to withhold. Running the redactor once the meta keys
-        # are gone makes clearing safe.
-        _redact_sensitive_log_fields,
-    ]
-    if engine_getter is not None:
-        formatter_processors.append(_db_processor_factory(engine_getter))
-    formatter_processors.append(
-        structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
-    )
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            foreign_pre_chain=foreign_pre_chain,
-            processors=formatter_processors,
-        )
-    )
-
-    # Attached to the ``backend`` logger, not the root logger. The gap this
-    # closes is the application's own 65 ``logging.getLogger(__name__)`` sites;
-    # routing *every* stdlib logger would also persist third-party chatter
-    # (httpx, uvicorn, sqlalchemy, huey) into the Log Explorer, which is both
-    # noise and a behaviour change nobody asked for. Verified by the admin Log
-    # Explorer tests, which count rows and failed on the extra entries when this
-    # was installed on root.
-    #
-    # Handlers are replaced rather than appended, so repeated configuration (the
-    # API lifespan, the Huey worker bootstrap, tests in one process) cannot stack
-    # duplicates.
-    #
-    # ``propagate`` is deliberately left **on**, and the limit is worth stating.
-    # Redaction happens in this handler's formatter and does not mutate the
-    # ``LogRecord``, so an ancestor handler — one a host or a test harness
-    # installs on the root logger — receives the unredacted original. Turning
-    # propagation off does close that, but it is the wrong lever here: this
-    # module is configured at *import* by ``backend/tasks/huey_tasks.py``, so
-    # disabling propagation applies process-wide and silences ``caplog`` for
-    # every ``backend.*`` logger, which took out 15 tests across four files.
-    #
-    # Closing it properly means sanitising the ``LogRecord`` itself in a
-    # logger-level filter, so propagation carries redacted data rather than
-    # being switched off. That duplicates the redaction semantics for
-    # ``msg``/``args``/``exc_info`` and is its own change — tracked separately.
-    # Note the default configuration is still strictly better than the
-    # ``basicConfig`` it replaces, which printed every stdlib record raw to
-    # stderr unconditionally; with no root handler installed, propagation now
-    # reaches nothing.
+    _install_record_filter()
     backend_logger = logging.getLogger("backend")
-    for existing in backend_logger.handlers[:]:
-        backend_logger.removeHandler(existing)
-    backend_logger.addHandler(handler)
+    backend_logger.handlers[:] = [_SafeHandler(db_processor)]
     backend_logger.setLevel(logging.INFO)
+    from backend.operator_console import managed_console
+
+    for name in _FRAMEWORK_LOGGERS:
+        framework_logger = logging.getLogger(name)
+        if name == "uvicorn.access" and managed_console():
+            framework_logger.handlers.clear()
+        else:
+            framework_logger.handlers[:] = [_SafeHandler()]
+        framework_logger.propagate = False

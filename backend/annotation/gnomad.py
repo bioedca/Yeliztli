@@ -895,7 +895,7 @@ def download_gnomad_vcf(
     # Atomic rename on success (stream_download cleans up the .tmp on failure).
     tmp_path.replace(dest_path)
 
-    logger.info("gnomad_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
+    logger.info("gnomad_download_complete", path=dest_path, bytes=outcome.total_bytes)
     return dest_path
 
 

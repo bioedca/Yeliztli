@@ -18,6 +18,7 @@ Usage::
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 import time
 import uuid
 from collections.abc import Iterator
@@ -39,6 +40,7 @@ from backend.annotation.bulk_load import (
 from backend.annotation.http_download import stream_download
 from backend.config import PRIVATE_DIR_MODE
 from backend.db.tables import downloads, jobs
+from backend.diagnostics import storage_failure
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -446,7 +448,7 @@ class DownloadManager:
             sleep=self._sleep,
         )
 
-    def _write_best_effort(self, stmt: sa.Executable, *, what: str, download_id: int) -> None:
+    def _write_best_effort(self, stmt: sa.Executable) -> None:
         """Execute an optimization-only write; retry on lock, swallow a final failure.
 
         Used for progress/validator checkpoints, whose loss is harmless (the
@@ -456,12 +458,21 @@ class DownloadManager:
         try:
             self._write_retrying(stmt)
         except sa.exc.OperationalError as exc:
-            logger.warning(
-                "download_checkpoint_write_dropped",
-                what=what,
-                download_id=download_id,
-                error=str(exc),
-            )
+            original = exc.orig
+            reason = "unknown"
+            if type(original) is sqlite3.OperationalError:
+                code = vars(original).get("sqlite_errorcode")
+                if type(code) is int:
+                    primary = code & 0xFF
+                    if primary in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                        reason = "busy"
+                    elif primary in (
+                        sqlite3.SQLITE_CANTOPEN,
+                        sqlite3.SQLITE_IOERR,
+                        sqlite3.SQLITE_FULL,
+                    ):
+                        reason = "unavailable"
+            storage_failure(reason, error=original)
 
     def _create_download_record(
         self, *, url: str, dest_path: str, expected_sha256: str | None
@@ -545,8 +556,6 @@ class DownloadManager:
             downloads.update()
             .where(downloads.c.id == download_id)
             .values(total_bytes=total_bytes, updated_at=datetime.now(UTC)),
-            what="total_bytes",
-            download_id=download_id,
         )
 
     def _checkpoint_offset(self, download_id: int, offset: int) -> None:
@@ -560,8 +569,6 @@ class DownloadManager:
             downloads.update()
             .where(downloads.c.id == download_id)
             .values(downloaded_bytes=offset, updated_at=datetime.now(UTC)),
-            what="checkpoint_offset",
-            download_id=download_id,
         )
 
     def _get_validator(self, download_id: int) -> str | None:
@@ -592,8 +599,6 @@ class DownloadManager:
             downloads.update()
             .where(downloads.c.id == download_id)
             .values(validator=validator, updated_at=datetime.now(UTC)),
-            what="validator",
-            download_id=download_id,
         )
 
     def _create_job(self, job_id: str, download_id: int) -> None:

@@ -232,10 +232,10 @@ def test_startup_preserves_protected_jobs_and_legacy_logs(
         assert (
             conn.execute(
                 sa.select(log_entries.c.message).where(
-                    log_entries.c.message == "worker_orphaned_jobs_recovered"
+                    log_entries.c.message == "The worker recovered interrupted background jobs."
                 )
             ).scalar_one()
-            == "worker_orphaned_jobs_recovered"
+            == "The worker recovered interrupted background jobs."
         )
     full_migration.assert_not_called()
 

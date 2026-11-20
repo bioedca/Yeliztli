@@ -536,3 +536,26 @@ def test_unknown_sample_returns_404(_env: DBRegistry) -> None:
     with pytest.raises(HTTPException) as excinfo:
         _get_finding_changes(999)
     assert excinfo.value.status_code == 404
+
+
+def test_final_release_and_finding_refusal_has_one_audit(_env: DBRegistry, monkeypatch):
+    from backend import diagnostics
+
+    audits = []
+    monkeypatch.setattr(diagnostics, "response_withheld", audits.append)
+    assert _get_finding_changes(2)["available"] is False
+    assert _get_finding_changes(1)["available"] is True
+    assert audits == []
+    diff = {
+        **_DIFF_WITH_CHANGES,
+        "release_deltas": [{"db_name": "fixture", "before": "tamoxifen", "after": "v2"}],
+        "added": [
+            {"module": "fixture", "gene_symbol": "CYP2D6", "finding_text": "Synthetic finding"}
+        ],
+    }
+    _replace_stored_finding_diff(_env, json.dumps(diff))
+    assert _get_finding_changes(1)["available"] is False
+    assert audits == ["backend.api.routes.updates.get_finding_changes"]
+    _dismiss_finding_changes(1)
+    assert _get_finding_changes(1)["available"] is False
+    assert audits == ["backend.api.routes.updates.get_finding_changes"]

@@ -31,6 +31,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import cpic_guidelines, findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import MEDICATION_SAFETY_REFERENCE_BIAS
 
 logger = logging.getLogger(__name__)
@@ -511,7 +512,10 @@ def drug_lookup(
             record = effect.model_dump(mode="json", exclude_none=True)
             record["drug"] = canonical_drug
             dynamic_records.append(record)
-        if not is_patient_presentable_response_payload(dynamic_records):
+        if not finalize_response(
+            is_patient_presentable_response_payload(dynamic_records),
+            "backend.api.routes.pharma.drug_lookup",
+        ):
             return DrugLookupResponse(drug=canonical_drug, gene_effects=[], withheld=True)
     return response
 
@@ -629,8 +633,11 @@ def gene_results(
             record["drug"] = source_drug
         dynamic_records.append(record)
         drug_associations.extend({"gene": item.gene, "drug": drug} for drug in item.drugs)
-    if not is_patient_presentable_response_payload(
-        {"records": dynamic_records, "drug_associations": drug_associations}
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            {"records": dynamic_records, "drug_associations": drug_associations}
+        ),
+        "backend.api.routes.pharma.gene_results",
     ):
         return GeneSummaryResponse(items=[], total=0, withheld=True)
     return GeneSummaryResponse(items=items, total=len(items))
@@ -787,7 +794,10 @@ def medication_safety_report(
             record["drug"] = drug_entry.drug
             dynamic_records.append(record)
 
-    if not is_patient_presentable_response_payload(dynamic_records):
+    if not finalize_response(
+        is_patient_presentable_response_payload(dynamic_records),
+        "backend.api.routes.pharma.medication_safety_report",
+    ):
         return MedicationSafetyReportResponse(
             reference_bias_disclosure=MEDICATION_SAFETY_REFERENCE_BIAS,
             genes_assessed=0,

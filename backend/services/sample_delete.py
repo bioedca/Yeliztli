@@ -22,7 +22,6 @@ the orphaned rows from.
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -30,12 +29,12 @@ import sqlalchemy as sa
 
 from backend.db.sample_schema import sample_db_sidecars
 from backend.db.tables import merge_provenance, reannotation_prompts, samples
+from backend.diagnostics import record_operation
 from backend.services.sample_operation_lock import sample_delete_lease
 
 if TYPE_CHECKING:
     from backend.db.connection import DBRegistry
 
-logger = logging.getLogger(__name__)
 
 # Plan §10.5 step 5 ships this token; the deletion walk filters merged
 # children by it.
@@ -52,7 +51,7 @@ class MergedChild:
 
 @dataclass(frozen=True)
 class DeleteCascadeResult:
-    """Outcome of :func:`delete_sample_with_cascade` — surfaces in the log."""
+    """Outcome of :func:`delete_sample_with_cascade` for its authorized caller."""
 
     deleted_sample_id: int
     deleted_sample_name: str
@@ -87,27 +86,14 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
     for row in merged_rows:
         merged_db_path = settings.data_dir / row.db_path
         if not merged_db_path.exists():
-            logger.warning(
-                "merged_sample_db_missing",
-                extra={
-                    "merged_sample_id": int(row.id),
-                    "db_path": str(merged_db_path),
-                },
-            )
+            record_operation("missing_database")
             continue
         try:
             engine = registry.get_sample_engine(merged_db_path)
             with engine.connect() as conn:
                 prov_row = conn.execute(sa.select(merge_provenance.c.source_sample_ids)).fetchone()
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "merged_provenance_read_failed",
-                extra={
-                    "merged_sample_id": int(row.id),
-                    "db_path": str(merged_db_path),
-                    "error": str(exc),
-                },
-            )
+            record_operation("unreadable_provenance", error=exc)
             continue
         if prov_row is None:
             # ``file_format == 'merged_v1'`` with no provenance row. Since
@@ -118,21 +104,12 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
             # the old publish-first ordering, whose parentage is unknowable:
             # treating it as a child of whichever source is being deleted would
             # risk destroying an unrelated sample. Skip, but say so.
-            logger.warning(
-                "merged_provenance_missing",
-                extra={"merged_sample_id": int(row.id), "db_path": str(merged_db_path)},
-            )
+            record_operation("missing_provenance")
             continue
         try:
             source_ids = json.loads(prov_row.source_sample_ids)
         except (ValueError, TypeError, UnicodeDecodeError, RecursionError):
-            logger.warning(
-                "merged_provenance_malformed",
-                extra={
-                    "merged_sample_id": int(row.id),
-                    "source_sample_ids_raw": prov_row.source_sample_ids,
-                },
-            )
+            record_operation("invalid_provenance")
             continue
         if not isinstance(source_ids, list) or any(
             type(source_id) is not int for source_id in source_ids
@@ -140,13 +117,7 @@ def list_merged_children(registry: DBRegistry, sample_id: int) -> list[MergedChi
             # Valid JSON, wrong shape (object/number/string). ``in`` would
             # raise or silently check keys — log-and-skip per the module
             # contract instead.
-            logger.warning(
-                "merged_provenance_malformed",
-                extra={
-                    "merged_sample_id": int(row.id),
-                    "source_sample_ids_raw": prov_row.source_sample_ids,
-                },
-            )
+            record_operation("invalid_provenance")
             continue
         child = MergedChild(id=int(row.id), name=str(row.name))
         for source_id in dict.fromkeys(source_ids):
@@ -275,14 +246,7 @@ def _delete_reserved_cascade(
     with registry.reference_engine.begin() as conn:
         _delete_sample_reference_rows(conn, sample_id)
 
-    logger.info(
-        "sample_delete_cascade",
-        extra={
-            "deleted_sample_id": int(row.id),
-            "deleted_sample_name": str(row.name),
-            "deleted_merged_children": [{"id": c.id, "name": c.name} for c in children],
-        },
-    )
+    record_operation("deleted")
     return DeleteCascadeResult(
         deleted_sample_id=int(row.id),
         deleted_sample_name=str(row.name),

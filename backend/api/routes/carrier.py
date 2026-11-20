@@ -28,6 +28,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import (
     CARRIER_GENE_NOTES,
     CARRIER_STATUS_DISCLAIMER_TEXT,
@@ -200,7 +201,10 @@ def _carrier_variants_response(items: list[CarrierVariantResponse]) -> CarrierVa
         total=len(items),
         genes_with_findings=genes,
     )
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.carrier._carrier_variants_response",
+    ):
         return CarrierVariantsListResponse(
             items=[], total=0, genes_with_findings=[], withheld=True
         )

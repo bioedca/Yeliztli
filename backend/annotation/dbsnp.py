@@ -59,6 +59,7 @@ from backend.db.tables import (
     dbsnp_merges,
     raw_variants,
 )
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -443,7 +444,7 @@ def check_dbsnp_update(
             last_modified = resp.headers.get("Last-Modified", "")
             content_length = resp.headers.get("Content-Length")
     except Exception as exc:
-        logger.warning("dbsnp_update_check_failed", error=str(exc))
+        logger.warning("dbsnp_update_check_failed", error=DiagnosticError(exc))
         return None
 
     if not last_modified:
@@ -452,7 +453,7 @@ def check_dbsnp_update(
     try:
         remote_version = parsedate_to_datetime(last_modified).strftime("%Y%m%d")
     except (TypeError, ValueError) as exc:
-        logger.warning("dbsnp_update_check_bad_last_modified", error=str(exc))
+        logger.warning("dbsnp_update_check_bad_last_modified", error=DiagnosticError(exc))
         return None
 
     current = get_current_version(reference_engine, "dbsnp")
@@ -527,13 +528,13 @@ def download_rsmerge_arch(
             try:
                 meta["version"] = parsedate_to_datetime(last_modified).strftime("%Y%m%d")
             except (TypeError, ValueError) as exc:
-                logger.warning("dbsnp_download_bad_last_modified", error=str(exc))
+                logger.warning("dbsnp_download_bad_last_modified", error=DiagnosticError(exc))
 
     # Atomic rename on success; drop the now-stale validator sidecar.
     tmp_path.replace(dest_path)
     clear_validator_sidecar(tmp_path)
 
-    logger.info("dbsnp_download_complete", path=str(dest_path))
+    logger.info("dbsnp_download_complete", path=dest_path)
     return dest_path
 
 

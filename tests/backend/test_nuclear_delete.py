@@ -100,7 +100,11 @@ class TestNuclearDelete:
         resp = test_client.delete("/api/data/nuclear")
         assert resp.status_code == 200
         assert tmp_data_dir.exists()
-        assert list(tmp_data_dir.iterdir()) == []
+        from backend.diagnostic_cutover import RECEIPT, admit
+
+        assert list(tmp_data_dir.iterdir()) == [tmp_data_dir / RECEIPT]
+        (tmp_data_dir / ".disclaimer_accepted").touch()
+        admit(tmp_data_dir)
 
     def test_nuclear_delete_removes_disclaimer_marker(
         self, test_client: TestClient, tmp_data_dir: Path

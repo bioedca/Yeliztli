@@ -33,6 +33,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker, withheld_not_found
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +284,10 @@ def list_pathways(
     # This value is reloaded from stored pathway-summary detail, so it remains
     # dynamic result data at this boundary.  Gate it together with the assembled
     # response rather than assuming persisted text still matches panel metadata.
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.gene_health.list_pathways",
+    ):
         return PathwaysResponse(items=[], total=0, withheld=True)
     return response
 
@@ -380,7 +384,10 @@ def pathway_detail(
         pmids=pathway_summary["pmids"],
         snp_details=snp_details,
     )
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.gene_health.pathway_detail",
+    ):
         raise withheld_not_found("This pathway's details are withheld for this sample.")
     return response
 

@@ -2,6 +2,19 @@
 
 from __future__ import annotations
 
+if __name__ == "__main__":
+    from backend.operator_console import run_api
+
+    raise SystemExit(run_api())
+
+if __name__ == "__mp_main__":
+    # A reload interpreter imports this module before Uvicorn calls its app
+    # factory. Check its own data directory before any route can open the queue.
+    from backend.config import get_settings
+    from backend.diagnostic_cutover import admit
+
+    admit(get_settings().data_dir)
+
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -100,7 +113,6 @@ from backend.db.connection import (
     reset_registry,
 )
 from backend.db.database_registry import (
-    PIPELINE_GENOME_BUILD,
     check_genome_build_consistency,
 )
 from backend.db.db_health import recover_orphaned_downloads
@@ -109,6 +121,7 @@ from backend.db.reference_schema import (
     ensure_log_entry_presentation_policy,
     ensure_reference_schema_current,
 )
+from backend.diagnostics import record_operation, warn_network_bind
 from backend.logging_config import configure_logging
 from backend.services.sample_merge import recover_unpublished_merge_artifacts
 from backend.tasks.huey_tasks import recover_orphaned_jobs
@@ -143,15 +156,7 @@ def warn_if_insecure_network_bind(settings: Settings) -> None:
     if settings.auth_enabled and settings.auth_password_hash.strip():
         return
 
-    auth_state = "disabled" if not settings.auth_enabled else "enabled without a password"
-    logger.warning(
-        "SECURITY WARNING: Yeliztli is configured to bind to non-loopback host %r while "
-        "authentication is %s. Anyone who can reach this port can access samples, variants, "
-        "reports, and analyses without credentials. Keep YELIZTLI_HOST on 127.0.0.1, or "
-        "enable authentication and set a password before exposing the app.",
-        settings.host,
-        auth_state,
-    )
+    warn_network_bind()
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────
@@ -203,7 +208,7 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
             # read anyway (#2126).
             configure_logging()
             cleanup_errors.append(exc)
-            logger.exception("FastAPI lifespan cleanup failed for %s", resource_name)
+            record_operation(resource_name, exc)
 
     if cleanup_errors and not suppress_errors:
         if len(cleanup_errors) == 1:
@@ -264,7 +269,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 # stdlib logger and an arbitrary keyword raises TypeError out of
                 # Logger._log, which would abort startup at precisely the point
                 # this warning exists to keep survivable.
-                logger.warning("data_directory_not_private: %s", directory_problem)
+                record_operation("directory")
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
@@ -319,11 +324,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             # site did pass ``sources=``/``pipeline_build=``, so the moment a
             # skew was actually detected the warning aborted startup instead of
             # reporting it — the one condition it exists to survive (#2126).
-            logger.warning(
-                "genome_build_skew_detected: sources=%s pipeline_build=%s",
-                build_skew,
-                PIPELINE_GENOME_BUILD,
-            )
+            record_operation("reference_build")
         warn_if_insecure_network_bind(settings)
         # Mark any leftover in-progress download sessions as interrupted/stale
         cleanup_interrupted_sessions(registry.reference_engine)
@@ -475,16 +476,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-# ── Direct execution ──────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import uvicorn
-
-    settings = get_settings()
-    uvicorn.run(
-        "backend.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-    )

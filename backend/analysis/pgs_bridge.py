@@ -71,7 +71,7 @@ def get_pgs_scores_engine(data_dir: Path | None = None) -> sa.Engine | None:
     """
     db_path = pgs_scores_db_path(data_dir)
     if not db_path.exists():
-        logger.info("pgs_scores_db_absent", path=str(db_path))
+        logger.info("pgs_scores_db_absent", path=db_path)
         return None
     from backend.db.sqlite_engine import make_sqlite_engine
 

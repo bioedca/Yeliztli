@@ -58,6 +58,7 @@ from backend.db.tables import (
     update_history,
     watched_variants,
 )
+from backend.diagnostics import DiagnosticError
 
 try:
     import fcntl
@@ -763,7 +764,7 @@ def check_clinvar_update(
             release_date=remote_version,
         )
     except Exception as exc:
-        logger.warning("clinvar_update_check_failed", error=str(exc))
+        logger.warning("clinvar_update_check_failed", error=DiagnosticError(exc))
         return None
 
 
@@ -850,7 +851,7 @@ def run_vep_bundle_update(
         except Exception as exc:
             logger.warning(
                 "vep_bundle_reference_engine_failed",
-                error=str(exc),
+                error=DiagnosticError(exc),
                 reference_db=str(ref_path),
             )
             if reference_engine is not None:
@@ -958,7 +959,7 @@ def run_vep_bundle_update(
                 logger.warning(
                     "bundled_copy_failed",
                     dest=str(bundled_dest),
-                    error=str(copy_err),
+                    error=DiagnosticError(copy_err),
                 )
 
         duration = int(time.monotonic() - start_time)
@@ -972,7 +973,7 @@ def run_vep_bundle_update(
             except Exception as exc:
                 logger.warning(
                     "vep_bundle_reference_engine_failed",
-                    error=str(exc),
+                    error=DiagnosticError(exc),
                     reference_db=str(ref_path),
                 )
 
@@ -994,7 +995,7 @@ def run_vep_bundle_update(
                     duration_seconds=duration,
                 )
             except Exception as exc:
-                logger.warning("vep_bundle_record_failed", error=str(exc))
+                logger.warning("vep_bundle_record_failed", error=DiagnosticError(exc))
 
         logger.info(
             "vep_bundle_update_complete",
@@ -1015,7 +1016,7 @@ def run_vep_bundle_update(
     except Exception as exc:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
-        logger.exception("vep_bundle_update_failed", error=str(exc))
+        logger.exception("vep_bundle_update_failed", error=DiagnosticError(exc))
         return None
     finally:
         if reference_engine is not None:
@@ -1051,7 +1052,9 @@ def _run_bundle_download(
             total_timeout=total_timeout,
         )
     except ChecksumMismatchError as exc:
-        logger.error("bundle_download_checksum_mismatch", filename=filename, error=str(exc))
+        logger.error(
+            "bundle_download_checksum_mismatch", filename=filename, error=DiagnosticError(exc)
+        )
         return None
 
     if result.error:
@@ -1178,7 +1181,7 @@ def run_lai_bundle_update(
             _extract_lai_bundle(downloaded_path, settings.data_dir / db_info.filename)
         except Exception as exc:
             downloaded_path.unlink(missing_ok=True)
-            logger.exception("lai_bundle_update_extract_failed", error=str(exc))
+            logger.exception("lai_bundle_update_extract_failed", error=DiagnosticError(exc))
             return None
 
         bundle_dir = settings.data_dir / "lai_bundle"
@@ -1286,7 +1289,7 @@ def run_ancestry_pca_bundle_update(
             shutil.move(str(downloaded_path), str(final_dest))
         except OSError as exc:
             downloaded_path.unlink(missing_ok=True)
-            logger.exception("ancestry_pca_move_failed", error=str(exc))
+            logger.exception("ancestry_pca_move_failed", error=DiagnosticError(exc))
             return None
 
         file_size = final_dest.stat().st_size
@@ -1394,7 +1397,7 @@ def run_gnomad_bundle_update(
             )
         except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)
-            logger.exception("gnomad_materialize_failed", error=str(exc))
+            logger.exception("gnomad_materialize_failed", error=DiagnosticError(exc))
             return None
 
         duration = int(time.monotonic() - start_time)
@@ -1491,7 +1494,7 @@ def run_pgs_scores_bundle_update(
             shutil.move(str(downloaded_path), str(final_dest))
         except OSError as exc:
             downloaded_path.unlink(missing_ok=True)
-            logger.exception("pgs_scores_move_failed", error=str(exc))
+            logger.exception("pgs_scores_move_failed", error=DiagnosticError(exc))
             return None
 
         file_size = final_dest.stat().st_size
@@ -1574,7 +1577,7 @@ def _fetch_encode_ccres_remote_info(*, timeout: float = 30.0) -> VersionInfo | N
             release_date=remote_version,
         )
     except Exception as exc:
-        logger.warning("encode_ccres_update_check_failed", error=str(exc))
+        logger.warning("encode_ccres_update_check_failed", error=DiagnosticError(exc))
         return None
 
 
@@ -1679,7 +1682,7 @@ def run_encode_ccres_update(
         except Exception as exc:  # noqa: BLE001
             downloaded_path.unlink(missing_ok=True)
             tmp_dest.unlink(missing_ok=True)
-            logger.exception("encode_ccres_materialize_failed", error=str(exc))
+            logger.exception("encode_ccres_materialize_failed", error=DiagnosticError(exc))
             return None
 
         file_size = final_dest.stat().st_size
@@ -1861,7 +1864,7 @@ def check_all_updates(
             logger.warning(
                 "update_check_failed",
                 db_name=db_name,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
             result.errors.append(f"{db_name}: {exc}")
             continue
@@ -2229,7 +2232,7 @@ def run_precheck_all_samples(
             logger.warning(
                 "precheck_sample_failed",
                 sample_id=sample_row.id,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
 
     return results
@@ -3060,7 +3063,7 @@ def run_scheduled_update_check(registry: DBRegistry) -> UpdateCheckResult:
                 source_binding=(update_info._source_binding if db_name == "mondo_hpo" else None),
             )
         except Exception as exc:
-            logger.exception("auto_update_failed", db_name=db_name, error=str(exc))
+            logger.exception("auto_update_failed", db_name=db_name, error=DiagnosticError(exc))
             check_result.errors.append(f"{db_name} update failed: {exc}")
 
     return check_result

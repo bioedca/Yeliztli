@@ -21,6 +21,7 @@ from backend.analysis.lai_liftover import validate_lai_liftover_bundle
 from backend.config import Settings
 from backend.db.sqlite_engine import make_sqlite_engine
 from backend.db.vep_version import VERSIONLESS_VEP_BUNDLE_BASELINE
+from backend.diagnostics import DiagnosticError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -96,7 +97,7 @@ def _extract_lai_bundle(tarball_path: Path, dest_path: Path) -> None:
             + ", ".join(missing[:5])
         )
     if not validate_lai_liftover_bundle(dest_dir):
-        logger.error("lai_bundle_invalid_liftover", path=str(dest_dir / "liftover"))
+        logger.error("lai_bundle_invalid_liftover", path=dest_dir / "liftover")
         raise ValueError("LAI bundle extraction incomplete — liftover table is missing or invalid")
 
     # Remove tarball after successful extraction
@@ -104,7 +105,7 @@ def _extract_lai_bundle(tarball_path: Path, dest_path: Path) -> None:
 
     _record_lai_bundle_version(dest_path.parent, dest_dir)
 
-    logger.info("lai_bundle_extracted", dest=str(dest_dir))
+    logger.info("lai_bundle_extracted", dest=dest_dir)
 
 
 def _record_lai_bundle_version(data_dir: Path, bundle_dir: Path) -> None:
@@ -144,8 +145,8 @@ def _record_lai_bundle_version(data_dir: Path, bundle_dir: Path) -> None:
     except Exception as exc:
         logger.warning(
             "lai_bundle_version_record_failed",
-            error=str(exc),
-            reference_db=str(reference_db_path),
+            error=DiagnosticError(exc),
+            reference_db=reference_db_path,
         )
 
 
@@ -232,7 +233,7 @@ def _record_encode_ccres_version(db_path: Path) -> None:
     from datetime import UTC, datetime
 
     if not db_path.exists():
-        logger.warning("encode_ccres_version_record_skipped_missing_db", path=str(db_path))
+        logger.warning("encode_ccres_version_record_skipped_missing_db", path=db_path)
         return
 
     version = datetime.now(UTC).strftime("%Y%m%d")
@@ -254,8 +255,8 @@ def _record_encode_ccres_version(db_path: Path) -> None:
     except Exception as exc:
         logger.warning(
             "encode_ccres_version_record_failed",
-            error=str(exc),
-            reference_db=str(reference_db_path),
+            error=DiagnosticError(exc),
+            reference_db=reference_db_path,
         )
 
 
@@ -690,7 +691,7 @@ def check_genome_build_consistency(reference_engine: Engine) -> list[str]:
                 )
             ).fetchall()
     except sa.exc.OperationalError as exc:
-        logger.warning("genome_build_consistency_unreadable", error=str(exc))
+        logger.warning("genome_build_consistency_unreadable", error=DiagnosticError(exc))
         return flagged
 
     for row in rows:
@@ -804,7 +805,7 @@ def install_committed_bundle(db_info: DatabaseInfo, settings: Settings) -> bool:
             logger.warning(
                 "bundled_db_version_record_failed",
                 db_name=db_info.name,
-                error=str(exc),
+                error=DiagnosticError(exc),
                 reference_db=str(ref_path),
             )
 

@@ -23,6 +23,7 @@ from backend.analysis.pharmacogenomics import (
 from backend.api.dependencies import require_fresh_sample
 from backend.db.connection import get_registry
 from backend.db.tables import findings, haplogroup_assignments, samples
+from backend.diagnostics import finalize_response
 from backend.services.lai_coverage_gate import is_degraded_for_sample, is_degraded_globally
 from backend.services.lai_production_coverage import (
     LAICoveragePolicyUnavailableError,
@@ -358,7 +359,10 @@ def get_ancestry_findings(
     # PCA, NNLS, and kNN records are independently valid sources, but their
     # fields become one patient-visible response here. Recheck the decoded DTO
     # so a held pair cannot be assembled across otherwise safe source rows.
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.ancestry.get_ancestry_findings",
+    ):
         return None
     return response
 
@@ -534,7 +538,10 @@ def get_haplogroup_assignments(
     # Fail closed rather than returning a partially misleading assignment list.
     return (
         response
-        if is_patient_presentable_response_payload(response.model_dump(mode="json"))
+        if finalize_response(
+            is_patient_presentable_response_payload(response.model_dump(mode="json")),
+            "backend.api.routes.ancestry.get_haplogroup_assignments",
+        )
         else HaplogroupResponse(assignments=[])
     )
 
@@ -594,7 +601,10 @@ def run_haplogroup(
     # the same aggregate check as the persisted-assignment endpoint.
     return (
         response
-        if is_patient_presentable_response_payload(response.model_dump(mode="json"))
+        if finalize_response(
+            is_patient_presentable_response_payload(response.model_dump(mode="json")),
+            "backend.api.routes.ancestry.run_haplogroup",
+        )
         else HaplogroupRunResponse(assignments=[])
     )
 

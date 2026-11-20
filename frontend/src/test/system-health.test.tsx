@@ -88,17 +88,9 @@ const LOGS_RESPONSE = {
       id: 6,
       timestamp: "2026-03-26T12:05:00",
       level: "EXCEPTION",
-      logger: "backend.api.routes.genes",
-      message: "uniprot_fetch_failed",
-      event_data: JSON.stringify({
-        gene: "CFTR",
-        exception: [
-          "Traceback (most recent call last):",
-          '  File "/home/app/backend/api/routes/genes.py", line 264, in _fetch_uniprot_from_api',
-          "    resp.raise_for_status()",
-          "httpx.HTTPStatusError: Client error '400 Bad Request'",
-        ].join("\n"),
-      }),
+      logger: null,
+      message: "Operation failed",
+      event_data: JSON.stringify({reason: "invalid_input"}),
     },
     {
       id: 4,
@@ -109,6 +101,7 @@ const LOGS_RESPONSE = {
       event_data: null,
     },
   ],
+  presentation_policy_version: 3,
   total: 3,
   page: 1,
   page_size: 50,
@@ -260,19 +253,25 @@ describe("SystemHealth", () => {
     expect(screen.getByText("Application started")).toBeInTheDocument()
   })
 
-  it("renders exception tracebacks with real line breaks in expanded log details", async () => {
+  it("renders the approved exception reason in expanded log details", async () => {
     mockAllEndpoints()
     render(<SystemHealth />)
 
-    fireEvent.click(await screen.findByText("uniprot_fetch_failed"))
+    fireEvent.click(await screen.findByText("Operation failed"))
 
     const details = screen.getByTestId("log-entry-details-6")
-    expect(details).toHaveTextContent("CFTR")
-    expect(details).toHaveTextContent("exception")
-    expect(details.textContent).toContain(
-      'Traceback (most recent call last):\n  File "/home/app/backend/api/routes/genes.py"',
-    )
-    expect(details.textContent).not.toContain('\\n  File "/home/app/backend/api/routes/genes.py"')
+    expect(details).toHaveTextContent("invalid_input")
+    expect(details).toHaveTextContent("reason")
+    expect(details).not.toHaveTextContent("Traceback")
+  })
+
+  it("withholds a prior policy response before rendering any rows or totals", async () => {
+    mockAllEndpoints({logs: {...LOGS_RESPONSE, presentation_policy_version: 2}})
+    render(<SystemHealth />)
+    expect(screen.queryByText("Operation failed")).not.toBeInTheDocument()
+    expect(await screen.findByText(/waiting for a verified service upgrade/)).toBeInTheDocument()
+    expect(screen.queryByText("Operation failed")).not.toBeInTheDocument()
+
   })
 
   it("shows active jobs in status section", async () => {
@@ -333,7 +332,7 @@ describe("SystemHealth", () => {
     fireEvent.change(levelFilter, { target: { value: "EXCEPTION" } })
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("level=EXCEPTION"))
+      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("level=EXCEPTION"), expect.objectContaining({ cache: "no-store" }))
     })
   })
 
@@ -346,10 +345,11 @@ describe("SystemHealth", () => {
             timestamp: "2026-03-26T12:05:00",
             level: "EXCEPTION",
             logger: "backend.api.routes.genes",
-            message: "uniprot_fetch_failed",
-            event_data: '{"exception": "Traceback (most recent call last)"}',
+            message: "Operation failed",
+            event_data: '{"reason": "runtime_error"}',
           },
         ],
+        presentation_policy_version: 3,
         total: 1,
         page: 1,
         page_size: 50,
@@ -358,7 +358,7 @@ describe("SystemHealth", () => {
     })
     render(<SystemHealth />)
 
-    const logRow = (await screen.findByText("uniprot_fetch_failed")).closest("tr")
+    const logRow = (await screen.findByText("Operation failed")).closest("tr")
     const levelCell = Array.from(logRow?.querySelectorAll("td") ?? []).find(
       (cell) => cell.textContent === "EXCEPTION",
     )

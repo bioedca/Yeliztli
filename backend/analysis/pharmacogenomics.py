@@ -48,7 +48,6 @@ Usage::
 from __future__ import annotations
 
 import enum
-import inspect
 import json
 import re
 import sqlite3
@@ -958,24 +957,10 @@ def is_patient_presentable_response_payload(value: object) -> bool:
     still rejecting a held pair assembled across free fragments from multiple
     sources.
 
-    Callers answer a rejection with an empty or not-found response, which is
-    otherwise indistinguishable from having nothing to show. So every rejection
-    is logged as ``patient_response_payload_withheld``, naming the calling
-    function and nothing from the payload (#2297).
+    Callers decide the final response after all contributing checks. Only
+    a final refusal is an auditable outcome.
     """
-    if not contains_unpresentable_prescribing_identifier(value):
-        return True
-    frame = inspect.currentframe()
-    caller = frame.f_back if frame is not None else None
-    logger.warning(
-        "patient_response_payload_withheld",
-        caller=(
-            f"{caller.f_globals.get('__name__', '?')}.{caller.f_code.co_qualname}"
-            if caller is not None
-            else "unknown"
-        ),
-    )
-    return False
+    return not contains_unpresentable_prescribing_identifier(value)
 
 
 @dataclass
@@ -2306,18 +2291,6 @@ def call_star_alleles_for_gene(
                 f"two-allele diplotype holds, so the reported diplotype cannot account "
                 f"for them and is not used for prescribing."
             ).strip()
-        # Counts only: the leftover variants and allele names reconstruct the
-        # sample's genotype, and structured log fields are persisted and shown
-        # in the admin Log Explorer. ``withheld`` is the final outcome, whether
-        # from the overflow or from too few usable markers.
-        logger.warning(
-            "pgx_residual_alt_discarded",
-            gene=gene,
-            residual_variants=len(residual_alts),
-            crowded_out_alleles=len(crowded_out),
-            withheld=call_confidence == CallConfidence.INSUFFICIENT,
-        )
-
     result = StarAlleleResult(
         gene=gene,
         allele1=allele1,
@@ -2397,14 +2370,6 @@ def call_all_star_alleles(
         result = call_star_alleles_for_gene(gene, alleles, sample_genotypes, reference_engine)
 
         results.append(result)
-
-        logger.info(
-            "pgx_star_allele_called",
-            gene=gene,
-            call_confidence=result.call_confidence.value,
-            involved_variant_count=len(result.involved_rsids),
-            missing_variant_count=len(result.missing_rsids),
-        )
 
     return results
 
@@ -2707,11 +2672,6 @@ def _apply_thiopurine_joint_phenotype(
         if not guideline_rows:
             # No compound-IM row for this drug: leave the single-gene alerts in
             # place rather than dropping guidance we cannot replace.
-            logger.warning(
-                "pgx_thiopurine_compound_im_row_missing",
-                drug=drug,
-                genes=list(_THIOPURINE_JOINT_GENES),
-            )
             continue
         superseded_drugs.add(drug)
 
@@ -2764,12 +2724,6 @@ def _apply_thiopurine_joint_phenotype(
                     conservative_alert=conservative,
                 )
             )
-        logger.info(
-            "pgx_thiopurine_compound_im_alert",
-            drug=drug,
-            tpmt_diplotype=tpmt_rep.diplotype,
-            nudt15_diplotype=nudt15_rep.diplotype,
-        )
 
     if not joint_alerts:
         return alerts
@@ -2810,19 +2764,9 @@ def generate_prescribing_alerts(
     for result in star_allele_results:
         # Skip genes with no phenotype or insufficient confidence
         if not result.phenotype:
-            logger.info(
-                "pgx_alert_skipped_no_phenotype",
-                gene=result.gene,
-            )
             continue
 
         if result.call_confidence == CallConfidence.INSUFFICIENT:
-            logger.info(
-                "pgx_alert_skipped_insufficient",
-                gene=result.gene,
-                call_confidence=result.call_confidence.value,
-                indeterminate_allele_count=len(result.indeterminate_alleles),
-            )
             continue
 
         conservative = _infer_conservative_phenotype(result, reference_engine)
@@ -2844,33 +2788,10 @@ def generate_prescribing_alerts(
         )
 
         if not guidelines:
-            # No guideline row matched this callable, confidently-called
-            # phenotype. Distinguish a likely *missing* row (the gene is
-            # otherwise covered) from a gene with no guidelines at all, so a
-            # silently-dropped actionable pair becomes a visible warning
-            # rather than an invisible gap. See issue #23.
-            covered_phenotypes = _fetch_guideline_phenotypes_for_gene(
-                result.gene, reference_engine
-            )
-            if covered_phenotypes:
-                logger.warning(
-                    "pgx_phenotype_no_guideline_row",
-                    gene=result.gene,
-                    covered_phenotype_count=len(covered_phenotypes),
-                )
-            else:
-                logger.debug(
-                    "pgx_no_guidelines",
-                    gene=result.gene,
-                )
             continue
 
         for guideline in guidelines:
             if is_prescribing_alert_withheld(result.gene, guideline["drug"]):
-                logger.warning(
-                    "pgx_alert_withheld_insufficient_clinical_evidence",
-                    withheld_alert_count=1,
-                )
                 continue
 
             # #2169: an untyped defining marker can leave the plausible genotypes
@@ -2884,13 +2805,6 @@ def generate_prescribing_alerts(
                     result, guideline["drug"], guideline["recommendation"], reference_engine
                 )
             ):
-                logger.info(
-                    "pgx_alert_withheld_undetermined_direction",
-                    gene=result.gene,
-                    drug=guideline["drug"],
-                    call_confidence=result.call_confidence.value,
-                    indeterminate_allele_count=len(result.indeterminate_alleles),
-                )
                 continue
 
             evidence_level = assign_cpic_evidence_level(guideline["classification"])
@@ -2921,16 +2835,6 @@ def generate_prescribing_alerts(
                 conservative_allele=conservative.allele if conservative else None,
             )
             alerts.append(alert)
-
-            logger.info(
-                "pgx_prescribing_alert",
-                gene=result.gene,
-                drug=guideline["drug"],
-                classification=guideline["classification"],
-                call_confidence=result.call_confidence.value,
-                evidence_level=evidence_level,
-                conservative_alert=conservative is not None,
-            )
 
     # Collapse the CPIC-joint thiopurine (TPMT, NUDT15) compound-IM case into one
     # recommendation before sorting, so a double-Intermediate sample gets CPIC's
@@ -3049,7 +2953,6 @@ def store_prescribing_alerts(
         if rows:
             conn.execute(findings.insert(), rows)
 
-    logger.info("pgx_alerts_stored", count=len(rows))
     return len(rows)
 
 
@@ -3115,10 +3018,4 @@ def update_annotation_coverage_cpic(
             result = conn.execute(stmt)
             updated += result.rowcount
 
-    logger.info(
-        "pgx_annotation_coverage_updated",
-        cpic_bit=CPIC_BIT,
-        cpic_rsids=len(cpic_rsids),
-        rows_updated=updated,
-    )
     return updated

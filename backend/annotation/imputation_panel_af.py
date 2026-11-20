@@ -229,7 +229,7 @@ def build_panel_af_index(vcf_path: Path, out_path: Path) -> int:
                     continue
                 dst.write(f"{key.chrom}\t{key.pos}\t{key.ref}\t{key.alt}\t{af:.12g}\n")
                 n_written += 1
-    logger.info("imputation_panel_af_built", source=str(vcf_path), out=str(out), n=n_written)
+    logger.info("imputation_panel_af_built", source=vcf_path, out=str(out), n=n_written)
     return n_written
 
 

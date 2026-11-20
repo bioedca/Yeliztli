@@ -28,6 +28,7 @@ from backend.api.routes.risk_common import (
     resolve_sample_engine,
 )
 from backend.db.tables import parkinsons_gate
+from backend.diagnostics import finalize_response
 from backend.disclaimers import (
     PARKINSONS_GATE_ACCEPT_LABEL,
     PARKINSONS_GATE_DECLINE_LABEL,
@@ -144,7 +145,10 @@ def list_findings(
     raw = fetch_risk_findings(engine, MODULE)
     items = [RiskFindingResponse(**f) for f in raw]
     response = RiskFindingsListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.parkinsons.list_findings",
+    ):
         return RiskFindingsListResponse(items=[], total=0, withheld=True)
     return response
 

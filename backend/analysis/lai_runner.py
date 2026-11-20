@@ -943,7 +943,7 @@ class LAIRunner:
                     hap1[idx] = int(gt[1]) if gt[1] is not None else 0
                     matched += 1
         except Exception:
-            logger.exception("phased_vcf_parse_failed", path=str(vcf_path))
+            logger.exception("phased_vcf_parse_failed", path=vcf_path)
             raise
 
         match_rate = matched / n_snps if n_snps else 0.0

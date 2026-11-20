@@ -37,6 +37,7 @@ from backend.db.tables import (
     raw_variants,
     samples,
 )
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -747,7 +748,7 @@ async def gnomad_region(
     try:
         engine = registry.gnomad_engine
     except Exception as exc:
-        logger.debug("gnomad_engine_unavailable", error=str(exc))
+        logger.debug("gnomad_engine_unavailable", error=DiagnosticError(exc))
         return []
 
     # gnomad_af.pos is a VCF POS value (1-based); IGV annotation features use
@@ -765,7 +766,7 @@ async def gnomad_region(
         with engine.connect() as conn:
             rows = conn.execute(query, {"chrom": chrom, "start": start_i, "end": end_i}).fetchall()
     except Exception as exc:
-        logger.debug("gnomad_query_failed", error=str(exc))
+        logger.debug("gnomad_query_failed", error=DiagnosticError(exc))
         return []
 
     features = []
@@ -832,7 +833,7 @@ async def encode_ccres_region(
     try:
         engine = registry.encode_ccres_engine
     except Exception as exc:
-        logger.debug("encode_ccres_engine_unavailable", error=str(exc))
+        logger.debug("encode_ccres_engine_unavailable", error=DiagnosticError(exc))
         return []
 
     if not is_loaded(engine):

@@ -1275,7 +1275,8 @@ class TestAnnotationEnqueue:
         assert row is not None
         assert (merge_registry.settings.data_dir / row.db_path).exists()
         assert any(
-            "merge_annotation_enqueue_failed" in record.message for record in caplog.records
+            "The merged sample was saved. Start annotation again." in record.message
+            for record in caplog.records
         )
 
 

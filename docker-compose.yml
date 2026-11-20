@@ -21,7 +21,7 @@ services:
       - yeliztli-data:/data
     environment:
       - YELIZTLI_DATA_DIR=/data
-    command: huey_consumer backend.tasks.huey_tasks.huey -w 1
+    command: python -m backend.worker -w 1
     depends_on:
       - api
     restart: unless-stopped

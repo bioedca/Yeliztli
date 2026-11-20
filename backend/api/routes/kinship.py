@@ -26,6 +26,7 @@ from backend.api.routes.risk_common import resolve_sample_engine
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import KINSHIP_DISCLAIMER_TEXT, KINSHIP_DISCLAIMER_TITLE
 
 logger = logging.getLogger(__name__)
@@ -110,7 +111,10 @@ def list_findings(sample_id: int = Query(..., description="Sample ID")) -> Kinsh
             )
         )
     response = KinshipListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.kinship.list_findings",
+    ):
         return KinshipListResponse(items=[], total=0, withheld=True)
     return response
 

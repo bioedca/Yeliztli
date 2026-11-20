@@ -51,7 +51,7 @@ run-frontend:  ## Start Vite dev server (VITE_ARGS forwards flags, e.g. --host f
 	cd frontend && $(NPM) run dev -- $(VITE_ARGS)
 
 run-huey:  ## Start Huey consumer
-	huey_consumer backend.tasks.huey_tasks.huey -w 1
+	$(PYTHON) -m backend.worker -w 1
 
 build-frontend:  ## Build frontend for production
 	cd frontend && $(NPM) run build

@@ -30,6 +30,7 @@ from backend.db.tables import (
     samples,
     uniprot_cache,
 )
+from backend.diagnostics import DiagnosticError
 from backend.utils.pubmed import PubMedFetcher
 from backend.utils.uniprot import (
     UniProtCacheFetcher,
@@ -200,7 +201,7 @@ def _parse_uniprot_cache_row(row: sa.Row, gene_symbol: str) -> UniProtData:
             logger.warning(
                 "uniprot_cache_domains_parse_error",
                 gene=gene_symbol,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
 
     features: list[ProteinFeature] = []
@@ -212,7 +213,7 @@ def _parse_uniprot_cache_row(row: sa.Row, gene_symbol: str) -> UniProtData:
             logger.warning(
                 "uniprot_cache_features_parse_error",
                 gene=gene_symbol,
-                error=str(exc),
+                error=DiagnosticError(exc),
             )
 
     fetched_at = row.fetched_at

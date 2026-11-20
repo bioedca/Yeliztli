@@ -23,6 +23,7 @@ from packaging.version import InvalidVersion, Version
 
 from backend.db.connection import get_registry
 from backend.db.tables import database_versions, merge_provenance, samples
+from backend.diagnostics import DiagnosticError
 
 logger = structlog.get_logger(__name__)
 
@@ -113,7 +114,7 @@ def _source_ids_from_merged_sample(
             "lai_merged_provenance_read_failed",
             sample_id=sample_id,
             db_path=str(sample_db_path),
-            error=str(exc),
+            error=DiagnosticError(exc),
         )
         return []
     if prov_row is None:

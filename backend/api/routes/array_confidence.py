@@ -19,6 +19,7 @@ from backend.analysis.array_confidence import assess_pathogenic_findings
 from backend.analysis.pharmacogenomics import is_patient_presentable_response_payload
 from backend.api.dependencies import require_fresh_sample
 from backend.api.routes.risk_common import resolve_sample_engine
+from backend.diagnostics import finalize_response
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,18 @@ def list_array_confidence(
     """
     engine = resolve_sample_engine(sample_id)
     response = [ArrayConfidenceResponse(**item) for item in assess_pathogenic_findings(engine)]
-    if not is_patient_presentable_response_payload(
-        [
-            item.model_dump(
-                mode="json",
-                exclude={"note", "pmid_citations"},
-                exclude_none=True,
-            )
-            for item in response
-        ]
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            [
+                item.model_dump(
+                    mode="json",
+                    exclude={"note", "pmid_citations"},
+                    exclude_none=True,
+                )
+                for item in response
+            ]
+        ),
+        "backend.api.routes.array_confidence.list_array_confidence",
     ):
         return []
     return response

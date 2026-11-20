@@ -26,6 +26,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,10 @@ def make_risk_router(
         raw = fetch_risk_findings(engine, module)
         items = [RiskFindingResponse(**f) for f in raw]
         response = RiskFindingsListResponse(items=items, total=len(items))
-        if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+        if not finalize_response(
+            is_patient_presentable_response_payload(response.model_dump(mode="json")),
+            "backend.api.routes.risk_common.list_findings",
+        ):
             return RiskFindingsListResponse(items=[], total=0, withheld=True)
         return response
 

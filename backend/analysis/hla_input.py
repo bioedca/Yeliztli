@@ -308,7 +308,7 @@ def write_hibag_plink_input(
             "hibag_input_empty",
             out_prefix=str(out_prefix),
             n_total=n_total,
-            region=f"{region.chrom}:{region.start}-{region.end}",
+            region=(region.chrom, region.start, region.end),
         )
         return result
 

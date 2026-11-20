@@ -30,6 +30,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import (
     CARDIOVASCULAR_DISCLAIMER_TEXT,
     CARDIOVASCULAR_DISCLAIMER_TITLE,
@@ -203,7 +204,10 @@ def _cardiovascular_variants_response(
 ) -> CardiovascularVariantsListResponse:
     """Return a final, aggregate-gated cardiovascular-variant response."""
     response = CardiovascularVariantsListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.cardiovascular._cardiovascular_variants_response",
+    ):
         return CardiovascularVariantsListResponse(items=[], total=0, withheld=True)
     return response
 

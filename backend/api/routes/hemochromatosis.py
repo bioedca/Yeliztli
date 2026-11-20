@@ -25,6 +25,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.disclaimers import (
     HEMOCHROMATOSIS_DISCLAIMER_TEXT,
     HEMOCHROMATOSIS_DISCLAIMER_TITLE,
@@ -161,7 +162,10 @@ def list_hemochromatosis_findings(
     raw = _fetch_findings(sample_engine)
     items = [HemochromatosisFindingResponse(**f) for f in raw]
     response = HemochromatosisFindingsListResponse(items=items, total=len(items))
-    if not is_patient_presentable_response_payload(response.model_dump(mode="json")):
+    if not finalize_response(
+        is_patient_presentable_response_payload(response.model_dump(mode="json")),
+        "backend.api.routes.hemochromatosis.list_hemochromatosis_findings",
+    ):
         return HemochromatosisFindingsListResponse(items=[], total=0, withheld=True)
     return response
 

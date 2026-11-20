@@ -575,7 +575,7 @@ def download_clinvar_vcf(
     tmp_path.replace(dest_path)
     clear_validator_sidecar(tmp_path)
 
-    logger.info("clinvar_download_complete", path=str(dest_path), bytes=outcome.total_bytes)
+    logger.info("clinvar_download_complete", path=dest_path, bytes=outcome.total_bytes)
     return dest_path
 
 

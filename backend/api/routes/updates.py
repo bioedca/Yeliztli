@@ -265,13 +265,18 @@ def _filter_nonpresentable_findings_from_diff(
             result["gene"] = entry["gene_symbol"]
         return result
 
-    if not is_patient_presentable_response_payload(
-        {
-            "release_deltas": release_deltas,
-            "changed": [finding_evidence(entry) for entry in changed],
-            "added": [finding_evidence(entry) for entry in added],
-            "removed": [finding_evidence(entry) for entry in removed],
-        }
+    from backend.diagnostics import finalize_response
+
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            {
+                "release_deltas": release_deltas,
+                "changed": [finding_evidence(entry) for entry in changed],
+                "added": [finding_evidence(entry) for entry in added],
+                "removed": [finding_evidence(entry) for entry in removed],
+            }
+        ),
+        "backend.api.routes.updates.get_finding_changes",
     ):
         return None
     return filtered

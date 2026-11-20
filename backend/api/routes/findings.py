@@ -39,6 +39,7 @@ from backend.api.gating import gated_modules_to_hide
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.services.lai_production_coverage import policy_qualified_finding_clause
 
 logger = logging.getLogger(__name__)
@@ -261,8 +262,11 @@ def _row_to_response(row: sa.Row, sample_engine: sa.Engine | None = None) -> Fin
 
 def _responses_are_patient_presentable(responses: list[FindingResponse]) -> bool:
     """Check an assembled findings collection without conflating null fields."""
-    return is_patient_presentable_response_payload(
-        [response.model_dump(mode="json", exclude_none=True) for response in responses]
+    return finalize_response(
+        is_patient_presentable_response_payload(
+            [response.model_dump(mode="json", exclude_none=True) for response in responses]
+        ),
+        "backend.api.routes.findings._responses_are_patient_presentable",
     )
 
 
@@ -480,8 +484,11 @@ def findings_summary(
         ],
         high_confidence_findings=high_conf,
     )
-    if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude_none=True)
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            response.model_dump(mode="json", exclude_none=True)
+        ),
+        "backend.api.routes.findings.findings_summary",
     ):
         return FindingsSummaryResponse(
             total_findings=0,

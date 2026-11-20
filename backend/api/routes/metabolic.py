@@ -29,6 +29,7 @@ from backend.api.dependencies import require_fresh_sample
 from backend.api.withheld import WithheldMarker
 from backend.db.connection import get_registry
 from backend.db.tables import findings, samples
+from backend.diagnostics import finalize_response
 from backend.services.route_scoring_state import (
     ScoringState,
     compute_scoring_fingerprint,
@@ -216,10 +217,13 @@ def list_metabolic_prs(
     )
     # Coverage context is fixed reference text; only patient-derived DTOs form
     # the aggregate that can expose a cross-record prescribing pair.
-    if not is_patient_presentable_response_payload(
-        response.model_dump(
-            mode="json", exclude={"coverage_context", "scoring_state", "scoring_generation"}
-        )
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            response.model_dump(
+                mode="json", exclude={"coverage_context", "scoring_state", "scoring_generation"}
+            )
+        ),
+        "backend.api.routes.metabolic.list_metabolic_prs",
     ):
         return MetabolicPRSListResponse(
             items=[],
@@ -277,8 +281,11 @@ def list_metabolic_anchors(
     response = MetabolicAnchorListResponse(
         items=items, total=len(items), scoring_generation=generation
     )
-    if not is_patient_presentable_response_payload(
-        response.model_dump(mode="json", exclude={"scoring_generation"})
+    if not finalize_response(
+        is_patient_presentable_response_payload(
+            response.model_dump(mode="json", exclude={"scoring_generation"})
+        ),
+        "backend.api.routes.metabolic.list_metabolic_anchors",
     ):
         return MetabolicAnchorListResponse(
             items=[], total=0, scoring_generation=generation, withheld=True
