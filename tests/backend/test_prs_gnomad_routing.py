@@ -459,34 +459,27 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
 
     with pytest.MonkeyPatch.context() as isolated:
         isolate_data_home(isolated, data_dir)
-        from backend.api.routes import metabolic
-        from backend.db.connection import get_registry, reset_registry
+        from backend.db.connection import get_registry
+        from backend.main import app
 
-        registry = get_registry()
-        assert registry.settings.data_dir == data_dir
-        app = FastAPI()
-        app.include_router(metabolic.router, prefix="/api")
-        try:
-            with TestClient(app) as client:
-                sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
-                reopened = _Environment(
-                    client, registry, sample, registry.reference_engine, "match"
-                )
-                response = client.get("/api/analysis/metabolic/prs?sample_id=1")
-                assert response.status_code == 200, response.text
-                stored = response.json()
-                state = stored["scoring_state"]
-                assert state == expected_state, (
-                    f"Reopened state {state!r}, expected {expected_state!r}"
-                )
-                if expected_state == "current":
-                    assert stored["total"] == 1
-                    (item,) = stored["items"]
-                    assert item["pgs_id"] == "PGS005198"
-                    assert item["percentile"] == 95.42
-                return _run_positional_bmi(reopened)
-        finally:
-            reset_registry()
+        with TestClient(app) as client:
+            registry = get_registry()
+            assert registry.settings.data_dir == data_dir
+            response = client.get("/api/analysis/metabolic/prs?sample_id=1")
+            assert response.status_code == 200, response.text
+            stored = response.json()
+            state = stored["scoring_state"]
+            assert state == expected_state, (
+                f"Reopened state {state!r}, expected {expected_state!r}"
+            )
+            if expected_state == "current":
+                assert stored["total"] == 1
+                (item,) = stored["items"]
+                assert item["pgs_id"] == "PGS005198"
+                assert item["percentile"] == 95.42
+            sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+            reopened = _Environment(client, registry, sample, registry.reference_engine, "match")
+            return _run_positional_bmi(reopened)
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
@@ -506,17 +499,17 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
 ) -> None:
     if typed_alleles is not None:
         _add_typed_second_locus(positional_bmi, typed_alleles)
-    assert _route_state(positional_bmi, "metabolic") == "never"
-    original = _run_positional_bmi(positional_bmi)
     data_dir = positional_bmi.registry.settings.data_dir
     positional_bmi.client.close()
     positional_bmi.registry.dispose_all()
     positional_bmi.sample.dispose()
     positional_bmi.reference.dispose()
-    if frequency_changed:
-        _update_second_frequency(positional_bmi, 0.6)
-    expected_state = "stale" if frequency_changed else "current"
-    with multiprocessing.get_context("spawn").Pool(1) as pool:
+    # Each run gets a separate interpreter, production startup and orderly shutdown.
+    with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
+        original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
+        if frequency_changed:
+            _update_second_frequency(positional_bmi, 0.6)
+        expected_state = "stale" if frequency_changed else "current"
         repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
             timeout=60
         )
