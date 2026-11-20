@@ -168,9 +168,12 @@ def routing_env(request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pyt
     pgs_score_weights.create(pgs)
     pgs.dispose()
 
-    gnomad = None
     if scenario not in {"absent", "no_imputation"}:
-        gnomad = sa.create_engine(f"sqlite:///{data_dir / 'gnomad_af.db'}")
+        # This engine only seeds the fixture. Return each connection to SQLite
+        # so a restart can actually close the last reader or writer.
+        gnomad = sa.create_engine(
+            f"sqlite:///{data_dir / 'gnomad_af.db'}", poolclass=sa.pool.NullPool
+        )
         _create_gnomad_table(gnomad)
         assert not sa.inspect(gnomad).has_table("samples")
         if scenario != "missing_row":
@@ -229,8 +232,6 @@ def routing_env(request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pyt
         registry.dispose_all()
         sample.dispose()
         reference.dispose()
-        if gnomad is not None:
-            gnomad.dispose()
 
 
 @pytest.mark.parametrize("routing_env", SCENARIOS, indirect=True)
@@ -528,11 +529,10 @@ def _run_bmi_after_restart(
                 sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
                 receipt = read_scoring("metabolic", sample, registry.reference_engine)
                 assert receipt.state == state
-                if state == "current":
-                    anchors = client.get("/api/analysis/metabolic/anchors?sample_id=1")
-                    assert anchors.status_code == 200, anchors.text
-                    assert stored["scoring_generation"] == anchors.json()["scoring_generation"]
-                    assert stored["scoring_generation"] == receipt.recorded
+                anchors = client.get("/api/analysis/metabolic/anchors?sample_id=1")
+                assert anchors.status_code == 200, anchors.text
+                assert stored["scoring_generation"] == anchors.json()["scoring_generation"]
+                assert stored["scoring_generation"] == receipt.recorded
                 copied_frequency = sa.select(annotated_variants.c.gnomad_af_eur).where(
                     annotated_variants.c.rsid == "SYN_TYPED_SECOND"
                 )
