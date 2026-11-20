@@ -450,6 +450,15 @@ user action even when its historical visible subset is unknowable.
 ## Acceptance cases for the four implementation issues
 
 Use the actual scoring, persistence, upgrade and read paths with synthetic controls.
+For each correction below, save an affected result and an independently
+unaffected result before upgrading. Read both through the module API, a
+generated report and a finding-based export. For a verified wording change,
+check the corrected text and citations on all three surfaces. For a changed
+or unverifiable interpretation, check that the old result is withheld on
+each surface while the unaffected result remains visible. Rerun the affected
+analysis, reopen the sample and compare all three outputs with fresh analysis
+on the same synthetic inputs. Include the verified-empty outcome where the
+new analysis no longer returns the old finding.
 
 ### Corrected prescribing text
 
