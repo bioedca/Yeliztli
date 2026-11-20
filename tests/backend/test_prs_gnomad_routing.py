@@ -778,12 +778,14 @@ def test_positional_bmi_checkpoint_leaves_the_unchanged_result_current(
         == published
     )
     assert before["percentile"] == after["percentile"] == 84.63
+    visible = after["visible_percentiles_before_rerun"]
     if after["state_before_rerun"] == "stale":
+        assert visible in ([], [("PGS005198", None)], [("PGS005198", 84.63)])
         raise _CheckpointInvalidatedReceipt(
             "Unchanged 84.63 score reopened stale after checkpoint"
         )
     assert after["state_before_rerun"] == "current"
-    assert after["visible_percentiles_before_rerun"] == [("PGS005198", 84.63)]
+    assert visible == [("PGS005198", 84.63)]
 
 
 def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool, second_identity: bool) -> None:
@@ -865,10 +867,14 @@ def two_typed_bmi(positional_bmi: _Environment) -> _Environment:
     return positional_bmi
 
 
+# The second update changes both calibration moments in this synthetic fixture.
+_COPIED_FREQUENCY_CASES = [(0.7, 2.2, 0.90, 80.05), (0.6, 2.0, 0.96, 84.63)]
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
     ("frequency", "mean", "variance", "percentile"),
-    [(0.7, 2.2, 0.90, 80.05), (0.6, 2.0, 0.96, 84.63)],
+    _COPIED_FREQUENCY_CASES,
 )
 def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
     two_typed_bmi: _Environment, frequency: float, mean: float, variance: float, percentile: float
@@ -910,48 +916,84 @@ class _ObsoleteFrequencyPublished(AssertionError):
     """The scorer certified the fixture percentile for the previous copied frequency."""
 
 
+def _stored_bmi_publication(env: _Environment) -> tuple[dict | None, str | None]:
+    with env.sample.connect() as conn:
+        row = (
+            conn.execute(
+                sa.select(findings).where(
+                    findings.c.module == "metabolic", findings.c.category == "prs"
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        stored_receipt = conn.execute(
+            sa.select(annotation_state.c.value).where(
+                annotation_state.c.key == "route_scoring_fingerprint:metabolic"
+            )
+        ).scalar_one_or_none()
+    return (dict(row) if row is not None else None), stored_receipt
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.parametrize(
+    ("frequency", "expected_mean", "expected_variance", "expected_percentile"),
+    _COPIED_FREQUENCY_CASES,
+)
 @pytest.mark.xfail(strict=True, raises=_ObsoleteFrequencyPublished, reason="Issue #2746")
 def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     two_typed_bmi: _Environment,
+    frequency: float,
+    expected_mean: float,
+    expected_variance: float,
+    expected_percentile: float,
 ) -> None:
     env = two_typed_bmi
     _annotate_bmi_with_controlled_ancestry(env, 2)
     original = _run_positional_bmi(env)
     assert original["percentile"] == 95.42
-    _update_second_frequency(env, 0.7)
+    _update_second_frequency(env, frequency)
     assert _route_state(env, "metabolic") == "stale"
+    prior, prior_receipt = _stored_bmi_publication(env)
+    assert prior is not None and prior["prs_percentile"] == 95.42
+    assert prior_receipt is not None
+    assert json.loads(prior_receipt)["fingerprint"] == original["scoring_fingerprint"]
 
     response = env.client.post("/api/analysis/metabolic/run?sample_id=1")
     assert response.status_code in (200, 409), response.text
     # Capture the writer's durable result before a GET or reannotation can change it.
     receipt = read_scoring("metabolic", env.sample, env.reference)
-    with env.sample.connect() as conn:
-        persisted = conn.execute(
-            sa.select(
-                findings.c.prs_score, findings.c.prs_percentile, findings.c.detail_json
-            ).where(findings.c.module == "metabolic", findings.c.category == "prs")
-        ).one_or_none()
+    persisted, stored_receipt = _stored_bmi_publication(env)
+    if response.status_code == 409:
+        assert receipt.state == "stale"
     read = env.client.get("/api/analysis/metabolic/prs?sample_id=1")
     assert read.status_code == 200, read.text
     observed = read.json()
     _annotate_bmi_with_controlled_ancestry(env, 2)
     fresh = _run_positional_bmi(env)
-    assert fresh["percentile"] == 80.05
+    assert fresh["percentile"] == expected_percentile
+    assert fresh["calibration_reference_mean"] == pytest.approx(expected_mean)
+    assert fresh["calibration_reference_std"] == pytest.approx(math.sqrt(expected_variance))
     assert observed["total"] == len(observed["items"])
     if receipt.state == "stale":
+        assert (persisted, stored_receipt) == (prior, prior_receipt)
         assert receipt.recorded == original["scoring_fingerprint"]
         assert observed["scoring_state"] == "stale"
-        assert all(item["percentile"] is None for item in observed["items"])
+        assert [(item["pgs_id"], item["percentile"]) for item in observed["items"]] in (
+            [],
+            [("PGS005198", None)],
+        )
         return
     assert receipt.state == "current"
     assert observed["scoring_state"] == "current" and response.status_code == 200
     assert receipt.recorded == observed["scoring_generation"]
     assert receipt.recorded != original["scoring_fingerprint"]
     assert persisted is not None
-    score, stored_percentile, payload = persisted
-    detail = json.loads(payload)
-    assert score == fresh["stored_score"] == 3.0
+    assert stored_receipt is not None
+    assert json.loads(stored_receipt)["fingerprint"] == receipt.recorded
+    stored_percentile = persisted["prs_percentile"]
+    detail = json.loads(persisted["detail_json"])
+    assert persisted["prs_score"] == fresh["stored_score"] == 3.0
     (item,) = observed["items"]
     assert item["pgs_id"] == fresh["pgs_id"] == "PGS005198"
     assert detail["pgs_id"] == "PGS005198"
@@ -959,7 +1001,9 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     if stored_percentile == 95.42:
         assert detail["calibration_reference_mean"] == pytest.approx(1.4)
         assert detail["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
-        raise _ObsoleteFrequencyPublished("Scorer alone returned current at 95.42, fresh at 80.05")
+        raise _ObsoleteFrequencyPublished(
+            f"Scorer alone returned current at 95.42, fresh at {expected_percentile}"
+        )
     assert item["percentile"] == fresh["percentile"]
     assert detail["calibration_reference_mean"] == pytest.approx(
         fresh["calibration_reference_mean"]
