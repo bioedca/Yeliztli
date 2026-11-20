@@ -1,0 +1,149 @@
+{
+  "dbsnp": {
+    "refsnp_id": "1051266",
+    "last_update_build_id": "157",
+    "last_update_date": "2024-11-2T10:55Z",
+    "placements": [
+      {
+        "seq_id": "NC_000021.8",
+        "assembly": [
+          {
+            "assembly_name": "GRCh37.p13",
+            "assembly_accession": "GCF_000001405.25",
+            "is_top_level": true,
+            "is_alt": false,
+            "is_patch": false,
+            "is_chromosome": true
+          }
+        ],
+        "alleles": [
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NC_000021.8",
+                "position": 46957793,
+                "deleted_sequence": "T",
+                "inserted_sequence": "T"
+              }
+            },
+            "hgvs": "NC_000021.8:g.46957794="
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NC_000021.8",
+                "position": 46957793,
+                "deleted_sequence": "T",
+                "inserted_sequence": "A"
+              }
+            },
+            "hgvs": "NC_000021.8:g.46957794T>A"
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NC_000021.8",
+                "position": 46957793,
+                "deleted_sequence": "T",
+                "inserted_sequence": "C"
+              }
+            },
+            "hgvs": "NC_000021.8:g.46957794T>C"
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NC_000021.8",
+                "position": 46957793,
+                "deleted_sequence": "T",
+                "inserted_sequence": "G"
+              }
+            },
+            "hgvs": "NC_000021.8:g.46957794T>G"
+          }
+        ]
+      },
+      {
+        "seq_id": "NM_194255.4",
+        "assembly": [],
+        "alleles": [
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NM_194255.4",
+                "position": 201,
+                "deleted_sequence": "A",
+                "inserted_sequence": "A"
+              }
+            },
+            "hgvs": "NM_194255.4:c.80="
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NM_194255.4",
+                "position": 201,
+                "deleted_sequence": "A",
+                "inserted_sequence": "T"
+              }
+            },
+            "hgvs": "NM_194255.4:c.80A>T"
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NM_194255.4",
+                "position": 201,
+                "deleted_sequence": "A",
+                "inserted_sequence": "G"
+              }
+            },
+            "hgvs": "NM_194255.4:c.80A>G"
+          },
+          {
+            "allele": {
+              "spdi": {
+                "seq_id": "NM_194255.4",
+                "position": 201,
+                "deleted_sequence": "A",
+                "inserted_sequence": "C"
+              }
+            },
+            "hgvs": "NM_194255.4:c.80A>C"
+          }
+        ]
+      }
+    ]
+  },
+  "ensembl": {
+    "name": "rs1051266",
+    "source": "Variants (including SNPs and indels) imported from dbSNP",
+    "mappings": [
+      {
+        "seq_region_name": "21",
+        "allele_string": "T/C/G",
+        "coord_system": "chromosome",
+        "strand": 1,
+        "location": "21:46957794-46957794",
+        "end": 46957794,
+        "start": 46957794,
+        "ancestral_allele": "C",
+        "assembly_name": "GRCh37"
+      }
+    ]
+  },
+  "pubmed": {
+    "identifiers": {
+      "pubmed": "25495213",
+      "pmc": "PMC4307387",
+      "doi": "10.1186/1756-0500-7-901",
+      "pii": "1756-0500-7-901"
+    },
+    "title": "Genotype harmonizer: automatic strand alignment and format conversion for genotype data integration.",
+    "publication_types": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't"
+    ],
+    "comments_corrections": []
+  }
+}
