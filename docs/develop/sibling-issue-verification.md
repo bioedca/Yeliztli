@@ -1,7 +1,7 @@
 # Verifying sibling issues on main
 
-**Proposed decision for #2368, awaiting maintainer review.** Keep one primary
-issue per PR. When a change appears to satisfy another open issue, record a
+**Decision adopted for #2368.** Keep one primary issue per PR.
+When a change appears to satisfy another open issue, record a
 neutral reference to that candidate. Close it separately after its own
 acceptance criteria pass on green `main`. Use the same evidence standard
 when an agent picks up an issue whose fix may already have shipped.
@@ -61,13 +61,12 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    Link the fixing PR or commit in the sibling's evidence comment. Record
    each criterion, its result, the tested main SHA and covering check IDs.
    Repeat the ownership, issue and SHA checks immediately before closing.
-   Re-read the
-   current criteria and clarifying comments, including edits, and match
+   Re-read the current criteria and clarifying comments, including edits, and match
    them to the posted evidence. Verify any added or changed requirement,
    including an in-scope release or backport, and update the evidence
    before repeating the closure checks. When all current criteria pass,
    close as completed, update the Project item and finish the claim. The
-   proposed verification-only exception covers an issue whose fix already
+   verification-only exception covers an issue whose fix already
    shipped. Any needed source change follows the usual one-issue PR route.
 
 Keep a candidate open when a criterion fails, is unspecified, or has no
@@ -116,6 +115,6 @@ does not certify the sibling or count as review evidence.
 | Add a validated sibling list | Missing or malformed entries for candidates the author declares | Adds API and parser dependencies. A well-formed number cannot establish that a fix works or discover an omitted sibling. |
 | Periodic backlog sweep | Stale entries when a later sweep reaches them | Leaves avoidable pickups and duplicate investigation between sweeps. |
 
-If approved, update both development contracts together. Revisit automation
+The development contracts adopt the search and verification procedure. Revisit automation
 if a subsequent case escapes the search or misses its closure check.
 Record that case and the specific failure a validator could detect.
