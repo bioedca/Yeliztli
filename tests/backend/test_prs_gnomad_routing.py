@@ -31,6 +31,7 @@ from backend.db.connection import DBRegistry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    annotation_state,
     clinvar_variants,
     findings,
     imputed_variants,
@@ -388,15 +389,16 @@ def positional_bmi(routing_env: _Environment, monkeypatch: pytest.MonkeyPatch) -
 
 
 def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
+    from backend.analysis.imputation_persist import persist_imputed_variants
+    from backend.analysis.imputation_vcf import ImputedVariant
+
     ref, alt = alleles
+    # Publish a real generation. Using this dosage for the typed call would yield 2.25.
+    imputed = ImputedVariant(
+        chrom="1", pos=999, ref="A", alt="G", dr2=0.95, af=0.3, imputed=True, dosage=0.25
+    )
+    assert persist_imputed_variants(env.sample, [imputed]) == 1
     with env.sample.begin() as conn:
-        # A scorer using the imputed dosage for this typed call would return 2.25.
-        changed = conn.execute(
-            imputed_variants.update()
-            .where(imputed_variants.c.chrom == "1", imputed_variants.c.pos == 999)
-            .values(dosage=0.25)
-        )
-        assert changed.rowcount == 1
         conn.execute(
             annotated_variants.insert().values(
                 rsid="SYN_TYPED_SECOND",
@@ -455,31 +457,40 @@ def _update_second_frequency(env: _Environment, value: float) -> None:
 
 
 def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
+    import _no_network
     from _isolated_data_home import isolate_data_home
 
-    with pytest.MonkeyPatch.context() as isolated:
-        isolate_data_home(isolated, data_dir)
-        from backend.db.connection import get_registry
-        from backend.main import app
+    _no_network.install()
+    _no_network.begin(enforce=True)
+    try:
+        with pytest.MonkeyPatch.context() as isolated:
+            isolate_data_home(isolated, data_dir)
+            from backend.db.connection import get_registry
+            from backend.main import app
 
-        with TestClient(app) as client:
-            registry = get_registry()
-            assert registry.settings.data_dir == data_dir
-            response = client.get("/api/analysis/metabolic/prs?sample_id=1")
-            assert response.status_code == 200, response.text
-            stored = response.json()
-            state = stored["scoring_state"]
-            assert state == expected_state, (
-                f"Reopened state {state!r}, expected {expected_state!r}"
-            )
-            if expected_state == "current":
-                assert stored["total"] == 1
-                (item,) = stored["items"]
-                assert item["pgs_id"] == "PGS005198"
-                assert item["percentile"] == 95.42
-            sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
-            reopened = _Environment(client, registry, sample, registry.reference_engine, "match")
-            return _run_positional_bmi(reopened)
+            with TestClient(app) as client:
+                registry = get_registry()
+                assert registry.settings.data_dir == data_dir
+                response = client.get("/api/analysis/metabolic/prs?sample_id=1")
+                assert response.status_code == 200, response.text
+                stored = response.json()
+                state = stored["scoring_state"]
+                assert state == expected_state, (
+                    f"Reopened state {state!r}, expected {expected_state!r}"
+                )
+                if expected_state == "current":
+                    assert stored["total"] == 1
+                    (item,) = stored["items"]
+                    assert item["pgs_id"] == "PGS005198"
+                    assert item["percentile"] == 95.42
+                sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+                reopened = _Environment(
+                    client, registry, sample, registry.reference_engine, "match"
+                )
+                return _run_positional_bmi(reopened)
+    finally:
+        attempted = _no_network.end()
+        assert not attempted, f"Restart worker attempted network access: {attempted}"
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
@@ -606,8 +617,15 @@ def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
     positional_bmi: _Environment, typed_alt: str | None
 ) -> None:
     from backend.analysis.imputation_persist import persist_imputed_variants
+    from backend.db.sample_generations import IMPUTED_VARIANTS_GENERATION_KEY
 
     _add_typed_second_locus(positional_bmi, ("A", typed_alt))
+    generation = sa.select(annotation_state.c.value).where(
+        annotation_state.c.key == IMPUTED_VARIANTS_GENERATION_KEY
+    )
+    with positional_bmi.sample.connect() as conn:
+        first_generation = conn.execute(generation).scalar_one()
+    assert first_generation
     before = _run_positional_bmi(positional_bmi)
     assert before["calibrated"] is True
     assert before["snps_used_imputed"] == 0
@@ -618,6 +636,8 @@ def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
     assert persist_imputed_variants(positional_bmi.sample, []) == 0
     with positional_bmi.sample.connect() as conn:
         assert conn.scalar(sa.select(sa.func.count()).select_from(imputed_variants)) == 0
+        next_generation = conn.execute(generation).scalar_one()
+        assert next_generation and next_generation != first_generation
     if typed_alt is None:
         assert _route_state(positional_bmi, "metabolic") == "stale"
     after = _run_positional_bmi(positional_bmi)
