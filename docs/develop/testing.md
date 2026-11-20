@@ -293,6 +293,57 @@ performance assertion. [Measurements, digests and environment](benchmarks/findin
   establish fresh cold/warm measurements and exercise each invalidation event
   before adopting its results. [Overlapping implementation](https://github.com/bioedca/Yeliztli/pull/2688)
 
+#### Production summary processing
+
+The implementation for #2358 converts up to five eligible cards.
+During the row-filtering pass, the finite matcher can reuse its classification
+of an identical string. The request holds up to 512 exact strings of at most
+256 code points each. Longer fields go through the same matcher directly.
+The handler clears those entries when the pass finishes or raises and
+restores the calling context. Each request reads the current opt-ins and
+checks each row's complete payload and current link. After assembling the
+summary, it checks the whole response for combinations across records.
+Printable ASCII labels already have their normalized spelling, so ordinary
+label normalization can return them directly. Identifier matching still
+applies its separate normalization rules.
+
+The regression exercises two consecutive requests and an interrupted scan.
+It checks the number of row checks and card conversions, the complete
+response digest, and the release of cached fields after each request.
+The Dashboard, All Findings and Report Builder tests cover their use of
+the summary and the distinction between withheld and empty results.
+
+On 2026-11-20, the same driver compared the production handler on
+`6ec3ba122c5eb319e63b4aa71bf8f39471077c5b` with the implementation on
+`5ac7ade541664eb7d968be776d8cd2cc9e7c8790`. Each lane ran three times in
+alternating order against freshly created synthetic in-memory databases.
+The timer covers the handler, including row fetch and validation. Fixture
+creation, HTTP transport and browser rendering are outside that interval.
+
+| Synthetic workload | Stored rows | Baseline median | Implementation median |
+| --- | ---: | ---: | ---: |
+| Low evidence | 10,003 | 5.013 s | 1.016 s |
+| Half high evidence | 10,003 | 5.217 s | 1.014 s |
+| Eight nested text sections per row | 2,003 | 4.317 s | 0.369 s |
+| Half high evidence at issue cardinality | 311,471 | 163.225 s | 31.367 s |
+
+All six calls on the largest fixture returned the same 311,469 visible
+findings, 17 modules and five cards, with full response SHA-256
+`602ebaf19d08b133d8a9419a13437a9f899716262d26168f0e5dc907dd6bad83`.
+Full response digests also matched within each smaller workload, including
+empty, all-held, whole-response refusal and refreshed cross-module links.
+On a separate profiled run with 1,003 stored rows, both lanes checked 1,002
+payloads. Cumulative row-check time fell from 1.283 s to 0.219 s, conversions
+fell from 500 to five and fetching took about 0.004 s in both lanes. Report
+Builder still waits for summary processing on each request. How long it waits
+depends on the number and contents of the findings.
+
+To reproduce this implementation comparison, use the source allowlist, driver,
+environment and synthetic workload arguments below. Export each allowlisted
+file from the corresponding commit, including the two production files that
+changed. The historical bounded-conversion patch below applies only to the
+earlier prototype.
+
 #### Reproducing the comparison
 
 Prepare the two source trees **on the local workstation**. The repository

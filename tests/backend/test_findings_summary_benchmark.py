@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
+from backend.analysis import pharmacogenomics as pgx
 from scripts import benchmark_findings_summary as benchmark
 from scripts.benchmark_findings_summary import dataset, measure
 
@@ -25,8 +26,55 @@ def test_payload_exclusion_precedes_five_distinct_visible_cards(shape, count, ex
     )
     assert [row["id"] for row in eligible[:6]] == [held, *expected_ids]
     assert held not in {row["id"] for row in safe}
-    response = measure(shape, count, profile=False)
+    response = measure(shape, count, profile=True)
     assert (response["visible"], response["cards"], response["withheld"]) == (count + 1, 5, False)
+    assert response["profile"]["_row_to_response"]["calls"] == 5
+
+
+@pytest.mark.parametrize("interrupt", [False, True], ids=["response", "error"])
+def test_summary_discards_field_scans_after_each_request(monkeypatch, interrupt):
+    caches = []
+    feed = pgx._RenderedTextHeldPairScanner.feed
+
+    def observe(scanner, chunk):
+        if chunk == "Synthetic annotation only":
+            cache = pgx._request_field_scan.get()
+            assert cache is not None and cache.cache_info().currsize > 0
+            caches.append(cache)
+            if interrupt:
+                raise RuntimeError("synthetic interrupted scan")
+        return feed(scanner, chunk)
+
+    monkeypatch.setattr(pgx._RenderedTextHeldPairScanner, "feed", observe)
+    digests = []
+    with pgx.reuse_short_prescribing_field_scans():
+        outer = pgx._request_field_scan.get()
+        for request in range(2):
+            if interrupt:
+                with pytest.raises(RuntimeError, match="synthetic interrupted scan"):
+                    measure("low", 64, profile=False)
+            else:
+                result = measure("low", 64, profile=True)
+                assert (result["visible"], result["cards"], result["withheld"]) == (65, 0, False)
+                assert result["profile"]["_is_patient_presentable_row"]["calls"] == 66
+                digests.append(result["body_sha256"])
+            assert len(caches) == request + 1
+            assert caches[-1] is not outer and caches[-1].cache_info().currsize == 0
+            assert pgx._request_field_scan.get() is outer
+    assert caches[0] is not caches[1]
+    assert pgx._request_field_scan.get() is None
+    if not interrupt:
+        assert digests[0] == digests[1]
+
+
+def test_plain_label_normalization_preserves_printable_ascii_and_normalizes_other_text():
+    printable = "".join(chr(i) for i in range(32, 127))
+    with patch.object(pgx.unicodedata, "normalize", wraps=pgx.unicodedata.normalize) as normalize:
+        assert pgx._normalize_prescribing_text(printable) == printable
+        normalize.assert_not_called()
+        assert pgx._normalize_prescribing_text("one\ttwo") == "one two"
+        assert pgx._normalize_prescribing_text("café") == "cafe"
+        assert normalize.called
 
 
 def test_real_final_refusal_returns_the_complete_distinct_withheld_body():
