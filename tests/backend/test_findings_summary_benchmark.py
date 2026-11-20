@@ -31,25 +31,40 @@ def test_payload_exclusion_precedes_five_distinct_visible_cards(shape, count, ex
     assert response["profile"]["_row_to_response"]["calls"] == 5
 
 
-def test_summary_discards_field_scans_after_each_request(monkeypatch):
-    scanned = []
+@pytest.mark.parametrize("interrupt", [False, True], ids=["response", "error"])
+def test_summary_discards_field_scans_after_each_request(monkeypatch, interrupt):
+    caches = []
     feed = pgx._RenderedTextHeldPairScanner.feed
 
     def observe(scanner, chunk):
         if chunk == "Synthetic annotation only":
-            scanned.append(chunk)
+            cache = pgx._request_field_scan.get()
+            assert cache is not None and cache.cache_info().currsize > 0
+            caches.append(cache)
+            if interrupt:
+                raise RuntimeError("synthetic interrupted scan")
         return feed(scanner, chunk)
 
     monkeypatch.setattr(pgx._RenderedTextHeldPairScanner, "feed", observe)
     digests = []
-    for _ in range(2):
-        before = len(scanned)
-        result = measure("low", 64, profile=True)
-        assert (result["visible"], result["cards"], result["withheld"]) == (65, 0, False)
-        assert result["profile"]["_is_patient_presentable_row"]["calls"] == 66
-        assert len(scanned) - before == 1
-        digests.append(result["body_sha256"])
-    assert digests[0] == digests[1]
+    with pgx.reuse_short_prescribing_field_scans():
+        outer = pgx._request_field_scan.get()
+        for request in range(2):
+            if interrupt:
+                with pytest.raises(RuntimeError, match="synthetic interrupted scan"):
+                    measure("low", 64, profile=False)
+            else:
+                result = measure("low", 64, profile=True)
+                assert (result["visible"], result["cards"], result["withheld"]) == (65, 0, False)
+                assert result["profile"]["_is_patient_presentable_row"]["calls"] == 66
+                digests.append(result["body_sha256"])
+            assert len(caches) == request + 1
+            assert caches[-1] is not outer and caches[-1].cache_info().currsize == 0
+            assert pgx._request_field_scan.get() is outer
+    assert caches[0] is not caches[1]
+    assert pgx._request_field_scan.get() is None
+    if not interrupt:
+        assert digests[0] == digests[1]
 
 
 def test_plain_label_normalization_preserves_printable_ascii_and_normalizes_other_text():
