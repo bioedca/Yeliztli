@@ -101,6 +101,15 @@ rederive a call, `stored_card_is_withheld` currently returns false. Apply
 the verified-result requirement at both module and generic findings
 endpoints. A read against the live panel cannot replace verified reanalysis.
 
+Check two drug-safety coverage cases at both endpoints. With verified
+strand provenance and an observed but unmodelled HLA proxy call, retain the
+existing neutral caveat that the call cannot establish or exclude the
+allele. With an unknown strand, withhold the interpretation and affected
+stored card until a verified rerun. An independently established coverage
+notice may explain the limitation without displaying that row, asserting
+carrier status or inferring an action. Verify that a card missing its
+source provenance cannot supply that independent notice.
+
 All eight panel modules call `_score_snp`. Enumerating both `AA/TT` and `CC/GG` in each
 effect map gives 18 panel rows and 16 distinct rsIDs. Of the 18, 17 have
 different categories. Gene health rs1801282 has the same category and
@@ -158,6 +167,14 @@ rows that predate the frame contract require strand verification and a new
 analysis before display. Only a successfully published rerun restores the
 affected result. Preserve independently verified rows throughout recovery.
 
+Migrate the existing panel-wide `test_real_heterozygote_resolves` guard
+alongside the production callers. Pass the fixture's GRCh37 source frame
+and each reviewed row's own key frame through the new resolver. Assert
+the normalized key and interpretation for released rows and the recorded
+reason for a curation hold. Preserve the fixture's full nonempty coverage
+and documented exclusions. Calling the old complement fallback in this
+test would leave the actual adapter untested.
+
 Use two temporary, entirely synthetic vendor files and temporary sample
 databases. Through the production ingest, scorer and finding writer, exercise
 the following inputs with a synthetic reverse-oriented panel row. Define its
@@ -201,7 +218,12 @@ Check values after reopening the sample database, including nonempty
 each special consumer above. For the allergy AOC1 aggregate, place a
 synthetic single-copy carrier in the opposite frame from the declared risk
 allele. Assert a stored dosage contribution of one and a reference control
-of zero. With verified reference AOC1 calls, make HNMT present but
+of zero. Also make one AOC1 call present with an unverified frame and keep
+the other AOC1 markers and HNMT verified reference. Check that the unresolved
+marker contributes no dosage and is identified as observed but unresolved
+in the reopened coverage detail. The aggregate must withhold an unqualified
+all-clear; only independently verified results may be stated. With verified
+reference AOC1 calls, make HNMT present but
 frame-unverified. Check the reopened `histamine_combined.finding_text` for
 the unresolved coverage and absence of HNMT-positive or all-clear wording.
 A separately verified carrier must retain the curated HNMT-positive text.
@@ -212,8 +234,8 @@ that the reopened `celiac_combined.detail_json.state` is indeterminate in
 both cases. Its stored and displayed explanation must say that the proxy was
 observed and its strand could not be verified. Exercise a genuinely untyped
 proxy separately and verify its missing-coverage wording. Both states
-withhold positive and rule-out text. Check a fully verified pair separately. Apply this same distinction
-between unresolved coverage and verified reference across aggregate readers.
+withhold positive and rule-out text. Check a fully verified pair separately. Apply the same
+distinction between unresolved coverage and verified reference across aggregate readers.
 Exercise MT-RNR1 and LHON with their existing
 no-complement controls, plus a literal indel, a build-36 reverse chain
 segment and a parser no-call. Evidence of performance in these fixtures
