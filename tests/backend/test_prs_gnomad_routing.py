@@ -512,6 +512,16 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                     assert item["pgs_id"] == "PGS005198"
                     assert item["percentile"] == 95.42
                 sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+                with sample.connect() as conn:
+                    persisted = (
+                        conn.execute(
+                            sa.select(findings.c.prs_score, findings.c.prs_percentile).where(
+                                findings.c.module == "metabolic", findings.c.category == "prs"
+                            )
+                        )
+                        .tuples()
+                        .all()
+                    )
                 reopened = _Environment(
                     client, registry, sample, registry.reference_engine, "match"
                 )
@@ -520,6 +530,7 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 result = _run_positional_bmi(reopened)
                 return {
                     **result,
+                    "scores_before_rerun": [tuple(row) for row in persisted],
                     "input_generations_before_rerun": inputs_before_rerun,
                     "frequency_release": release,
                     "frequency_journal_mode": journal_mode,
@@ -528,6 +539,34 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
     finally:
         attempted = _no_network.end()
         assert not attempted, f"Restart worker attempted network access: {attempted}"
+
+
+def _prepare_bmi_restart(env: _Environment, *, typed_second: bool) -> tuple[Path, dict[str, str]]:
+    with env.reference.begin() as conn:
+        conn.execute(
+            database_versions.insert().values(
+                db_name="gnomad", version="synthetic-frequency-release", genome_build="GRCh37"
+            )
+        )
+    _seed_bmi_raw_calls(env, both_typed=typed_second, second_identity=False)
+    _annotate_bmi_with_controlled_ancestry(env, 2 if typed_second else 1)
+    _publish_bmi_imputation(env, 0.25 if typed_second else 1.0)
+    if typed_second:
+        with env.sample.connect() as conn:
+            c = annotated_variants.c
+            typed = conn.execute(
+                sa.select(c.genotype, c.ref, c.alt).where(c.rsid == "SYN_TYPED_SECOND")
+            ).one()
+        assert typed == ("AG", None, None)
+    published = _bmi_input_generations(env.sample)
+    assert set(published) == {ANNOTATED_VARIANTS_GENERATION_KEY, IMPUTED_VARIANTS_GENERATION_KEY}
+    assert all(published.values())
+    data_dir = env.registry.settings.data_dir
+    env.client.close()
+    env.registry.dispose_all()
+    env.sample.dispose()
+    env.reference.dispose()
+    return data_dir, published
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
@@ -542,30 +581,7 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     expected_imputed: int,
     frequency_changed: bool,
 ) -> None:
-    with positional_bmi.reference.begin() as conn:
-        conn.execute(
-            database_versions.insert().values(
-                db_name="gnomad", version="synthetic-frequency-release", genome_build="GRCh37"
-            )
-        )
-    _seed_bmi_raw_calls(positional_bmi, both_typed=typed_second, second_identity=False)
-    _annotate_bmi_with_controlled_ancestry(positional_bmi, 2 if typed_second else 1)
-    _publish_bmi_imputation(positional_bmi, 0.25 if typed_second else 1.0)
-    if typed_second:
-        with positional_bmi.sample.connect() as conn:
-            c = annotated_variants.c
-            typed = conn.execute(
-                sa.select(c.genotype, c.ref, c.alt).where(c.rsid == "SYN_TYPED_SECOND")
-            ).one()
-        assert typed == ("AG", None, None)
-    published = _bmi_input_generations(positional_bmi.sample)
-    assert set(published) == {ANNOTATED_VARIANTS_GENERATION_KEY, IMPUTED_VARIANTS_GENERATION_KEY}
-    assert all(published.values())
-    data_dir = positional_bmi.registry.settings.data_dir
-    positional_bmi.client.close()
-    positional_bmi.registry.dispose_all()
-    positional_bmi.sample.dispose()
-    positional_bmi.reference.dispose()
+    data_dir, published = _prepare_bmi_restart(positional_bmi, typed_second=typed_second)
     # Each run gets a separate interpreter, production startup and orderly shutdown.
     with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
         original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
@@ -597,6 +613,45 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     )
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_checkpoint_preserves_committed_frequency_and_score(
+    positional_bmi: _Environment,
+) -> None:
+    data_dir, published = _prepare_bmi_restart(positional_bmi, typed_second=False)
+    path = positional_bmi.registry.settings.gnomad_db_path
+    wal = path.with_name(path.name + "-wal")
+    frequency_query = "SELECT af_eur FROM gnomad_af WHERE chrom='1' AND pos=999"
+    ctx = multiprocessing.get_context("spawn")
+    with closing(sqlite3.connect(path)) as writer:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        for frequency in (0.31, 0.3):
+            assert (
+                writer.execute(
+                    "UPDATE gnomad_af SET af_eur=? WHERE chrom='1' AND pos=999", (frequency,)
+                ).rowcount
+                == 1
+            )
+            writer.commit()
+        assert writer.execute(frequency_query).fetchall() == [(0.3,)]
+        with ctx.Pool(1) as pool:
+            before = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
+        assert before["scores_before_rerun"] == []
+        assert before["frequency_wal_bytes"] > 0 and wal.stat().st_size > 0
+        assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
+    with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as reader:
+        assert reader.execute(frequency_query).fetchall() == [(0.3,)]
+    # The existing file fingerprint conservatively invalidates the receipt at checkpoint.
+    with ctx.Pool(1) as pool:
+        after = pool.apply_async(_run_bmi_after_restart, (data_dir, "stale")).get(timeout=60)
+    assert after["frequency_wal_bytes"] == 0
+    assert after["scores_before_rerun"] == [(3.0, 95.42)]
+    for run in (before, after):
+        assert run["input_generations_before_rerun"] == published
+        assert run["stored_score"] == 3.0
+        assert run["percentile"] == 95.42
 
 
 def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool, second_identity: bool) -> None:
@@ -669,15 +724,20 @@ def _annotate_bmi_with_controlled_ancestry(env: _Environment, expected_rows: int
     return generation
 
 
-@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
-def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
-    positional_bmi: _Environment,
-) -> None:
-    env = positional_bmi
-    _seed_bmi_raw_calls(env, both_typed=True, second_identity=True)
-    with env.sample.begin() as conn:
+@pytest.fixture
+def two_typed_bmi(positional_bmi: _Environment) -> _Environment:
+    _seed_bmi_raw_calls(positional_bmi, both_typed=True, second_identity=True)
+    with positional_bmi.sample.begin() as conn:
         # Neither locus may obtain alleles or frequencies through imputation.
         assert conn.execute(imputed_variants.delete()).rowcount == 1
+    return positional_bmi
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
+    two_typed_bmi: _Environment,
+) -> None:
+    env = two_typed_bmi
 
     def check_annotation(expected_frequency: float) -> str:
         generation = _annotate_bmi_with_controlled_ancestry(env, 2)
@@ -706,6 +766,41 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
     assert refreshed["calibration_reference_mean"] == pytest.approx(2.2)
     assert original["percentile"] == 95.42
     assert refreshed["percentile"] == 80.05
+
+
+class _ObsoleteFrequencyPublished(AssertionError):
+    """The scorer certified the fixture percentile for the previous copied frequency."""
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.xfail(strict=True, raises=_ObsoleteFrequencyPublished, reason="Issue #2746")
+def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
+    two_typed_bmi: _Environment,
+) -> None:
+    env = two_typed_bmi
+    _annotate_bmi_with_controlled_ancestry(env, 2)
+    assert _run_positional_bmi(env)["percentile"] == 95.42
+    _update_second_frequency(env, 0.7)
+    assert _route_state(env, "metabolic") == "stale"
+
+    response = env.client.post("/api/analysis/metabolic/run?sample_id=1")
+    assert response.status_code in (200, 409), response.text
+    read = env.client.get("/api/analysis/metabolic/prs?sample_id=1")
+    assert read.status_code == 200, read.text
+    observed = read.json()
+    _annotate_bmi_with_controlled_ancestry(env, 2)
+    fresh = _run_positional_bmi(env)
+    assert fresh["percentile"] == 80.05
+    assert observed["total"] == len(observed["items"])
+    if observed["scoring_state"] == "stale":
+        assert all(item["percentile"] is None for item in observed["items"])
+        return
+    assert observed["scoring_state"] == "current" and response.status_code == 200
+    (item,) = observed["items"]
+    assert item["pgs_id"] == fresh["pgs_id"] == "PGS005198"
+    if item["percentile"] == 95.42:
+        raise _ObsoleteFrequencyPublished("Scorer alone returned current at 95.42, fresh at 80.05")
+    assert item["percentile"] == fresh["percentile"]
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
