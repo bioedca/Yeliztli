@@ -389,11 +389,13 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
         assert response.status_code == 200, response.text
         assert response.json()["prs_traits_computed"] == 1
         with routing_env.sample.connect() as conn:
-            payload = conn.execute(
-                sa.select(findings.c.detail_json).where(
+            stored_score, payload = conn.execute(
+                sa.select(findings.c.prs_score, findings.c.detail_json).where(
                     findings.c.module == "metabolic", findings.c.category == "prs"
                 )
-            ).scalar_one()
+            ).one()
+        # Unit weights, two typed effect alleles and one imputed dosage.
+        assert stored_score == 3.0
         result = json.loads(payload)
         assert result["pgs_id"] == "PGS005198"
         assert result["calibrated"] is True
@@ -419,7 +421,11 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
     repaired = run_and_read()
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
     assert repaired["calibration_reference_mean"] == pytest.approx(2.2)
-    assert 0 < repaired["percentile"] < original["percentile"] < 100
+    # The two frequency distributions have the same variance (0.9).
+    assert original["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
+    assert repaired["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
+    assert original["percentile"] == 95.42
+    assert repaired["percentile"] == 80.05
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
