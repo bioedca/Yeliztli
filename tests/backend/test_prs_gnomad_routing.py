@@ -359,8 +359,21 @@ def _route_state(env: _Environment, module: str) -> str:
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.parametrize(
+    ("typed_alleles", "expected_imputed", "repaired_mean", "repaired_percentile"),
+    [
+        pytest.param(None, 1, 2.2, 80.05, id="imputed-dosage"),
+        pytest.param(("A", None), 0, 2.2, 80.05, id="typed-dosage-incomplete-alleles"),
+        pytest.param(("A", "G"), 0, 1.4, 95.42, id="typed-dosage-complete-alleles"),
+    ],
+)
 def test_positional_bmi_reopens_stale_after_frequency_update(
-    routing_env: _Environment, monkeypatch: pytest.MonkeyPatch
+    routing_env: _Environment,
+    monkeypatch: pytest.MonkeyPatch,
+    typed_alleles: tuple[str, str | None] | None,
+    expected_imputed: int,
+    repaired_mean: float,
+    repaired_percentile: float,
 ) -> None:
     from backend.analysis import metabolic_prs, pgs_bridge
 
@@ -368,6 +381,21 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
     # from the positional PGS store through the ordinary metabolic entrypoint.
     monkeypatch.setattr(metabolic_prs, "build_trait_weight_set", pgs_bridge.build_trait_weight_set)
     settings = routing_env.registry.settings
+    if typed_alleles is not None:
+        ref, alt = typed_alleles
+        with routing_env.sample.begin() as conn:
+            conn.execute(
+                annotated_variants.insert().values(
+                    rsid="SYN_TYPED_SECOND",
+                    chrom="1",
+                    pos=999,
+                    ref=ref,
+                    alt=alt,
+                    genotype="AG",
+                    gnomad_af_global=0.3,
+                    gnomad_af_eur=0.3,
+                )
+            )
     with closing(sqlite3.connect(pgs_bridge.pgs_scores_db_path(settings.data_dir))) as pgs:
         pgs.execute(
             """INSERT INTO pgs_score_metadata
@@ -394,13 +422,13 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
                     findings.c.module == "metabolic", findings.c.category == "prs"
                 )
             ).one()
-        # Unit weights, two typed effect alleles and one imputed dosage.
+        # Unit weights and dosages of two and one, regardless of their source.
         assert stored_score == 3.0
         result = json.loads(payload)
         assert result["pgs_id"] == "PGS005198"
         assert result["calibrated"] is True
         assert result["snps_used"] == 2
-        assert result["snps_used_imputed"] == 1
+        assert result["snps_used_imputed"] == expected_imputed
         current = routing_env.client.get("/api/analysis/metabolic/prs?sample_id=1")
         assert current.status_code == 200, current.text
         body = current.json()
@@ -417,15 +445,16 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
         )
         assert updated.rowcount == 1
         frequencies.commit()
-    assert _route_state(routing_env, "metabolic") == "stale"
+    if typed_alleles != ("A", "G"):
+        assert _route_state(routing_env, "metabolic") == "stale"
     repaired = run_and_read()
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
-    assert repaired["calibration_reference_mean"] == pytest.approx(2.2)
+    assert repaired["calibration_reference_mean"] == pytest.approx(repaired_mean)
     # The two frequency distributions have the same variance (0.9).
     assert original["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert repaired["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert original["percentile"] == 95.42
-    assert repaired["percentile"] == 80.05
+    assert repaired["percentile"] == repaired_percentile
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
