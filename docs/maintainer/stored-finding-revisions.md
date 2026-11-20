@@ -45,7 +45,11 @@ citations. An ambiguous match goes to the panel rerun.
 ## Durable state and recovery
 
 Record successful completion for each sample and affected producer, even for
-zero results. Keep the input and producer revisions and a local generation.
+zero results. Keep the assessment outcome for each applicable target. An
+empty finding set establishes how many findings the run produced. Only a
+target with sufficient input and a verified negative assessment supports a
+negative interpretation. A completed run can still report `not_assessed`.
+Keep the input and producer revisions and a local generation.
 Write the completion record atomically with its finding set and every
 patient-visible value derived by that run. In PGx this includes the CPIC
 coverage bit written to annotated variants. Publish the desired CPIC bit
@@ -179,11 +183,13 @@ write, recheck the local reason and identity. Conditionally retract only a
 reminder from the obsolete generation if a rerun, replacement or dismissal
 won the race. On interruption reconcile both sides, including a central
 reminder whose local reason has cleared. Check eligibility again when
-serving reminders. Bind a dismissal to the verified sample identity,
-displayed publication counter, target revision and exact set of reasons.
-Apply it only if all still match. If a
-different reason or revision arrived while the tab was open, return the new
-state for review and leave it visible. Dismissal never makes a finding current.
+serving reminders. Bind dismissal to the verified sample copy and each
+displayed reason's identity, target and occurrence revision. Compare
+the current authorized set with what the caller saw. A newly visible
+reason or a recurrence requires a fresh view. A hidden-only change
+preserves the action on the displayed reasons. Acknowledge only those
+occurrences and keep every unresolved reason pending. Dismissal never
+makes a finding current.
 Deduplicate the user-facing action when several reasons share a rerun. Existing
 prompt schema constraints and API enums need a coordinated migration for a new
 reason. The existing major-version 423 gate remains a prerequisite when it
@@ -275,8 +281,9 @@ SNP and methylation has no eligible completed result, publish the eligible
 nutrigenomics pathway and membership and mark the standalone finding as
 awaiting its owning analysis. Offer the methylation action on affected
 surfaces subject to disclosure. It contributes no standalone count or card
-until an eligible methylation run produces it. A successful methylation run
-that produces none resolves this pending state to a verified absence.
+until an eligible methylation run produces it. A successful current run
+that emits no standalone finding clears the stale-finding reason. Preserve
+the scorer's verified or unknown assessment for the underlying SNP.
 
 Use **scoped automatic recomputation** only for bounded, deterministic repairs
 with verified inputs, an idempotent transaction and a tested failure path. The
@@ -320,8 +327,9 @@ decision to the notice, counts, ordering and section titles.
 Populate the Report Builder picker and “Select all” from eligible findings
 and independently disclosable pending or completed analyses. A module with
 zero eligible findings remains selectable while pending and after verified
-empty completion. An unassessed module has no completion record. Apply
-the same disclosure rule to names, counts and selection.
+empty completion. Distinguish a module with no verified run from a
+completed run that could not assess a particular target. Apply the same
+disclosure rule to names, counts, assessments and selection.
 Unscoped FHIR export follows the same disclosure rule as its preflight.
 Include a carried variant only when its eligibility is established. A
 pending or legacy analysis can change membership even when its stored
@@ -390,12 +398,13 @@ cached patient output, including an old withheld state, and fetch under the
 new generation. Discard late responses from the old one. A refetch that
 continues displaying old data does not protect this boundary.
 
-Finding links and card requests must identify the verified sample, result
-generation and finding. A SQLite integer row ID alone can name a different
-row after replacement. Require that identity on direct SVG, variant-card and
-other by-ID reads, including copied links. Return the ordinary unavailable
-response when the generation changed or a legacy link cannot prove its
-identity. Current listings supply fresh links.
+Bind direct SVG, card and other finding links to the verified sample copy,
+a non-reusable finding identity and its visible revision. Recheck all
+three and current eligibility on access. Copies or results that have been
+replaced, withdrawn, visibly revised or cannot be verified receive the
+ordinary unavailable response. A still-current result keeps working
+through an unrelated internal generation change. Current listings supply
+links for new revisions.
 
 ### What the Updates page can show and dismiss
 
@@ -428,8 +437,11 @@ A punctuation-only projection does not constitute a new prescribing action. At
 value. Legacy diffs have no per-entry revision. Only present entries that
 can independently be proved eligible. Project only a verified wording change
 and withhold entries with unsafe or unverifiable text. Apply disclosure
-checks to the final display, recalculate each bucket count from its visible
-entries and return `available=false` when none remain. A later rerun cannot
+checks to the final display and recalculate each bucket count from its visible
+entries. Discover change notices from retained diffs with independently
+eligible, unacknowledged entries. An all-hidden or empty repair cannot
+displace a still-current visible notice from another repair. Return
+`available=false` when no eligible notice remains. A later rerun cannot
 make obsolete text in an older snapshot eligible. Record the actual correction
 cause separately from upstream release deltas. When a producer changed and
 the source releases did not, the banner can say “Analysis updated.” Attribute
@@ -611,11 +623,12 @@ verified-empty result when the new analysis no longer emits the old finding.
   Include an already-current installation and an unaffected guidance key.
   Generate both SVG markers through the production annotation path. Before
   the correction, request each ID and verify its expected SVG content.
-  Once the correction advances the generation, both old links must expire.
-  At the new generation, request the still-stored affected ID and require
-  the ordinary unavailable response. A newly issued link for the eligible
-  control must return its SVG. After repair,
-  verify the card for the new current result reflects the actual rerun. Force
+  Save links to both findings. With only a hidden correction since
+  issuance, verify both still resolve. Apply the visible correction. The
+  old link for the still-stored affected finding
+  must return the ordinary unavailable response. The original copied link
+  for the unchanged eligible control still returns its SVG and card.
+  After repair, verify the new current card reflects the rerun. Force
   reuse of the old integer ID for a different eligible result. The old SVG
   link and variant-card request must remain unavailable while newly issued
   identifiers return only their matching result.
@@ -650,6 +663,10 @@ verified-empty result when the new analysis no longer emits the old finding.
   occupies its place. Verify that the new correction stays visible.
   Also clear and recreate the same reason and target under a new publication
   counter. A delayed dismissal from the first occurrence must not hide it.
+  Add a hidden reason after displaying a reminder and before dismissing
+  it. Verify successful acknowledgment of the displayed occurrence alone.
+  When disclosure later permits the other reason, it is still pending and
+  unacknowledged.
   Race two publishers for the same central key in opposite generation order.
   The older one must neither replace nor retract the newer reminder, even
   after retry or when the newer reminder has already been dismissed.
@@ -747,9 +764,15 @@ The separate BMI copied-frequency defect and its synthetic regression suite are 
   incomplete notice and current findings in each. Compare with a verified
   empty PGx run and a reason hidden by disclosure. Neither adds a pending
   notice, a section or a count that could disclose withheld membership.
-  After the empty rerun, reopen Report Builder with a fresh selection.
-  Select the completed module alone and through “Select all”. Its own
-  preflight shows verified absence. A hidden completion stays out of both.
+  Run the production PGx scorer on insufficient inputs that yield zero
+  alerts. Reopen Report Builder and select PGx alone and through “Select
+  all”. Require zero eligible alerts and `not_assessed` for the affected
+  pair in the API and corresponding wording in the preview and report.
+  Repeat with a fully assessed control whose verified guideline is routine.
+  Check the actual selected recommendation and stored alert count. Also
+  select a verified non-carrier from a carriage-gated panel that emits no
+  finding. Its zero count accompanies a verified negative assessment.
+  A hidden completion stays out of both selections.
 - Warm the shipped legacy client on the drug and coverage pages and
   navigate one tab away before upgrading. Complete the fresh-context
   cutover and verify Back or session restoration cannot reopen either
@@ -813,9 +836,11 @@ The separate BMI copied-frequency defect and its synthetic regression suite are 
   estimate on a matched row and an ambiguous legacy value. Only the
   independently proven field change may produce a notice.
   Open the actual Updates page after the last pending reason clears. Show the
-  undismissed eligible diff, replace it with a later one, then deliver the
-  delayed dismissal for the first. Only dismissal of the displayed
-  replacement should remove it. With the same diff ID, change disclosure
+  undismissed eligible diff, then publish a scoped repair with only hidden
+  changes. Verify the same eligible entries, counts and acknowledgment
+  remain after reopening the page. Replace it with a later visible diff,
+  then deliver the delayed dismissal for the first. Only dismissal of the
+  displayed replacement should remove it. With the same diff ID, change disclosure
   so that an additional entry becomes visible, then deliver a dismissal
   from the older view. Require the new entry to stay visible. Include an
   all-withheld control on the page. Also dismiss the visible entry *before*
