@@ -30,8 +30,10 @@ from backend.db.connection import DBRegistry
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
+    clinvar_variants,
     findings,
     imputed_variants,
+    raw_variants,
     reference_metadata,
     samples,
 )
@@ -387,6 +389,13 @@ def positional_bmi(routing_env: _Environment, monkeypatch: pytest.MonkeyPatch) -
 def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
     ref, alt = alleles
     with env.sample.begin() as conn:
+        # A scorer using the imputed dosage for this typed call would return 2.25.
+        changed = conn.execute(
+            imputed_variants.update()
+            .where(imputed_variants.c.chrom == "1", imputed_variants.c.pos == 999)
+            .values(dosage=0.25)
+        )
+        assert changed.rowcount == 1
         conn.execute(
             annotated_variants.insert().values(
                 rsid="SYN_TYPED_SECOND",
@@ -435,33 +444,33 @@ def _run_positional_bmi(env: _Environment) -> dict:
     return {**result, "stored_score": stored_score}
 
 
+def _update_second_frequency(env: _Environment) -> None:
+    with closing(sqlite3.connect(env.registry.settings.gnomad_db_path)) as frequencies:
+        updated = frequencies.execute(
+            "UPDATE gnomad_af SET af_eur = 0.7 WHERE chrom = '1' AND pos = 999"
+        )
+        assert updated.rowcount == 1
+        frequencies.commit()
+
+
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
-    ("typed_alleles", "expected_imputed", "repaired_mean", "repaired_percentile"),
+    ("typed_alleles", "expected_imputed"),
     [
-        pytest.param(None, 1, 2.2, 80.05, id="imputed-dosage"),
-        pytest.param(("A", None), 0, 2.2, 80.05, id="typed-dosage-incomplete-alleles"),
-        pytest.param(("A", "G"), 0, 1.4, 95.42, id="typed-dosage-complete-alleles"),
+        pytest.param(None, 1, id="imputed-dosage"),
+        pytest.param(("A", None), 0, id="typed-dosage-incomplete-alleles"),
     ],
 )
 def test_positional_bmi_reopens_stale_after_frequency_update(
     positional_bmi: _Environment,
     typed_alleles: tuple[str, str | None] | None,
     expected_imputed: int,
-    repaired_mean: float,
-    repaired_percentile: float,
 ) -> None:
     if typed_alleles is not None:
         _add_typed_second_locus(positional_bmi, typed_alleles)
     original = _run_positional_bmi(positional_bmi)
-    with closing(sqlite3.connect(positional_bmi.registry.settings.gnomad_db_path)) as frequencies:
-        updated = frequencies.execute(
-            "UPDATE gnomad_af SET af_eur = 0.7 WHERE chrom = '1' AND pos = 999"
-        )
-        assert updated.rowcount == 1
-        frequencies.commit()
-    if typed_alleles != ("A", "G"):
-        assert _route_state(positional_bmi, "metabolic") == "stale"
+    _update_second_frequency(positional_bmi)
+    assert _route_state(positional_bmi, "metabolic") == "stale"
     repaired = _run_positional_bmi(positional_bmi)
     for run in (original, repaired):
         assert run["calibrated"] is True
@@ -469,9 +478,73 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
         assert run["snps_used_imputed"] == expected_imputed
         assert run["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
-    assert repaired["calibration_reference_mean"] == pytest.approx(repaired_mean)
+    assert repaired["calibration_reference_mean"] == pytest.approx(2.2)
     assert original["percentile"] == 95.42
-    assert repaired["percentile"] == repaired_percentile
+    assert repaired["percentile"] == 80.05
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
+    positional_bmi: _Environment,
+) -> None:
+    from backend.annotation.engine import run_annotation
+
+    env = positional_bmi
+    # Supply allele identities for two typed loci through the real annotation path.
+    loci = [
+        {"rsid": "SYN_TYPED", "chrom": "2", "pos": 500, "ref": "C", "alt": "T"},
+        {"rsid": "SYN_TYPED_SECOND", "chrom": "1", "pos": 999, "ref": "A", "alt": "G"},
+    ]
+    with env.reference.begin() as conn:
+        conn.execute(clinvar_variants.insert(), loci)
+    with env.sample.begin() as conn:
+        conn.execute(
+            raw_variants.insert(),
+            [
+                {
+                    "rsid": locus["rsid"],
+                    "chrom": locus["chrom"],
+                    "pos": locus["pos"],
+                    "genotype": call,
+                }
+                for locus, call in zip(loci, ("TT", "AG"), strict=True)
+            ],
+        )
+    with closing(sqlite3.connect(env.registry.settings.gnomad_db_path)) as frequencies:
+        assert (
+            frequencies.execute(
+                "UPDATE gnomad_af SET rsid='SYN_TYPED_SECOND' WHERE chrom='1' AND pos=999"
+            ).rowcount
+            == 1
+        )
+        frequencies.execute(
+            """INSERT INTO gnomad_af
+               (chrom, pos, ref, alt, rsid, af_global, af_eur, homozygous_count)
+               VALUES ('2', 500, 'C', 'T', 'SYN_TYPED', 0.4, 0.4, 0)"""
+        )
+        frequencies.commit()
+
+    def annotate_and_read_copy() -> float:
+        assert run_annotation(env.sample, env.registry).rows_written == 2
+        with env.sample.connect() as conn:
+            return conn.execute(
+                sa.select(annotated_variants.c.gnomad_af_eur).where(
+                    annotated_variants.c.rsid == "SYN_TYPED_SECOND"
+                )
+            ).scalar_one()
+
+    assert annotate_and_read_copy() == 0.3
+    original = _run_positional_bmi(env)
+    _update_second_frequency(env)
+    assert _route_state(env, "metabolic") == "stale"
+    assert annotate_and_read_copy() == 0.7
+    refreshed = _run_positional_bmi(env)
+    assert original["snps_used_imputed"] == refreshed["snps_used_imputed"] == 0
+    assert original["stored_score"] == refreshed["stored_score"] == 3.0
+    assert original["calibration_reference_mean"] == pytest.approx(1.4)
+    assert refreshed["calibration_reference_mean"] == pytest.approx(2.2)
+    assert original["percentile"] == 95.42
+    assert refreshed["percentile"] == 80.05
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
