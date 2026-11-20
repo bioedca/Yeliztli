@@ -22,8 +22,8 @@ Implementation and migration belong to [#2301](https://github.com/bioedca/Yelizt
    special-calling tables must declare their relationship to the same locus.
 3. After verifying locus, build and frame, transform each supported SNV allele
    exactly once into the row's frame. Then canonicalize the unphased allele
-   order and perform one lookup. A known-frame match yields its complete
-   curated interpretation. An unmodelled alternate or unsupported allele
+   order and perform one lookup. Use the complete interpretation only for a released
+   key whose wording, category and downstream flags have been curated together. An unmodelled alternate or unsupported allele
    leaves the interpretation indeterminate. Keep an observed unresolved call
    distinct from an absent marker, no-call and verified non-carrier. Map an
    I/D or slash-delimited token only through its reviewed locus-specific
@@ -130,7 +130,15 @@ does not measure whether either vendor assays the disputed alternate.
 
 Introduce the frame and source-revision fields before enabling the new
 resolver. Curate each effect and special-calling table against a cited
-versioned GRCh37 reference and its original key convention. Existing raw
+versioned GRCh37 reference and its original key convention. Previously held
+keys need a separate curation decision before release, even with a verified
+frame. For example, both rs41525747 homozygote entries describe withholding,
+and the CC entry's prose and `lactase_persistence` flag do not agree.
+Keep these interpretations and their dependent lactose state withheld until
+the wording and flags have been reconciled against approved evidence. Use
+the same release check for every previously unreachable collision or alias.
+
+Existing raw
 calls and findings need a verifiable chain from their source file, any
 coordinate transform and the exact panel revision. Reconstruct only the
 parts that can be proved. Withhold unsupported interpretations on every read
@@ -160,7 +168,7 @@ Alleles and effects here are software fixtures without a clinical claim.
 | A verified upload joins a row with a missing or unsupported panel-key frame | Keep observed letters and verified source evidence. Withhold the stored interpretation. Restore it only after verifying the row's panel frame and rerunning. |
 | An accepted sample contains AA with unverified row provenance | Withhold the interpretation. Repeat with an invariant mapping in which both orientations have the same complete output. Both cases stay withheld. A separately verified positive in the same sample is still present. |
 | A second synthetic reverse-oriented row models both AA and TT with distinct effects | Forward AA must store the TT effect; verified panel-frame AA must store the AA effect. Verify both complete outputs, including the pathway detail. Unknown strand withholds both. |
-| Forward CT and TC; panel GA and AG | Verify identical complete stored heterozygote output and membership for each order. Conflict between order aliases withholds the affected row. |
+| Forward CT and TC; panel GA and AG | Verify equality of the normalized key, full curated interpretation and finding membership. After reopening, check each source's own observed allele pair, its source frame and any recorded ordering transform. Conflict between order aliases withholds the affected row. |
 | Forward CC (`hom_ref`), missing marker, and no-call | CC resolves to panel GG and produces no carrier-gated finding. Assert the baseline in the relevant pathway detail, the absence of the carrier text/action and the presence of the independent positive. The two missing cases retain their distinct coverage states. |
 | Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. |
 | Merged source calls | Equal letters that disagree after verified normalization are a conflict. An unverified source leaves agreement unresolved. Different source spellings that normalize to the same verified allele pair can agree. Reopen the merged sample and check the stored source identity, interpretation and independent control. |
@@ -171,7 +179,8 @@ reopened sample. Forward AA must withhold residue wording, including the
 current “Homozygous His27” text, because its transformed key has no approved
 model. For verified forward TT, assert the full existing panel-AA context
 text and Standard category. Neither input emits a carrier finding. Use an
-independent called marker to verify the pathway's supported category. Give `TestSLC19A1ComplementaryStrandRendering` explicit
+independent called marker to verify the pathway's supported category. Give
+`TestSLC19A1ComplementaryStrandRendering` explicit
 observed frames for its forward and coding-strand inputs. Its coding AA
 control must retain the same approved context text. These tests exercise
 the shipped key convention without resolving the disputed alternate or assay
@@ -187,8 +196,10 @@ allele. Assert a stored dosage contribution of one and a reference control
 of zero. For the celiac combined result, pair an unresolved DQ2 proxy with
 a verified reference DQ8 proxy, then swap which proxy is unresolved. Assert
 that the reopened `celiac_combined.detail_json.state` is indeterminate in
-both cases and that the stored text contains neither a positive call nor a
-rule-out. Check a fully verified pair separately. Apply this same distinction
+both cases. Its stored and displayed explanation must say that the proxy was
+observed and its strand could not be verified. Exercise a genuinely untyped
+proxy separately and verify its missing-coverage wording. Both states
+withhold positive and rule-out text. Check a fully verified pair separately. Apply this same distinction
 between unresolved coverage and verified reference across aggregate readers.
 Exercise MT-RNR1 and LHON with their existing
 no-complement controls, plus a literal indel, a build-36 reverse chain
