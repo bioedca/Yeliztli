@@ -1,0 +1,20 @@
+--- a/backend/api/routes/findings.py
++++ b/backend/api/routes/findings.py
+@@ -15,6 +15,7 @@
+
+ import json
+ import logging
++from itertools import islice
+ from pathlib import Path
+
+ import sqlalchemy as sa
+@@ -469,7 +470,8 @@
+         )
+
+     # High-confidence: top 5 findings with >=3 stars
+-    high_conf = [_row_to_response(r, engine) for r in all_rows if (r.evidence_level or 0) >= 3][:5]
++    eligible = (r for r in all_rows if (r.evidence_level or 0) >= 3)
++    high_conf = [_row_to_response(r, engine) for r in islice(eligible, 5)]
+
+     response = FindingsSummaryResponse(
+         total_findings=sum(module_counts.values()),
