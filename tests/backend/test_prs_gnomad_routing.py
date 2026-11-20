@@ -498,6 +498,8 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
     with env.reference.begin() as conn:
         conn.execute(clinvar_variants.insert(), loci)
     with env.sample.begin() as conn:
+        # Neither locus may obtain alleles or frequencies through imputation.
+        assert conn.execute(imputed_variants.delete()).rowcount == 1
         conn.execute(
             raw_variants.insert(),
             [
@@ -524,20 +526,25 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
         )
         frequencies.commit()
 
-    def annotate_and_read_copy() -> float:
+    def check_annotation(expected_frequency: float) -> None:
         assert run_annotation(env.sample, env.registry).rows_written == 2
         with env.sample.connect() as conn:
-            return conn.execute(
-                sa.select(annotated_variants.c.gnomad_af_eur).where(
-                    annotated_variants.c.rsid == "SYN_TYPED_SECOND"
+            columns = annotated_variants.c
+            rows = conn.execute(
+                sa.select(columns.rsid, columns.ref, columns.alt, columns.gnomad_af_eur).order_by(
+                    columns.rsid
                 )
-            ).scalar_one()
+            ).all()
+        assert rows == [
+            ("SYN_TYPED", "C", "T", 0.4),
+            ("SYN_TYPED_SECOND", "A", "G", expected_frequency),
+        ]
 
-    assert annotate_and_read_copy() == 0.3
+    check_annotation(0.3)
     original = _run_positional_bmi(env)
     _update_second_frequency(env)
     assert _route_state(env, "metabolic") == "stale"
-    assert annotate_and_read_copy() == 0.7
+    check_annotation(0.7)
     refreshed = _run_positional_bmi(env)
     assert original["snps_used_imputed"] == refreshed["snps_used_imputed"] == 0
     assert original["stored_score"] == refreshed["stored_score"] == 3.0
