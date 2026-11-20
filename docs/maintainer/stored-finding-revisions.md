@@ -325,10 +325,14 @@ finding set is empty. Use its verified candidate set to withhold possible
 gated members. If the scope is unknown, withhold every unresolved member.
 An independently eligible and visible finding may still justify including
 that variant. Keep the same rule for counts and delivery.
-For the caller's authorized selection, return whether reanalysis could
-change the eligible observations. Explain that incomplete state in the
-preflight and in the delivered `DiagnosticReport.conclusion` alongside
-its research-use disclaimer. Keep the existing preliminary report status.
+For the caller's authorized selection, distinguish a pending analysis
+from uncertainty about which variants belong in the export. Explain each
+applicable condition in the preflight and in the delivered
+`DiagnosticReport.conclusion` alongside its research-use disclaimer.
+Warn that the Observation count can change only if a correction could
+add or remove an eligible variant. A correction confined to rsID-less
+prescribing alerts leaves the verified set and count intact. Keep the
+existing preliminary report status.
 Derive the notice only from reasons the caller can independently see.
 Adding or removing a gated reason alone must leave the notice unchanged.
 Patient-independent raw annotations and reference assertions retain their own
@@ -818,15 +822,17 @@ The separate BMI copied-frequency defect and its synthetic regression suite are 
   replace it before delivery. The stale selection must return no report
   or observations from either copy. Repeat the selection on the new
   copy and verify a complete result containing only its expected data.
-  With one disclosable pending-only selection and a separate verified empty
-  selection, require zero observations in each. Only the pending selection
-  reports incompleteness in both preflight and the delivered report. A gated
-  reason alone cannot change either signal. Verify that a successful empty
-  rerun clears the incomplete notice.
-  Inspect the rendered Report Builder preflight for both selections. For
-  the pending selection, explain that reanalysis can change the count.
-  Reserve the no-variants message for a verified empty selection, and
-  verify the message updates after a successful empty rerun.
+  Compare three authorized module selections that initially yield zero
+  Observations. Check the Report Builder preflight and the delivered
+  report for each. With only clopidogrel guidance pending, show that the
+  analysis awaits rerun and the export has zero eligible variants. After
+  repair the notice clears and the count stays zero. With a pending panel
+  correction that can add a carried rsID, show that the membership and
+  count may change. Rerun the panel and require that rsID, a count of one
+  and a complete selection. A verified empty panel shows zero eligible
+  variants and no pending notice. Adding a reason hidden by disclosure
+  must preserve the preflight, delivered notices and Observation set in
+  all three cases.
   Repeat both calls without a module selection, using an rsID named by a
   gated finding and a stale visible finding, plus a separate eligible rsID.
   Require only the separate rsID and a count of one. When the visible
