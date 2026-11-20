@@ -17,17 +17,21 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
 
 ## How a candidate reaches closure
 
-1. **Before claiming an issue**, read its acceptance criteria, comments,
-   linked work, live claims and Project state. Search merged PRs by issue
-   number and by the affected route, module, error text or symbol. Inspect
-   the history of the relevant paths since the issue was filed, including
-   renames and fixes made during review. A shared file supplies a lead.
+1. **Before claiming an issue**, apply the green-main preflight and read
+   its acceptance criteria, clarifying comments, affected release, linked
+   work, live claims and Project state. Search merged PRs by issue number
+   and by the affected route, module, error text or symbol. Trace relevant
+   paths and renames forward from the reported affected revision. When
+   that revision is unknown and the behavior no longer reproduces on
+   main, search before the filing date as well. Include fixes made during
+   review. A shared file supplies a lead.
 2. **At draft creation and before merge**, search open issues using the
    final diff and review findings. List each plausible sibling with a brief
    reason. Keep independent fixes under their own issues and claims. Use a
    plain reference in the PR and squash message. A closing keyword or a
    manual link in the Development sidebar can close the sibling on merge,
-   before post-merge checks finish. [GitHub's linking rules](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)
+   before post-merge checks finish. Verify the primary is the only intended
+   closing link before merge. [GitHub's linking rules](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)
 3. **After the merge is green, or when investigating an older fix**, fetch
    current `origin/main` and record its full SHA and covering check IDs.
    Confirm the proposed fix is in its history. Search open issues again
@@ -47,12 +51,16 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    through the normal PR route. For docs or metadata, run the applicable
    validator. Apply the existing UI, science and privacy requirements.
 4. **After acquiring the claim**, recheck the issue state, linked PRs and
-   current green main SHA. If main advanced during the election or tests,
-   repeat verification on the new green head. Check sole active ownership,
+   current green main SHA. If main advances at any point before closure,
+   repeat verification on the new green head. If ownership changes, stop
+   and leave the issue with its current owner. Check sole active ownership,
    the open issue and the exact green SHA before posting the evidence.
    Post the criteria, results, SHA and check IDs on the sibling. Repeat the
-   ownership, issue and SHA checks immediately before closing. If anything
-   changed, reconcile it before using that evidence. When all criteria pass,
+   ownership, issue and SHA checks immediately before closing. Re-read the
+   current criteria and clarifying comments, including edits, and match
+   them to the posted evidence. Verify any added or changed requirement,
+   including an in-scope release or backport, and update the evidence
+   before repeating the closure checks. When all current criteria pass,
    close as completed, update the Project item and finish the claim. The
    proposed verification-only exception covers an issue whose fix already
    shipped. Any needed source change follows the usual one-issue PR route.
