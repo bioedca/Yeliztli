@@ -715,6 +715,7 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   The scoring receipt must survive application shutdown. In a fresh process
   the changed input must reopen stale. With unchanged inputs the stored
   result and its fixture percentile must reopen current before any rerun.
+  The first score and anchor responses must identify the same recorded run.
   The unchanged controls check SQLite write-ahead log (WAL) mode with no
   outstanding WAL frames. The gnomAD release label stays the same for both
   unchanged and changed inputs. Also exercise a score recorded with
@@ -776,7 +777,8 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   control. Require a new content revision and stale state only for changed
   inputs. Before manual repair, inspect the GET for the affected score.
   It must report reanalysis needed and omit the obsolete percentile. Make
-  that GET in a fresh process. The withholding check is a strict
+  that GET in a fresh process for imputed dosage, fully typed calls, and a
+  typed call that needed imputed alleles for calibration. The withholding check is a strict
   expected failure while the first stale GET still returns 95.42 before
   the explicit rerun yields 84.63. The restart and scoring checks remain
   independent of when the application implements withholding. Reopen
