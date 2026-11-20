@@ -28,6 +28,10 @@ from backend.annotation.gnomad import _INSERT_GNOMAD_SQL, _create_gnomad_table
 from backend.annotation.pgs_catalog import pgs_score_metadata, pgs_score_weights
 from backend.config import Settings
 from backend.db.connection import DBRegistry
+from backend.db.sample_generations import (
+    ANNOTATED_VARIANTS_GENERATION_KEY,
+    IMPUTED_VARIANTS_GENERATION_KEY,
+)
 from backend.db.sample_schema import create_sample_tables
 from backend.db.tables import (
     annotated_variants,
@@ -388,16 +392,20 @@ def positional_bmi(routing_env: _Environment, monkeypatch: pytest.MonkeyPatch) -
     return routing_env
 
 
-def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
+def _publish_bmi_imputation(env: _Environment, dosage: float) -> None:
     from backend.analysis.imputation_persist import persist_imputed_variants
     from backend.analysis.imputation_vcf import ImputedVariant
 
-    ref, alt = alleles
-    # Publish a real generation. Using this dosage for the typed call would yield 2.25.
     imputed = ImputedVariant(
-        chrom="1", pos=999, ref="A", alt="G", dr2=0.95, af=0.3, imputed=True, dosage=0.25
+        chrom="1", pos=999, ref="A", alt="G", dr2=0.95, af=0.3, imputed=True, dosage=dosage
     )
     assert persist_imputed_variants(env.sample, [imputed]) == 1
+
+
+def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
+    ref, alt = alleles
+    # Using the imputed dosage for this typed call would yield 2.25.
+    _publish_bmi_imputation(env, 0.25)
     with env.sample.begin() as conn:
         conn.execute(
             annotated_variants.insert().values(
@@ -456,6 +464,18 @@ def _update_second_frequency(env: _Environment, value: float) -> None:
         frequencies.commit()
 
 
+def _bmi_input_generations(sample: sa.Engine) -> dict[str, str]:
+    with sample.connect() as conn:
+        rows = conn.execute(
+            sa.select(annotation_state.c.key, annotation_state.c.value).where(
+                annotation_state.c.key.in_(
+                    (ANNOTATED_VARIANTS_GENERATION_KEY, IMPUTED_VARIANTS_GENERATION_KEY)
+                )
+            )
+        ).all()
+    return {key: value for key, value in rows}
+
+
 def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
     import _no_network
     from _isolated_data_home import isolate_data_home
@@ -487,7 +507,9 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 reopened = _Environment(
                     client, registry, sample, registry.reference_engine, "match"
                 )
-                return _run_positional_bmi(reopened)
+                inputs_before_rerun = _bmi_input_generations(sample)
+                result = _run_positional_bmi(reopened)
+                return {**result, "input_generations_before_rerun": inputs_before_rerun}
     finally:
         attempted = _no_network.end()
         assert not attempted, f"Restart worker attempted network access: {attempted}"
@@ -510,6 +532,17 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
 ) -> None:
     if typed_alleles is not None:
         _add_typed_second_locus(positional_bmi, typed_alleles)
+    else:
+        _seed_bmi_raw_calls(positional_bmi, both_typed=False)
+        _annotate_bmi_with_controlled_ancestry(positional_bmi, 1)
+        _publish_bmi_imputation(positional_bmi, 1.0)
+    published = _bmi_input_generations(positional_bmi.sample)
+    if typed_alleles is None:
+        assert set(published) == {
+            ANNOTATED_VARIANTS_GENERATION_KEY,
+            IMPUTED_VARIANTS_GENERATION_KEY,
+        }
+    assert published and all(published.values())
     data_dir = positional_bmi.registry.settings.data_dir
     positional_bmi.client.close()
     positional_bmi.registry.dispose_all()
@@ -525,6 +558,7 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
             timeout=60
         )
     for run in (original, repaired):
+        assert run["input_generations_before_rerun"] == published
         assert run["calibrated"] is True
         assert run["stored_score"] == 3.0
         assert run["snps_used_imputed"] == expected_imputed
@@ -540,23 +574,15 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
 
 
-@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
-def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
-    positional_bmi: _Environment,
-) -> None:
-    from backend.annotation.engine import run_annotation
-
-    env = positional_bmi
-    # Supply allele identities for two typed loci through the real annotation path.
-    loci = [
-        {"rsid": "SYN_TYPED", "chrom": "2", "pos": 500, "ref": "C", "alt": "T"},
-        {"rsid": "SYN_TYPED_SECOND", "chrom": "1", "pos": 999, "ref": "A", "alt": "G"},
-    ]
+def _seed_bmi_raw_calls(env: _Environment, *, both_typed: bool) -> None:
+    loci = [{"rsid": "SYN_TYPED", "chrom": "2", "pos": 500, "ref": "C", "alt": "T"}]
+    calls = ["TT"]
+    if both_typed:
+        loci.append({"rsid": "SYN_TYPED_SECOND", "chrom": "1", "pos": 999, "ref": "A", "alt": "G"})
+        calls.append("AG")
     with env.reference.begin() as conn:
         conn.execute(clinvar_variants.insert(), loci)
     with env.sample.begin() as conn:
-        # Neither locus may obtain alleles or frequencies through imputation.
-        assert conn.execute(imputed_variants.delete()).rowcount == 1
         conn.execute(
             raw_variants.insert(),
             [
@@ -566,7 +592,7 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
                     "pos": locus["pos"],
                     "genotype": call,
                 }
-                for locus, call in zip(loci, ("TT", "AG"), strict=True)
+                for locus, call in zip(loci, calls, strict=True)
             ],
         )
     with closing(sqlite3.connect(env.registry.settings.gnomad_db_path)) as frequencies:
@@ -583,8 +609,53 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
         )
         frequencies.commit()
 
-    def check_annotation(expected_frequency: float) -> None:
-        assert run_annotation(env.sample, env.registry).rows_written == 2
+
+def _annotate_bmi_with_controlled_ancestry(env: _Environment, expected_rows: int) -> str:
+    from backend.analysis.ancestry import AncestryResult, store_ancestry_findings
+    from backend.annotation.engine import run_annotation
+
+    assert run_annotation(env.sample, env.registry).rows_written == expected_rows
+    generation = _bmi_input_generations(env.sample)[ANNOTATED_VARIANTS_GENERATION_KEY]
+    assert generation
+    # Hold the calibration population fixed while testing frequency routing.
+    # This is a controlled prerequisite, not ancestry inferred from two markers.
+    result = AncestryResult(
+        pc_scores=[0.0],
+        top_population="EUR",
+        population_distances={"EUR": 0.0},
+        admixture_fractions={"EUR": 1.0},
+        snps_used=expected_rows,
+        snps_total=expected_rows,
+        coverage_fraction=1.0,
+        projection_time_ms=0.0,
+        is_sufficient=True,
+        inference_provenance={"source": "synthetic fixture", "annotation_generation": generation},
+    )
+    assert store_ancestry_findings(result, env.sample) == 3
+    with env.sample.connect() as conn:
+        detail = conn.execute(
+            sa.select(findings.c.detail_json).where(
+                findings.c.module == "ancestry", findings.c.category == "nnls_admixture"
+            )
+        ).scalar_one()
+    assert json.loads(detail)["inference_provenance"] == result.inference_provenance, (
+        "Ancestry result does not identify its annotation input"
+    )
+    return generation
+
+
+@pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
+    positional_bmi: _Environment,
+) -> None:
+    env = positional_bmi
+    _seed_bmi_raw_calls(env, both_typed=True)
+    with env.sample.begin() as conn:
+        # Neither locus may obtain alleles or frequencies through imputation.
+        assert conn.execute(imputed_variants.delete()).rowcount == 1
+
+    def check_annotation(expected_frequency: float) -> str:
+        generation = _annotate_bmi_with_controlled_ancestry(env, 2)
         with env.sample.connect() as conn:
             columns = annotated_variants.c
             rows = conn.execute(
@@ -596,12 +667,13 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
             ("SYN_TYPED", "C", "T", 0.4),
             ("SYN_TYPED_SECOND", "A", "G", expected_frequency),
         ]
+        return generation
 
-    check_annotation(0.3)
+    previous_generation = check_annotation(0.3)
     original = _run_positional_bmi(env)
     _update_second_frequency(env, 0.7)
     assert _route_state(env, "metabolic") == "stale"
-    check_annotation(0.7)
+    assert check_annotation(0.7) != previous_generation
     refreshed = _run_positional_bmi(env)
     assert original["snps_used_imputed"] == refreshed["snps_used_imputed"] == 0
     assert original["stored_score"] == refreshed["stored_score"] == 3.0
@@ -617,7 +689,6 @@ def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
     positional_bmi: _Environment, typed_alt: str | None
 ) -> None:
     from backend.analysis.imputation_persist import persist_imputed_variants
-    from backend.db.sample_generations import IMPUTED_VARIANTS_GENERATION_KEY
 
     _add_typed_second_locus(positional_bmi, ("A", typed_alt))
     generation = sa.select(annotation_state.c.value).where(
