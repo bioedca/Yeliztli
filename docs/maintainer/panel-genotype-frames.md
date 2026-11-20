@@ -93,7 +93,15 @@ audit of the methylation row for rs1051266.
 | Sleep | 5 | None | `_resolve_metabolizer_state` generates candidates for the caffeine state. |
 | Traits | 5 | rs747302 | Pathway summaries and other readers consume the scored result. |
 
-All eight call `_score_snp`. Enumerating both `AA/TT` and `CC/GG` in each
+The stored-card reader is also a scorer. For allergy, gene health, skin,
+sleep and traits, `cross_module_links.stored_card_call` uses the saved
+rsID and genotype to call `_score_snp` against the current panel. It lacks
+the original locus/frame evidence and panel revision. When it cannot
+rederive a call, `stored_card_is_withheld` currently returns false. Apply
+the verified-result requirement at both module and generic findings
+endpoints. A read against the live panel cannot replace verified reanalysis.
+
+All eight panel modules call `_score_snp`. Enumerating both `AA/TT` and `CC/GG` in each
 effect map gives 18 panel rows and 16 distinct rsIDs. Of the 18, 17 have
 different categories. Gene health rs1801282 has the same category and
 different genotype-specific text. The full effect dictionaries for reversed
@@ -170,7 +178,7 @@ Alleles and effects here are software fixtures without a clinical claim.
 | A second synthetic reverse-oriented row models both AA and TT with distinct effects | Forward AA must store the TT effect; verified panel-frame AA must store the AA effect. Verify both complete outputs, including the pathway detail. Unknown strand withholds both. |
 | Forward CT and TC; panel GA and AG | Verify equality of the normalized key, full curated interpretation and finding membership. After reopening, check each source's own observed allele pair, its source frame and any recorded ordering transform. Conflict between order aliases withholds the affected row. |
 | Forward CC (`hom_ref`), missing marker, and no-call | CC resolves to panel GG and produces no carrier-gated finding. Assert the baseline in the relevant pathway detail, the absence of the carrier text/action and the presence of the independent positive. The two missing cases retain their distinct coverage states. |
-| Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. |
+| Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. Read an affected stored cross-module card through its module endpoint and the generic findings endpoint. Neither may return a carrier interpretation or derived action before the verified rerun. Verify the independent positive and the new result on both endpoints. |
 | Merged source calls | Equal letters that disagree after verified normalization are a conflict. An unverified source leaves agreement unresolved. Different source spellings that normalize to the same verified allele pair can agree. Reopen the merged sample and check the stored source identity, interpretation and independent control. |
 
 Repeat the rs1051266 baseline with the migrated, shipped methylation row and
@@ -193,7 +201,12 @@ Check values after reopening the sample database, including nonempty
 each special consumer above. For the allergy AOC1 aggregate, place a
 synthetic single-copy carrier in the opposite frame from the declared risk
 allele. Assert a stored dosage contribution of one and a reference control
-of zero. For the celiac combined result, pair an unresolved DQ2 proxy with
+of zero. With verified reference AOC1 calls, make HNMT present but
+frame-unverified. Check the reopened `histamine_combined.finding_text` for
+the unresolved coverage and absence of HNMT-positive or all-clear wording.
+A separately verified carrier must retain the curated HNMT-positive text.
+The current predicate `hnmt_cat != STANDARD` also admits Indeterminate.
+For the celiac combined result, pair an unresolved DQ2 proxy with
 a verified reference DQ8 proxy, then swap which proxy is unresolved. Assert
 that the reopened `celiac_combined.detail_json.state` is indeterminate in
 both cases. Its stored and displayed explanation must say that the proxy was
