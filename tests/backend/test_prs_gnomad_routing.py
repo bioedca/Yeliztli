@@ -11,6 +11,7 @@ import io
 import json
 import math
 import multiprocessing
+import re
 import sqlite3
 import tarfile
 from contextlib import closing
@@ -44,6 +45,7 @@ from backend.db.tables import (
     reference_metadata,
     samples,
 )
+from backend.services.route_scoring_state import read_scoring
 
 MODULES = ("metabolic", "fh", "ebmd", "cancer", "traits")
 ENTRYPOINTS = (*MODULES, "pipeline-cancer", "pipeline-traits")
@@ -453,7 +455,11 @@ def _run_positional_bmi(env: _Environment) -> dict:
     (item,) = body["items"]
     for key in ("pgs_id", "calibrated", "snps_used", "snps_used_imputed", "percentile"):
         assert item[key] == result[key]
-    return {**result, "stored_score": stored_score}
+    receipt = read_scoring("metabolic", env.sample, env.reference)
+    assert receipt.state == "current"
+    assert receipt.recorded == body["scoring_generation"]
+    assert isinstance(receipt.recorded, str) and re.fullmatch(r"[0-9a-f]{64}", receipt.recorded)
+    return {**result, "stored_score": stored_score, "scoring_fingerprint": receipt.recorded}
 
 
 def _update_second_frequency(env: _Environment, value: float) -> None:
@@ -477,7 +483,9 @@ def _bmi_input_generations(sample: sa.Engine) -> dict[str, str]:
     return {key: value for key, value in rows}
 
 
-def _run_bmi_after_restart(data_dir: Path, expected_state: str | tuple[str, ...]) -> dict:
+def _run_bmi_after_restart(
+    data_dir: Path, expected_state: str | tuple[str, ...], refresh_annotation: bool = False
+) -> dict:
     import _no_network
     from _isolated_data_home import isolate_data_home
 
@@ -504,7 +512,13 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str | tuple[str, ...]
                 allowed = (expected_state,) if isinstance(expected_state, str) else expected_state
                 assert state in allowed, f"Reopened state {state!r}, expected {expected_state!r}"
                 sample = registry.get_sample_engine(data_dir / "samples" / "sample_1.db")
+                receipt = read_scoring("metabolic", sample, registry.reference_engine)
+                assert receipt.state == state
+                copied_frequency = sa.select(annotated_variants.c.gnomad_af_eur).where(
+                    annotated_variants.c.rsid == "SYN_TYPED_SECOND"
+                )
                 with sample.connect() as conn:
+                    copied_before = conn.execute(copied_frequency).scalar_one_or_none()
                     persisted = (
                         conn.execute(
                             sa.select(findings.c.prs_score, findings.c.prs_percentile).where(
@@ -519,13 +533,20 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str | tuple[str, ...]
                 )
                 inputs_before_rerun = _bmi_input_generations(sample)
                 release = read_current_reference_snapshot(registry.reference_engine)["gnomad"]
+                if refresh_annotation:
+                    _annotate_bmi_with_controlled_ancestry(reopened, 2)
                 result = _run_positional_bmi(reopened)
+                with sample.connect() as conn:
+                    copied_after = conn.execute(copied_frequency).scalar_one_or_none()
                 frequency_uri = f"{frequency_path.as_uri()}?mode=ro"
                 with closing(sqlite3.connect(frequency_uri, uri=True)) as db:
                     journal_mode = db.execute("PRAGMA journal_mode").fetchone()[0]
                 return {
                     **result,
                     "state_before_rerun": state,
+                    "recorded_before_rerun": receipt.recorded,
+                    "copied_frequency_before_rerun": copied_before,
+                    "copied_frequency_after_rerun": copied_after,
                     "visible_percentiles_before_rerun": [
                         (item["pgs_id"], item["percentile"]) for item in stored["items"]
                     ],
@@ -540,23 +561,33 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str | tuple[str, ...]
         assert not attempted, f"Restart worker attempted network access: {attempted}"
 
 
-def _prepare_bmi_restart(env: _Environment, *, typed_second: bool) -> tuple[Path, dict[str, str]]:
+def _prepare_bmi_restart(
+    env: _Environment, *, typed_second: bool, complete_typed_alleles: bool = False
+) -> tuple[Path, dict[str, str]]:
+    from backend.analysis.imputation_persist import persist_imputed_variants
+
+    assert not complete_typed_alleles or typed_second
     with env.reference.begin() as conn:
         conn.execute(
             database_versions.insert().values(
                 db_name="gnomad", version="synthetic-frequency-release", genome_build="GRCh37"
             )
         )
-    _seed_bmi_raw_calls(env, both_typed=typed_second, second_identity=False)
+    _seed_bmi_raw_calls(env, both_typed=typed_second, second_identity=complete_typed_alleles)
     _annotate_bmi_with_controlled_ancestry(env, 2 if typed_second else 1)
-    _publish_bmi_imputation(env, 0.25 if typed_second else 1.0)
+    if complete_typed_alleles:
+        assert persist_imputed_variants(env.sample, []) == 0
+        with env.sample.connect() as conn:
+            assert conn.scalar(sa.select(sa.func.count()).select_from(imputed_variants)) == 0
+    else:
+        _publish_bmi_imputation(env, 0.25 if typed_second else 1.0)
     if typed_second:
         with env.sample.connect() as conn:
             c = annotated_variants.c
             typed = conn.execute(
                 sa.select(c.genotype, c.ref, c.alt).where(c.rsid == "SYN_TYPED_SECOND")
             ).one()
-        assert typed == ("AG", None, None)
+        assert typed == (("AG", "A", "G") if complete_typed_alleles else ("AG", None, None))
     published = _bmi_input_generations(env.sample)
     assert set(published) == {ANNOTATED_VARIANTS_GENERATION_KEY, IMPUTED_VARIANTS_GENERATION_KEY}
     assert all(published.values())
@@ -569,35 +600,52 @@ def _prepare_bmi_restart(env: _Environment, *, typed_second: bool) -> tuple[Path
 
 
 def _restart_bmi_pair(
-    env: _Environment, *, typed_second: bool, frequency_changed: bool
+    env: _Environment,
+    *,
+    typed_second: bool,
+    frequency_changed: bool,
+    complete_typed_alleles: bool = False,
 ) -> tuple[dict, dict, dict[str, str]]:
-    data_dir, published = _prepare_bmi_restart(env, typed_second=typed_second)
+    data_dir, published = _prepare_bmi_restart(
+        env, typed_second=typed_second, complete_typed_alleles=complete_typed_alleles
+    )
     # Each run gets a separate interpreter, production startup and orderly shutdown.
     with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
         original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
         if frequency_changed:
             _update_second_frequency(env, 0.6)
         expected_state = "stale" if frequency_changed else "current"
-        repaired = pool.apply_async(_run_bmi_after_restart, (data_dir, expected_state)).get(
-            timeout=60
-        )
+        repaired = pool.apply_async(
+            _run_bmi_after_restart,
+            (data_dir, expected_state, complete_typed_alleles and frequency_changed),
+        ).get(timeout=60)
+    assert original["recorded_before_rerun"] is None
+    assert repaired["recorded_before_rerun"] == original["scoring_fingerprint"]
     return original, repaired, published
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.parametrize(
-    ("typed_second", "expected_imputed"),
-    [pytest.param(False, 1, id="imputed"), pytest.param(True, 0, id="typed-incomplete")],
+    ("typed_second", "complete_typed_alleles", "expected_imputed"),
+    [
+        pytest.param(False, False, 1, id="imputed"),
+        pytest.param(True, False, 0, id="typed-incomplete"),
+        pytest.param(True, True, 0, id="typed-complete"),
+    ],
 )
 @pytest.mark.parametrize("frequency_changed", [True, False], ids=["changed", "unchanged"])
 def test_positional_bmi_reopens_with_durable_scoring_state(
     positional_bmi: _Environment,
     typed_second: bool,
+    complete_typed_alleles: bool,
     expected_imputed: int,
     frequency_changed: bool,
 ) -> None:
     original, repaired, published = _restart_bmi_pair(
-        positional_bmi, typed_second=typed_second, frequency_changed=frequency_changed
+        positional_bmi,
+        typed_second=typed_second,
+        frequency_changed=frequency_changed,
+        complete_typed_alleles=complete_typed_alleles,
     )
     for run in (original, repaired):
         assert run["input_generations_before_rerun"] == published
@@ -621,6 +669,10 @@ def test_positional_bmi_reopens_with_durable_scoring_state(
     )
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == (84.63 if frequency_changed else 95.42)
+    if complete_typed_alleles:
+        assert original["copied_frequency_before_rerun"] == 0.3
+        assert repaired["copied_frequency_before_rerun"] == 0.3
+        assert repaired["copied_frequency_after_rerun"] == (0.6 if frequency_changed else 0.3)
     if not frequency_changed:
         assert repaired["visible_percentiles_before_rerun"] == [("PGS005198", 95.42)]
 
@@ -631,13 +683,18 @@ class _StalePercentileDisplayed(AssertionError):
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
 @pytest.mark.xfail(
-    strict=True, raises=_StalePercentileDisplayed, reason="Withholding proposal #2705"
+    strict=True, raises=_StalePercentileDisplayed, reason="Approved withholding policy #2705"
 )
+@pytest.mark.parametrize("fully_typed", [False, True], ids=["imputed", "typed-complete"])
 def test_stale_bmi_read_withholds_the_previous_percentile_before_rerun(
     positional_bmi: _Environment,
+    fully_typed: bool,
 ) -> None:
     original, repaired, _ = _restart_bmi_pair(
-        positional_bmi, typed_second=False, frequency_changed=True
+        positional_bmi,
+        typed_second=fully_typed,
+        frequency_changed=True,
+        complete_typed_alleles=fully_typed,
     )
     assert original["percentile"] == 95.42
     assert repaired["percentile"] == 84.63
@@ -685,6 +742,8 @@ def checkpointed_bmi(
         assert reader.execute(frequency_query).fetchall() == [(0.6,)]
     assert after["frequency_wal_bytes"] == 0
     assert after["scores_before_rerun"] == [(3.0, 84.63)]
+    assert before["recorded_before_rerun"] is None
+    assert after["recorded_before_rerun"] == before["scoring_fingerprint"]
     return before, after, published
 
 
@@ -807,8 +866,12 @@ def two_typed_bmi(positional_bmi: _Environment) -> _Environment:
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
+@pytest.mark.parametrize(
+    ("frequency", "mean", "variance", "percentile"),
+    [(0.7, 2.2, 0.90, 80.05), (0.6, 2.0, 0.96, 84.63)],
+)
 def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
-    two_typed_bmi: _Environment,
+    two_typed_bmi: _Environment, frequency: float, mean: float, variance: float, percentile: float
 ) -> None:
     env = two_typed_bmi
 
@@ -829,16 +892,18 @@ def test_positional_bmi_refreshes_copied_frequencies_through_annotation(
 
     previous_generation = check_annotation(0.3)
     original = _run_positional_bmi(env)
-    _update_second_frequency(env, 0.7)
+    _update_second_frequency(env, frequency)
     assert _route_state(env, "metabolic") == "stale"
-    assert check_annotation(0.7) != previous_generation
+    assert check_annotation(frequency) != previous_generation
     refreshed = _run_positional_bmi(env)
     assert original["snps_used_imputed"] == refreshed["snps_used_imputed"] == 0
     assert original["stored_score"] == refreshed["stored_score"] == 3.0
     assert original["calibration_reference_mean"] == pytest.approx(1.4)
-    assert refreshed["calibration_reference_mean"] == pytest.approx(2.2)
+    assert original["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
+    assert refreshed["calibration_reference_mean"] == pytest.approx(mean)
+    assert refreshed["calibration_reference_std"] == pytest.approx(math.sqrt(variance))
     assert original["percentile"] == 95.42
-    assert refreshed["percentile"] == 80.05
+    assert refreshed["percentile"] == percentile
 
 
 class _ObsoleteFrequencyPublished(AssertionError):
@@ -852,12 +917,21 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
 ) -> None:
     env = two_typed_bmi
     _annotate_bmi_with_controlled_ancestry(env, 2)
-    assert _run_positional_bmi(env)["percentile"] == 95.42
+    original = _run_positional_bmi(env)
+    assert original["percentile"] == 95.42
     _update_second_frequency(env, 0.7)
     assert _route_state(env, "metabolic") == "stale"
 
     response = env.client.post("/api/analysis/metabolic/run?sample_id=1")
     assert response.status_code in (200, 409), response.text
+    # Capture the writer's durable result before a GET or reannotation can change it.
+    receipt = read_scoring("metabolic", env.sample, env.reference)
+    with env.sample.connect() as conn:
+        persisted = conn.execute(
+            sa.select(
+                findings.c.prs_score, findings.c.prs_percentile, findings.c.detail_json
+            ).where(findings.c.module == "metabolic", findings.c.category == "prs")
+        ).one_or_none()
     read = env.client.get("/api/analysis/metabolic/prs?sample_id=1")
     assert read.status_code == 200, read.text
     observed = read.json()
@@ -865,15 +939,32 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     fresh = _run_positional_bmi(env)
     assert fresh["percentile"] == 80.05
     assert observed["total"] == len(observed["items"])
-    if observed["scoring_state"] == "stale":
+    if receipt.state == "stale":
+        assert receipt.recorded == original["scoring_fingerprint"]
+        assert observed["scoring_state"] == "stale"
         assert all(item["percentile"] is None for item in observed["items"])
         return
+    assert receipt.state == "current"
     assert observed["scoring_state"] == "current" and response.status_code == 200
+    assert receipt.recorded == observed["scoring_generation"]
+    assert receipt.recorded != original["scoring_fingerprint"]
+    assert persisted is not None
+    score, stored_percentile, payload = persisted
+    detail = json.loads(payload)
+    assert score == fresh["stored_score"] == 3.0
     (item,) = observed["items"]
     assert item["pgs_id"] == fresh["pgs_id"] == "PGS005198"
-    if item["percentile"] == 95.42:
+    assert detail["pgs_id"] == "PGS005198"
+    assert item["percentile"] == stored_percentile == detail["percentile"]
+    if stored_percentile == 95.42:
+        assert detail["calibration_reference_mean"] == pytest.approx(1.4)
+        assert detail["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
         raise _ObsoleteFrequencyPublished("Scorer alone returned current at 95.42, fresh at 80.05")
     assert item["percentile"] == fresh["percentile"]
+    assert detail["calibration_reference_mean"] == pytest.approx(
+        fresh["calibration_reference_mean"]
+    )
+    assert detail["calibration_reference_std"] == pytest.approx(fresh["calibration_reference_std"])
 
 
 @pytest.mark.parametrize("routing_env", ["match"], indirect=True)
