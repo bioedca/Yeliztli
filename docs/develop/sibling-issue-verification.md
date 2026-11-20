@@ -39,9 +39,13 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    work, then acquire the sibling's claim before any write-producing check
    or issue update. The confirmed owner runs those checks in a dedicated
    worktree.
-   Run a discriminating test or reproduce the reported behavior on that SHA,
-   including the unaffected control where applicable. Apply the existing
-   UI, science and privacy requirements to the evidence.
+   For a behavior or data defect, identify the committed regression test
+   that exercises the affected production path and fails without the fix.
+   Run it on the verified green SHA, including the applicable unaffected
+   control. Record the test and the evidence that it distinguishes the
+   fix. If that coverage is missing, keep the issue open and add it
+   through the normal PR route. For docs or metadata, run the applicable
+   validator. Apply the existing UI, science and privacy requirements.
 4. **After acquiring the claim**, recheck the issue state, linked PRs and
    current green main SHA. If main advanced during the election or tests,
    repeat verification on the new green head. Check sole active ownership,
