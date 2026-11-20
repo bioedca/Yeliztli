@@ -405,6 +405,15 @@ def _publish_bmi_imputation(env: _Environment, dosage: float) -> None:
     assert persist_imputed_variants(env.sample, [imputed]) == 1
 
 
+def _publish_empty_bmi_imputation(env: _Environment) -> None:
+    from backend.analysis.imputation_persist import persist_imputed_variants
+
+    assert persist_imputed_variants(env.sample, []) == 0
+    with env.sample.connect() as conn:
+        assert conn.scalar(sa.select(sa.func.count()).select_from(imputed_variants)) == 0
+    assert _bmi_input_generations(env.sample)[IMPUTED_VARIANTS_GENERATION_KEY]
+
+
 def _add_typed_second_locus(env: _Environment, alleles: tuple[str, str | None]) -> None:
     ref, alt = alleles
     # Using the imputed dosage for this typed call would yield 2.25.
@@ -564,8 +573,6 @@ def _run_bmi_after_restart(
 def _prepare_bmi_restart(
     env: _Environment, *, typed_second: bool, complete_typed_alleles: bool = False
 ) -> tuple[Path, dict[str, str]]:
-    from backend.analysis.imputation_persist import persist_imputed_variants
-
     assert not complete_typed_alleles or typed_second
     with env.reference.begin() as conn:
         conn.execute(
@@ -576,9 +583,7 @@ def _prepare_bmi_restart(
     _seed_bmi_raw_calls(env, both_typed=typed_second, second_identity=complete_typed_alleles)
     _annotate_bmi_with_controlled_ancestry(env, 2 if typed_second else 1)
     if complete_typed_alleles:
-        assert persist_imputed_variants(env.sample, []) == 0
-        with env.sample.connect() as conn:
-            assert conn.scalar(sa.select(sa.func.count()).select_from(imputed_variants)) == 0
+        _publish_empty_bmi_imputation(env)
     else:
         _publish_bmi_imputation(env, 0.25 if typed_second else 1.0)
     if typed_second:
@@ -861,9 +866,7 @@ def _annotate_bmi_with_controlled_ancestry(env: _Environment, expected_rows: int
 @pytest.fixture
 def two_typed_bmi(positional_bmi: _Environment) -> _Environment:
     _seed_bmi_raw_calls(positional_bmi, both_typed=True, second_identity=True)
-    with positional_bmi.sample.begin() as conn:
-        # Neither locus may obtain alleles or frequencies through imputation.
-        assert conn.execute(imputed_variants.delete()).rowcount == 1
+    _publish_empty_bmi_imputation(positional_bmi)
     return positional_bmi
 
 
@@ -964,8 +967,6 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     # Capture the writer's durable result before a GET or reannotation can change it.
     receipt = read_scoring("metabolic", env.sample, env.reference)
     persisted, stored_receipt = _stored_bmi_publication(env)
-    if response.status_code == 409:
-        assert receipt.state == "stale"
     read = env.client.get("/api/analysis/metabolic/prs?sample_id=1")
     assert read.status_code == 200, read.text
     observed = read.json()
@@ -975,7 +976,9 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     assert fresh["calibration_reference_mean"] == pytest.approx(expected_mean)
     assert fresh["calibration_reference_std"] == pytest.approx(math.sqrt(expected_variance))
     assert observed["total"] == len(observed["items"])
-    if receipt.state == "stale":
+    if response.status_code == 409:
+        assert response.json()["detail"]
+        assert receipt.state == "stale"
         assert (persisted, stored_receipt) == (prior, prior_receipt)
         assert receipt.recorded == original["scoring_fingerprint"]
         assert observed["scoring_state"] == "stale"
@@ -984,8 +987,9 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
             [("PGS005198", None)],
         )
         return
+    assert response.json()["prs_traits_computed"] == 1
     assert receipt.state == "current"
-    assert observed["scoring_state"] == "current" and response.status_code == 200
+    assert observed["scoring_state"] == "current"
     assert receipt.recorded == observed["scoring_generation"]
     assert receipt.recorded != original["scoring_fingerprint"]
     assert persisted is not None
@@ -999,12 +1003,18 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     assert detail["pgs_id"] == "PGS005198"
     assert item["percentile"] == stored_percentile == detail["percentile"]
     if stored_percentile == 95.42:
+        assert persisted["finding_text"] == prior["finding_text"]
+        assert detail["z_score"] == original["z_score"]
         assert detail["calibration_reference_mean"] == pytest.approx(1.4)
         assert detail["calibration_reference_std"] == pytest.approx(math.sqrt(0.9))
         raise _ObsoleteFrequencyPublished(
             f"Scorer alone returned current at 95.42, fresh at {expected_percentile}"
         )
     assert item["percentile"] == fresh["percentile"]
+    fresh_row, _ = _stored_bmi_publication(env)
+    assert fresh_row is not None and fresh_row["finding_text"] != prior["finding_text"]
+    assert persisted["finding_text"] == fresh_row["finding_text"]
+    assert detail["z_score"] == fresh["z_score"] != original["z_score"]
     assert detail["calibration_reference_mean"] == pytest.approx(
         fresh["calibration_reference_mean"]
     )
