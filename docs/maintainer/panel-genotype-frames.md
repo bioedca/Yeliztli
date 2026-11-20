@@ -184,7 +184,13 @@ Check values after reopening the sample database, including nonempty
 each special consumer above. For the allergy AOC1 aggregate, place a
 synthetic single-copy carrier in the opposite frame from the declared risk
 allele. Assert a stored dosage contribution of one and a reference control
-of zero. Exercise MT-RNR1 and LHON with their existing
+of zero. For the celiac combined result, pair an unresolved DQ2 proxy with
+a verified reference DQ8 proxy, then swap which proxy is unresolved. Assert
+that the reopened `celiac_combined.detail_json.state` is indeterminate in
+both cases and that the stored text contains neither a positive call nor a
+rule-out. Check a fully verified pair separately. Apply this same distinction
+between unresolved coverage and verified reference across aggregate readers.
+Exercise MT-RNR1 and LHON with their existing
 no-complement controls, plus a literal indel, a build-36 reverse chain
 segment and a parser no-call. Evidence of performance in these fixtures
 validates software behavior only. Public locus conflicts remain with #2301.

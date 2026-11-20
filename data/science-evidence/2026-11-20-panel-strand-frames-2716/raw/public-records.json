@@ -6,6 +6,10 @@
     "placements": [
       {
         "seq_id": "NC_000021.8",
+        "placement_annot": {
+          "is_aln_opposite_orientation": false,
+          "is_mismatch": false
+        },
         "assembly": [
           {
             "assembly_name": "GRCh37.p13",
@@ -65,6 +69,10 @@
       },
       {
         "seq_id": "NM_194255.4",
+        "placement_annot": {
+          "is_aln_opposite_orientation": true,
+          "is_mismatch": false
+        },
         "assembly": [],
         "alleles": [
           {
