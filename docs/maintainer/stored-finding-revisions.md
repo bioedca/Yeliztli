@@ -60,9 +60,14 @@ displayed badge. Return a per-source pending mask alongside verified
 coverage. A pending source supplies neither a positive nor a negative
 answer. Keep unrelated verified sources visible and label the unresolved
 source as pending. Show “no sources covered” only when absence is known for
-all relevant sources. Version the API representation. A client that has
-not negotiated pending coverage must receive an upgrade-required response
-without variant data whenever the response could contain a pending source.
+all relevant sources. Version the API representation. Check whether an
+authorized value contains unresolved coverage or that uncertainty could
+change a filter match, sort, page, aggregate or total. Do this on the query's candidate
+set before applying coverage-dependent filters or limits. When the answer
+is unresolved, require a legacy client to upgrade before returning data
+or counts, even if the final page would be empty. A compatible client can
+receive the confirmed matches and a qualified total. An independently
+resolved query can proceed.
 For a streamed export, pin the sample copy and read snapshot, check the
 client's capability and open the export cursor before sending headers.
 Stream every batch from that snapshot and release it on completion,
@@ -355,14 +360,16 @@ sources. Filter the sample side first, including alerts for which no
 supporting source is available. A stale-state reason must respect opt-in gates and avoid
 revealing a withheld gene, drug or carrier status.
 
-The medication safety report aggregates evidence across genes. Compute each
-drug verdict from eligible effects and independently known, disclosable
-pending assessments. A confirmed actionable effect warrants review even if
-another is pending. When a pending effect could change an otherwise routine
-verdict, show “Reanalysis needed” and keep the eligible effects visible.
-With pending assessments, label aggregate counts as confirmed so far and
-mark the report incomplete. Apply the same rule when no eligible effect
-remains. Preserve permanent clinical holds throughout.
+The medication safety report aggregates evidence across genes. For each
+affected drug, combine eligible effects with the disclosable assessment
+outcomes for its relevant genes, including genes that emitted no alert.
+A confirmed actionable effect warrants review. If an outstanding repair
+could change the verdict, show “Reanalysis needed”. If the repair
+completed but the inputs could not assess a relevant gene, identify that
+limitation and clear the completed repair prompt. Either condition keeps
+an otherwise routine verdict incomplete. Show independent eligible
+effects and qualify counts as confirmed so far, including a count of
+zero. Preserve permanent clinical holds throughout.
 Eligibility follows each effect's full dependency set, including partner
 genes used to choose between standalone and joint advice. A row for a
 different gene of the same drug can still depend on the unresolved call.
@@ -576,7 +583,12 @@ verified-empty result when the new analysis no longer emits the old finding.
   retain unrelated source bits. After retry verify the bit is cleared for
   that marker and set for the newly assessed control.
   Pair the pending marker with a verified covered marker and a genuinely
-  uncovered one. Positive and negative filters and their counts must each
+  uncovered one. For a legacy client, restrict the candidate set to the
+  pending-only row and filter for a zero coverage mask. Both the list and
+  count endpoints require an upgrade even though ordinary filtering would
+  return no rows. On a fully resolved control, verify the genuine empty
+  list and zero count. For a client that supports pending coverage,
+  positive and negative filters and their counts must each
   return only their own verified control. The pending marker appears in
   neither. Verify the unfiltered API and the Variant Explorer tooltip
   distinguish its pending state from confirmed absence, including when it
@@ -640,8 +652,11 @@ verified-empty result when the new analysis no longer emits the old finding.
   Require a pending drug verdict, the visible current effect and an
   incomplete flagged count. Repeat with an eligible actionable effect:
   the drug is flagged once and coverage remains incomplete. A fully
-  assessed routine control stays routine. Rerunning the affected pair
-  restores the verdict and counts derived from the completed results.
+  assessed routine control stays routine. Complete a repair with TPMT
+  still unassessed and an independently routine NUDT15 effect. Require
+  the report API and rendered verdict to keep that effect visible, mark
+  the assessment incomplete and omit the cleared rerun prompt. Reopen the
+  report and check the same verdict and qualified count.
   Exercise the shipped joint TPMT/NUDT15 scorer with a stored standalone
   NUDT15 Intermediate alert. While the unresolved TPMT call could replace
   that advice, withhold the standalone recommendation across drug detail,
