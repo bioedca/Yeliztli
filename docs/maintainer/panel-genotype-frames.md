@@ -13,7 +13,11 @@ Implementation and migration belong to [#2301](https://github.com/bioedca/Yelizt
    call is stored. Preserve the evidence for the declared strand. A file
    with a recognized shape and no supportable strand declaration has unknown
    orientation. Reject contradictions between the header and the supported
-   format contract. Preserve no-calls, ploidy and literal indel encodings.
+   format contract. A declaration covers only its original export. A second
+   identifiable export header after marker data, even from the same vendor,
+   makes a concatenated payload. Reject it before publishing a sample and
+   request separate uploads. Ordinary comments within one export do not
+   start a new export. Preserve no-calls, ploidy and literal indel encodings.
 2. A panel adapter identifies the exact locus, modelled allele set, panel
    revision and key frame. An assembly-oriented row names its assembly and
    strand. A transcript-oriented row records its versioned transcript,
@@ -181,6 +185,15 @@ reason for a curation hold. Preserve the fixture's full nonempty coverage
 and documented exclusions. Calling the old complement fallback in this
 test would leave the actual adapter untested.
 
+Migration also covers saved copies outside the findings table.
+`finding_diff.compute_and_store_finding_diff` can copy old finding text to
+`annotation_state.last_finding_diff_json`. Exercise an existing undismissed
+notice and the one produced by the first verified rerun. At
+`/api/updates/finding-changes`, verify that added, changed and removed
+entries and their counts exclude unverified interpretations. A newly
+verified result and independent verified changes can appear without
+reproducing the old text. Test an all-withheld notice and a mixed notice.
+
 Use two temporary, entirely synthetic vendor files and temporary sample
 databases. Through the production ingest, scorer and finding writer, exercise
 the following inputs with a synthetic reverse-oriented panel row. Define its
@@ -193,6 +206,7 @@ Alleles and effects here are software fixtures without a clinical claim.
 | A forward GRCh37 file reports AA | The adapter obtains TT. Stored SNP detail withholds the unmodelled call and no derived finding or recommendation inherits the AA effect. |
 | The same letters AA arrive with verified panel-frame provenance | The adapter resolves AA directly. At the vendor entry point, a verified forward TT reaches the same stored positive effect. Exercise the panel-frame input at the typed adapter boundary; neither supported vendor needs to emit coding-strand data. |
 | A file header contradicts its supported format or build declaration | Reject the upload before publishing a sample or findings. Verify the rejection and absence of a new sample. |
+| Two same-vendor export sections arrive in one upload, only the first declaring its strand | Use separate marker rows under each recognizable header. Assert rejection with separate-upload instructions and no published sample. Upload the files individually and verify that the second cannot inherit the first header's strand. |
 | A valid forward-strand upload has the panel rsID on the wrong GRCh37 position or chromosome | Withhold its interpretation and derived contributions. Store a correctly located positive control from the same upload. Verify both after reopening the database. |
 | A forward-keyed synthetic row models AA and TT with distinct effects | Put a verified forward AA call at its exact locus in each vendor file. Assert the complete AA effect in reopened pathway detail and any carrier-gated finding. The reverse-keyed row below receives the same letters at its own locus and returns the distinct TT effect. |
 | A 23andMe upload identifies GRCh37 but has no supported strand attestation | Use the header form in `tests/fixtures/sample_23andme_v4.txt` with a fabricated call and a verified panel row. Reopen the accepted sample, confirm the call is present and withhold its interpretation. Independently upload the same call and position with a supported plus-strand declaration and verify the complete expected result. |
