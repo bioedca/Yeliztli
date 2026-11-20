@@ -479,6 +479,8 @@ def test_positional_bmi_reopens_stale_after_frequency_update(
 def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
     positional_bmi: _Environment, typed_alt: str | None
 ) -> None:
+    from backend.analysis.imputation_persist import persist_imputed_variants
+
     _add_typed_second_locus(positional_bmi, ("A", typed_alt))
     before = _run_positional_bmi(positional_bmi)
     assert before["calibrated"] is True
@@ -487,13 +489,11 @@ def test_typed_bmi_calibration_depends_on_the_source_of_its_alleles(
     assert before["percentile"] == 95.42
 
     # Keep the typed genotype, PGS weights and frequency row fixed.
-    with positional_bmi.sample.begin() as conn:
-        removed = conn.execute(
-            imputed_variants.delete().where(
-                imputed_variants.c.chrom == "1", imputed_variants.c.pos == 999
-            )
-        )
-        assert removed.rowcount == 1
+    assert persist_imputed_variants(positional_bmi.sample, []) == 0
+    with positional_bmi.sample.connect() as conn:
+        assert conn.scalar(sa.select(sa.func.count()).select_from(imputed_variants)) == 0
+    if typed_alt is None:
+        assert _route_state(positional_bmi, "metabolic") == "stale"
     after = _run_positional_bmi(positional_bmi)
     assert after["snps_used_imputed"] == 0
     if typed_alt is None:
