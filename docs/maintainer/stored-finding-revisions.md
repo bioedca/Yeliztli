@@ -752,9 +752,11 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   the same raw score. Capture the scorer's persisted finding and completion
   receipt before the fresh annotation replaces them. A second frequency change,
   from 0.3 to 0.6, changes both the calibration mean and variance. Verify both
-  stored moments on the scorer-only path against fresh annotation and scoring.
-  If the scorer refuses the repair, verify the complete stored finding and
-  receipt survive the refusal. In fresh processes, inspect the original copied frequency and
+  stored moments, the z-score and the text rendered in reports against
+  fresh annotation and scoring. A successful POST that reports one computed
+  score must publish that result. On refusal, check the rejection returned to
+  the caller and verify the complete stored finding and receipt survive.
+  In fresh processes, inspect the original copied frequency and
   first GET before rerunning either analysis. Compare the changed source with
   an unchanged control. The current behavior is tracked in
   [#2746](https://github.com/bioedca/Yeliztli/issues/2746). To reproduce the
