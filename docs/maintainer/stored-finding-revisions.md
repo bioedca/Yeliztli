@@ -158,7 +158,7 @@ including committed changes under the same upstream label or file metadata.
 | --- | --- |
 | Proven current or provably outside the correction scope | Serve current output under existing disclosure rules. Repeated startup creates no prompt. |
 | Legacy run or empty history with no dependable revision | Withhold the affected scope with “Reanalysis needed to verify these results” only when a prior run is possible **and** its inputs could be affected. Proven unaffected inputs need no correction prompt, even with unknown history. A trustworthy marker proving no run occurred leads to the ordinary first-run action. Zero rows, dates and an upgraded reference DB cannot establish currentness. |
-| Reviewed wording-only correction with one verifiable mapping | Show the amended wording consistently on every surface. Preserve source values, original notes and the old analysis revision. Keep inseparable custom clinical guidance in protected history until a separate content review approves it. A rerun may publish a new canonical finding without publishing the historical note. |
+| Reviewed wording-only correction with one verifiable mapping | Show the amended wording wherever the finding text is rendered. Preserve source values, original notes and the old analysis revision. Keep inseparable custom clinical guidance in protected history until a separate content review approves it. A rerun may publish a new canonical finding without publishing the historical note. |
 | Interpretation, membership or dependency change | Suppress stale affected results before counting, deduplicating and choosing a top finding. Surface a generic rerun reason through authorized readers. Unaffected results stay visible. |
 | Installed reference content is missing, duplicated or otherwise unverifiable | Keep affected output withheld and identify the local reference component needing repair. A successful scorer exit or an empty row set cannot resolve this state. Verify the installed correction's required content and applicability before rerunning and clearing it. |
 | Storage unavailable, failed job or interrupted replacement | Preserve the prior completed state and pending reasons. Never mark an analysis current because a prompt was emitted or a run was queued. Reconcile and retry without duplicating rows or losing an independent reason. |
@@ -451,14 +451,19 @@ user action even when its historical visible subset is unknowable.
 
 Use the actual scoring, persistence, upgrade and read paths with synthetic controls.
 For each correction below, save an affected result and an independently
-unaffected result before upgrading. Read both through the module API, a
-generated report and a finding-based export. For a verified wording change,
-check the corrected text and citations on all three surfaces. For a changed
-or unverifiable interpretation, check that the old result is withheld on
-each surface while the unaffected result remains visible. Rerun the affected
-analysis, reopen the sample and compare all three outputs with fresh analysis
-on the same synthetic inputs. Include the verified-empty outcome where the
-new analysis no longer returns the old finding.
+unaffected result before upgrading. Check the corrected text and citations
+in the module API and generated report when wording can be updated. When
+interpretation changed or is unverifiable, check that both withhold the
+superseded finding and still show its unaffected control.
+
+Scoped FHIR export selects variants by the rsIDs named by eligible findings.
+Check preflight and delivery against the expected variant identities, count
+and completeness. A clopidogrel alert with no rsID contributes zero
+Observations even after repair. An independently eligible finding that
+names an eligible variant still contributes that variant. After the
+affected analysis reruns, reopen the sample and compare the API, report
+and export with fresh analysis on the same synthetic inputs. Include a
+verified-empty result when the new analysis no longer emits the old finding.
 
 ### Corrected prescribing text
 
@@ -572,8 +577,10 @@ new analysis no longer returns the old finding.
   can have a current allele table, direct call and Partial confidence while
   retaining a superseded prescribing basis. Exercise the four policy genes
   from the existing #2453 regressions. Preserve the observed call, withhold
-  the superseded alert and confirm the new conservative basis, score-specific
-  guidance and citations after repair. A fully assayed `hom_ref` control
+  the superseded alert and verify the conservative basis and computed
+  activity score. Check the recommendation and citations separately for each
+  drug. Use its shipped exact-score row when it has a match, otherwise use its
+  phenotype row with a null activity-score key. A fully assayed `hom_ref` control
   stays current. Neither of the earlier revisions can clear this correction.
   Register DPYD's earlier inclusion in the conservative prescribing policy
   as a separate revision of gene applicability. With the new allele-table
