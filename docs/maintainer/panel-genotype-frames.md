@@ -156,12 +156,27 @@ Alleles and effects here are software fixtures without a clinical claim.
 | A file header contradicts its supported format or build declaration | Reject the upload before publishing a sample or findings. Verify the rejection and absence of a new sample. |
 | A valid forward-strand upload has the panel rsID on the wrong GRCh37 position or chromosome | Withhold its interpretation and derived contributions. Store a correctly located positive control from the same upload. Verify both after reopening the database. |
 | A forward-keyed synthetic row models AA and TT with distinct effects | Put a verified forward AA call at its exact locus in each vendor file. Assert the complete AA effect in reopened pathway detail and any carrier-gated finding. The reverse-keyed row below receives the same letters at its own locus and returns the distinct TT effect. |
+| A 23andMe upload identifies GRCh37 but has no supported strand attestation | Use the header form in `tests/fixtures/sample_23andme_v4.txt` with a fabricated call and a verified panel row. Reopen the accepted sample, confirm the call is present and withhold its interpretation. Independently upload the same call and position with a supported plus-strand declaration and verify the complete expected result. |
+| A verified upload joins a row with a missing or unsupported panel-key frame | Keep observed letters and verified source evidence. Withhold the stored interpretation. Restore it only after verifying the row's panel frame and rerunning. |
 | An accepted sample contains AA with unverified row provenance | Withhold the interpretation. Repeat with an invariant mapping in which both orientations have the same complete output. Both cases stay withheld. A separately verified positive in the same sample is still present. |
 | A second synthetic reverse-oriented row models both AA and TT with distinct effects | Forward AA must store the TT effect; verified panel-frame AA must store the AA effect. Verify both complete outputs, including the pathway detail. Unknown strand withholds both. |
 | Forward CT and TC; panel GA and AG | Verify identical complete stored heterozygote output and membership for each order. Conflict between order aliases withholds the affected row. |
 | Forward CC (`hom_ref`), missing marker, and no-call | CC resolves to panel GG and produces no carrier-gated finding. Assert the baseline in the relevant pathway detail, the absence of the carrier text/action and the presence of the independent positive. The two missing cases retain their distinct coverage states. |
 | Reopened historical database, then verified reanalysis | Test first reads before reanalysis, atomic replacement on success, a failed rerun, and an unaffected control. A reported category alone cannot clear unknown-frame state. |
 | Merged source calls | Equal letters that disagree after verified normalization are a conflict. An unverified source leaves agreement unresolved. Different source spellings that normalize to the same verified allele pair can agree. Reopen the merged sample and check the stored source identity, interpretation and independent control. |
+
+Repeat the rs1051266 baseline with the migrated, shipped methylation row and
+fabricated forward-strand uploads. Verify the original observed call in the
+reopened sample. Forward AA must withhold residue wording, including the
+current “Homozygous His27” text, because its transformed key has no approved
+model. For verified forward TT, assert the full existing panel-AA context
+text and Standard category. Neither input emits a carrier finding. Use an
+independent called marker to verify the pathway's supported category. Give `TestSLC19A1ComplementaryStrandRendering` explicit
+observed frames for its forward and coding-strand inputs. Its coding AA
+control must retain the same approved context text. These tests exercise
+the shipped key convention without resolving the disputed alternate or assay
+coverage. The existing nomenclature review is recorded in
+`data/science-evidence/2026-08-10-slc19a1-rs1051266-nomenclature-2023/`.
 
 Run the same cases through both vendor formats for supported forward calls.
 Check values after reopening the sample database, including nonempty
