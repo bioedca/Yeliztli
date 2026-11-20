@@ -217,8 +217,11 @@ provenance. A retained row or archived note keeps its original provenance
 even when the full reannotation job stamps findings from the new run.
 Recover a note only through an authorized history view
 that applies the sample's disclosure rules and identifies the prior result.
-Place the archive under the same protections used for audit-only content,
-including direct SQL query and export controls from its first write. Only
+Protect every sample-specific lifecycle record from its first write,
+including archived findings, module-to-variant memberships, correction
+reasons and completion receipts. Apply this during migration and restore
+as well as on a fresh install. The SQL console and SQL export may expose
+only an authorized projection. Internal records stay private. Only
 reattach an independently presentable note to a current result when its
 identity is unambiguous and its content is still appropriate. A match on
 gene, drug and phenotype alone cannot approve copied prescribing advice.
@@ -300,14 +303,15 @@ summary selection. Use the same projection on module list/detail, All
 Findings, pathway or drug detail, variant cards, direct finding SVGs, Individuals, global summary,
 report preview, HTML/PDF and finding-based export. Scope FHIR selections
 derived from finding membership consistently in both preflight and delivery.
-Bind the picker or preflight, preview and final delivery to the selected
-sample-copy identity, result generation and selection. Require those
-values on FHIR and PDF requests. Recheck authorization and eligibility
-against a stable snapshot before delivering bytes. A replacement or
-generation change returns a conflict without artifact bytes and requires
-a fresh selection or preflight. Bind any retrievable report to that same
-identity and recheck it on download. An older
-request unable to identify its copy must not return a report.
+Bind FHIR and PDF requests, from picker or preview through download, to
+the sample copy and the authorized selection the caller saw. At delivery
+recheck authorization and eligibility on a stable snapshot. A change in
+the internal generation requires revalidation. If the selected copy
+changed or the authorized content, membership, counts or notices differ,
+require a fresh preview or preflight and return no artifact bytes. When a
+hidden change leaves the authorized selection identical, allow the same
+request to complete. Apply these checks to previously generated downloads.
+An older request unable to identify its copy must not return a report.
 Carry completeness separately from surviving rows into the HTML preview
 and the generated PDF. If a selected, disclosable analysis is pending,
 include a generic notice in the document itself and qualify its totals,
@@ -361,11 +365,12 @@ whenever the caller cannot represent the response. Test an incomplete
 medication report on a legacy client with all variant coverage bits resolved.
 Compatible clients should still see the eligible effects and incomplete count.
 
-Cache identity must include the verified sample identity and its published
-result generation. Advance and notify clients on correction registration,
-dependency invalidation, result publication or disclosure change. For a
-change within one database, commit the invalidation and a durable change
-notice in its transaction.
+Key the internal cache by verified sample copy and published result
+generation. Advance it on correction registration, dependency invalidation,
+result publication or disclosure change. Commit a durable invalidation in
+the same transaction. Scope client-visible revisions and notifications
+to the authorized view so a hidden change alone cannot identify a
+withheld result or invalidate an otherwise identical report selection.
 For an individual's aggregate, also track the registry revision of its
 linked sample copies. Advance it with each membership change and notify
 each affected individual. Refresh membership before subscribing to sample
@@ -495,9 +500,12 @@ verified-empty result when the new analysis no longer emits the old finding.
   withheld. In a separate synthetic wording-only update, assert projected
   text, detail and citations on the same surfaces. A missing legacy key or
   an applicability change requires reanalysis. A missing or duplicated
-  *installed* reference row keeps the correction pending even if scoring
-  finishes. Repair the reference and verify that only a subsequent run using
-  the verified content clears that reason.
+  *installed* reference row keeps the affected phenotype pending even if
+  scoring finishes. Test each phenotype against the same installation
+  with a verified Intermediate row and an unverifiable Poor row. After
+  rerun only the Intermediate sample clears its reason. Reverse the
+  verified and unverifiable rows and require the opposite outcome. Repair
+  the remaining row and rerun its sample to clear its reason.
   Remove every reference row for a known pending drug, then remove just
   its affected gene from a multi-gene drug. In both cases require the
   pending state without guidance for that pair, preserving any current
@@ -681,7 +689,10 @@ verified-empty result when the new analysis no longer emits the old finding.
   Observation in nutrigenomics-only and methylation-only FHIR delivery,
   with matching preflight counts. Selecting both returns it once. Withhold
   only the nutrigenomics membership and verify methylation's independently
-  eligible membership still works. Repeat after the opposite rerun order.
+  eligible membership still works. On both SQL readers verify that the
+  withheld association and its pending reason stay private. Verify the
+  authorized FHIR selection still returns its one eligible Observation.
+  Repeat after the opposite rerun order.
   Seed one GWAS bit supported only by the panel being repaired and another
   supported by two panels. Drop that panel's contribution to both, interrupt
   publication and retry. Check stored contributions and variant API masks.
@@ -822,6 +833,11 @@ The separate BMI copied-frequency defect and its synthetic regression suite are 
   replace it before delivery. The stale selection must return no report
   or observations from either copy. Repeat the selection on the new
   copy and verify a complete result containing only its expected data.
+  On the same copy, register a hidden correction between preview and
+  download. Require successful delivery of the same authorized contents
+  and notices. Then register a correction that changes the selected
+  visible results between those requests. Require fresh preflight or
+  preview before either format can be delivered.
   Compare three authorized module selections that initially yield zero
   Observations. Check the Report Builder preflight and the delivered
   report for each. With only clopidogrel guidance pending, show that the
