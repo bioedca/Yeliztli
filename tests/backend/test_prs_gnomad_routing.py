@@ -16,6 +16,7 @@ import sqlite3
 import tarfile
 from contextlib import closing
 from dataclasses import dataclass
+from multiprocessing.connection import Connection
 from pathlib import Path
 from unittest.mock import patch
 
@@ -493,7 +494,10 @@ def _bmi_input_generations(sample: sa.Engine) -> dict[str, str]:
 
 
 def _run_bmi_after_restart(
-    data_dir: Path, expected_state: str | tuple[str, ...], refresh_annotation: bool = False
+    data_dir: Path,
+    expected_state: str | tuple[str, ...],
+    refresh_annotation: bool,
+    ready: Connection,
 ) -> dict:
     import _no_network
     from _isolated_data_home import isolate_data_home
@@ -508,6 +512,7 @@ def _run_bmi_after_restart(
             from backend.services.reference_versions import read_current_reference_snapshot
 
             with TestClient(app) as client:
+                ready.send("started")
                 registry = get_registry()
                 assert registry.settings.data_dir == data_dir
                 frequency_path = registry.settings.gnomad_db_path
@@ -570,6 +575,27 @@ def _run_bmi_after_restart(
         assert not attempted, f"Restart worker attempted network access: {attempted}"
 
 
+def _restart_bmi(
+    data_dir: Path, expected_state: str | tuple[str, ...], refresh_annotation: bool = False
+) -> dict:
+    # Each call starts a new interpreter and runs the production app lifespan.
+    ctx = multiprocessing.get_context("spawn")
+    receiver, sender = ctx.Pipe(duplex=False)
+    with closing(receiver), closing(sender), ctx.Pool(1) as pool:
+        task = pool.apply_async(
+            _run_bmi_after_restart,
+            (data_dir, expected_state, refresh_annotation, sender),
+            # Surface exceptions raised before startup through AsyncResult.get().
+            error_callback=lambda _error: sender.send("failed"),
+        )
+        assert receiver.poll(120), "Fresh BMI worker did not complete app startup in 120 seconds"
+        receiver.recv()
+        try:
+            return task.get(timeout=60)
+        except multiprocessing.TimeoutError as exc:
+            raise TimeoutError("BMI scoring or shutdown exceeded its 60-second deadline") from exc
+
+
 def _prepare_bmi_restart(
     env: _Environment, *, typed_second: bool, complete_typed_alleles: bool = False
 ) -> tuple[Path, dict[str, str]]:
@@ -614,16 +640,11 @@ def _restart_bmi_pair(
     data_dir, published = _prepare_bmi_restart(
         env, typed_second=typed_second, complete_typed_alleles=complete_typed_alleles
     )
-    # Each run gets a separate interpreter, production startup and orderly shutdown.
-    with multiprocessing.get_context("spawn").Pool(1, maxtasksperchild=1) as pool:
-        original = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
-        if frequency_changed:
-            _update_second_frequency(env, 0.6)
-        expected_state = "stale" if frequency_changed else "current"
-        repaired = pool.apply_async(
-            _run_bmi_after_restart,
-            (data_dir, expected_state, complete_typed_alleles and frequency_changed),
-        ).get(timeout=60)
+    original = _restart_bmi(data_dir, "never")
+    if frequency_changed:
+        _update_second_frequency(env, 0.6)
+    expected_state = "stale" if frequency_changed else "current"
+    repaired = _restart_bmi(data_dir, expected_state, complete_typed_alleles and frequency_changed)
     assert original["recorded_before_rerun"] is None
     assert repaired["recorded_before_rerun"] == original["scoring_fingerprint"]
     return original, repaired, published
@@ -720,29 +741,26 @@ def checkpointed_bmi(
     path = positional_bmi.registry.settings.gnomad_db_path
     wal = path.with_name(path.name + "-wal")
     frequency_query = "SELECT af_eur FROM gnomad_af WHERE chrom='1' AND pos=999"
-    ctx = multiprocessing.get_context("spawn")
-    with closing(sqlite3.connect(path)) as writer:
+    # Close the inspection descriptor only after SQLite releases its POSIX locks.
+    with path.open("rb") as image, closing(sqlite3.connect(path)) as writer:
         assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
         writer.execute("PRAGMA wal_autocheckpoint=0")
         assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
         assert writer.execute(frequency_query).fetchall() == [(0.3,)]
-        checkpointed_image = path.read_bytes()
+        checkpointed_image = image.read()
         assert (
             writer.execute("UPDATE gnomad_af SET af_eur=0.6 WHERE chrom='1' AND pos=999").rowcount
             == 1
         )
         writer.commit()
         assert writer.execute(frequency_query).fetchall() == [(0.6,)]
-        with ctx.Pool(1) as pool:
-            before = pool.apply_async(_run_bmi_after_restart, (data_dir, "never")).get(timeout=60)
+        before = _restart_bmi(data_dir, "never")
         assert before["scores_before_rerun"] == []
         assert before["frequency_wal_bytes"] > 0 and wal.stat().st_size > 0
-        assert path.read_bytes() == checkpointed_image
+        image.seek(0)
+        assert image.read() == checkpointed_image
         assert writer.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone() == (0, 0, 0)
-    with ctx.Pool(1) as pool:
-        after = pool.apply_async(_run_bmi_after_restart, (data_dir, ("current", "stale"))).get(
-            timeout=60
-        )
+    after = _restart_bmi(data_dir, ("current", "stale"))
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as reader:
         assert reader.execute(frequency_query).fetchall() == [(0.6,)]
     assert after["frequency_wal_bytes"] == 0
@@ -977,7 +995,9 @@ def test_scorer_only_bmi_repair_cannot_certify_obsolete_copied_frequency(
     assert fresh["calibration_reference_std"] == pytest.approx(math.sqrt(expected_variance))
     assert observed["total"] == len(observed["items"])
     if response.status_code == 409:
-        assert response.json()["detail"]
+        reason = response.json()["detail"]
+        assert reason["code"] == "stale_copied_frequency"
+        assert reason["action"] == "reannotate"
         assert receipt.state == "stale"
         assert (persisted, stored_receipt) == (prior, prior_receipt)
         assert receipt.recorded == original["scoring_fingerprint"]
