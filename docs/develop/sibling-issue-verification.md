@@ -30,19 +30,28 @@ and [verification for #2290](https://github.com/bioedca/Yeliztli/issues/2290#iss
    before post-merge checks finish. [GitHub's linking rules](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue)
 3. **After the merge is green, or when investigating an older fix**, fetch
    current `origin/main` and record its full SHA and covering check IDs.
-   Confirm the proposed fix is in its history. Map **each** acceptance
-   criterion to its production path, expected result and observed result.
-   A confirmed owner runs write-producing checks in a dedicated worktree.
+   Confirm the proposed fix is in its history. Search open issues again
+   using the merged diff and review findings. Include issues filed or
+   reopened during review or post-merge CI, alongside earlier candidates.
+   Map **each** candidate's acceptance criteria to its production paths,
+   expected results and observed results. A live owner handles their own
+   issue. For an unclaimed candidate, finish or durably pause the primary
+   work, then acquire the sibling's claim before any write-producing check
+   or issue update. The confirmed owner runs those checks in a dedicated
+   worktree.
    Run a discriminating test or reproduce the reported behavior on that SHA,
    including the unaffected control where applicable. Apply the existing
    UI, science and privacy requirements to the evidence.
-4. **Immediately before closure**, recheck the main SHA, issue state,
-   linked PRs and live ownership. If main advanced, verify on the new green
-   head. A live owner handles their own issue. For an unclaimed candidate,
-   use the normal claim protocol before mutating it. When all criteria pass,
-   post the evidence on the sibling, close it as completed and update its
-   Project item. The proposed verification-only exception ends at issue
-   closure. Any needed source change follows the usual one-issue PR route.
+4. **After acquiring the claim**, recheck the issue state, linked PRs and
+   current green main SHA. If main advanced during the election or tests,
+   repeat verification on the new green head. Check sole active ownership,
+   the open issue and the exact green SHA before posting the evidence.
+   Post the criteria, results, SHA and check IDs on the sibling. Repeat the
+   ownership, issue and SHA checks immediately before closing. If anything
+   changed, reconcile it before using that evidence. When all criteria pass,
+   close as completed, update the Project item and finish the claim. The
+   proposed verification-only exception covers an issue whose fix already
+   shipped. Any needed source change follows the usual one-issue PR route.
 
 Keep a candidate open when a criterion fails, is unspecified, or has no
 reproducible evidence. Record the remaining gap for its owner. If the
