@@ -493,6 +493,12 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
             with TestClient(app) as client:
                 registry = get_registry()
                 assert registry.settings.data_dir == data_dir
+                frequency_path = registry.settings.gnomad_db_path
+                wal = frequency_path.with_name(frequency_path.name + "-wal")
+                wal_size = wal.stat().st_size if wal.exists() else 0
+                frequency_uri = f"{frequency_path.as_uri()}?mode=ro"
+                with closing(sqlite3.connect(frequency_uri, uri=True)) as db:
+                    journal_mode = db.execute("PRAGMA journal_mode").fetchone()[0]
                 response = client.get("/api/analysis/metabolic/prs?sample_id=1")
                 assert response.status_code == 200, response.text
                 stored = response.json()
@@ -511,11 +517,6 @@ def _run_bmi_after_restart(data_dir: Path, expected_state: str) -> dict:
                 )
                 inputs_before_rerun = _bmi_input_generations(sample)
                 release = read_current_reference_snapshot(registry.reference_engine)["gnomad"]
-                frequency_path = registry.settings.gnomad_db_path
-                with closing(sqlite3.connect(frequency_path)) as frequencies:
-                    journal_mode = frequencies.execute("PRAGMA journal_mode").fetchone()[0]
-                wal = frequency_path.with_name(frequency_path.name + "-wal")
-                wal_size = wal.stat().st_size if wal.exists() else 0
                 result = _run_positional_bmi(reopened)
                 return {
                     **result,
