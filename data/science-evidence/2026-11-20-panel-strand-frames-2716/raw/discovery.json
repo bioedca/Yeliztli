@@ -1,0 +1,12 @@
+{
+  "consensus_query": "Genotype Harmonizer Deelen strand ambiguous A/T C/G genotype data reference alleles array harmonization PMID 25495213",
+  "consensus_hits": 20,
+  "selected_title": "Genotype harmonizer: automatic strand alignment and format conversion for genotype data integration",
+  "scite_request": {
+    "tool": "search_literature",
+    "pmids": ["25495213"],
+    "limit": 1
+  },
+  "scite_doi": "10.1186/1756-0500-7-901",
+  "scite_editorial_notices_returned": null
+}
