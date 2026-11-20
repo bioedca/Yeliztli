@@ -72,6 +72,7 @@ from backend.db.tables import (
     sample_metadata_table,
     samples,
 )
+from backend.diagnostics import record_operation
 from backend.services.sample_operation_lock import sample_merge_lease
 from backend.services.staleness import is_sample_stale
 
@@ -1049,10 +1050,7 @@ def _merge_samples_locked(
         # sample exists and the user can retry annotation via the
         # POST /api/annotation/{sample_id} escape hatch. Log so the failure is
         # surfaced in the admin log explorer.
-        logger.warning(
-            "merge_annotation_enqueue_failed",
-            extra={"merged_sample_id": new_sample_id, "error": str(exc)},
-        )
+        record_operation("annotation_enqueue", exc)
 
     logger.info(
         "sample_merge_complete",

@@ -78,6 +78,13 @@ class AccessStatus:
         return await self.app(scope, receive, record_status)
 
 
+def create_operator_app():
+    from backend.main import app
+
+    # Wrap FastAPI's outer error handler so the status is the one actually sent.
+    return AccessStatus(app)
+
+
 def _api() -> None:
     import uvicorn
 
@@ -94,7 +101,8 @@ def _api() -> None:
         },
     }
     uvicorn.run(
-        "backend.main:app",
+        f"{create_operator_app.__module__}:{create_operator_app.__name__}",
+        factory=True,
         host=settings.host,
         port=settings.port,
         reload=settings.debug,

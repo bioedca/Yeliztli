@@ -22,6 +22,7 @@ from sqlalchemy.exc import OperationalError
 from backend.config import config_toml_path, get_settings
 from backend.db.build_guard import build_lock
 from backend.db.download_manager import HUEY_DOWNLOAD_JOB_TYPE
+from backend.diagnostics import record_operation
 from backend.logging_config import configure_logging
 
 logger = structlog.get_logger(__name__)
@@ -290,7 +291,7 @@ def recover_worker_orphaned_jobs(
         )
         count = (failed.rowcount or 0) + (cancelled.rowcount or 0)
     if count:
-        logger.info("worker_orphaned_jobs_recovered", count=count)
+        record_operation("jobs_recovered")
     return count
 
 

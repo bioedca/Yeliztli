@@ -253,7 +253,7 @@ class TestServiceTemplates:
 
     def test_systemd_huey_service_config(self):
         content = (_repo_root() / "systemd" / "yeliztli-huey.service").read_text()
-        assert "huey_consumer" in content
+        assert "-m backend.worker -w 1" in content
         assert "yeliztli-api.service" in content
 
 

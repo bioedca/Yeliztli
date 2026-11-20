@@ -128,7 +128,8 @@ class TestLocalhostBinding:
             warn_if_insecure_network_bind(settings)
 
         assert "SECURITY WARNING" in caplog.text
-        assert "0.0.0.0" in caplog.text
+        assert "0.0.0.0" not in caplog.text
+        assert "enable authentication" in caplog.text
         assert "without credentials" in caplog.text
 
     def test_network_bind_with_effective_auth_does_not_warn(

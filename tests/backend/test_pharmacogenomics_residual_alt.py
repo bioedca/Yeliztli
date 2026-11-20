@@ -62,24 +62,7 @@ def _call(gene, alleles, genotypes, reference_engine):
     return call_star_alleles_for_gene(gene, alleles, genotypes, reference_engine)
 
 
-def _residual_events(logs: list[dict]) -> list[dict]:
-    events = [e for e in logs if e.get("event") == "pgx_residual_alt_discarded"]
-    for event in events:
-        # Log fields are persisted and shown in the Log Explorer, so the warning
-        # carries counts only: no rsid, allele, star-allele name or diplotype.
-        assert set(event) <= {
-            "event",
-            "log_level",
-            "gene",
-            "residual_variants",
-            "crowded_out_alleles",
-            "withheld",
-        }, event
-        assert "rs" not in str({k: v for k, v in event.items() if k != "event"})
-    return events
-
-
-def test_a_leftover_no_bundled_allele_explains_is_logged_not_withheld(
+def test_unexplained_leftover_preserves_the_call_without_result_logging(
     reference_engine: sa.Engine,
 ) -> None:
     # The allele table as it was before CYP2B6*4 (785A>G alone) was bundled.
@@ -98,13 +81,7 @@ def test_a_leftover_no_bundled_allele_explains_is_logged_not_withheld(
     with capture_logs() as logs:
         result = _call("CYP2B6", alleles, genotypes, reference_engine)
 
-    events = _residual_events(logs)
-    assert len(events) == 1
-    assert events[0]["gene"] == "CYP2B6"
-    assert events[0]["residual_variants"] == 1
-    assert events[0]["crowded_out_alleles"] == 0
-    assert events[0]["withheld"] is False
-    assert events[0]["log_level"] == "warning"
+    assert logs == []
     # Not crowded out, so the call is not withheld: it stands as the reference
     # sample's does.
     assert result.call_confidence == with_all.call_confidence
@@ -123,7 +100,7 @@ def test_the_same_genotype_is_not_flagged_when_an_allele_explains_it(
 
     assert "*4" in result.diplotype
     assert "rs2279343" in result.involved_rsids
-    assert _residual_events(logs) == []
+    assert logs == []
     assert CROWDED not in result.confidence_note
     assert result.call_confidence != CallConfidence.INSUFFICIENT
 
@@ -135,7 +112,7 @@ def test_a_reference_sample_is_not_flagged(reference_engine: sa.Engine) -> None:
         result = _call("CYP2B6", alleles, _geno(_CYP2B6_REF), reference_engine)
 
     assert result.diplotype == "*1/*1"
-    assert _residual_events(logs) == []
+    assert logs == []
     assert CROWDED not in result.confidence_note
     assert result.call_confidence != CallConfidence.INSUFFICIENT
 
@@ -150,13 +127,10 @@ def test_more_non_reference_alleles_than_slots_is_flagged(reference_engine: sa.E
 
     assert result.call_confidence == CallConfidence.INSUFFICIENT
     assert CROWDED in result.confidence_note
-    # The note is logged when the alert is skipped, so it names no allele.
+    # The returned overflow note names no allele.
     overflow_sentence = result.confidence_note[result.confidence_note.index(CROWDED) :]
     assert "*" not in overflow_sentence, overflow_sentence
-    events = _residual_events(logs)
-    assert len(events) == 1
-    assert events[0]["crowded_out_alleles"] >= 1
-    assert events[0]["withheld"] is True
+    assert logs == []
     # An insufficient call issues no prescribing guidance.
     alerts = generate_prescribing_alerts([result], reference_engine)
     assert [a for a in alerts if a.gene == "NAT2"] == []
@@ -175,9 +149,7 @@ def test_slco1b1_partial_star17_haplotype_keeps_its_deliberate_call(
     assert result.diplotype == "*1B/*1B"
     assert result.call_confidence == CallConfidence.COMPLETE
     assert CROWDED not in result.confidence_note
-    events = _residual_events(logs)
-    assert len(events) == 1
-    assert events[0]["withheld"] is False
+    assert logs == []
 
 
 def test_structurally_uncallable_alleles_are_not_counted_as_crowded_out(
@@ -199,12 +171,12 @@ def test_structurally_uncallable_alleles_are_not_counted_as_crowded_out(
     assert result.diplotype == "*3/*4"
     assert result.call_confidence != CallConfidence.INSUFFICIENT
     assert CROWDED not in result.confidence_note
-    assert all(not e["withheld"] for e in _residual_events(logs))
+    assert logs == []
     alerts = generate_prescribing_alerts([result], reference_engine)
     assert [a for a in alerts if a.gene == "NUDT15"], "thiopurine guidance is still issued"
 
 
-def test_withheld_reports_the_final_call_not_only_an_overflow(
+def test_insufficient_call_without_overflow_emits_no_result_diagnostic(
     reference_engine: sa.Engine,
 ) -> None:
     """A call already withheld for too few usable markers is reported withheld."""
@@ -215,7 +187,4 @@ def test_withheld_reports_the_final_call_not_only_an_overflow(
 
     assert result.call_confidence == CallConfidence.INSUFFICIENT
     assert CROWDED not in result.confidence_note
-    events = _residual_events(logs)
-    assert len(events) == 1
-    assert events[0]["crowded_out_alleles"] == 0
-    assert events[0]["withheld"] is True
+    assert logs == []

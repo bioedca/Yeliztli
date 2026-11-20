@@ -267,6 +267,36 @@ class TestLogExplorer:
             ).one()
         assert old_row.event_data == old_payload and old_row.presentation_policy_version == 2
 
+    @pytest.mark.parametrize("result_count", [0, 1, 3])
+    def test_result_count_cannot_change_explorer_diagnostics(self, admin_client, result_count):
+        from backend.analysis.pharmacogenomics import StarAlleleResult, generate_prescribing_alerts
+
+        engine = get_registry().reference_engine
+
+        def pages():
+            return [
+                admin_client.get("/api/admin/logs", params=spec).json()
+                for spec in (
+                    {"page_size": 1},
+                    {"page_size": 1, "page": 2},
+                    {"component": "pharmacogenomics"},
+                )
+            ]
+
+        before = pages()
+        outcomes = [
+            StarAlleleResult(
+                gene="SYNTHETIC",
+                allele1="fixture",
+                allele2="fixture",
+                diplotype="fixture",
+                phenotype=None,
+            )
+            for _ in range(result_count)
+        ]
+        assert generate_prescribing_alerts(outcomes, engine) == []
+        assert pages() == before
+
     def test_returns_paginated_logs(self, admin_client: TestClient) -> None:
         """GET /api/admin/logs returns paginated log entries."""
         resp = admin_client.get("/api/admin/logs")

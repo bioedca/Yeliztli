@@ -32,6 +32,8 @@ class LoggingState:
     """The pieces of global logging state that ``configure_logging`` replaces."""
 
     handlers: list[logging.Handler]
+    logger_class: type[logging.Logger]
+    projected_loggers: set[str]
     level: int
     propagate: bool
     framework_handlers: dict[str, tuple[list[logging.Handler], bool]]
@@ -41,7 +43,15 @@ class LoggingState:
 def snapshot_logging_state() -> LoggingState:
     """Capture the current logging state so it can be put back verbatim."""
     logger = logging.getLogger(BACKEND_LOGGER_NAME)
+    from backend.logging_config import _project_record
+
     return LoggingState(
+        logger_class=logging.getLoggerClass(),
+        projected_loggers={
+            name
+            for name, obj in logging.Logger.manager.loggerDict.items()
+            if isinstance(obj, logging.Logger) and _project_record in obj.filters
+        },
         handlers=logger.handlers[:],
         level=logger.level,
         propagate=logger.propagate,
@@ -83,6 +93,12 @@ def restore_logging_state(previous: LoggingState) -> None:
     logger.handlers[:] = previous.handlers
     logger.setLevel(previous.level)
     logger.propagate = previous.propagate
+    from backend.logging_config import _project_record
+
+    logging.setLoggerClass(previous.logger_class)
+    for name, obj in list(logging.Logger.manager.loggerDict.items()):
+        if isinstance(obj, logging.Logger) and name not in previous.projected_loggers:
+            obj.removeFilter(_project_record)
     for name, (handlers, propagate) in previous.framework_handlers.items():
         framework = logging.getLogger(name)
         framework.handlers[:] = handlers

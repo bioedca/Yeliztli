@@ -113,7 +113,7 @@ from backend.db.reference_schema import (
     ensure_log_entry_presentation_policy,
     ensure_reference_schema_current,
 )
-from backend.diagnostics import lifecycle_diagnostic, warn_network_bind
+from backend.diagnostics import record_operation, warn_network_bind
 from backend.logging_config import configure_logging
 from backend.services.sample_merge import recover_unpublished_merge_artifacts
 from backend.tasks.huey_tasks import recover_orphaned_jobs
@@ -200,7 +200,7 @@ def _teardown_lifespan_resources(*, suppress_errors: bool) -> None:
             # read anyway (#2126).
             configure_logging()
             cleanup_errors.append(exc)
-            lifecycle_diagnostic(resource_name, exc)
+            record_operation(resource_name, exc)
 
     if cleanup_errors and not suppress_errors:
         if len(cleanup_errors) == 1:
@@ -261,7 +261,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 # stdlib logger and an arbitrary keyword raises TypeError out of
                 # Logger._log, which would abort startup at precisely the point
                 # this warning exists to keep survivable.
-                lifecycle_diagnostic("directory")
+                record_operation("directory")
         (settings.data_dir / "samples").mkdir(exist_ok=True)
         # Initialize the DB registry (creates reference engine, etc.)
         registry = get_registry()
@@ -316,7 +316,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             # site did pass ``sources=``/``pipeline_build=``, so the moment a
             # skew was actually detected the warning aborted startup instead of
             # reporting it — the one condition it exists to survive (#2126).
-            lifecycle_diagnostic("reference_build")
+            record_operation("reference_build")
         warn_if_insecure_network_bind(settings)
         # Mark any leftover in-progress download sessions as interrupted/stale
         cleanup_interrupted_sessions(registry.reference_engine)
@@ -377,9 +377,6 @@ def create_app() -> FastAPI:
 
     # Auth middleware — enforces session auth when enabled
     app.add_middleware(AuthMiddleware)
-    from backend.operator_console import AccessStatus
-
-    app.add_middleware(AccessStatus)
 
     # Create a fresh API router per app instance to avoid duplicate routes
     api_router = APIRouter(prefix="/api")
@@ -471,5 +468,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-# ── Direct execution ──────────────────────────────────────────────────

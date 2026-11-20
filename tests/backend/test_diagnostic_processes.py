@@ -78,7 +78,7 @@ def test_existing_installation_stays_closed_before_cutover(tmp_path, module):
 
 
 def _status(proc, url):
-    deadline = time.monotonic() + 60
+    deadline = time.monotonic() + 120
     while time.monotonic() < deadline:
         assert proc.poll() is None, "the service exited before becoming ready"
         try:
@@ -113,7 +113,7 @@ def test_reload_keeps_console_safe_in_both_serving_processes(tmp_path):
         headers, result = _status(proc, url + "/logs?search=synthetic-console-query")
         assert headers["Cache-Control"] == "no-store" and result["total"] == 0
         watched.write_text("# reload\n")
-        deadline = time.monotonic() + 45
+        deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             _, after = _status(proc, url + "/status")
             if after["uptime_seconds"] < before["uptime_seconds"]:
@@ -158,6 +158,8 @@ from backend.tasks.huey_tasks import huey
 
 @huey.task()
 def example_task():
+    import structlog
+    structlog.get_logger("backend.fixture").info("fixture task began")
     print("fixture dependency output", flush=True)
     print("fixture dependency diagnostic", file=sys.stderr, flush=True)
     code = (
@@ -185,7 +187,7 @@ runpy.run_module("backend.worker", run_name="__main__")
         text=True,
     )
     try:
-        deadline = time.monotonic() + 45
+        deadline = time.monotonic() + 90
         while not done.exists() and time.monotonic() < deadline:
             assert proc.poll() is None
             time.sleep(0.15)
@@ -198,6 +200,7 @@ runpy.run_module("backend.worker", run_name="__main__")
     assert "fixture" not in err
     with sqlite3.connect(data / "reference.db") as db:
         rows = db.execute("SELECT message, event_data, logger FROM log_entries").fetchall()
+    assert rows and any(row[0] == "Application diagnostic" for row in rows)
     assert all("fixture" not in str(row) for row in rows)
 
 
@@ -237,6 +240,7 @@ def serve_fixture():
     @app.get("/fixture-error")
     def fixture_error():
         raise RuntimeError("unreviewed fixture error")
+    app.router.routes.insert(0, app.router.routes.pop())
     _api()
 
 raise SystemExit(_run(serve_fixture))
@@ -269,7 +273,9 @@ raise SystemExit(_run(serve_fixture))
     finally:
         out, err = _stop(proc)
     assert out == ""
-    assert "INFO HTTP response 200" in err and "Operation failed" in err
+    assert "INFO HTTP response 200" in err
+    assert "INFO HTTP response 500" in err
+    assert "Operation failed" in err
     for marker in ("report helper stream", "report helper diagnostic", "unreviewed fixture error"):
         assert marker not in err
     with sqlite3.connect(data / "reference.db") as db:

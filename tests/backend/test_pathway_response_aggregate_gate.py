@@ -230,3 +230,30 @@ def test_pathway_detail_withholds_pair_assembled_from_safe_snp_details(
     with pytest.raises(HTTPException) as caught:
         route_module.pathway_detail(pathway_id="safe_pathway", sample_id=1)
     assert caught.value.status_code == 404
+
+
+@pytest.mark.parametrize("omitted", [1, 3])
+@pytest.mark.parametrize("context", [{}, {"gene": "CYP2D6", "drug": "tamoxifen"}])
+def test_presentable_detail_omits_ineligible_items_without_a_refusal(
+    monkeypatch, omitted, context
+):
+    from structlog.contextvars import bound_contextvars
+    from structlog.testing import capture_logs
+
+    summary = _pathway_summary("Safe Pathway")
+    safe = {
+        "rsid": "fixture-marker",
+        "gene": "SAFE1",
+        "variant_name": "safe item",
+        "effect_summary": "fixture",
+        "category": "Standard",
+        "evidence_level": 1,
+    }
+    held = {**safe, "gene": "CYP2D6", "effect_summary": "tamoxifen"}
+    summary["detail"]["snp_details"] = [safe, *[held.copy() for _ in range(omitted)]]
+    monkeypatch.setattr(allergy, "_get_sample_engine", lambda _sample_id: object())
+    monkeypatch.setattr(allergy, "_fetch_allergy_findings", lambda _engine: [summary])
+    with bound_contextvars(**context), capture_logs() as logs:
+        result = allergy.pathway_detail(pathway_id="safe_pathway", sample_id=1)
+    assert [item.gene for item in result.snp_details] == ["SAFE1"]
+    assert not [entry for entry in logs if entry["event"] == "patient_response_payload_withheld"]

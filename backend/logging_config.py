@@ -175,18 +175,64 @@ _LEVELS = {
 _FRAMEWORK_LOGGERS = ("uvicorn", "uvicorn.access", "uvicorn.error", "huey", "huey.consumer")
 
 
-def _replace_observed_record(record: logging.LogRecord, level: int, event: dict) -> None:
-    sanitized = logging.LogRecord(
-        event.get("logger") or "application", level, "", 0, event["event"], (), None
+class _ReviewedRecord(logging.LogRecord):
+    """An observer and the owned sinks share only this fixed projection."""
+
+    def __init__(self, event: dict, level: int):
+        super().__init__(
+            event.get("logger") or "application", level, "", 0, event["event"], (), None
+        )
+        self.__dict__.update(threadName=None, processName=None, taskName=None)
+        self.approved = event
+
+
+def _project_record(record: logging.LogRecord) -> _ReviewedRecord:
+    if type(record) is _ReviewedRecord:
+        return record
+    level = (
+        record.levelno
+        if type(record.levelno) is int and record.levelno in _LEVELS
+        else logging.INFO
     )
-    # These names may be supplied by the task, thread, or process itself.
-    sanitized.__dict__.update(threadName=None, processName=None, taskName=None)
-    record.__dict__.clear()
-    record.__dict__.update(sanitized.__dict__)
+    raw = {key: value for key, value in vars(record).items() if key not in _STANDARD_FIELDS}
+    raw.update(
+        event=record.msg,
+        args=record.args,
+        exc_info=record.exc_info,
+        exc_text=record.exc_text,
+        stack_info=record.stack_info,
+    )
+    return _ReviewedRecord(safe_event(raw, record.name), level)
+
+
+def _owned_namespace(name: str) -> bool:
+    return name.partition(".")[0] in {"backend", "huey", "uvicorn"}
+
+
+def _install_record_filter() -> None:
+    # Python 3.12 logger filters can return a replacement record before the
+    # first handler sees it. Configure existing and subsequently created
+    # application loggers, preserving the host's original logger class.
+    prior = logging.getLoggerClass()
+    if not getattr(prior, "_yeliztli_projection", False):
+
+        class ApplicationLogger(prior):
+            _yeliztli_projection = True
+
+            def __init__(self, name, level=logging.NOTSET):
+                super().__init__(name, level)
+                if _owned_namespace(name):
+                    self.addFilter(_project_record)
+
+        logging.setLoggerClass(ApplicationLogger)
+    for name, logger in list(logging.Logger.manager.loggerDict.items()):
+        if _owned_namespace(name) and isinstance(logger, logging.Logger):
+            if _project_record not in logger.filters:
+                logger.filters.insert(0, _project_record)
 
 
 class _SafeHandler(logging.Handler):
-    """Classify the unformatted record before our sinks or ancestor handlers see it."""
+    """Send an approved record to this logger's configured destinations."""
 
     def __init__(self, db_processor=None) -> None:
         super().__init__()
@@ -194,47 +240,33 @@ class _SafeHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            level = (
-                record.levelno
-                if type(record.levelno) is int and record.levelno in _LEVELS
-                else logging.INFO
-            )
-            raw = {
-                key: value for key, value in vars(record).items() if key not in _STANDARD_FIELDS
-            }
-            raw.update(
-                event=record.msg,
-                args=record.args,
-                exc_info=record.exc_info,
-                exc_text=record.exc_text,
-                stack_info=record.stack_info,
-            )
-            approved = safe_event(raw, record.name)
-            _replace_observed_record(record, level, approved)
+            reviewed = _project_record(record)
+            level = _LEVELS[reviewed.levelno]
             if self.db_processor is not None:
-                self.db_processor(None, _LEVELS[level], approved)
-            _console_write(_LEVELS[level], approved)
+                self.db_processor(None, level, reviewed.approved)
+            _console_write(level, reviewed.approved, sys.stderr)
         except Exception:
-            # Handler.handleError formats the rejected input. Give ancestors a
-            # fresh, minimal record even if classification or output failed.
-            _replace_observed_record(record, logging.INFO, {"event": "Application diagnostic"})
+            # Handler.handleError formats the rejected input. Logging failures
+            # must not trigger that fallback or interrupt the original operation.
+            return
 
 
-def _console_write(method: str, event: dict) -> None:
+def _console_write(method: str, event: dict, stream) -> None:
     from backend.operator_console import write_diagnostic
 
     fields = {k: v for k, v in event.items() if k != "event"}
     suffix = " " + json.dumps(fields, ensure_ascii=True) if fields else ""
-    write_diagnostic(f"{method.upper()} {event['event']}{suffix}\n", sys.stderr)
+    write_diagnostic(f"{method.upper()} {event['event']}{suffix}\n", stream)
 
 
-def _render_native(_logger, method: str, event: dict) -> str:
-    from backend.operator_console import managed_console
-
-    if managed_console():
-        _console_write(method, event)
-        raise structlog.DropEvent
-    return structlog.dev.ConsoleRenderer(colors=False)(None, method, event)
+def _render_native(_logger, method: str, event: dict) -> None:
+    # Keep the native stdout route for embedded callers. The shipped services
+    # redirect this single approved write to their operator console.
+    try:
+        _console_write(method, event, sys.stdout)
+    except Exception:
+        pass
+    raise structlog.DropEvent
 
 
 def configure_logging(engine_getter: callable | None = None) -> None:
@@ -252,6 +284,7 @@ def configure_logging(engine_getter: callable | None = None) -> None:
         cache_logger_on_first_use=False,
     )
 
+    _install_record_filter()
     backend_logger = logging.getLogger("backend")
     backend_logger.handlers[:] = [_SafeHandler(db_processor)]
     backend_logger.setLevel(logging.INFO)

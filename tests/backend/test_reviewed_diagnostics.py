@@ -241,7 +241,8 @@ def test_bound_and_direct_context_cannot_select_approved_fields(diagnostics):
     ]
 
 
-def test_host_observer_only_receives_projected_records(diagnostics, capsys):
+@pytest.mark.parametrize("name", ["", "backend", "backend.fixture"])
+def test_host_observer_only_receives_projected_records(diagnostics, capsys, name):
     seen = []
 
     class Observe(logging.Handler):
@@ -249,8 +250,8 @@ def test_host_observer_only_receives_projected_records(diagnostics, capsys):
             seen.append(vars(record).copy())
 
     observer = Observe()
-    root = logging.getLogger()
-    root.addHandler(observer)
+    observed = logging.getLogger(name)
+    observed.addHandler(observer)
     try:
         try:
             raise RuntimeError("synthetic exception details")
@@ -259,7 +260,7 @@ def test_host_observer_only_receives_projected_records(diagnostics, capsys):
                 "fixture %s", "synthetic argument", extra={"private_note": "fixture"}
             )
     finally:
-        root.removeHandler(observer)
+        observed.removeHandler(observer)
     assert len(seen) == 1
     record = seen[0]
     assert record["msg"] == GENERIC_FAILURE and record["name"] == "application"

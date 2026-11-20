@@ -35,6 +35,7 @@ from backend.db.tables import (
     samples,
 )
 from backend.db.vep_version import resolve_effective_vep_bundle_version
+from backend.diagnostics import record_operation
 from backend.ingestion.base import ParsedVariant, ParseResult, UnsupportedFormatError
 from backend.ingestion.dispatcher import (
     ParserError,
@@ -554,15 +555,8 @@ def _ingest_upload(file_bytes: bytes, filename: str) -> dict:
     # string ``version`` field (Plan \u00a78.7).
     text = file_bytes.decode("utf-8", errors="replace")
     if "\ufffd" in text:
-        # Identified by content hash, not by name. This record is durable since
-        # #2126, and the uploaded name is user-supplied free text on a file of
-        # genetic data — routinely a person's name — so logging it would leave
-        # that name in reference.db and the Log Explorer indefinitely. The hash
-        # prefix still lets an operator tie the warning to a specific upload.
-        logger.warning(
-            "Uploaded file (sha256 %s) contains invalid UTF-8 sequences that were replaced",
-            file_hash[:12],
-        )
+        # A content hash can identify an upload just as its filename can.
+        record_operation("invalid_upload_encoding")
     result = parse(io.StringIO(text))
 
     # Genome-build handling (issues #480 / #547 / #562), keyed off the *parsed*

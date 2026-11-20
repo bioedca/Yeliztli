@@ -14,20 +14,73 @@ import structlog
 DATABASE_BUSY = "The database is busy. Retry the operation."
 STORAGE_UNAVAILABLE = "Storage is unavailable. Check the application data directory."
 NETWORK_BIND_WARNING = (
-    "Anyone who can reach this port can access samples, variants, reports, and analyses "
-    "without credentials. Keep YELIZTLI_HOST on 127.0.0.1, or enable authentication "
+    "SECURITY WARNING. Anyone who can reach this port can access samples, variants, reports, "
+    "and analyses without credentials. Keep YELIZTLI_HOST on 127.0.0.1, or enable authentication "
     "and set a password before exposing the app."
 )
 GENERIC_FAILURE = "Operation failed"
 GENERIC_EVENT = "Application diagnostic"
 
-_LIFECYCLE = {
+# Each entry owns its component, level and full explanatory wording. Only the
+# typed producer can select an entry; ordinary log text never selects one.
+_OPERATIONS = {
     "directory": (
-        "The data directory could not be made private. Choose a private directory in Setup."
+        "backend.main",
+        logging.WARNING,
+        "The data directory could not be made private. Choose a private directory in Setup.",
     ),
-    "reference_build": "The installed reference builds differ. Check Database Health.",
-    "download executor": "FastAPI lifespan cleanup failed for download executor",
-    "database registry": "FastAPI lifespan cleanup failed for database registry",
+    "reference_build": (
+        "backend.main",
+        logging.WARNING,
+        "The installed reference builds differ. Check Database Health.",
+    ),
+    "download executor": (
+        "backend.main",
+        logging.ERROR,
+        "FastAPI lifespan cleanup failed for download executor",
+    ),
+    "database registry": (
+        "backend.main",
+        logging.ERROR,
+        "FastAPI lifespan cleanup failed for database registry",
+    ),
+    "network_bind": ("backend.main", logging.WARNING, NETWORK_BIND_WARNING),
+    "deleted": ("backend.services.sample_delete", logging.INFO, "Sample deletion completed."),
+    "missing_database": (
+        "backend.services.sample_delete",
+        logging.WARNING,
+        "A merged sample database is unavailable.",
+    ),
+    "missing_provenance": (
+        "backend.services.sample_delete",
+        logging.WARNING,
+        "A merged sample has no recorded source information.",
+    ),
+    "invalid_provenance": (
+        "backend.services.sample_delete",
+        logging.WARNING,
+        "A merged sample has invalid source information.",
+    ),
+    "unreadable_provenance": (
+        "backend.services.sample_delete",
+        logging.WARNING,
+        "A merged sample's source information could not be read.",
+    ),
+    "jobs_recovered": (
+        "backend.tasks.huey_tasks",
+        logging.INFO,
+        "The worker recovered interrupted background jobs.",
+    ),
+    "invalid_upload_encoding": (
+        "backend.api.routes.ingest",
+        logging.WARNING,
+        "The uploaded file contains invalid UTF-8 sequences that were replaced.",
+    ),
+    "annotation_enqueue": (
+        "backend.services.sample_merge",
+        logging.WARNING,
+        "The merged sample was saved. Start annotation again.",
+    ),
 }
 
 
@@ -42,23 +95,26 @@ class _Template:
 
     def __str__(self) -> str:
         # Before application configuration, emit only a fixed diagnostic.
-        if self.name == "network_bind":
-            return NETWORK_BIND_WARNING
-        if self.name == "lifecycle" and type(self.reason) is str:
-            return _LIFECYCLE.get(self.reason, GENERIC_EVENT)
+        if self.name == "operation" and type(self.reason) is str and self.reason in _OPERATIONS:
+            return _OPERATIONS[self.reason][2]
         return GENERIC_EVENT
 
 
-def warn_network_bind() -> None:
-    logging.getLogger("backend.main").warning(_Template("network_bind"))
-
-
-def lifecycle_diagnostic(reason: str, error: BaseException | None = None) -> None:
-    logger = logging.getLogger("backend.main")
-    if error is None:
-        logger.warning(_Template("lifecycle", reason))
+def record_operation(reason: str, error: BaseException | None = None) -> None:
+    if type(reason) is not str or reason not in _OPERATIONS:
+        component = "backend"
+        level = logging.ERROR if error is not None else logging.INFO
     else:
-        logger.error(_Template("lifecycle", reason), exc_info=(type(error), error, None))
+        component, level, _ = _OPERATIONS[reason]
+    logging.getLogger(component).log(
+        level,
+        _Template("operation", reason),
+        exc_info=(type(error), error, None) if error is not None else None,
+    )
+
+
+def warn_network_bind() -> None:
+    record_operation("network_bind")
 
 
 def storage_failure(
@@ -105,7 +161,9 @@ class _Uninspectable(Exception):
     pass
 
 
-def _primitive_evidence(value: object, budget: list[int], depth: int = 0) -> object:
+def _primitive_evidence(
+    value: object, budget: list[int], seen_exceptions: set[int], depth: int = 0
+) -> object:
     """Inspect built-in data only. Never format a value or run a user-defined method."""
     budget[0] -= 1
     if depth > 32 or budget[0] < 0:
@@ -125,15 +183,20 @@ def _primitive_evidence(value: object, budget: list[int], depth: int = 0) -> obj
             raise _Uninspectable
         return value
     if kind is list or kind is tuple:
-        return [_primitive_evidence(item, budget, depth + 1) for item in value]
+        return [_primitive_evidence(item, budget, seen_exceptions, depth + 1) for item in value]
     if kind is dict:
         result = {}
         for key, item in value.items():
             if type(key) is not str or len(key) > 512:
                 raise _Uninspectable
-            result[key] = _primitive_evidence(item, budget, depth + 1)
+            result[key] = _primitive_evidence(item, budget, seen_exceptions, depth + 1)
         return result
     if issubclass(kind, BaseException):
+        # ASGI exception-group collapse can set a member's context to its own
+        # former group. Inspect each exception once, including all group peers.
+        if id(value) in seen_exceptions:
+            return None
+        seen_exceptions.add(id(value))
         # Built-in descriptors bypass exception subclasses' attribute hooks.
         # A custom formatter may draw on other state, which cannot be certified.
         formatter = inspect.getattr_static(kind, "__str__")
@@ -155,7 +218,7 @@ def _primitive_evidence(value: object, budget: list[int], depth: int = 0) -> obj
         ]
         if issubclass(kind, OSError):
             parts.extend((OSError.filename.__get__(value), OSError.filename2.__get__(value)))
-        return _primitive_evidence(parts, budget, depth + 1)
+        return _primitive_evidence(parts, budget, seen_exceptions, depth + 1)
     raise _Uninspectable
 
 
@@ -219,16 +282,15 @@ def safe_event(raw: dict[str, object], component: object = None) -> dict[str, ob
                 template.context,
             )
         evidence = _primitive_evidence(
-            [component, inputs, structlog.contextvars.get_contextvars()], [1024]
+            [component, inputs, structlog.contextvars.get_contextvars()], [1024], set()
         )
         if contains_unpresentable_prescribing_identifier(evidence):
             return _neutral()
         if template is not None and type(template.name) is str:
-            if template.name == "lifecycle" and type(template.reason) is str:
-                if template.reason in _LIFECYCLE:
-                    return {"event": _LIFECYCLE[template.reason], "logger": "backend.main"}
-            if template.name == "network_bind":
-                return {"event": NETWORK_BIND_WARNING, "logger": "backend.main"}
+            if template.name == "operation" and type(template.reason) is str:
+                if template.reason in _OPERATIONS:
+                    component, _, text = _OPERATIONS[template.reason]
+                    return {"event": text, "logger": component}
             if template.name == "storage_failure":
                 record = {"event": GENERIC_FAILURE, "logger": "backend.storage"}
                 if type(template.reason) is str and template.reason in ("busy", "unavailable"):

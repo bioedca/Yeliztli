@@ -862,13 +862,9 @@ class TestUploadFilenamePrivacy:
     """The uploaded filename must not reach a durable log (#2126)."""
 
     def test_invalid_utf8_warning_does_not_log_the_filename(self, client, caplog) -> None:
-        """An upload with bad bytes is reported by content hash, not by name.
+        """An invalid upload retains the explanatory warning without an upload identifier.
 
-        Since #2126 stdlib records are persisted to ``log_entries`` and surfaced
-        in the Log Explorer. The uploaded name is user-supplied free text on a
-        file of genetic data — routinely a person's name — so naming it here
-        would leave that name in reference.db indefinitely, outliving the sample
-        itself. The sha256 prefix still ties the warning to one upload.
+        Both the uploaded name and its content hash are excluded from the diagnostic.
         """
         import logging as stdlib_logging
 
@@ -888,7 +884,10 @@ class TestUploadFilenamePrivacy:
         joined = " ".join(utf8_warnings)
         assert "Alice Smith" not in joined, f"the uploaded filename was logged: {joined}"
         assert identifying_name not in joined
-        assert expected_hash in joined, "the warning should identify the upload by content hash"
+        assert expected_hash not in joined
+        assert utf8_warnings == [
+            "The uploaded file contains invalid UTF-8 sequences that were replaced."
+        ]
 
 
 class TestPathErrorExtras:

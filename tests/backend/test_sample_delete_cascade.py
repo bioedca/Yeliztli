@@ -238,7 +238,7 @@ class TestListMergedChildren:
         with caplog.at_level("WARNING"):
             children = list_merged_children(cascade_registry, s1)
         assert children == []
-        assert any(r.message == "merged_sample_db_missing" for r in caplog.records)
+        assert any(r.message == "A merged sample database is unavailable." for r in caplog.records)
 
     @pytest.mark.parametrize(
         "raw_source_ids",
@@ -269,7 +269,9 @@ class TestListMergedChildren:
         with caplog.at_level("WARNING"):
             children = list_merged_children(cascade_registry, s1)
         assert children == []
-        assert any(r.message == "merged_provenance_malformed" for r in caplog.records)
+        assert any(
+            r.message == "A merged sample has invalid source information." for r in caplog.records
+        )
 
 
 # ── delete_sample_with_cascade ───────────────────────────────────────
@@ -423,7 +425,7 @@ class TestDeleteSampleWithCascade:
     def test_returns_none_for_missing_sample(self, cascade_registry: DBRegistry) -> None:
         assert delete_sample_with_cascade(cascade_registry, 99999) is None
 
-    def test_cascade_logged_with_child_ids(
+    def test_cascade_returns_children_and_logs_a_single_disposition(
         self,
         cascade_registry: DBRegistry,
         caplog: pytest.LogCaptureFixture,
@@ -433,25 +435,27 @@ class TestDeleteSampleWithCascade:
         merged = _make_merged_child(cascade_registry, name="merged.txt", source_ids=[s1, s2])
 
         with caplog.at_level("INFO"):
-            delete_sample_with_cascade(cascade_registry, s1)
-        cascade_logs = [r for r in caplog.records if r.message == "sample_delete_cascade"]
+            result = delete_sample_with_cascade(cascade_registry, s1)
+        cascade_logs = [r for r in caplog.records if r.message == "Sample deletion completed."]
         assert len(cascade_logs) == 1
-        # structlog-style ``extra`` lands as attributes on the LogRecord.
-        record = cascade_logs[0]
-        assert record.deleted_sample_id == s1
-        assert record.deleted_merged_children == [{"id": merged, "name": "merged.txt"}]
+        assert result.deleted_sample_id == s1
+        assert [(child.id, child.name) for child in result.deleted_merged_children] == [
+            (merged, "merged.txt")
+        ]
+        assert not hasattr(cascade_logs[0], "deleted_merged_children")
 
-    def test_unmerged_delete_has_empty_cascade_in_log(
+    def test_unmerged_delete_returns_empty_cascade_and_same_diagnostic(
         self,
         cascade_registry: DBRegistry,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         sid = _make_source_sample(cascade_registry, name="alone.txt")
         with caplog.at_level("INFO"):
-            delete_sample_with_cascade(cascade_registry, sid)
-        cascade_logs = [r for r in caplog.records if r.message == "sample_delete_cascade"]
+            result = delete_sample_with_cascade(cascade_registry, sid)
+        cascade_logs = [r for r in caplog.records if r.message == "Sample deletion completed."]
         assert len(cascade_logs) == 1
-        assert cascade_logs[0].deleted_merged_children == []
+        assert result.deleted_merged_children == []
+        assert not hasattr(cascade_logs[0], "deleted_merged_children")
 
 
 # ── DELETE + preview routes ──────────────────────────────────────────
@@ -1023,11 +1027,11 @@ class TestMergeThenDeleteCascade:
         assert not merged_db.exists()
         assert s2_db.exists()
 
-        cascade_logs = [r for r in caplog.records if r.message == "sample_delete_cascade"]
+        cascade_logs = [r for r in caplog.records if r.message == "Sample deletion completed."]
         assert len(cascade_logs) == 1
         record = cascade_logs[0]
-        assert record.deleted_sample_id == s1_id
-        assert record.deleted_merged_children == [{"id": merged_id, "name": "Jane Doe (merged)"}]
+        assert not hasattr(record, "deleted_sample_id")
+        assert not hasattr(record, "deleted_merged_children")
 
     def test_delete_other_source_also_cascades(
         self, client, monkeypatch: pytest.MonkeyPatch
@@ -1141,14 +1145,11 @@ class TestMergeThenDeleteCascade:
         assert not loner_db.exists()
         assert merged_db.exists() and s1_db.exists() and s2_db.exists()
 
-        cascade_logs = [r for r in caplog.records if r.message == "sample_delete_cascade"]
+        cascade_logs = [r for r in caplog.records if r.message == "Sample deletion completed."]
         assert len(cascade_logs) == 1
         record = cascade_logs[0]
-        assert record.deleted_sample_id == loner_id
-        # Empty list locks the contract that the cascade walk fires its
-        # ``logger.info`` once per DELETE but lists zero children when the
-        # deleted row was never a merge source.
-        assert record.deleted_merged_children == []
+        assert not hasattr(record, "deleted_sample_id")
+        assert not hasattr(record, "deleted_merged_children")
 
     def test_merged_children_route_lists_real_merged_child(
         self, client, monkeypatch: pytest.MonkeyPatch
