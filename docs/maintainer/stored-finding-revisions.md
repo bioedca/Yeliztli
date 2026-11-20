@@ -1,14 +1,14 @@
 # Updating findings that were stored before a correction
 
-**Proposed decision for #2705.** A person reopening an old sample should see
-which analyses are current and how to recover an affected result. Use one
-shared eligibility check for stored findings. Permit a read-time wording
-update only when its applicability is provably unchanged. Withhold results
-whose interpretation can have changed and offer a scoped rerun.
+**Maintainer decision for #2705.** Update stored wording only when its
+applicability is proven unchanged. Withhold affected findings whose
+interpretation changed or cannot be verified until the user reruns the
+analysis. Keep independently unaffected findings visible. Apply the same
+eligibility decision to API reads, reports and exports.
 
 ## Which changes need which action?
 
-| Work item | Trigger | Proposed handling |
+| Work item | Trigger | Approved handling |
 | --- | --- | --- |
 | [#2304](https://github.com/bioedca/Yeliztli/issues/2304), corrected prescribing text | Corrected guidance for a persisted drug finding | The shipped CYP2C19/clopidogrel repair addresses the Intermediate and Poor Metabolizer records independently. Withhold both superseded recommendations until a scoped rerun. A separate wording-only correction may project approved wording and citations into the recommendation field and finding text when its complete key, phenotype, activity score, partner-gene and population applicability, severity and action still match. Keep original analysis provenance and record the presentation revision. A missing or ambiguous key goes to reanalysis. |
 | [#2454](https://github.com/bioedca/Yeliztli/issues/2454), changed CPIC interpretation or callable allele | Updated interpretation can change the call, caveat, action, membership or whether a result exists | Withhold affected PGx output and prompt once per affected sample and analysis, listing safe reasons. A schema migration's return value or the presence of an old finding cannot establish who was affected. Reconcile even on installs that already received the reference migration. |
@@ -109,51 +109,20 @@ processed row with mask zero and a processed row with verified VEP and
 pending CPIC. The `:null` view still identifies unannotated rows. Exclude
 a pending source from that source's positive and negative predicates only.
 
-Give each installed copy of a sample a fresh identity and a distinct
-physical database path on restore or replacement. An archive may preserve
-the original numeric ID, content hash, source path and creation time.
-Bind the new identity to its verified physical file in the registry. Bind
-writers, links, reminders and dismissals to that identity before comparing
-revisions. On replacement, atomically repoint the registry and retire the
-superseded copy. Refuse replacement while any active merged descendant
-depends on the original, including a dependency recorded only by numeric
-ID. Keep the source available for lineage, backup and recovery. Offer a
-side-by-side import with its own identity instead. Commit a replayable
-retirement notice for the old identity in that registry transaction.
-An open view of the retired copy clears its
-results and requires a fresh selection. Fence old operations, drain handles
-and dispose of its cached engines before retiring its storage. Never reuse
-a live or cached path for the replacement.
-On a side-by-side restore, the importer assigns a distinct ID and path on
-collision. Keep both copies active and fence writes by each copy's own
-identity. Issue the restore retry key before upload. Give each request
-private staging from its first byte. Seal the completed archive and use
-that immutable input for hashing, validation and publication. In one
-registry transaction, bind the retry key to the archive digest, target
-installation and reference publication ID, and reserve each copy's
-identity, numeric sample ID and destination path. Only the operation
-holding that reservation may publish. Allow one active publisher for the
-operation, including across restarts. An overlapping retry observes or
-waits for that publisher. A successor must exclude the predecessor before
-any file switch, registry commit or cleanup. Check the active ownership
-at the switch itself, holding the lock through durable recording of that
-step. A completed step is never republished over the live sample. A retry
-returns the durable outcome or resumes only unfinished work. Each request
-releases only its own staging. Enforce ID and path uniqueness in the
-registry across reserved and published copies. Every insertion into
-`samples` honors it, including ingest, sample merges and restore. A merge
-using a unique filename still needs its own numeric ID. Keep reserved
-copies unavailable until publication. Startup cleanup checks published
-bindings and unfinished restore reservations under the same ownership
-lock. Preserve reserved files during recovery. Verify their contents
-against the recorded step before completing registration. A retry reuses
-only its own reservations. An intentional second import gets a new operation ID, even
-for the same archive. Reject a retry whose archive or target has changed.
-Reconcile the imported copy
-when both stores agree on its identity. Within one copy, use an ordered,
-sample-local publication counter for conditional writes.
-The existing annotated-variants generation is a UUID equality token for a
-table swap. Never use it to order publications.
+After any restore, including a whole-directory copy or disk snapshot,
+withhold affected results until their sample identity, inputs and applicable
+corrections can be verified. Matching registry IDs, version labels or
+counters recovered from the same backup cannot establish that continuity.
+Work queued before the restore cannot establish that a result is current.
+Keep affected reads and writes withheld until the restored sample and its
+active inputs have been verified. Offer a fresh reanalysis under that
+identity and preserve independently verified results. The backup and restore
+design covers archive contents, publication, retries, replacement and cold
+recovery. [Design #2747](https://github.com/bioedca/Yeliztli/issues/2747)
+
+Within a verified sample copy, use an ordered, sample-local publication
+counter for conditional writes. The annotated-variants generation is a UUID
+that identifies a table swap. Compare it for equality.
 
 Bind producer completion and coverage contributions to the annotated-variants
 generation actually used. The full annotation path replaces that table
@@ -398,43 +367,10 @@ linked sample copies. Advance it with each membership change and notify
 each affected individual. Refresh membership before subscribing to sample
 summaries. Discard late counts and rows from an older membership revision.
 
-A reference publication can replace several files across many samples.
-Before changing any file, durably record one publication ID, the old and
-intended revision of **each** member (including absence), and an in-progress
-notice in the reference registry. Retain verified staged contents for the
-entire operation and the information and contents needed to restore the
-prior set. Serialize overlapping publications. Fence dependent reads and
-in-flight writes on every installed sample from the start of the operation.
-Clients already displaying those results follow the same notification rules.
-After a restart, check the complete installed set against the current
-intent. Finish a partial switch from verified staging, or restore the
-whole prior set when completion is impossible. For each SQLite switch or rollback,
-use the exclusive publication lease and checkpoint-or-refuse rule of
-`backend.db.standalone.publish_standalone`. Drain reference readers,
-including health probes, and preserve committed journal contents. If the
-destination cannot be checkpointed or its journals safely closed, leave
-the installed member intact and retry under the same operation. Keep results
-pending if neither complete set can be verified. Clear the shared fence
-only after verifying one complete set and durably recording its outcome
-and replayable notice. Reconcile each dependent sample by publication ID
-and copy identity. A retry cannot duplicate a notice, publish a score
-made from mixed revisions or clear an independent reason.
-Backup creation participates in the same protocol. Enumerate selected,
-published sample copies from the registry snapshot. Include each selected
-merged sample's verified source copies, following dependencies through
-earlier merges. If a required source cannot be authorized and verified,
-refuse the incomplete archive. Exclude reservations, retired copies and
-unregistered files. Capture the corresponding reference
-publication. Use committed database snapshots, including committed journal
-contents. Pin immutable revisions or hold read leases across capture.
-Record the publication, copy identities, generations and each archived
-member's digest in the manifest. If any selected input escapes the pinned
-snapshot, discard the incomplete archive and retry. On restore, verify
-the complete sample file set and each member digest against the manifest
-before publication. Reject extra sample files in the new format.
-Limit legacy sample inference to the
-supported legacy migration path. Keep results with missing provenance
-pending until their components and dependent samples are verified.
+When a reference update affects several inputs, keep dependent findings
+pending until one complete set of input revisions can be verified. On
+restart, apply the same check before displaying or republishing a result.
+An interrupted update cannot clear an independent correction reason.
 
 Revalidate on mount, navigation, focus and reconnect. While a view is open, a change
 notification invalidates its prior generation. If notifications disconnect,
@@ -689,30 +625,9 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   Race two publishers for the same central key in opposite generation order.
   The older one must neither replace nor retract the newer reminder, even
   after retry or when the newer reminder has already been dismissed.
-  Restore an older backup keeping the same registry metadata and a lower
-  local counter. Its new copy identity must permit a legitimate reminder
-  and reject late writes, reads and dismissals for the retired copy.
-  Warm the old sample's connection pool and keep a reader open across the
-  logical switch. Give the two copies different synthetic findings. A new
-  request must read only the replacement, and the retired handle must
-  never publish a result or return one for the replacement.
-  Keep a drug page open for the retired copy. It must clear its findings
-  and require a new selection, including after a missed notice and reconnect.
-  Separately import that backup alongside its original using the real
-  collision-handling path. Verify each registry entry opens its own
-  findings and links, accepts its own writes and maintains its own
-  reminders. The original open page keeps its verified selection. Clearing
-  a reason in one copy must leave the other intact.
-  Give the original a merged child with legacy source IDs. Refuse its
-  replacement and preserve the child's source and cascade preview. Import
-  alongside it and delete the new copy in the synthetic fixture. The
-  original and its child must survive. Take a backup while a retired
-  reader and a restore reservation exist. Verify the exact active set in
-  both the archive and the restored registry.
-  Restore a selected merged sample into an empty installation. Verify the
-  identities and contents of both sources, the child's remapped source
-  links and its cascade preview. A side-by-side import of a source must
-  never take the place of the original in those links.
+  Reopen an older restored sample whose saved registry fields match. Withhold
+  affected findings and reminders whose identity cannot be established.
+  Require verified unaffected results to retain their own eligibility.
 
 ### Panel wording, membership and rollback
 
@@ -804,12 +719,14 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   outstanding WAL frames. The gnomAD release label stays the same for both
   unchanged and changed inputs. Also exercise a score recorded with
   committed frequency updates still in the WAL. Checkpoint those pages and
-  close the last writer without changing the values. The proposed content
+  close the last writer without changing the values. The content
   revision must survive that shutdown. In the checkpoint fixture the main
   file holds 0.3 and only the WAL contains the committed 0.6. Scoring
   returns 84.63 before and after checkpoint. The existing file-and-WAL
   fingerprint conservatively reports stale on reopening. A separate strict
-  expected failure checks the proposed current state at 84.63. The numerical
+  expected failure checks the required current state at 84.63. Before any
+  replacement run, verify that the reopened scoring receipt contains the same
+  valid fingerprint that the first run recorded. The numerical
   check accepts either receipt state after the checkpoint. A genuine change to a
   committed frequency must invalidate the result in either journal mode.
   Require `snps_used_imputed > 0` for an imputed dosage. Separately, all dosages
@@ -830,9 +747,12 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   After a source frequency changes, a scorer-only rerun can declare the
   old copied frequency current. In the synthetic fixture this returned
   95.42, while fresh annotation followed by scoring returned 80.05 at
-  the same raw score. The repair must match fresh annotation and scoring.
-  Keep an unchanged-source control and inspect the stored annotation and
-  GET response after reopening. The current behavior is tracked in
+  the same raw score. Capture the scorer's persisted finding and completion
+  receipt before the fresh annotation replaces them. A second frequency change,
+  from 0.3 to 0.6, changes both the calibration mean and variance. Verify both
+  stored moments. In fresh processes, inspect the original copied frequency and
+  first GET before rerunning either analysis. Compare the changed source with
+  an unchanged control. The current behavior is tracked in
   [#2746](https://github.com/bioedca/Yeliztli/issues/2746). To reproduce the
   discrepancy from the repository root, run
   `python -m pytest tests/backend/test_prs_gnomad_routing.py -k scorer_only_bmi_repair --runxfail`.
@@ -848,53 +768,18 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   control. Require a new content revision and stale state only for changed
   inputs. Before manual repair, inspect the GET for the affected score.
   It must report reanalysis needed and omit the obsolete percentile. Make
-  that GET in a fresh process. The proposed withholding check is a strict
+  that GET in a fresh process. The withholding check is a strict
   expected failure while the first stale GET still returns 95.42 before
   the explicit rerun yields 84.63. The restart and scoring checks remain
-  independent of this proposed presentation change. Reopen
+  independent of when the application implements withholding. Reopen
   the Metabolic page and verify that no run starts on mount or refocus.
   Choose reanalysis, observe one run request, then compare the displayed
   recalibration with a fresh run and require the expected changed value.
   Also remove and restore the store and check its documented unavailable
   outcome and recovery.
-  Keep an existing sample open while importing another sample with a
-  replacement shared reference. Interrupt once before the file switch,
-  once after it and before registry completion, and once partway through
-  notifying dependent samples. Keep the existing view open through the
-  interruption and reconnection, then separately test a newly opened view.
-  Interrupt after the plan reserves its destinations. Before retry, ingest
-  a different sample and merge two synthetic samples. Both operations
-  must receive distinct unreserved IDs and paths and keep their contents.
-  Restart after switching a reserved sample file and before registering
-  its row. Startup cleanup must preserve the reserved file and remove a
-  separate, verified orphan from an abandoned merge. Recovery must verify the reserved
-  file and publish its sample exactly once. Also interrupt after
-  sample registration and before the reference switch. Retry the same
-  restore operation twice. It must reuse the reserved ID and path and
-  finish with one imported copy and one logical reference publication.
-  Initiate a second intentional import of the same fixture and require a distinct
-  copy without changing the first one's association.
-  Restore changed PGS weights and gnomAD frequencies together. Interrupt
-  between their file replacements and reopen an existing sample. Keep
-  its score pending throughout recovery. Exercise both completion and
-  rollback, comparing each with scoring against the corresponding complete
-  reference set. Hold a reference reader open with committed WAL contents.
-  Verify that a switch or rollback preserves the installed member and its
-  committed data until the reader drains. After release, retry and verify
-  the complete target set. An unrelated producer remains available.
-  Check two independent restore operations using different synthetic
-  archives. Each must publish exactly the contents identified by its own
-  digest and release only its own resources. During a same-key retry,
-  delay the first publisher and let a successor recover.
-  Write a new analysis to the published copy and then resume the older
-  attempt. The new result, copy identity and completed operation must
-  survive, with just one publication. Capture a backup across a reference
-  publication and restore it into an empty installation. The backup's
-  verified weights and frequencies must both come from a single published
-  set, and its recalculation must match that set's control.
-  Verify the content revision, one logical change per affected sample,
-  the absence of the old percentile while pending, and agreement with a
-  fresh run after repair. An unrelated sample keeps its current values.
+  Withhold affected scores after restore whenever their input revisions are
+  unverifiable. Verify an independent score stays visible. A successful rerun
+  on verified inputs clears only the corresponding correction.
 
 ### Browser caches, change notices and exports
 
@@ -1011,8 +896,7 @@ Use the actual scoring, persistence, upgrade and read paths with synthetic contr
   outside the affected scope. Both preflight and delivery must preserve
   only independently established eligibility before and after repair.
 
-This document records a proposal. The four linked implementation issues
-require a maintainer decision on the limited wording projection, default
-withholding and rerun behavior, and completion criteria above before they
-change stored or presented results. Record that decision with the proposal
-and link it from those issues.
+The maintainer approved the four correction decisions in the table. The
+implementation issues own their production changes and acceptance cases.
+The general backup and restore protocol is tracked separately in
+[design #2747](https://github.com/bioedca/Yeliztli/issues/2747).
