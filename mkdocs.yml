@@ -159,6 +159,7 @@ nav:
       - Greptile reviews: develop/greptile-reviews.md
   - Maintainer:
       - maintainer/index.md
+      - Evidence artifact policy proposal: maintainer/evidence-artifact-policy.md
       - DPYD coverage investigation: maintainer/dpyd-coverage-investigation.md
       - DPYD vendor export coverage: maintainer/dpyd-vendor-export-coverage.md
       - Bundle build & release: bundle-release-runbook.md
