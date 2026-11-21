@@ -1,0 +1,22 @@
+{
+  "accessed": "2026-11-19",
+  "consensus": {
+    "query": "The Ensembl Variant Effect Predictor McLaren human GRCh37 offline cache FASTA transcript consequences 2016",
+    "paper_fetched": "w:d455f2be-9578-4c87-bd38-530a984cb5fd",
+    "returned_count": 20,
+    "retained_result": [
+      {
+        "id": "w:d455f2be-9578-4c87-bd38-530a984cb5fd",
+        "title": "The Ensembl Variant Effect Predictor"
+      }
+    ]
+  },
+  "scite": {
+    "dois": [
+      "10.1186/s13059-016-0974-4"
+    ],
+    "returned": 1,
+    "title": "The Ensembl Variant Effect Predictor",
+    "editorialNotices_field_present": false
+  }
+}

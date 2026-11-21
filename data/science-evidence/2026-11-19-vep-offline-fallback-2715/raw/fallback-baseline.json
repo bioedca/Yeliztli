@@ -1,0 +1,206 @@
+{
+  "base_commit": "4e6788efa6c5a7e888a09cd3ee8aec3c4bf141ea",
+  "git_blob": "ec58414f860f16509e4b87c045aff353022df497",
+  "sha256": "1786b5bc1a6f5a0440239f40d5f5ac69d15ce213015a9cbf11affa05bbedfff0",
+  "size_bytes": 11374592,
+  "counts": {
+    "rows": 102254,
+    "distinct_rsids": 102254,
+    "single_base": 102254,
+    "single_base_ref_before_alt": 102254,
+    "coding_rows": 28147,
+    "protein_rows": 2742
+  },
+  "bundle_metadata": {
+    "build_date": "2026-04-03",
+    "ensembl_version": "112",
+    "schema_version": "1",
+    "variant_count": "102254"
+  },
+  "wheel": "yeliztli-0.2.0-py3-none-any.whl",
+  "wheel_members_named_vep_bundle_db": [],
+  "isolated_route": {
+    "status_stamp": null,
+    "effective_after_status": "v1.0.0",
+    "install_stamp": "v1.0.0",
+    "ancestrydna_ingest_blocked": true,
+    "bundle_transcript": "ENST00000311124",
+    "bundle_protein": "p.Arg27His",
+    "synthetic_controls": {
+      "heterozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "C",
+          "alt": "T",
+          "zygosity": "het",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [
+          "p.Arg27His"
+        ],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "C",
+              "alt": "T",
+              "format": "GT",
+              "gt": "0/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "C",
+              "alt": "T",
+              "format": "GT",
+              "gt": "0/1"
+            }
+          ]
+        }
+      },
+      "reference_homozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "C",
+          "alt": "T",
+          "zygosity": "hom_alt",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [
+          "p.Arg27His"
+        ],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "C",
+              "alt": "T",
+              "format": "GT",
+              "gt": "1/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "C",
+              "alt": "T",
+              "format": "GT",
+              "gt": "1/1"
+            }
+          ]
+        }
+      },
+      "clinvar_reference_homozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "T",
+          "alt": "C",
+          "zygosity": "hom_ref",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [],
+          "all_positions": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "T",
+              "alt": "C",
+              "format": "GT",
+              "gt": "0/0"
+            }
+          ]
+        }
+      },
+      "clinvar_heterozygous": {
+        "job_state": "complete",
+        "sample_annotation_stamp": "v1.0.0",
+        "stored_rows": 1,
+        "stored": {
+          "ref": "T",
+          "alt": "C",
+          "zygosity": "het",
+          "hgvs_protein": "p.Arg27His"
+        },
+        "primary_protein": "p.Arg27His",
+        "live_transcript_proteins": [],
+        "example_status": 200,
+        "absent_status": 404,
+        "exports": {
+          "carried": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "T",
+              "alt": "C",
+              "format": "GT",
+              "gt": "0/1"
+            }
+          ],
+          "all_positions": [
+            {
+              "chrom": "21",
+              "pos": 46957794,
+              "rsid": "rs1051266",
+              "ref": "T",
+              "alt": "C",
+              "format": "GT",
+              "gt": "0/1"
+            }
+          ]
+        }
+      }
+    },
+    "registry_stamp_after_workers": null,
+    "ancestrydna_gate_before_explicit_install": true
+  },
+  "wheel_member_count": 313,
+  "wheel_member_roots": [
+    "backend",
+    "yeliztli-0.2.0.dist-info"
+  ],
+  "wheel_frontend_dist_members": 0,
+  "installed_wheel_http": {
+    "package_loaded_from_isolated_target": true,
+    "get_root_status": 404,
+    "get_api_health_status": 200
+  },
+  "backup_preflight": {
+    "source": "synthetic sample SQLite with explicit annotation_state stamp",
+    "sample_version": "v1.0.0",
+    "archive_vep_members_tested": [
+      false,
+      true
+    ],
+    "structurally_valid": true,
+    "installed_v4.0.0": "bundle_version_mismatch (backup_below_installed)",
+    "installed_v1.0.0": "accepted by major-version comparison"
+  }
+}

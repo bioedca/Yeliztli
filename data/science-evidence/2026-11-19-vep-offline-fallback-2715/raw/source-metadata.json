@@ -1,0 +1,180 @@
+{
+  "ensembl_assembly": {
+    "request": "https://grch37.rest.ensembl.org/info/assembly/homo_sapiens?content-type=application/json",
+    "accessed": "2026-11-19",
+    "selected_fields": {
+      "assembly_name": "GRCh37.p13",
+      "assembly_accession": "GCA_000001405.14",
+      "default_coord_system_version": "GRCh37",
+      "assembly_date": "2009-02",
+      "genebuild_method": "full_genebuild"
+    }
+  },
+  "assembly-report": {
+    "request": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.25_GRCh37.p13/GCF_000001405.25_GRCh37.p13_assembly_report.txt",
+    "accessed": "2026-11-19",
+    "selected_header_lines": [
+      "# Assembly name:  GRCh37.p13",
+      "# Date:           2013-06-28",
+      "# Assembly type:  haploid-with-alt-loci",
+      "# Genome representation: full",
+      "# GenBank assembly accession: GCA_000001405.14",
+      "# RefSeq assembly accession: GCF_000001405.25"
+    ]
+  },
+  "cache-head": {
+    "request": "https://ftp.ensembl.org/pub/release-112/variation/vep/homo_sapiens_vep_112_GRCh37.tar.gz",
+    "method": "HEAD",
+    "accessed": "2026-11-19",
+    "status": 200,
+    "response_headers": {
+      "Content-Length": "16737197552",
+      "Last-Modified": "Wed, 03 Jan 2024 21:24:04 GMT"
+    }
+  },
+  "variation": {
+    "request": "https://ftp.ensembl.org/pub/release-112/mysql/homo_sapiens_variation_112_37/CHECKSUMS",
+    "accessed": "2026-11-19",
+    "selected_fields": {
+      "lines": [
+        "24718     4 seq_region.txt.gz",
+        "03946 27653627 variation_feature.txt.gz"
+      ]
+    }
+  },
+  "fasta": {
+    "request": "https://ftp.ensembl.org/pub/grch37/release-112/fasta/homo_sapiens/dna/CHECKSUMS",
+    "accessed": "2026-11-19",
+    "selected_fields": {
+      "lines": [
+        "42797 849535\tHomo_sapiens.GRCh37.dna.primary_assembly.fa.gz"
+      ]
+    }
+  },
+  "pubmed": {
+    "request": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=27268795&retmode=xml",
+    "accessed": "2026-11-19",
+    "selected_fields": {
+      "pmid": "27268795",
+      "title": "The Ensembl Variant Effect Predictor.",
+      "identifiers": [
+        [
+          "pubmed",
+          "27268795"
+        ],
+        [
+          "pmc",
+          "PMC4893825"
+        ],
+        [
+          "doi",
+          "10.1186/s13059-016-0974-4"
+        ],
+        [
+          "pii",
+          "10.1186/s13059-016-0974-4"
+        ]
+      ],
+      "publication_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "linked_notices": []
+    },
+    "sanitized_xml": "raw/pubmed-27268795-metadata.xml",
+    "efetch_response_sha256": "027b30fbc9ad838a0b1bb8cc168b371ee2edf450ae039ff92dea405c545ceb8c"
+  },
+  "crossref": {
+    "request": "https://api.crossref.org/works/10.1186/s13059-016-0974-4",
+    "accessed": "2026-11-19",
+    "selected_fields": {
+      "DOI": "10.1186/s13059-016-0974-4",
+      "title": [
+        "The Ensembl Variant Effect Predictor"
+      ],
+      "published": {
+        "date-parts": [
+          [
+            2016,
+            6,
+            6
+          ]
+        ]
+      },
+      "license": null,
+      "update-to": null,
+      "updated-by": null,
+      "relation": {
+        "has-preprint": [
+          {
+            "id-type": "doi",
+            "id": "10.1101/042374",
+            "asserted-by": "object"
+          }
+        ]
+      }
+    }
+  },
+  "grch37_sentinel": {
+    "/vep/human/region/21:46957794-46957794:1/C": {
+      "request": "https://grch37.rest.ensembl.org/vep/human/region/21:46957794-46957794:1/C?content-type=application%2Fjson&hgvs=1&transcript_version=1&canonical=1",
+      "accessed": "2026-11-19",
+      "selected_fields": {
+        "assembly_name": "GRCh37",
+        "seq_region_name": "21",
+        "start": 46957794,
+        "end": 46957794,
+        "strand": 1,
+        "allele_string": "T/C",
+        "transcript_consequences": [
+          {
+            "hgvsp": "ENSP00000308895.4:p.His27Arg",
+            "variant_allele": "C",
+            "strand": -1,
+            "canonical": 1,
+            "amino_acids": "H/R",
+            "transcript_id": "ENST00000311124.4",
+            "protein_end": 27,
+            "gene_id": "ENSG00000173638",
+            "cds_end": 80,
+            "hgvsc": "ENST00000311124.4:c.80A>G",
+            "cds_start": 80,
+            "protein_start": 27,
+            "consequence_terms": [
+              "missense_variant"
+            ]
+          }
+        ]
+      }
+    },
+    "/lookup/id/ENST00000311124": {
+      "request": "https://grch37.rest.ensembl.org/lookup/id/ENST00000311124?content-type=application%2Fjson",
+      "accessed": "2026-11-19",
+      "selected_fields": {
+        "id": "ENST00000311124",
+        "assembly_name": "GRCh37",
+        "Parent": "ENSG00000173638",
+        "start": 46933690,
+        "seq_region_name": "21",
+        "biotype": "protein_coding",
+        "end": 46962385,
+        "strand": -1,
+        "version": 4,
+        "display_name": "SLC19A1-001"
+      }
+    },
+    "/lookup/id/ENSG00000173638": {
+      "request": "https://grch37.rest.ensembl.org/lookup/id/ENSG00000173638?content-type=application%2Fjson",
+      "accessed": "2026-11-19",
+      "selected_fields": {
+        "id": "ENSG00000173638",
+        "display_name": "SLC19A1",
+        "version": 14,
+        "assembly_name": "GRCh37",
+        "object_type": "Gene",
+        "seq_region_name": "21",
+        "strand": -1
+      }
+    }
+  }
+}

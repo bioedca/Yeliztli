@@ -1,0 +1,93 @@
+{
+  "accessed": "2026-11-19",
+  "request": "https://api.github.com/repos/bioedca/Yeliztli/releases/tags/bundle-v4.0.0",
+  "selected_fields": {
+    "assets": [
+      {
+        "browser_download_url": "https://github.com/bioedca/Yeliztli/releases/download/bundle-v4.0.0/vep_bundle.db",
+        "digest": "sha256:c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+        "id": 463821245,
+        "name": "vep_bundle.db",
+        "size": 352251904
+      }
+    ],
+    "draft": false,
+    "html_url": "https://github.com/bioedca/Yeliztli/releases/tag/bundle-v4.0.0",
+    "published_at": "2026-07-02T02:18:24Z",
+    "tag_name": "bundle-v4.0.0"
+  },
+  "downloaded_sha256": "c8e5f162e1872ecd0ff94408c66ce0874b79dea5f4f645c758d2c45c3b6cc4d3",
+  "legacy_catalog_projection": {
+    "v4_sentinel": {
+      "chrom": "21",
+      "pos": 46957794,
+      "ref": "T",
+      "alt": "C",
+      "transcript_id": "ENST00000311124",
+      "gene_symbol": "SLC19A1",
+      "strand": "-",
+      "consequence": "missense_variant",
+      "hgvs_coding": "c.80A>G",
+      "hgvs_protein": "p.His27Arg"
+    },
+    "legacy_sites": 102254,
+    "sites_matching_rsid": 101959,
+    "sites_matching_rsid_and_position": 101958,
+    "sites_without_matching_rsid_and_position": 296,
+    "alternate_id_candidates_among_unmatched_sites": 10,
+    "unmatched_without_coordinate_and_allele_candidate": 286,
+    "sites_with_exact_unordered_allele_pair": 101958,
+    "release_rows_at_matching_sites": 169315,
+    "release_rows_with_protein_name": 4319,
+    "two_index_annotation_table_size_bytes": 19357696
+  },
+  "synthetic_rsid_lookup_at_two_positions": {
+    "rsid": "rs11431378",
+    "measurements": {
+      "legacy": {
+        "input": {
+          "chrom": "9",
+          "pos": 108274509,
+          "synthetic_genotype": "CT"
+        },
+        "lookup_vep_by_rsids": {
+          "matched_by": "rsid",
+          "allele_unambiguous": false,
+          "chrom": "9",
+          "pos": 108274510,
+          "ref": "T",
+          "alt": "C",
+          "hgvs_coding": "c.896-578T>C"
+        },
+        "engine_adapter": {
+          "allele_identity": null,
+          "gene_symbol": "FSD1L",
+          "consequence": "intron_variant",
+          "hgvs_coding": "c.896-578T>C"
+        }
+      },
+      "v4": {
+        "input": {
+          "chrom": "9",
+          "pos": 108274510,
+          "synthetic_genotype": "CT"
+        },
+        "lookup_vep_by_rsids": {
+          "matched_by": "rsid",
+          "allele_unambiguous": true,
+          "chrom": "9",
+          "pos": 108274510,
+          "ref": "T",
+          "alt": "C",
+          "hgvs_coding": "c.896-578T>C"
+        },
+        "engine_adapter": {
+          "allele_identity": "[\"9\",108274510,\"T\",\"C\"]",
+          "gene_symbol": "FSD1L",
+          "consequence": "intron_variant",
+          "hgvs_coding": "c.896-578T>C"
+        }
+      }
+    }
+  }
+}
