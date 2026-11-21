@@ -1,0 +1,12 @@
+{
+  "url": "https://monarch-app.monarchinitiative.org/Licensing/",
+  "response_bytes": 39981,
+  "sha256": "8dc21c802db1f6f86d37bc0e58d993f132a89c018909356c1198a626a883ac09",
+  "accessed": "2026-11-19",
+  "selection": "Literal excerpts of the project guidance, markup removed and whitespace collapsed.",
+  "verbatim_excerpts": [
+    "CC0 1.0 (Public Domain Dedication)",
+    "CC-BY 4.0 (Attribution)",
+    "take precedence over these general recommendations"
+  ]
+}

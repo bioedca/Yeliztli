@@ -1,0 +1,56 @@
+{
+  "accessed": "2026-11-19",
+  "tag_pointer": {
+    "tags": [
+      "hpo-v2025-09-01",
+      "hpo-v2025-10-22",
+      "hpo-v2025-11-24",
+      "hpo-v2026-01-08",
+      "hpo-v2026-02-16",
+      "hpo-v2026-06-06",
+      "hpo-v2026-06-23",
+      "hpo-v2026-09-01"
+    ],
+    "git_blob_sha1": "3e270f020f85b98c43b1e54951596bab3d27de9c",
+    "source": "https://raw.githubusercontent.com/obophenotype/human-phenotype-ontology/v2025-09-01/LICENSE.md",
+    "text": "Please read the license explanation at the [HPO website](https://hpo.jax.org/app/license)"
+  },
+  "linked_site": {
+    "url": "https://hpo.jax.org/app/license",
+    "http_status": 404,
+    "bytes": 60203,
+    "sha256": "bdebb7d653f4f0c3d35b1e495d47447808da901ff791d92c8fa4e15abdbfce9a"
+  },
+  "application_repo": "TheJacksonLaboratory/hpo-web",
+  "commit": "f0070d453072202e3bc095b9c540f90c14530bfe",
+  "components": [
+    {
+      "kind": "license",
+      "url": "https://raw.githubusercontent.com/TheJacksonLaboratory/hpo-web/f0070d453072202e3bc095b9c540f90c14530bfe/src/app/static/resources/license/license.component.html",
+      "git_blob_sha1": "1bd856d040a18400acf60b6725416735097563cd",
+      "sha256": "cdd288c39f224b07642e59c1b4cd3f81d9f4210cbd4dbf18428dd2749be6c8cd",
+      "bytes": 1764,
+      "excerpts": [
+        "acknowledged and cited properly.",
+        "include the date(s) and/or version number(s)",
+        "neither the content",
+        "nor the logical relationships",
+        "altered in any way"
+      ],
+      "linked_citation": "/citation"
+    },
+    {
+      "kind": "citation",
+      "url": "https://raw.githubusercontent.com/TheJacksonLaboratory/hpo-web/f0070d453072202e3bc095b9c540f90c14530bfe/src/app/static/resources/citation/citation.component.html",
+      "git_blob_sha1": "72e21a123af003a95bf3e740cd521eae25d2fec9",
+      "sha256": "a2c0bebde081e2d0947ca4d972854e78d3f5c70e031eb0458a8d30c23293d809",
+      "bytes": 2586,
+      "excerpts": [
+        "Please cite our most recent article",
+        "doi: 10.1093/nar/gkad1005.",
+        "PMID: 37953324"
+      ],
+      "linked_citation": "https://pubmed.ncbi.nlm.nih.gov/37953324/"
+    }
+  ]
+}

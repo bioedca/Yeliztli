@@ -1,0 +1,169 @@
+{
+  "accessed": "2026-11-19",
+  "consensus": {
+    "query": "Official versioned MONDO Disease Ontology and Human Phenotype Ontology phenotype.hpoa release annotations OMIM ORPHA identifiers cross-reference coverage disease namespace",
+    "results": [
+      {
+        "id": "w:86f8b7a5-d352-4758-a9ca-f1a67c645d1b",
+        "title": "Mondo: integrating disease terminology across communities"
+      },
+      {
+        "id": "w:8ff6a7c5-6947-4700-bc97-6c0f76dd7bfc",
+        "title": "The Human Phenotype Ontology in 2024: phenotypes around the world"
+      },
+      {
+        "id": "w:fd687ed3-ff95-4f98-b746-5d31c6018296",
+        "title": "The Human Phenotype Ontology project: linking molecular biology and disease through phenotype data"
+      },
+      {
+        "id": "w:244e05fd-94e2-43e1-8577-5a6fc432ad72",
+        "title": "Mondo: Unifying diseases for the world, by the world"
+      },
+      {
+        "id": "w:9039d8ab-009c-4426-bcc1-c562ca5c9724",
+        "title": "Expansion of the Human Phenotype Ontology (HPO) knowledge base and resources"
+      },
+      {
+        "id": "w:485babb4-069e-4044-87b1-a5a99258f920",
+        "title": "The Human Phenotype Ontology in 2021"
+      },
+      {
+        "id": "w:1b9eb1ec-e351-492e-8262-87e2e22ff666",
+        "title": "Dictionary of disease ontologies (DODO): a graph database to facilitate access and interaction with disease and phenotype ontologies"
+      },
+      {
+        "id": "w:cdf6aeff-5232-49ce-840e-85e7fc790fdc",
+        "title": "Disease Ontology 2015 update: an expanded and updated database of human diseases for linking biomedical knowledge through disease data"
+      },
+      {
+        "id": "w:376eba58-984a-4b65-9270-8b31ff5774e6",
+        "title": "The Human Phenotype Ontology: Semantic Unification of Common and Rare Disease"
+      },
+      {
+        "id": "w:40fdb160-3f3d-48dd-ab33-406a03cfb1cb",
+        "title": "The Human Phenotype Ontology in 2017"
+      },
+      {
+        "id": "w:6a98a708-9b0a-4653-ab52-8460eff8e151",
+        "title": "An annotation-overlap-flagged rare-disease gene-prioritisation benchmark and PMC index recipe"
+      },
+      {
+        "id": "w:d1cc6cd9-8363-4375-9ab5-5db51b2c084a",
+        "title": "Refining Human Phenotype Ontology (HPO) to enable better phenotype-genotype integration in systemic autoimmune rheumatic diseases"
+      },
+      {
+        "id": "w:102b38e1-9160-4b38-beda-105101a5836c",
+        "title": "The Orphanet Nomenclature and Classification of Rare Diseases for Improved Patient Recognition and Data Interoperability: Qualitative and Quantitative Analysis"
+      },
+      {
+        "id": "w:0f7e78da-a40f-467e-ab01-44f096409563",
+        "title": "Machine learning–based validation of Human Phenotype Ontology (HPO) terms for systemic autoinflammatory diseases using the Eurofever Registry: the ODINO project"
+      },
+      {
+        "id": "w:4c87daae-620f-483d-aa50-6c692193e0d4",
+        "title": "The Human Phenotype Ontology: A Tool for Annotating and Analyzing Human Hereditary Disease"
+      },
+      {
+        "id": "w:7ff8a68f-e9c3-438f-91ad-861ffe784778",
+        "title": "OMIM.org: leveraging knowledge across phenotype–gene relationships"
+      },
+      {
+        "id": "w:8f832244-a244-439e-a5a3-8edf4acf45ce",
+        "title": "Datenstandards für Seltene Erkrankungen"
+      },
+      {
+        "id": "w:eb0ce1cb-f11b-4285-81d8-ab9b9e034dc3",
+        "title": "The Monarch Initiative in 2024: an analytic platform integrating phenotypes, genes and diseases across species"
+      },
+      {
+        "id": "w:5e788a86-7acf-4c73-8f32-dffb58942260",
+        "title": "Disease Ontology: a backbone for disease semantic integration"
+      },
+      {
+        "id": "w:902273f1-dc35-42ee-963e-71588b49cb1a",
+        "title": "The Human Phenotype Ontology"
+      }
+    ],
+    "fetched": [
+      "w:86f8b7a5-d352-4758-a9ca-f1a67c645d1b",
+      "w:8ff6a7c5-6947-4700-bc97-6c0f76dd7bfc"
+    ]
+  },
+  "scite": {
+    "query": "(\"Mondo Disease Ontology\" OR \"Human Phenotype Ontology\") AND (\"Orphanet\" OR \"OMIM\")",
+    "total": 2977,
+    "offset": 0,
+    "limit": 10,
+    "hits": [
+      {
+        "doi": "10.1093/nar/gkaa1043",
+        "title": "The Human Phenotype Ontology in 2021"
+      },
+      {
+        "doi": "10.1111/j.1399-0004.2010.01436.x",
+        "title": "The Human Phenotype Ontology"
+      },
+      {
+        "doi": "10.1093/nar/gky1105",
+        "title": "Expansion of the Human Phenotype Ontology (HPO) knowledge base and resources"
+      },
+      {
+        "doi": "10.1093/nar/gkt1026",
+        "title": "The Human Phenotype Ontology project: linking molecular biology and disease through phenotype data"
+      },
+      {
+        "doi": "10.1101/2022.04.13.22273750",
+        "title": "Mondo: Unifying diseases for the world, by the world"
+      },
+      {
+        "doi": "10.1093/nar/gkab726",
+        "title": "MitoPhen database: a human phenotype ontology-based approach to identify mitochondrial DNA diseases"
+      },
+      {
+        "doi": "10.1002/humu.24341",
+        "title": "Advances in the development of PubCaseFinder, including the new application programming interface and matching algorithm"
+      },
+      {
+        "doi": "10.1038/s41597-023-01960-3",
+        "title": "Building a knowledge graph to enable precision medicine"
+      },
+      {
+        "doi": "10.1093/nar/gkw1039",
+        "title": "The Human Phenotype Ontology in 2017"
+      },
+      {
+        "doi": "10.1007/s00103-022-03591-2",
+        "title": "Datenstandards für Seltene Erkrankungen"
+      }
+    ],
+    "verification": {
+      "summary": {
+        "verified": 3,
+        "couldNotVerify": 0,
+        "withEditorialNotices": 0,
+        "withContrastingEvidence": 0,
+        "inPredatoryJournals": 0
+      },
+      "papers": [
+        {
+          "doi": "10.1093/genetics/iyaf215",
+          "status": "verified",
+          "title": "Mondo: integrating disease terminology across communities",
+          "year": 2025
+        },
+        {
+          "doi": "10.1093/nar/gkad1005",
+          "status": "verified",
+          "title": "The Human Phenotype Ontology in 2024: phenotypes around the world",
+          "year": 2023
+        },
+        {
+          "doi": "10.1093/nar/gkad1082",
+          "status": "verified",
+          "title": "The Monarch Initiative in 2024: an analytic platform integrating phenotypes, genes and diseases across species",
+          "year": 2023
+        }
+      ]
+    }
+  }
+}

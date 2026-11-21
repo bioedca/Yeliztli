@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Automated">
+      <PMID Version="1">41052288</PMID>
+      <Article PubModel="Print">
+        <ArticleTitle>Mondo: integrating disease terminology across communities.</ArticleTitle>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+          <PublicationType UI="D052060">Research Support, N.I.H., Intramural</PublicationType>
+          <PublicationType UI="D013486">Research Support, U.S. Gov't, Non-P.H.S.</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">41052288</ArticleId>
+        <ArticleId IdType="pmc">PMC13050200</ArticleId>
+        <ArticleId IdType="doi">10.1093/genetics/iyaf215</ArticleId>
+        <ArticleId IdType="pii">8276117</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Curated">
+      <PMID Version="1">38000386</PMID>
+      <Article PubModel="Print">
+        <ArticleTitle>The Monarch Initiative in 2024: an analytic platform integrating phenotypes, genes and diseases across species.</ArticleTitle>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">38000386</ArticleId>
+        <ArticleId IdType="pmc">PMC10767791</ArticleId>
+        <ArticleId IdType="doi">10.1093/nar/gkad1082</ArticleId>
+        <ArticleId IdType="pii">7449493</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation Status="MEDLINE" Owner="NLM" IndexingMethod="Automated">
+      <PMID Version="1">37953324</PMID>
+      <Article PubModel="Print">
+        <ArticleTitle>The Human Phenotype Ontology in 2024: phenotypes around the world.</ArticleTitle>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D052061">Research Support, N.I.H., Extramural</PublicationType>
+        </PublicationTypeList>
+      </Article>
+    </MedlineCitation>
+    <PubmedData>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">37953324</ArticleId>
+        <ArticleId IdType="pmc">PMC10767975</ArticleId>
+        <ArticleId IdType="doi">10.1093/nar/gkad1005</ArticleId>
+        <ArticleId IdType="pii">7416384</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+</PubmedArticleSet>
