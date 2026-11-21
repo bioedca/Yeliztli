@@ -1,0 +1,69 @@
+{
+  "date": "2026-11-19",
+  "queries": [
+    {
+      "service": "Consensus",
+      "query": "How are heterozygous and missing non-pseudoautosomal Y chromosome haplogroup-defining SNP array calls handled by published human Y lineages methods such as the 23andMe yHaplo algorithm? Distinguish PAR and chip/export formats from lineage inference.",
+      "screened": [
+        "Identifying Y-chromosome haplogroups in arbitrarily large samples of sequenced or genotyped men",
+        "yallHap: Modern Y-chromosome haplogroup inference with probabilistic scoring and ancient DNA support",
+        "ybyra: Y-chromosome haplogroup calling using a tree-based scoring method",
+        "Y-LineageTracker: a high-throughput analysis framework for Y-chromosomal next-generation sequencing data",
+        "Benchmarking of human Y-chromosomal haplogroup classifiers with whole-genome and whole-exome sequence data",
+        "The complete sequence of a human Y chromosome",
+        "AMY-tree: an algorithm to use whole genome SNP calling for Y chromosomal phylogenetic applications",
+        "Assembly of 43 human Y chromosomes reveals extensive complexity and variation",
+        "SNPtotree—Resolving the Phylogeny of SNPs on Non-Recombining DNA",
+        "YHP: Y-chromosome Haplogroup Predictor for predicting male lineages based on Y-STRs",
+        "YFitter: Maximum likelihood assignment of Y chromosome haplogroups from low-coverage sequence data",
+        "Testing the Ion AmpliSeq™ HID Y-SNP Research Panel v1 for performance and resolution in admixed South Americans of haplogroup Q",
+        "Population-scale Y chromosome assemblies reveal recurrent remodeling within constrained architectures",
+        "Origin and structural evolution of the complex genomic regions of human Y chromosome",
+        "CSYseq: The first Y-chromosome sequencing tool typing a large number of Y-SNPs and Y-STRs to unravel worldwide human population genetics",
+        "The Y-Chromosome Tree Bursts into Leaf: 13,000 High-Confidence SNPs Covering the Majority of Known Clades",
+        "Assessing High-density Y-SNP Panels for Paternal Haplogroup Assignment in Forensic Practice",
+        "Placing Ancient DNA Sequences into Reference Phylogenies",
+        "Editorial: Role of Y Chromosome in Molecular Anthropology, Forensics, and Genetic Genealogy",
+        "Simultaneous Analysis of Hundreds of Y-Chromosomal SNPs for High-Resolution Paternal Lineage Classification using Targeted Semiconductor Sequencing"
+      ],
+      "result": "yHaplo methods record retrieved. A classification method is not a manufacturer raw-export specification."
+    },
+    {
+      "service": "Scite",
+      "query": "Y chromosome haplogroup SNP array yHaplo heterozygous genotypes pseudoautosomal missing",
+      "records": [
+        "10.1101/2021.02.03.429542",
+        "10.1038/ejhg.2013.272",
+        "10.1371/journal.pcbi.1009628",
+        "10.1101/2023.09.06.556626",
+        "10.1016/j.ajhg.2025.08.012"
+      ],
+      "result": "Peng et al. retained for its site-level QC only. Imputation and population history records excluded."
+    },
+    {
+      "service": "Scite",
+      "query": "DOI 10.1038/ejhg.2013.272, heterozygous haploid loci excluded genotype quality",
+      "result": "Restricted search excerpts. Used publisher-deposited PMC full text for methods."
+    },
+    {
+      "service": "Scite",
+      "query": "Verify 10.1038/ejhg.2013.272, 10.1038/nature01722 and 10.1101/088716",
+      "result": "No editorial notices at retrieval. The contrasting citation surfaced for the 2003 human MSY paper concerned plant sex chromosomes. The yHaplo preprint does not define the supported download spellings."
+    },
+    {
+      "service": "PubMed",
+      "query": "(Y chromosome[Title] AND (haplogroup[Title] OR pseudoautosomal[Title]) AND (Poznik[Author] OR Skaletsky[Author] OR Mendez[Author] OR Hinch[Author]))",
+      "result": "Broad title query did not include all relevant records. Retrieved the reference paper directly by PMID."
+    },
+    {
+      "service": "PubMed",
+      "query": "10.1038/ejhg.2013.272[doi] then efetch 24281365 and 12815422",
+      "result": "Correction links and publication types are retained in raw/pubmed.json."
+    },
+    {
+      "service": "Manufacturer help and GRC",
+      "query": "23andMe Y single allele raw data, AncestryDNA Y 24 pseudoautosomal 25 allele columns, GRCh37.p13 assembly regions",
+      "result": "Direct, public manufacturer article API and GRC assembly region report. No individual exports accessed."
+    }
+  ]
+}

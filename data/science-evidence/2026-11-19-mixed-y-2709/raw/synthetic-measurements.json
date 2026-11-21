@@ -1,0 +1,277 @@
+{
+  "bundle": "1.1.30",
+  "build": "GRCh37",
+  "witnesses": [
+    {
+      "target": "R1b1a1a",
+      "node": "R1b1a1a",
+      "marker": "rs9786153",
+      "controls": {
+        "derived_single": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "derived_doubled": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "mixed": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "no_call": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "absent": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "issue_control_AA": [
+          "R1b1a",
+          19,
+          19,
+          1.0
+        ],
+        "issue_mixed_AC": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ]
+      }
+    },
+    {
+      "target": "R1b1a1a",
+      "node": "R1b1a",
+      "marker": "rs7893073",
+      "controls": {
+        "derived_single": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "derived_doubled": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "R1b1",
+          17,
+          17,
+          1.0
+        ],
+        "mixed": [
+          "R1b1a1a",
+          20,
+          20,
+          1.0
+        ],
+        "no_call": [
+          "R1b1a1a",
+          19,
+          20,
+          0.95
+        ],
+        "absent": [
+          "R1b1a1a",
+          19,
+          20,
+          0.95
+        ]
+      }
+    },
+    {
+      "target": "B2",
+      "node": "B",
+      "marker": "rs2032599",
+      "controls": {
+        "derived_single": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "derived_doubled": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "ancestral_doubled": [
+          "Y-Adam",
+          0,
+          0,
+          0.0
+        ],
+        "mixed": [
+          "B2",
+          3,
+          3,
+          1.0
+        ],
+        "no_call": [
+          "B2",
+          2,
+          3,
+          0.6667
+        ],
+        "absent": [
+          "B2",
+          2,
+          3,
+          0.6667
+        ],
+        "mixed_without_derived": [
+          "Y-Adam",
+          0,
+          0,
+          0.0
+        ]
+      }
+    }
+  ],
+  "parser_controls": {
+    "23andMe v3 Y CT": [
+      "synthetic_build36_marker",
+      "Y",
+      7000000,
+      "CT"
+    ],
+    "23andMe v3 Y C": [
+      "synthetic_build36_marker",
+      "Y",
+      7000000,
+      "C"
+    ],
+    "23andMe v3 Y CC": [
+      "synthetic_build36_marker",
+      "Y",
+      7000000,
+      "CC"
+    ],
+    "23andMe v3 Y --": [
+      "synthetic_build36_marker",
+      "Y",
+      7000000,
+      "--"
+    ],
+    "23andMe v4 Y CT": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CT"
+    ],
+    "23andMe v4 Y C": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "C"
+    ],
+    "23andMe v4 Y CC": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CC"
+    ],
+    "23andMe v4 Y --": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "--"
+    ],
+    "23andMe v5 Y CT": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CT"
+    ],
+    "23andMe v5 Y C": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "C"
+    ],
+    "23andMe v5 Y CC": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CC"
+    ],
+    "23andMe v5 Y --": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "--"
+    ],
+    "AncestryDNA 24 C/T": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CT"
+    ],
+    "AncestryDNA 25 C/T": [
+      "rs9786153",
+      "X",
+      22739367,
+      "CT"
+    ],
+    "AncestryDNA 24 C/C": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "CC"
+    ],
+    "AncestryDNA 24 C/0": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "--"
+    ],
+    "AncestryDNA 24 0/0": [
+      "rs9786153",
+      "Y",
+      22739367,
+      "--"
+    ]
+  },
+  "same_id_other_locus": {
+    "X:22739367": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ],
+    "Y:20000": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ],
+    "Y:22739368": [
+      "R1b1a1a",
+      20,
+      20,
+      1.0
+    ]
+  }
+}

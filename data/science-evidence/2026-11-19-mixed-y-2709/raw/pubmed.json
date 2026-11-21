@@ -1,0 +1,42 @@
+[
+  {
+    "query": "efetch db=pubmed&id=12815422&retmode=xml",
+    "accessed": "2026-11-19",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/12815422/",
+    "pmid": "12815422",
+    "title": "The male-specific region of the human Y chromosome is a mosaic of discrete sequence classes.",
+    "doi": "10.1038/nature01722",
+    "publication_types": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't",
+      "Research Support, U.S. Gov't, P.H.S."
+    ],
+    "linked_updates": [
+      {
+        "type": "CommentIn",
+        "pmid": "12815408"
+      }
+    ],
+    "rights": "Bibliographic metadata only. No abstract, sequence, individual sample data or full text retained."
+  },
+  {
+    "query": "efetch db=pubmed&id=24281365&retmode=xml",
+    "accessed": "2026-11-19",
+    "url": "https://pubmed.ncbi.nlm.nih.gov/24281365/",
+    "pmid": "24281365",
+    "title": "Retrieving Y chromosomal haplogroup trees using GWAS data.",
+    "doi": "10.1038/ejhg.2013.272",
+    "publication_types": [
+      "Journal Article",
+      "Research Support, Non-U.S. Gov't"
+    ],
+    "linked_updates": [],
+    "primary_methods_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4350590/",
+    "section": "Materials and methods, Data filtering",
+    "population_size": 117,
+    "array": "HumanOmniZhongHua-8",
+    "method_excerpt": "Y-SNPs with heterozygous alleles",
+    "scope": "Site-level QC excluded sites with heterozygous calls. No single-customer export rule or probability calibration.",
+    "rights": "Bibliographic facts and one short methodological excerpt. Full text not redistributed."
+  }
+]
