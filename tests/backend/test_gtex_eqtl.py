@@ -8,6 +8,7 @@ the context-only badge (never ACMG evidence).
 from __future__ import annotations
 
 import gzip
+import os
 import tarfile
 from pathlib import Path
 
@@ -29,7 +30,17 @@ from backend.annotation.gtex_eqtl import (
     lookup_gene_names,
     parse_variant_id,
 )
-from backend.db.tables import database_versions, reference_metadata
+from backend.config import Settings
+from backend.db.connection import DBRegistry
+from backend.db.database_registry import DATABASES
+from backend.db.tables import database_versions, jobs, reference_metadata, samples
+from backend.db.update_manager import get_active_prompts
+from backend.services.reference_versions import read_current_reference_snapshot
+from backend.services.staleness import (
+    find_stale_reference_versions,
+    read_current_reference_versions,
+    read_recorded_reference_versions,
+)
 
 # GTEx WGS lookup table (variant_id → rsID). Last variant has no rsID ('.').
 _LOOKUP = (
@@ -185,7 +196,9 @@ class TestRegulatoryContext:
         assert ctx["top_gene_symbol"] == "GENEA"
 
 
-def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
+def _make_eqtl_tar(
+    tmp_path: Path, tissue_to_signif: dict[str, str], *, egenes: str = _EGENES
+) -> Path:
     """Build a synthetic ``GTEx_Analysis_v8_eQTL.tar`` with per-tissue signif files."""
     raw = tmp_path / "tar_src"
     raw.mkdir(exist_ok=True)
@@ -197,13 +210,177 @@ def _make_eqtl_tar(tmp_path: Path, tissue_to_signif: dict[str, str]) -> Path:
         members.append(f)
         g = raw / f"{tissue}.v8.egenes.txt.gz"
         with gzip.open(g, "wt", encoding="utf-8") as fh:
-            fh.write(_EGENES)
+            fh.write(egenes)
         members.append(g)
     tar_path = tmp_path / "GTEx_Analysis_v8_eQTL.tar"
     with tarfile.open(tar_path, "w") as tf:
         for f in members:
             tf.add(f, arcname=f"GTEx_Analysis_v8_eQTL/{f.name}")
     return tar_path
+
+
+def _create_legacy_gtex_table(engine: sa.Engine) -> None:
+    # Fixed pre-#2425 schema and indexes at ff034676; keep independent of current metadata.
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE TABLE gtex_eqtl (id INTEGER NOT NULL PRIMARY KEY, rsid TEXT NOT NULL, "
+            "gene_id TEXT NOT NULL, tissue TEXT NOT NULL, chrom TEXT, pos INTEGER, "
+            "pval_nominal FLOAT, slope FLOAT)"
+        )
+        conn.exec_driver_sql("CREATE INDEX idx_gtex_eqtl_rsid ON gtex_eqtl (rsid)")
+        conn.exec_driver_sql("CREATE INDEX idx_gtex_eqtl_gene ON gtex_eqtl (gene_id)")
+
+
+@pytest.mark.parametrize(
+    ("installed_version", "worker"),
+    [("v8", "update"), (None, "update"), (None, "setup")],
+    ids=["stamped-update", "unstamped-update", "unstamped-setup"],
+)
+@pytest.mark.parametrize("recorded_version", ["v8", None], ids=["recorded-v8", "unrecorded"])
+def test_legacy_gene_name_rebuild_preserves_sample_reference_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    installed_version: str | None,
+    recorded_version: str | None,
+    worker: str,
+) -> None:
+    settings = Settings(data_dir=tmp_path)
+    registry = DBRegistry(settings)
+    settings.samples_dir.mkdir(parents=True, exist_ok=True)
+    relative_path = "samples/sample_1.db"
+    sample = sa.create_engine(f"sqlite:///{tmp_path / relative_path}")
+    try:
+        installed = registry.gtex_eqtl_engine
+        ref = registry.reference_engine
+        reference_metadata.create_all(ref)
+        lookup = _write(tmp_path, "lookup.txt", _LOOKUP)
+        # Seed the legacy association values independently of the loader under test.
+        columns = ("rsid", "gene_id", "tissue", "chrom", "pos", "pval_nominal", "slope")
+        historical = [
+            ("rs2222", "ENSG002.1", "Liver", "2", 100, 3e-8, -0.22),
+            ("rs769952832", "ENSG001.4", "Liver", "1", 64764, 1e-12, 0.45),
+        ]
+        _create_legacy_gtex_table(installed)
+        with installed.begin() as conn:
+            conn.exec_driver_sql(
+                "INSERT INTO gtex_eqtl (rsid, gene_id, tissue, chrom, pos, pval_nominal, slope) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                historical,
+            )
+
+        def associations() -> list[tuple]:
+            with installed.connect() as conn:
+                assert conn.scalar(sa.select(sa.func.count()).select_from(gtex_eqtl)) == len(
+                    historical
+                )
+            rows = lookup_eqtls_by_rsids(["rs2222", "rs769952832"], installed)
+            return sorted(
+                tuple(row[col] for col in columns) for hits in rows.values() for row in hits
+            )
+
+        installed_versions = {"vep_bundle": "v1.0.0"}
+        if installed_version:
+            gtex_mod.record_gtex_eqtl_version(ref, version=installed_version)
+            installed_versions["gtex_eqtl"] = installed_version
+
+        # The historical sample payload is independent of the current installation stamp.
+        snapshot = {"vep_bundle": "v1.0.0"}
+        payload = '{"vep_bundle":"v1.0.0"}'
+        if recorded_version is not None:
+            snapshot["gtex_eqtl"] = recorded_version
+            payload = '{"gtex_eqtl":"v8","vep_bundle":"v1.0.0"}'
+        with ref.begin() as conn:
+            conn.execute(
+                samples.insert().values(
+                    id=1,
+                    name="synthetic",
+                    db_path=relative_path,
+                    file_format="23andme_v5",
+                    file_hash="synthetic",
+                )
+            )
+        with sample.begin() as conn:
+            conn.exec_driver_sql(
+                "CREATE TABLE annotation_state (key TEXT NOT NULL PRIMARY KEY, "
+                "value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)"
+            )
+            conn.exec_driver_sql(
+                "INSERT INTO annotation_state (key, value) VALUES (?, ?)",
+                ("reference_versions_json", payload),
+            )
+        assert read_recorded_reference_versions(sample) == snapshot
+        assert read_current_reference_versions(ref) == installed_versions
+        assert associations() == historical
+        assert lookup_gene_names(["ENSG001.4", "ENSG002.1"], installed) == {}
+        changes = (
+            [{"db_name": "gtex_eqtl", "recorded_version": None, "current_version": "v8"}]
+            if recorded_version is None
+            else []
+        )
+        assert find_stale_reference_versions(sample, ref) == (changes if installed_version else [])
+        assert get_active_prompts(ref) == []
+
+        pairs = _SIGNIF.replace("ENSG001\t", "ENSG001.4\t").replace("ENSG002\t", "ENSG002.1\t")
+        names = "gene_id\tgene_name\nENSG001.4\tGENEA\nENSG002.1\tGENEB\n"
+        archive = _make_eqtl_tar(tmp_path, {"Liver": pairs}, egenes=names)
+        monkeypatch.setattr(
+            gtex_mod, "_download_gtex_inputs", lambda *_a, **_kw: (archive, lookup)
+        )
+        monkeypatch.setattr("backend.db.connection._registry", registry)
+        before_build = settings.gtex_eqtl_db_path.stat()
+        if worker == "update":
+            from backend.tasks.huey_tasks import (
+                create_database_update_job,
+                run_database_update_task,
+            )
+
+            job_id = create_database_update_job("gtex_eqtl")
+            run_database_update_task.call_local(job_id, "gtex_eqtl")
+        else:
+            from backend.api.routes.databases import _create_job_record, _run_build
+
+            job_id = "synthetic-setup-build"
+            _create_job_record(ref, job_id, "gtex_eqtl")
+            _run_build(
+                db_info=DATABASES["gtex_eqtl"], job_id=job_id, engine=ref, settings=settings
+            )
+        with ref.connect() as conn:
+            job = conn.execute(sa.select(jobs).where(jobs.c.job_id == job_id)).one()
+            assert job.status == "complete", job.error
+        assert not os.path.samestat(before_build, settings.gtex_eqtl_db_path.stat())
+
+        assert associations() == historical
+        assert lookup_gene_names(["ENSG001.4"], installed) == {"ENSG001.4": "GENEA"}
+        assert lookup_gene_names(["ENSG002.1"], installed) == {"ENSG002.1": "GENEB"}
+        assert lookup_gene_names(["ENSG001.5", "ENSG002", "ENSG999"], installed) == {}
+        assert read_current_reference_versions(ref) == {"gtex_eqtl": "v8", "vep_bundle": "v1.0.0"}
+        assert read_current_reference_snapshot(ref)["gtex_eqtl"] == {
+            "version": "v8",
+            "genome_build": "GRCh37",
+        }
+        assert read_recorded_reference_versions(sample) == snapshot
+        assert find_stale_reference_versions(sample, ref) == changes
+        prompts = get_active_prompts(ref)
+        if changes and worker == "update":
+            assert len(prompts) == 1
+            assert prompts[0]["sample_id"] == 1
+            assert prompts[0]["prompt_type"] == "version_staleness"
+            assert prompts[0]["stale_databases"] == changes
+        else:
+            assert prompts == []
+
+        # A changed source identity must still produce the normal re-annotation signal.
+        gtex_mod.record_gtex_eqtl_version(ref, version="synthetic-other-release")
+        assert find_stale_reference_versions(sample, ref) == [
+            {
+                "db_name": "gtex_eqtl",
+                "recorded_version": recorded_version,
+                "current_version": "synthetic-other-release",
+            }
+        ]
+    finally:
+        sample.dispose()
+        registry.dispose_all()
 
 
 class TestLoadDir:
@@ -321,12 +498,7 @@ class TestGeneNames:
 
     def test_db_built_before_gene_names_returns_none(self, tmp_path: Path) -> None:
         engine = _engine(tmp_path)
-        with engine.begin() as conn:
-            conn.exec_driver_sql(
-                "CREATE TABLE gtex_eqtl (id INTEGER PRIMARY KEY, rsid TEXT NOT NULL, "
-                "gene_id TEXT NOT NULL, tissue TEXT NOT NULL, chrom TEXT, pos INTEGER, "
-                "pval_nominal FLOAT, slope FLOAT)"
-            )
+        _create_legacy_gtex_table(engine)
         assert lookup_gene_names(["ENSG001"], engine) == {}
 
 
